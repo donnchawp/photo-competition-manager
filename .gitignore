@@ -1,0 +1,10 @@
+/vendor/
+/node_modules/
+/assets/node_modules/
+/assets/build/
+/composer.lock
+/package-lock.json
+/yarn.lock
+/wp-env.json
+/.wp-env
+/*.log
