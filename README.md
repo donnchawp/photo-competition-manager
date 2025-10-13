@@ -13,6 +13,7 @@ WordPress plugin that helps photography clubs run recurring competitions, collec
 - Execute JavaScript tests via `npm run test:js` inside `assets/`.
 - Update `clubcompete_prd.md` when product requirements shift to keep specs aligned with implementation.
 - The WordPress dashboard exposes a Competitions overview (with quick create/edit/archive flows) and a Members list sourced from custom tables; verify these pages after activating the plugin.
+- The admin Submissions view lets you filter uploads by competition and member to audit entries quickly.
 
 ## Contributor Resources
 - Follow the detailed contributor guide in `AGENTS.md` for coding style, directory layout, and pull request expectations.

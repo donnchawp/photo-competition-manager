@@ -41,7 +41,7 @@ class ImagesRepository extends AbstractRepository {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$sql = sprintf(
-			'SELECT * FROM %s WHERE %s ORDER BY category, random_number',
+			' SELECT * FROM %s WHERE %s ORDER BY category, random_number',
 			$this->table(),
 			$where
 		);

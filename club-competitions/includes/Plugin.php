@@ -10,6 +10,7 @@ namespace ClubCompetitions;
 use ClubCompetitions\Admin\AdminScreen;
 use ClubCompetitions\Frontend\Frontend;
 use ClubCompetitions\Repository\CompetitionsRepository;
+use ClubCompetitions\Repository\ImagesRepository;
 use ClubCompetitions\Repository\MembersRepository;
 
 class Plugin {
@@ -50,6 +51,13 @@ class Plugin {
 	private $members;
 
 	/**
+	 * Images repository.
+	 *
+	 * @var ImagesRepository
+	 */
+	private $images;
+
+	/**
 	 * Access the singleton instance.
 	 *
 	 * @return Plugin
@@ -70,7 +78,8 @@ class Plugin {
 	public function register(): void {
 		$this->competitions = new CompetitionsRepository();
 		$this->members      = new MembersRepository();
-		$this->admin        = new AdminScreen( $this->competitions, $this->members );
+		$this->images       = new ImagesRepository();
+		$this->admin        = new AdminScreen( $this->competitions, $this->members, $this->images );
 		$this->frontend     = new Frontend();
 
 		add_action( 'plugins_loaded', array( $this, 'bootstrap' ) );

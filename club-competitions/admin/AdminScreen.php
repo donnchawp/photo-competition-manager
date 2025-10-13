@@ -8,6 +8,7 @@
 namespace ClubCompetitions\Admin;
 
 use ClubCompetitions\Repository\CompetitionsRepository;
+use ClubCompetitions\Repository\ImagesRepository;
 use ClubCompetitions\Repository\MembersRepository;
 use ClubCompetitions\Support\CompetitionSettings;
 
@@ -28,14 +29,23 @@ class AdminScreen {
 	private $members;
 
 	/**
+	 * Images repository.
+	 *
+	 * @var ImagesRepository
+	 */
+	private $images;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param CompetitionsRepository|null $competitions Competition repository.
 	 * @param MembersRepository|null      $members      Member repository.
+	 * @param ImagesRepository|null       $images       Images repository.
 	 */
-	public function __construct( ?CompetitionsRepository $competitions = null, ?MembersRepository $members = null ) {
+	public function __construct( ?CompetitionsRepository $competitions = null, ?MembersRepository $members = null, ?ImagesRepository $images = null ) {
 		$this->competitions = $competitions ?: new CompetitionsRepository();
 		$this->members      = $members ?: new MembersRepository();
+		$this->images       = $images ?: new ImagesRepository();
 	}
 
 	/**
@@ -70,6 +80,15 @@ class AdminScreen {
 			'manage_options',
 			'club-competitions-members',
 			array( $this, 'render_members_page' )
+		);
+
+		add_submenu_page(
+			'club-competitions',
+			__( 'Submissions', 'club-competitions' ),
+			__( 'Submissions', 'club-competitions' ),
+			'manage_options',
+			'club-competitions-submissions',
+			array( $this, 'render_submissions_page' )
 		);
 
 		add_submenu_page(
@@ -174,6 +193,152 @@ class AdminScreen {
 			echo '<td>' . esc_html( $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' ) ) . '</td>';
 			echo '<td>' . esc_html( $member->created_at ) . '</td>';
 			echo '<td><a href="' . $edit_link . '">' . esc_html__( 'Edit', 'club-competitions' ) . '</a></td>';
+			echo '</tr>';
+		}
+
+		echo '</tbody>';
+		echo '</table>';
+		echo '</div>';
+	}
+
+	/**
+	 * Render submissions viewer.
+	 *
+	 * @return void
+	 */
+	public function render_submissions_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
+		}
+
+		settings_errors( 'club_competitions_submissions' );
+
+		$competitions = $this->competitions->all( 200, true );
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Submissions', 'club-competitions' ) . '</h1>';
+
+		static $styles_output = false;
+		if ( ! $styles_output ) {
+			echo '<style id="club-competitions-submissions-css">.club-competitions-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .club-competitions-thumbnail{width:140px;}</style>';
+			$styles_output = true;
+		}
+
+		if ( empty( $competitions ) ) {
+			echo '<p>' . esc_html__( 'No competitions available yet. Create a competition first.', 'club-competitions' ) . '</p>';
+			echo '</div>';
+			return;
+		}
+
+		$competition_lookup = array();
+		foreach ( $competitions as $competition ) {
+			$competition_lookup[ (int) $competition->id ] = $competition;
+		}
+
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0;
+		if ( ! $competition_id || ! isset( $competition_lookup[ $competition_id ] ) ) {
+			$first                = reset( $competitions );
+			$competition_id = $first ? (int) $first->id : 0;
+		}
+
+		$member_id = isset( $_GET['member_id'] ) ? absint( wp_unslash( $_GET['member_id'] ) ) : 0;
+
+		$members     = $this->members->all( false );
+		$member_map  = array();
+		foreach ( $members as $member ) {
+			$member_map[ (int) $member->id ] = $member;
+		}
+
+		$submissions = array();
+		if ( $competition_id ) {
+			$submissions = $this->images->find_by_competition( $competition_id, null, $member_id ?: null );
+		}
+
+		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
+
+		echo '<form method="get" class="club-competitions-filters">';
+		echo '<input type="hidden" name="page" value="club-competitions-submissions" />';
+		echo '<label for="competition_id" class="screen-reader-text">' . esc_html__( 'Competition', 'club-competitions' ) . '</label>';
+		echo '<select name="competition_id" id="competition_id">';
+		foreach ( $competitions as $competition ) {
+			$label = $competition->title;
+			if ( ! empty( $competition->deleted_at ) || 'archived' === $competition->status ) {
+				$label .= ' ' . esc_html__( '(Archived)', 'club-competitions' );
+			}
+
+			printf(
+				'<option value="%1$d" %3$s>%2$s</option>',
+				(int) $competition->id,
+				esc_html( $label ),
+				selected( $competition_id, $competition->id, false )
+			);
+		}
+		echo '</select> ';
+
+		echo '<label for="member_id" class="screen-reader-text">' . esc_html__( 'Member', 'club-competitions' ) . '</label>';
+		echo '<select name="member_id" id="member_id">';
+		echo '<option value="0">' . esc_html__( 'All Members', 'club-competitions' ) . '</option>';
+		foreach ( $members as $member ) {
+			printf(
+				'<option value="%1$d" %3$s>%2$s</option>',
+				(int) $member->id,
+				esc_html( $member->name ),
+				selected( $member_id, $member->id, false )
+			);
+		}
+		echo '</select> ';
+
+		echo '<button type="submit" class="button">' . esc_html__( 'Filter', 'club-competitions' ) . '</button>';
+		echo '</form>';
+
+		if ( $selected_competition ) {
+			printf(
+				'<h2>%s</h2>',
+				esc_html( $selected_competition->title )
+			);
+		}
+
+		if ( empty( $submissions ) ) {
+			echo '<p>' . esc_html__( 'No submissions found for the selected filters.', 'club-competitions' ) . '</p>';
+			echo '</div>';
+			return;
+		}
+
+		echo '<table class="widefat striped">';
+		echo '<thead><tr>';
+		echo '<th>' . esc_html__( 'Member', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Category', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Image', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Filename', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Random #', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Score', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Submitted', 'club-competitions' ) . '</th>';
+		echo '</tr></thead>';
+		echo '<tbody>';
+
+		foreach ( $submissions as $submission ) {
+			$member_name = isset( $member_map[ $submission->member_id ] )
+				? $member_map[ $submission->member_id ]->name
+				: sprintf( __( 'Member #%d', 'club-competitions' ), (int) $submission->member_id );
+
+			$current_competition = $selected_competition ?: ( $competition_lookup[ $submission->competition_id ] ?? null );
+			$urls                = $this->get_submission_urls( $current_competition, $submission );
+			$thumb_url           = $urls['thumb'] ?: $urls['full'];
+
+			echo '<tr>';
+			echo '<td>' . esc_html( $member_name ) . '</td>';
+			echo '<td>' . esc_html( $submission->category ) . '</td>';
+			if ( $urls['full'] ) {
+				echo '<td class="club-competitions-thumbnail"><a href="' . esc_url( $urls['full'] ) . '" target="_blank" rel="noopener noreferrer">';
+				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $submission->filename ) . '" width="120" height="120" loading="lazy" />';
+				echo '</a></td>';
+			} else {
+				echo '<td>' . esc_html__( 'Unavailable', 'club-competitions' ) . '</td>';
+			}
+			echo '<td>' . esc_html( $submission->filename ) . '</td>';
+			echo '<td>' . esc_html( (string) $submission->random_number ) . '</td>';
+			echo '<td>' . esc_html( null === $submission->score ? '—' : (string) $submission->score ) . '</td>';
+			echo '<td>' . esc_html( $this->format_datetime( $submission->created_at ) ) . '</td>';
 			echo '</tr>';
 		}
 
@@ -756,9 +921,7 @@ class AdminScreen {
 		echo '</select>';
 		echo '</p>';
 
-		echo '<p>';
 		$label_format = $this->get_ui_date_label();
-
 		echo '<p>';
 		echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'club-competitions' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
 		echo '<input type="date" id="competition_open_date" name="competition_open_date" value="' . esc_attr( $this->format_date_for_input( $competition->open_date ) ) . '" />';
@@ -1114,46 +1277,6 @@ class AdminScreen {
 		echo '</table>';
 	}
 	/**
-	 * Format stored datetime for date input.
-	 *
-	 * @param string|null $datetime Stored datetime.
-	 * @return string
-	 */
-	private function format_date_for_input( ?string $datetime ): string {
-		if ( empty( $datetime ) ) {
-			return '';
-		}
-
-		$timestamp = strtotime( $datetime );
-
-		if ( false === $timestamp ) {
-			return '';
-		}
-
-		return gmdate( 'Y-m-d', $timestamp );
-	}
-
-	/**
-	 * Format short date display.
-	 *
-	 * @param string|null $datetime Value.
-	 * @return string
-	 */
-	private function format_date_for_display( ?string $datetime ): string {
-		if ( empty( $datetime ) ) {
-			return '';
-		}
-
-		$timestamp = strtotime( $datetime );
-
-		if ( false === $timestamp ) {
-			return '';
-		}
-
-		return wp_date( $this->get_display_date_format(), $timestamp );
-	}
-
-	/**
 	 * Format datetime for display using site locale.
 	 *
 	 * @param string|null $datetime Datetime value.
@@ -1214,6 +1337,26 @@ class AdminScreen {
 	}
 
 	/**
+	 * Format stored datetime for HTML date inputs.
+	 *
+	 * @param string|null $datetime Datetime value.
+	 * @return string
+	 */
+	private function format_date_for_input( ?string $datetime ): string {
+		if ( empty( $datetime ) ) {
+			return '';
+		}
+
+		$timestamp = strtotime( $datetime );
+
+		if ( false === $timestamp ) {
+			return '';
+		}
+
+		return gmdate( 'Y-m-d', $timestamp );
+	}
+
+	/**
 	 * Parse user input to normalized Y-m-d format.
 	 *
 	 * @param string $raw Raw input.
@@ -1251,12 +1394,65 @@ class AdminScreen {
 	}
 
 	/**
+	 * Build URLs for submission assets.
+	 *
+	 * @param object|null $competition Competition object.
+	 * @param object       $submission Submission record.
+	 * @return array{full:string,thumb:string}
+	 */
+	private function get_submission_urls( ?object $competition, object $submission ): array {
+		if ( ! $competition || empty( $competition->slug ) || empty( $submission->filename ) ) {
+			return array( 'full' => '', 'thumb' => '' );
+		}
+
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return array( 'full' => '', 'thumb' => '' );
+		}
+
+		$base = trailingslashit( $uploads['baseurl'] ) . 'competitions/';
+		$slug = sanitize_file_name( (string) $competition->slug );
+		$cat  = sanitize_file_name( (string) $submission->category );
+
+		$folder_url  = trailingslashit( $base . rawurlencode( $slug ) . '/' . rawurlencode( $cat ) );
+		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
+
+		$filename   = $submission->filename;
+		$thumb_name = $this->get_thumbnail_filename( $filename );
+
+		$full_path  = $folder_path . $filename;
+		$thumb_path = $folder_path . $thumb_name;
+
+		$full_url  = file_exists( $full_path ) ? $folder_url . rawurlencode( $filename ) : '';
+		$thumb_url = file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : '';
+
+		return array(
+			'full'  => $full_url,
+			'thumb' => $thumb_url,
+		);
+	}
+
+	/**
+	 * Determine thumbnail filename from base filename.
+	 *
+	 * @param string $filename Base filename.
+	 * @return string
+	 */
+	private function get_thumbnail_filename( string $filename ): string {
+		$info = pathinfo( $filename );
+		$base = $info['filename'] ?? $filename;
+		$ext  = isset( $info['extension'] ) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+
+		return $base . '-thumb' . $ext;
+	}
+
+	/**
 	 * Render the create competition form.
 	 *
 	 * @return void
 	 */
 	private function render_create_form(): void {
-		$date_placeholder = $this->get_display_date_format();
+		$label_format = $this->get_ui_date_label();
 
 		echo '<form method="post" class="card" style="max-width: 720px; margin-bottom: 24px; padding: 16px;">';
 		echo '<h2>' . esc_html__( 'Create Competition', 'club-competitions' ) . '</h2>';
@@ -1285,8 +1481,6 @@ class AdminScreen {
 		echo '</p>';
 
 		echo '<p>';
-		$label_format = $this->get_ui_date_label();
-
 		echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'club-competitions' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
 		echo '<input type="date" id="competition_open_date" name="competition_open_date" />';
 		echo '</p>';

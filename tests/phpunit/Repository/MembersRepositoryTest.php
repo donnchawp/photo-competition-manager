@@ -182,6 +182,36 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Find many returns keyed set of members.
+	 *
+	 * @return void
+	 */
+	public function test_find_many_returns_members(): void {
+		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+
+		$alice = $repository->create(
+			array(
+				'name'  => 'Alice Batch',
+				'email' => 'alice.batch@example.com',
+			)
+		);
+
+		$bob = $repository->create(
+			array(
+				'name'  => 'Bob Batch',
+				'email' => 'bob.batch@example.com',
+			)
+		);
+
+		$result = $repository->find_many( array( $alice, $bob, 999 ) );
+
+		$this->assertArrayHasKey( $alice, $result );
+		$this->assertArrayHasKey( $bob, $result );
+		$this->assertSame( 'Alice Batch', $result[ $alice ]->name );
+		$this->assertSame( 'Bob Batch', $result[ $bob ]->name );
+	}
+
+	/**
 	 * Find by email retrieves member.
 	 *
 	 * @return void

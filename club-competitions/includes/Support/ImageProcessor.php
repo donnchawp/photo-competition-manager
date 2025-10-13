@@ -212,7 +212,7 @@ class ImageProcessor {
 		$image->resize( $thumb_width, $thumb_height, true );
 
 		$filename       = basename( $source_path );
-		$thumb_filename = str_replace( '.jpg', '-thumb.jpg', $filename );
+		$thumb_filename = $this->generate_thumbnail_filename( $filename );
 		$thumb_path     = trailingslashit( $target_dir ) . $thumb_filename;
 
 		$saved = $image->save( $thumb_path );
@@ -222,6 +222,20 @@ class ImageProcessor {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Derive thumbnail filename for an image.
+	 *
+	 * @param string $filename Original filename.
+	 * @return string
+	 */
+	public function generate_thumbnail_filename( string $filename ): string {
+		$info = pathinfo( $filename );
+		$base = $info['filename'] ?? $filename;
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . strtolower( $info['extension'] ) : '';
+
+		return $base . '-thumb' . $ext;
 	}
 
 	/**
@@ -239,7 +253,8 @@ class ImageProcessor {
 		}
 
 		$image_path = trailingslashit( $upload_dir['path'] ) . $filename;
-		$thumb_path = trailingslashit( $upload_dir['path'] ) . str_replace( '.jpg', '-thumb.jpg', $filename );
+		$thumb_name = $this->generate_thumbnail_filename( $filename );
+		$thumb_path = trailingslashit( $upload_dir['path'] ) . $thumb_name;
 
 		$deleted = true;
 

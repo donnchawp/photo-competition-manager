@@ -71,6 +71,39 @@ class MembersRepository extends AbstractRepository {
 	}
 
 	/**
+	 * Find multiple members.
+	 *
+	 * @param array<int> $ids Member IDs.
+	 * @return array<int, object>
+	 */
+	public function find_many( array $ids ): array {
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$ids = array_unique( array_filter( array_map( 'absint', $ids ) ) );
+
+		if ( empty( $ids ) ) {
+			return array();
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$sql = sprintf( 'SELECT * FROM %s WHERE id IN (%s)', $this->table(), $placeholders );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_results( $this->wpdb->prepare( $sql, ...$ids ) );
+
+		$map = array();
+		foreach ( $results as $member ) {
+			$map[ (int) $member->id ] = $member;
+		}
+
+		return $map;
+	}
+
+	/**
 	 * Create a member record.
 	 *
 	 * @param array<string, mixed> $data Member data.
