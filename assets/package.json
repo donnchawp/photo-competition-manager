@@ -1,0 +1,13 @@
+{
+  "name": "club-competitions-assets",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wp-scripts start",
+    "build": "wp-scripts build",
+    "test:js": "wp-scripts test-unit-js"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^27.6.0"
+  }
+}
