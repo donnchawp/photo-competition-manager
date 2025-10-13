@@ -195,13 +195,9 @@ class VotingShortcode {
 		$voting_config = CompetitionSettings::get_voting_config( $settings );
 		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 
-		// Determine selected category (from POST or default to first open category).
+		// Use the first open category (only one category allowed at a time).
 		$selected_category = '';
-		if ( isset( $_POST['select_category'] ) ) {
-			$selected_category = isset( $_POST['category_select'] ) ? sanitize_text_field( wp_unslash( $_POST['category_select'] ) ) : '';
-		}
-
-		if ( empty( $selected_category ) && ! empty( $voting_categories ) ) {
+		if ( ! empty( $voting_categories ) ) {
 			$first_open = reset( $voting_categories );
 			$selected_category = $first_open['slug'];
 		}
@@ -232,20 +228,21 @@ class VotingShortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
-			<!-- Category selector -->
-			<form method="post" class="category-selector">
-				<label for="category_select"><?php esc_html_e( 'Select Category:', 'club-competitions' ); ?></label>
-				<select name="category_select" id="category_select">
-					<?php foreach ( $voting_categories as $cat ) : ?>
-						<option value="<?php echo esc_attr( $cat['slug'] ); ?>" <?php selected( $selected_category, $cat['slug'] ); ?>>
-							<?php echo esc_html( $cat['label'] ); ?>
-						</option>
-					<?php endforeach; ?>
-				</select>
-				<button type="submit" name="select_category" class="button">
-					<?php esc_html_e( 'View Category', 'club-competitions' ); ?>
-				</button>
-			</form>
+			<!-- Category display (no selection needed) -->
+			<?php if ( ! empty( $selected_category ) ) : ?>
+				<?php
+				$category_label = '';
+				foreach ( $voting_categories as $cat ) {
+					if ( $cat['slug'] === $selected_category ) {
+						$category_label = $cat['label'];
+						break;
+					}
+				}
+				?>
+				<div class="current-category">
+					<h3><?php echo esc_html( $category_label ); ?></h3>
+				</div>
+			<?php endif; ?>
 
 
 			<?php

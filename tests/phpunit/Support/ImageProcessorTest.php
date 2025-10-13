@@ -129,7 +129,7 @@ class ImageProcessorTest extends WP_UnitTestCase {
 		unlink( $tmp_file );
 	}
 
-	public function test_validate_rejects_oversized_dimensions(): void {
+	public function test_validate_accepts_oversized_dimensions(): void {
 		$tmp_file = $this->create_test_image( 2000, 2000 );
 
 		$file = array(
@@ -148,8 +148,8 @@ class ImageProcessorTest extends WP_UnitTestCase {
 
 		$result = $this->processor->validate( $file, $constraints );
 
-		$this->assertWPError( $result );
-		$this->assertEquals( 'image_too_large', $result->get_error_code() );
+		// Oversized images are now accepted and will be resized during processing.
+		$this->assertTrue( $result );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
 		unlink( $tmp_file );
@@ -192,6 +192,47 @@ class ImageProcessorTest extends WP_UnitTestCase {
 
 		$this->assertIsString( $url );
 		$this->assertStringContainsString( 'john-doe-colour-1-thumb.jpg', $url );
+	}
+
+	public function test_process_resizes_oversized_images(): void {
+		$tmp_file = $this->create_test_image( 2000, 2000 );
+
+		$file = array(
+			'name'     => 'test.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => 1024,
+		);
+
+		$constraints = array(
+			'max_file_size_mb' => 5,
+			'max_width'        => 1920,
+			'max_height'       => 1920,
+			'allowed_formats'  => array( 'jpg', 'jpeg' ),
+		);
+
+		$result = $this->processor->process( $file, 'summer-2024', 'colour', 'john-doe', 1, $constraints );
+
+		// Should succeed and return filename.
+		$this->assertIsString( $result );
+		$this->assertEquals( 'john-doe-colour-1.jpg', $result );
+
+		// Verify the processed image exists and is resized.
+		$upload_dir = $this->processor->get_upload_directory( 'summer-2024', 'colour' );
+		$image_path = trailingslashit( $upload_dir['path'] ) . $result;
+
+		$this->assertFileExists( $image_path );
+
+		// Check that the image was resized to max dimensions.
+		$image_info = getimagesize( $image_path );
+		$this->assertLessThanOrEqual( 1920, $image_info[0] ); // width
+		$this->assertLessThanOrEqual( 1920, $image_info[1] ); // height
+
+		// Clean up.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		unlink( $tmp_file );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		unlink( $image_path );
 	}
 
 	/**

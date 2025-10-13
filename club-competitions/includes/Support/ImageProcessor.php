@@ -68,21 +68,7 @@ class ImageProcessor {
 			return new WP_Error( 'invalid_image', __( 'File is not a valid image.', 'club-competitions' ) );
 		}
 
-		// Check dimensions.
-		$max_width  = $constraints['max_width'] ?? 1920;
-		$max_height = $constraints['max_height'] ?? 1920;
-
-		if ( $image_info[0] > $max_width || $image_info[1] > $max_height ) {
-			return new WP_Error(
-				'image_too_large',
-				sprintf(
-					/* translators: 1: max width, 2: max height */
-					__( 'Image dimensions exceed maximum of %1$d x %2$d pixels.', 'club-competitions' ),
-					$max_width,
-					$max_height
-				)
-			);
-		}
+		// Note: Dimension validation removed - images will be automatically resized to max dimensions during processing.
 
 		return true;
 	}
@@ -113,13 +99,13 @@ class ImageProcessor {
 		// Generate filename: username-categoryslug-[counter].jpg.
 		$filename = $this->generate_filename( $username, $category_slug, $counter );
 
-		// Load image and resize if necessary.
+		// Load image and resize to max dimensions.
 		$image = wp_get_image_editor( $file['tmp_name'] );
 		if ( is_wp_error( $image ) ) {
 			return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'club-competitions' ) );
 		}
 
-		// Resize to max dimensions if needed.
+		// Always resize to max dimensions to ensure file size compliance.
 		$max_width  = $constraints['max_width'] ?? 1920;
 		$max_height = $constraints['max_height'] ?? 1920;
 		$image->resize( $max_width, $max_height, false );
