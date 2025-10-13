@@ -162,19 +162,287 @@
 	color: #a00;
 }
 
+/* Voting Interface */
+.club-competitions-voting {
+	max-width: 1200px;
+	margin: 2em auto;
+	padding: 2em;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.club-competitions-voting h2,
+.club-competitions-voting h3 {
+	margin-top: 0;
+	color: #333;
+}
+
+.club-competitions-voting h3 {
+	margin-top: 2em;
+	border-bottom: 2px solid #ddd;
+	padding-bottom: 0.5em;
+}
+
+/* Messages */
+.club-competitions-voting .error,
+.club-competitions-voting .success,
+.club-competitions-voting .notice {
+	padding: 1em;
+	margin-bottom: 1.5em;
+	border-radius: 4px;
+}
+
+.club-competitions-voting .error {
+	background: #fef7f8;
+	border-left: 4px solid #d63638;
+	color: #d63638;
+}
+
+.club-competitions-voting .success {
+	background: #edfaef;
+	border-left: 4px solid #00a32a;
+	color: #00a32a;
+}
+
+.club-competitions-voting .notice {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	color: #8a6d3b;
+}
+
+/* Category Selector */
+.category-selector {
+	margin: 2em 0;
+	padding: 1.5em;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	display: flex;
+	gap: 1em;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.category-selector label {
+	font-weight: 600;
+	color: #333;
+}
+
+.category-selector select {
+	padding: 0.5em;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 1em;
+	min-width: 200px;
+}
+
+.category-selector .button {
+	padding: 0.5em 1.5em;
+	background: #2271b1;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 1em;
+	transition: background 0.2s;
+}
+
+.category-selector .button:hover {
+	background: #135e96;
+}
+
+/* Voting Instructions */
+.voting-instructions {
+	margin: 2em 0;
+	padding: 1.5em;
+	background: #e7f3ff;
+	border-left: 4px solid #2271b1;
+	border-radius: 4px;
+}
+
+.voting-instructions h3 {
+	margin-top: 0;
+	border: none;
+	padding-bottom: 0;
+}
+
+.voting-instructions p {
+	margin: 0.5em 0;
+	color: #333;
+}
+
+/* Voter Info */
+.voter-info {
+	margin: 2em 0;
+	padding: 1.5em;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.voter-info label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+	color: #333;
+}
+
+.voter-info .required {
+	color: #d63638;
+}
+
+.voter-info input[type="text"] {
+	width: 100%;
+	max-width: 400px;
+	padding: 0.5em;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 1em;
+}
+
+.voter-info small {
+	display: block;
+	margin-top: 0.5em;
+	color: #666;
+	font-size: 0.9em;
+}
+
+/* Images Grid */
+.images-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 2em;
+	margin: 2em 0;
+}
+
+.voting-image-item {
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 1em;
+	text-align: center;
+	transition: box-shadow 0.2s;
+}
+
+.voting-image-item:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.voting-image-item .image-wrapper {
+	position: relative;
+	margin-bottom: 1em;
+}
+
+.voting-image-item .image-link {
+	display: block;
+}
+
+.voting-image-item img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 4px;
+	display: block;
+	margin: 0 auto;
+}
+
+.voting-image-item .image-unavailable {
+	padding: 3em 1em;
+	background: #f5f5f5;
+	color: #999;
+	border-radius: 4px;
+}
+
+.voting-image-item .image-number {
+	position: absolute;
+	top: 0.5em;
+	left: 0.5em;
+	background: rgba(0, 0, 0, 0.7);
+	color: #fff;
+	padding: 0.25em 0.75em;
+	border-radius: 4px;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* Vote Selector */
+.vote-selector {
+	margin-top: 1em;
+}
+
+.vote-selector label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+	color: #333;
+	font-size: 0.9em;
+}
+
+.vote-selector select {
+	width: 100%;
+	padding: 0.5em;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 1em;
+	background: #fff;
+}
+
+/* Voting Submit */
+.voting-submit {
+	margin: 2em 0;
+	text-align: center;
+}
+
+.voting-submit .button-primary {
+	padding: 1em 2em;
+	background: #00a32a;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 1.1em;
+	font-weight: 600;
+	transition: background 0.2s;
+}
+
+.voting-submit .button-primary:hover {
+	background: #008a20;
+}
+
+/* Gallery View (for voters who already voted) */
+.images-grid.gallery-view .voting-image-item {
+	cursor: default;
+}
+
+.images-grid.gallery-view .voting-image-item:hover {
+	box-shadow: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-	.club-competitions-upload {
+	.club-competitions-upload,
+	.club-competitions-voting {
 		padding: 1em;
 	}
 
-	.submissions-grid {
+	.submissions-grid,
+	.images-grid {
 		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 		gap: 1em;
 	}
 
 	.competition-upload-form input[type="email"],
 	.competition-upload-form select {
+		max-width: 100%;
+	}
+
+	.category-selector {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.category-selector select,
+	.voter-info input[type="text"] {
 		max-width: 100%;
 	}
 }

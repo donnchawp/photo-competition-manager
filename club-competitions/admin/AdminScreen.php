@@ -93,6 +93,15 @@ class AdminScreen {
 
 		add_submenu_page(
 			'club-competitions',
+			__( 'Voting Controls', 'club-competitions' ),
+			__( 'Voting Controls', 'club-competitions' ),
+			'manage_options',
+			'club-competitions-voting',
+			array( $this, 'render_voting_controls_page' )
+		);
+
+		add_submenu_page(
+			'club-competitions',
 			__( 'Settings', 'club-competitions' ),
 			__( 'Settings', 'club-competitions' ),
 			'manage_options',
@@ -348,6 +357,143 @@ class AdminScreen {
 	}
 
 	/**
+	 * Render voting controls page.
+	 *
+	 * @return void
+	 */
+	public function render_voting_controls_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
+		}
+
+		settings_errors( 'club_competitions_voting' );
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Voting Controls', 'club-competitions' ) . '</h1>';
+		echo '<p class="description">' . esc_html__( 'Open or close voting for competition categories. Only one category across all competitions can have voting open at a time.', 'club-competitions' ) . '</p>';
+
+		// Get all active competitions.
+		$all_competitions = $this->competitions->all( 100, false, false );
+		$active_competitions = array_filter(
+			$all_competitions,
+			function( $comp ) {
+				return 'active' === $comp->status;
+			}
+		);
+
+		if ( empty( $active_competitions ) ) {
+			echo '<p>' . esc_html__( 'No active competitions found. Set a competition status to "Active" to enable voting controls.', 'club-competitions' ) . '</p>';
+			echo '</div>';
+			return;
+		}
+
+		// Check if any category has voting open globally.
+		$voting_open_globally = false;
+		$open_competition_id = null;
+		$open_category_slug = null;
+
+		foreach ( $active_competitions as $competition ) {
+			$settings = CompetitionSettings::parse( $competition->settings );
+			$open_categories = CompetitionSettings::get_open_voting_categories( $settings );
+
+			if ( ! empty( $open_categories ) ) {
+				$voting_open_globally = true;
+				$open_competition_id = (int) $competition->id;
+				$open_category_slug = $open_categories[0];
+				break;
+			}
+		}
+
+		echo '<table class="widefat striped" style="max-width: 900px; margin-top: 20px;">';
+		echo '<thead><tr>';
+		echo '<th>' . esc_html__( 'Competition', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Category', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Action', 'club-competitions' ) . '</th>';
+		echo '</tr></thead>';
+		echo '<tbody>';
+
+		foreach ( $active_competitions as $competition ) {
+			$settings = CompetitionSettings::parse( $competition->settings );
+			$categories = CompetitionSettings::get_categories( $settings );
+			$open_categories = CompetitionSettings::get_open_voting_categories( $settings );
+
+			if ( empty( $categories ) ) {
+				echo '<tr>';
+				echo '<td>' . esc_html( $competition->title ) . '</td>';
+				echo '<td colspan="3"><em>' . esc_html__( 'No categories configured', 'club-competitions' ) . '</em></td>';
+				echo '</tr>';
+				continue;
+			}
+
+			foreach ( $categories as $category ) {
+				$category_slug = $category['slug'] ?? '';
+				$category_label = $category['label'] ?? '';
+				$is_open = in_array( $category_slug, $open_categories, true );
+
+				echo '<tr>';
+				echo '<td>' . esc_html( $competition->title ) . '</td>';
+				echo '<td>' . esc_html( $category_label ) . '</td>';
+
+				if ( $is_open ) {
+					echo '<td><strong style="color: #2271b1;">' . esc_html__( 'Voting Open', 'club-competitions' ) . '</strong></td>';
+
+					$close_url = wp_nonce_url(
+						add_query_arg(
+							array(
+								'page' => 'club-competitions-voting',
+								'action' => 'close_category_voting',
+								'competition' => (int) $competition->id,
+								'category' => rawurlencode( $category_slug ),
+							),
+							admin_url( 'admin.php' )
+						),
+						'club_competitions_close_voting_' . (int) $competition->id . '_' . $category_slug
+					);
+
+					echo '<td><a href="' . esc_url( $close_url ) . '" class="button">' . esc_html__( 'Close Voting', 'club-competitions' ) . '</a></td>';
+				} else {
+					echo '<td>' . esc_html__( 'Closed', 'club-competitions' ) . '</td>';
+
+					if ( $voting_open_globally ) {
+						echo '<td><button class="button" disabled title="' . esc_attr__( 'Another category already has voting open', 'club-competitions' ) . '">' . esc_html__( 'Open Voting', 'club-competitions' ) . '</button></td>';
+					} else {
+						$open_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page' => 'club-competitions-voting',
+									'action' => 'open_category_voting',
+									'competition' => (int) $competition->id,
+									'category' => rawurlencode( $category_slug ),
+								),
+								admin_url( 'admin.php' )
+							),
+							'club_competitions_open_voting_' . (int) $competition->id . '_' . $category_slug
+						);
+
+						echo '<td><a href="' . esc_url( $open_url ) . '" class="button button-primary">' . esc_html__( 'Open Voting', 'club-competitions' ) . '</a></td>';
+					}
+				}
+
+				echo '</tr>';
+			}
+		}
+
+		echo '</tbody>';
+		echo '</table>';
+
+		if ( $voting_open_globally ) {
+			echo '<div class="notice notice-info inline" style="max-width: 900px; margin-top: 20px;">';
+			echo '<p><strong>' . esc_html__( 'Note:', 'club-competitions' ) . '</strong> ';
+			echo esc_html__( 'Voting is currently open for one category. Close it before opening voting for another category.', 'club-competitions' );
+			echo '</p>';
+			echo '</div>';
+		}
+
+		echo '</div>';
+	}
+
+	/**
 	 * Handle admin post actions.
 	 *
 	 * @return void
@@ -528,6 +674,145 @@ class AdminScreen {
 			exit;
 		}
 
+		if ( 'open_category_voting' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( $_GET['competition'] ) : 0;
+			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+
+			check_admin_referer( 'club_competitions_open_voting_' . $competition_id . '_' . $category_slug );
+
+			// Global constraint validation: ensure no other category has voting open.
+			$all_competitions = $this->competitions->all( 100, false, false );
+			foreach ( $all_competitions as $comp ) {
+				$comp_settings      = CompetitionSettings::parse( $comp->settings );
+				$comp_open_cats     = CompetitionSettings::get_open_voting_categories( $comp_settings );
+
+				if ( ! empty( $comp_open_cats ) ) {
+					add_settings_error(
+						'club_competitions_voting',
+						'voting_already_open',
+						__( 'Cannot open voting. Another category already has voting open. Close it first.', 'club-competitions' ),
+						'error'
+					);
+
+					wp_safe_redirect(
+						add_query_arg(
+							array( 'page' => 'club-competitions-voting' ),
+							admin_url( 'admin.php' )
+						)
+					);
+					exit;
+				}
+			}
+
+			// Open voting for this category.
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'club_competitions_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'club-competitions' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'club-competitions-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                           = CompetitionSettings::parse( $competition->settings );
+			$settings['voting']['open_categories'] = array( $category_slug );
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_voting',
+					'voting_opened',
+					__( 'Voting opened successfully.', 'club-competitions' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'club-competitions-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		if ( 'close_category_voting' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( $_GET['competition'] ) : 0;
+			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+
+			check_admin_referer( 'club_competitions_close_voting_' . $competition_id . '_' . $category_slug );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'club_competitions_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'club-competitions' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'club-competitions-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                           = CompetitionSettings::parse( $competition->settings );
+			$settings['voting']['open_categories'] = array();
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_voting',
+					'voting_closed',
+					__( 'Voting closed successfully.', 'club-competitions' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'club-competitions-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
 		if ( 'update_member' === $action ) {
 			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
 
@@ -612,6 +897,10 @@ class AdminScreen {
 				$score_matrix = array( 9, 8, 7, 6, 5 );
 			}
 
+			// Get existing settings to preserve open_categories (controlled via Voting Controls page).
+			$existing_settings = $this->get_global_settings();
+			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
@@ -622,8 +911,9 @@ class AdminScreen {
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
-					'score_matrix' => $score_matrix,
-					'auto_open'    => isset( $_POST['auto_open_voting'] ),
+					'score_matrix'    => $score_matrix,
+					'auto_open'       => isset( $_POST['auto_open_voting'] ),
+					'open_categories' => $existing_open_categories,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -672,6 +962,11 @@ class AdminScreen {
 
 			check_admin_referer( 'club_competitions_update_settings_' . $competition_id, 'club_competitions_nonce' );
 
+			// Get existing competition to preserve open_categories (controlled via Voting Controls page).
+			$existing_competition = $this->competitions->find( $competition_id );
+			$existing_settings = $existing_competition ? CompetitionSettings::parse( $existing_competition->settings ) : array();
+			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
+
 			$categories = isset( $_POST['categories'] ) && is_array( $_POST['categories'] ) ? $_POST['categories'] : array();
 			$grades     = isset( $_POST['grades'] ) && is_array( $_POST['grades'] ) ? $_POST['grades'] : array();
 
@@ -717,8 +1012,9 @@ class AdminScreen {
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
-					'score_matrix' => $score_matrix,
-					'auto_open'    => isset( $_POST['auto_open_voting'] ),
+					'score_matrix'    => $score_matrix,
+					'auto_open'       => isset( $_POST['auto_open_voting'] ),
+					'open_categories' => $existing_open_categories,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,

@@ -51,8 +51,9 @@ class CompetitionSettings {
 				'allowed_formats'  => array( 'jpg', 'jpeg' ),
 			),
 			'voting'           => array(
-				'score_matrix' => array( 9, 8, 7, 6, 5 ),
-				'auto_open'    => false,
+				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
+				'auto_open'       => false,
+				'open_categories' => array(), // Array of category slugs where voting is open.
 			),
 			'slideshow'        => array(
 				'duration_seconds' => 10,
@@ -252,5 +253,30 @@ class CompetitionSettings {
 	 */
 	public static function get_voting_config( array $settings ): array {
 		return $settings['voting'] ?? self::defaults()['voting'];
+	}
+
+	/**
+	 * Check if voting is open for a specific category.
+	 *
+	 * @param array<string, mixed> $settings Parsed settings.
+	 * @param string               $category Category slug.
+	 * @return bool
+	 */
+	public static function is_voting_open_for_category( array $settings, string $category ): bool {
+		$voting_config    = self::get_voting_config( $settings );
+		$open_categories  = $voting_config['open_categories'] ?? array();
+
+		return in_array( $category, $open_categories, true );
+	}
+
+	/**
+	 * Get categories where voting is currently open.
+	 *
+	 * @param array<string, mixed> $settings Parsed settings.
+	 * @return array<string> Array of category slugs.
+	 */
+	public static function get_open_voting_categories( array $settings ): array {
+		$voting_config = self::get_voting_config( $settings );
+		return $voting_config['open_categories'] ?? array();
 	}
 }

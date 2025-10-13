@@ -45,7 +45,7 @@ $table_prefix = 'wptests_';
 define( 'DB_NAME', getenv( 'WP_ENV_TESTS_DB_NAME' ) ?: 'tests-wordpress' );
 define( 'DB_USER', 'root' );
 define( 'DB_PASSWORD', 'password' );
-define( 'DB_HOST', getenv( 'WP_ENV_TEST_DB_HOST' ) ?: '127.0.0.1:61674' );
+define( 'DB_HOST', getenv( 'WP_ENV_TEST_DB_HOST' ) ?: '127.0.0.1:62159' );
 define( 'DB_CHARSET', 'utf8' );
 define( 'DB_COLLATE', '' );
 
