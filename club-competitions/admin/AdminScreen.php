@@ -10,6 +10,7 @@ namespace ClubCompetitions\Admin;
 use ClubCompetitions\Repository\CompetitionsRepository;
 use ClubCompetitions\Repository\ImagesRepository;
 use ClubCompetitions\Repository\MembersRepository;
+use ClubCompetitions\Repository\VotesRepository;
 use ClubCompetitions\Support\CompetitionSettings;
 
 class AdminScreen {
@@ -36,16 +37,25 @@ class AdminScreen {
 	private $images;
 
 	/**
+	 * Votes repository.
+	 *
+	 * @var VotesRepository
+	 */
+	private $votes;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param CompetitionsRepository|null $competitions Competition repository.
 	 * @param MembersRepository|null      $members      Member repository.
-	 * @param ImagesRepository|null       $images       Images repository.
+	 * @param ImagesRepository|null      $images       Images repository.
+	 * @param VotesRepository|null       $votes        Votes repository.
 	 */
-	public function __construct( ?CompetitionsRepository $competitions = null, ?MembersRepository $members = null, ?ImagesRepository $images = null ) {
+	public function __construct( ?CompetitionsRepository $competitions = null, ?MembersRepository $members = null, ?ImagesRepository $images = null, ?VotesRepository $votes = null ) {
 		$this->competitions = $competitions ?: new CompetitionsRepository();
 		$this->members      = $members ?: new MembersRepository();
 		$this->images       = $images ?: new ImagesRepository();
+		$this->votes        = $votes ?: new VotesRepository();
 	}
 
 	/**
@@ -259,8 +269,12 @@ class AdminScreen {
 		}
 
 		$submissions = array();
+		$scores_data = array();
 		if ( $competition_id ) {
 			$submissions = $this->images->find_by_competition( $competition_id, null, $member_id ?: null );
+
+			// Get average scores and vote counts for all submissions
+			$scores_data = $this->votes->calculate_averages( $competition_id );
 		}
 
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
@@ -320,7 +334,8 @@ class AdminScreen {
 		echo '<th>' . esc_html__( 'Image', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Filename', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Random #', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Score', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Total Score', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Votes', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Submitted', 'club-competitions' ) . '</th>';
 		echo '</tr></thead>';
 		echo '<tbody>';
@@ -334,6 +349,17 @@ class AdminScreen {
 			$urls                = $this->get_submission_urls( $current_competition, $submission );
 			$thumb_url           = $urls['thumb'] ?: $urls['full'];
 
+			// Get score data for this submission
+			$image_id = (int) $submission->id;
+			$total_score = '—';
+			$vote_count = 0;
+
+			if ( isset( $scores_data[ $image_id ] ) ) {
+				$score_info = $scores_data[ $image_id ];
+				$total_score = number_format( $score_info['average_score'], 0 );
+				$vote_count = $score_info['vote_count'];
+			}
+
 			echo '<tr>';
 			echo '<td>' . esc_html( $member_name ) . '</td>';
 			echo '<td>' . esc_html( $submission->category ) . '</td>';
@@ -346,7 +372,8 @@ class AdminScreen {
 			}
 			echo '<td>' . esc_html( $submission->filename ) . '</td>';
 			echo '<td>' . esc_html( (string) $submission->random_number ) . '</td>';
-			echo '<td>' . esc_html( null === $submission->score ? '—' : (string) $submission->score ) . '</td>';
+			echo '<td>' . esc_html( $total_score ) . '</td>';
+			echo '<td>' . esc_html( (string) $vote_count ) . '</td>';
 			echo '<td>' . esc_html( $this->format_datetime( $submission->created_at ) ) . '</td>';
 			echo '</tr>';
 		}
