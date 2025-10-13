@@ -418,10 +418,316 @@
 	box-shadow: none;
 }
 
+/* Results Display */
+.club-competitions-results,
+.club-competitions-top3 {
+	max-width: 1200px;
+	margin: 2em auto;
+	padding: 2em;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.club-competitions-results h2,
+.club-competitions-top3 h2 {
+	margin-top: 0;
+	color: #333;
+	text-align: center;
+	border-bottom: 3px solid #2271b1;
+	padding-bottom: 0.5em;
+	margin-bottom: 2em;
+}
+
+.results-category-section,
+.top3-category-section {
+	margin: 3em 0;
+	padding: 2em;
+	background: #fff;
+	border: 2px solid #2271b1;
+	border-radius: 8px;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.results-category-section h3,
+.top3-category-section h3 {
+	margin-top: 0;
+	color: #2271b1;
+	text-align: center;
+	font-size: 1.8em;
+	border-bottom: 3px solid #2271b1;
+	padding-bottom: 0.5em;
+	margin-bottom: 2em;
+	background: linear-gradient(135deg, #f0f8ff, #e7f3ff);
+	padding: 1em;
+	border-radius: 6px;
+}
+
+.results-grade-section,
+.top3-grade-section {
+	margin: 2em 0;
+	padding: 1.5em;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.results-grade-section h4,
+.top3-grade-section h4 {
+	margin-top: 0;
+	color: #333;
+	text-align: center;
+	font-size: 1.3em;
+	border-bottom: 2px solid #ddd;
+	padding-bottom: 0.5em;
+	margin-bottom: 1.5em;
+}
+
+/* Results Table */
+.results-table {
+	overflow-x: auto;
+}
+
+.results-table table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 1em;
+}
+
+.results-table th,
+.results-table td {
+	padding: 1em;
+	text-align: left;
+	border-bottom: 1px solid #ddd;
+}
+
+.results-table th {
+	background: #f5f5f5;
+	font-weight: 600;
+	color: #333;
+	position: sticky;
+	top: 0;
+}
+
+.results-table tr:hover {
+	background: #f9f9f9;
+}
+
+.results-table .position {
+	text-align: center;
+	font-weight: 600;
+	font-size: 1.2em;
+	color: #2271b1;
+	width: 80px;
+}
+
+.results-table .image-cell {
+	width: 120px;
+	text-align: center;
+}
+
+.results-table .result-thumbnail {
+	max-width: 80px;
+	max-height: 80px;
+	object-fit: cover;
+	border-radius: 4px;
+	border: 2px solid #ddd;
+}
+
+.results-table .image-number {
+	font-size: 0.8em;
+	color: #666;
+	margin-top: 0.25em;
+}
+
+.results-table .member-name {
+	font-weight: 600;
+	color: #333;
+}
+
+.results-table .category {
+	color: #666;
+	font-style: italic;
+}
+
+.results-table .score {
+	font-weight: 600;
+	font-size: 1.1em;
+	color: #00a32a;
+	text-align: center;
+}
+
+.results-table .vote-count {
+	text-align: center;
+	color: #666;
+	font-size: 0.9em;
+}
+
+/* Top 3 Podium */
+.top3-podium {
+	display: flex;
+	justify-content: center;
+	align-items: flex-end;
+	gap: 2em;
+	margin: 2em 0;
+	flex-wrap: wrap;
+}
+
+.podium-item {
+	background: #fff;
+	border: 2px solid #ddd;
+	border-radius: 8px;
+	padding: 1.5em;
+	text-align: center;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+	transition: transform 0.2s, box-shadow 0.2s;
+	min-width: 200px;
+}
+
+.podium-item:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.podium-item.first {
+	border-color: #ffd700;
+	background: linear-gradient(135deg, #fff9e6, #fff);
+	order: 2;
+}
+
+.podium-item.second {
+	border-color: #c0c0c0;
+	background: linear-gradient(135deg, #f8f8f8, #fff);
+	order: 1;
+}
+
+.podium-item.third {
+	border-color: #cd7f32;
+	background: linear-gradient(135deg, #fdf4e6, #fff);
+	order: 3;
+}
+
+.position-badge {
+	font-weight: 600;
+	font-size: 1.1em;
+	margin-bottom: 1em;
+	padding: 0.5em 1em;
+	border-radius: 20px;
+	color: #fff;
+}
+
+.first .position-badge {
+	background: #ffd700;
+	color: #333;
+}
+
+.second .position-badge {
+	background: #c0c0c0;
+	color: #333;
+}
+
+.third .position-badge {
+	background: #cd7f32;
+	color: #fff;
+}
+
+.image-container {
+	margin: 1em 0;
+	position: relative;
+}
+
+.podium-thumbnail {
+	max-width: 150px;
+	max-height: 150px;
+	object-fit: cover;
+	border-radius: 8px;
+	border: 2px solid #ddd;
+}
+
+.image-number {
+	position: absolute;
+	top: 0.5em;
+	left: 0.5em;
+	background: rgba(0, 0, 0, 0.7);
+	color: #fff;
+	padding: 0.25em 0.75em;
+	border-radius: 4px;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.member-info {
+	margin-top: 1em;
+}
+
+.member-name {
+	font-weight: 600;
+	font-size: 1.1em;
+	color: #333;
+	margin-bottom: 0.5em;
+}
+
+.category {
+	color: #666;
+	font-style: italic;
+	margin-bottom: 0.5em;
+}
+
+.score-info {
+	margin-top: 0.5em;
+}
+
+.score {
+	font-weight: 600;
+	font-size: 1.2em;
+	color: #00a32a;
+}
+
+.vote-count {
+	color: #666;
+	font-size: 0.9em;
+}
+
+/* Messages for results */
+.club-competitions-results .error,
+.club-competitions-results .success,
+.club-competitions-results .notice,
+.club-competitions-top3 .error,
+.club-competitions-top3 .success,
+.club-competitions-top3 .notice {
+	padding: 1em;
+	margin-bottom: 1.5em;
+	border-radius: 4px;
+}
+
+.club-competitions-results .error,
+.club-competitions-top3 .error {
+	background: #fef7f8;
+	border-left: 4px solid #d63638;
+	color: #d63638;
+}
+
+.club-competitions-results .success,
+.club-competitions-top3 .success {
+	background: #edfaef;
+	border-left: 4px solid #00a32a;
+	color: #00a32a;
+}
+
+.club-competitions-results .notice,
+.club-competitions-top3 .notice {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	color: #8a6d3b;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.club-competitions-upload,
-	.club-competitions-voting {
+	.club-competitions-voting,
+	.club-competitions-results,
+	.club-competitions-top3 {
 		padding: 1em;
 	}
 
@@ -444,5 +750,36 @@
 	.category-selector select,
 	.voter-info input[type="text"] {
 		max-width: 100%;
+	}
+
+	.results-table {
+		font-size: 0.9em;
+	}
+
+	.results-table th,
+	.results-table td {
+		padding: 0.5em;
+	}
+
+	.top3-podium {
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.podium-item {
+		min-width: 250px;
+		margin-bottom: 1em;
+	}
+
+	.podium-item.first {
+		order: 1;
+	}
+
+	.podium-item.second {
+		order: 2;
+	}
+
+	.podium-item.third {
+		order: 3;
 	}
 }

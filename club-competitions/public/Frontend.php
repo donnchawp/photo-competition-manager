@@ -24,6 +24,20 @@ class Frontend {
 	private $voting_shortcode;
 
 	/**
+	 * Results shortcode handler.
+	 *
+	 * @var ResultsShortcode|null
+	 */
+	private $results_shortcode;
+
+	/**
+	 * Top 3 shortcode handler.
+	 *
+	 * @var Top3Shortcode|null
+	 */
+	private $top3_shortcode;
+
+	/**
 	 * Attach public hooks.
 	 *
 	 * @return void
@@ -36,6 +50,14 @@ class Frontend {
 		// Register voting shortcode.
 		$this->voting_shortcode = new VotingShortcode();
 		$this->voting_shortcode->register();
+
+		// Register results shortcode.
+		$this->results_shortcode = new ResultsShortcode();
+		$this->results_shortcode->register();
+
+		// Register top 3 shortcode.
+		$this->top3_shortcode = new Top3Shortcode();
+		$this->top3_shortcode->register();
 
 		// Enqueue frontend styles.
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );

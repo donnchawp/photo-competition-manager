@@ -3,23 +3,23 @@
 **Product Name (Working Title):**
 **PhotographyClubCompetitions** – A WordPress plugin for managing photography club competitions, submissions, and voting.
 
-**Version:** 1.0 (Initial Release)  
-**Platform:** Self-hosted WordPress (WordPress.org)  
-**Primary Audience:** Photography club administrators and members  
-**Prepared by:** [Your Name]  
+**Version:** 1.0 (Initial Release)
+**Platform:** Self-hosted WordPress (WordPress.org)
+**Primary Audience:** Photography club administrators and members
+**Prepared by:** [Your Name]
 **Date:** [Insert date]
 
 ---
 
 ## 1. Product Summary
 
-**Goal:**  
+**Goal:**
 To provide photography clubs with an easy-to-use system for running periodic photo competitions, managing image submissions by members, facilitating fair voting, and generating results automatically.
 
 **Objectives:**
-- Simplify image submission and validation for members.  
-- Automate competition setup, reminders, and result collation.  
-- Provide a fair, anonymized voting experience for members.  
+- Simplify image submission and validation for members.
+- Automate competition setup, reminders, and result collation.
+- Provide a fair, anonymized voting experience for members.
 - Display results cleanly, both in the meeting and online.
 
 ---
@@ -62,7 +62,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 - Past competitions automatically archived.
 
 ### 4.2 Member & Image Upload
-- Members are managed internally (custom table).  
+- Members are managed internally (custom table).
   - Fields: Name, Email, Grade, Active status.
 - Each member receives a unique upload link via email.
 - Upload rules per competition:
@@ -70,14 +70,14 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Only JPEG (.jpg/.jpeg) accepted.
   - Admin defines maximum file size (e.g. 5MB) and pixel dimensions.
   - Plugin automatically resizes oversized images.
-  - Filenames automatically reformatted to:  
+  - Filenames automatically reformatted to:
     **`username-categoryslug-[counter].jpg`**
   - Images stored in Media Library, tagged with:
     - Competition tag (e.g. `2024-10`)
     - Category tag (e.g. `colour`)
 - If user uploads more images than allowed, excess images are numbered sequentially.
 
-**Admin upload:**  
+**Admin upload:**
 Admins can upload or replace images for any member directly from the dashboard.
 
 ### 4.3 Image Processing & Storage
@@ -124,6 +124,9 @@ Admins can upload or replace images for any member directly from the dashboard.
   - Grade
   - Score
 - Results exportable as CSV (final results only).
+- **Results Display Shortcodes:**
+  - `[competition_results]` - Complete results table grouped by grade, sorted by score
+  - `[competition_top3]` - Top 3 winners per grade with podium-style display
 - HTML results page automatically generated per competition.
   - Shows top 3 winners per grade with thumbnails and scores.
 - Archive page lists all past competitions with links to their results.
@@ -162,30 +165,49 @@ Admins can upload or replace images for any member directly from the dashboard.
 
 | Shortcode | Description |
 |------------|-------------|
-| `[competition_upload]` | Member upload form. |
-| `[competition_voting]` | Public/mobile voting interface. |
-| `[competition_slideshow]` | Admin slideshow view. |
-| `[competition_results]` | Public results display. |
+| `[competition_upload competition="slug"]` | Member upload form. |
+| `[competition_voting competition="slug"]` | Public/mobile voting interface. |
+| `[competition_slideshow competition="slug"]` | Admin slideshow view. |
+| `[competition_results]` | Complete results table for most recent competition. |
+| `[competition_results competition="slug"]` | Complete results table for specific competition. |
+| `[competition_top3]` | Top 3 winners per grade for most recent competition. |
+| `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
+
+### Results Display Features
+
+**`[competition_results]`** - Complete Results Table
+- Groups results by member grade (Beginner, Intermediate, Advanced)
+- Sorts by total score (highest to lowest)
+- Shows position, image thumbnail, member name, category, score, and vote count
+- Responsive table design with mobile-friendly layout
+- Clickable thumbnails link to full-size images
+
+**`[competition_top3]`** - Top 3 Podium Display
+- Shows top 3 winners for each grade
+- Podium-style layout with 1st, 2nd, and 3rd place styling
+- Visual distinction with gold, silver, and bronze colors
+- Displays image thumbnails, member names, categories, and scores
+- Responsive design that stacks vertically on mobile devices
 
 ---
 
 ## 8. Admin Dashboard
 
 Sections:
-1. **Dashboard** – Overview of current competition and recent activity.  
-2. **Competitions** – Create/edit competitions, set parameters.  
-3. **Members** – Add/edit/import members, upload for members.  
-4. **Images** – View all images uploaded per category/member.  
-5. **Voting** – Start/stop voting, monitor live results.  
-6. **Emails** – Configure and send reminders.  
-7. **Results** – View/export results, publish top 3 by grade.  
+1. **Dashboard** – Overview of current competition and recent activity.
+2. **Competitions** – Create/edit competitions, set parameters.
+3. **Members** – Add/edit/import members, upload for members.
+4. **Images** – View all images uploaded per category/member.
+5. **Voting** – Start/stop voting, monitor live results.
+6. **Emails** – Configure and send reminders.
+7. **Results** – View/export results, publish top 3 by grade.
 8. **Archive** – Browse previous competitions and results.
 
 ---
 
 ## 9. Future Enhancements (Post v1.0)
-- Support for multiple simultaneous competitions.  
-- Optional anonymous voting (no name required).  
-- Integration with Google Drive or Dropbox for image backup.  
-- REST API endpoints for external integration.  
+- Support for multiple simultaneous competitions.
+- Optional anonymous voting (no name required).
+- Integration with Google Drive or Dropbox for image backup.
+- REST API endpoints for external integration.
 - Automatic watermarking or EXIF stripping.
