@@ -539,6 +539,9 @@
 	font-size: 0.8em;
 	color: #666;
 	margin-top: 0.25em;
+	position: static;
+	background: none;
+	padding: 0;
 }
 
 .results-table .member-name {
@@ -645,7 +648,9 @@
 	border: 2px solid #ddd;
 }
 
-.image-number {
+/* General image number styling for voting interface and podium */
+.voting-image-item .image-number,
+.podium-item .image-number {
 	position: absolute;
 	top: 0.5em;
 	left: 0.5em;
