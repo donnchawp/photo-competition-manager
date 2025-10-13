@@ -5,11 +5,13 @@
  * @package ClubCompetitions
  */
 
-$autoload = dirname( __DIR__ ) . '/vendor/autoload.php';
+$autoload = dirname( __DIR__, 2 ) . '/vendor/autoload.php';
 
 if ( file_exists( $autoload ) ) {
 	require_once $autoload;
 }
+
+require_once __DIR__ . '/Support/Helpers.php';
 
 spl_autoload_register(
 	static function ( $class ) {

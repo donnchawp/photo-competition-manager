@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/bootstrap.php';
 
 register_activation_hook(
 	__FILE__,

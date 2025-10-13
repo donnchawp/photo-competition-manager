@@ -7,7 +7,8 @@
 
 namespace ClubCompetitions\Repository;
 
-use wpdb;
+	use RuntimeException;
+	use wpdb;
 
 abstract class AbstractRepository {
 
@@ -23,8 +24,18 @@ abstract class AbstractRepository {
 	 *
 	 * @param wpdb|null $wpdb WordPress database instance.
 	 */
-	public function __construct( wpdb $wpdb = null ) {
-		$this->wpdb = $wpdb ?: $GLOBALS['wpdb'];
+	public function __construct( ?wpdb $wpdb = null ) {
+		if ( $wpdb instanceof wpdb ) {
+			$this->wpdb = $wpdb;
+			return;
+		}
+
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof wpdb ) {
+			$this->wpdb = $GLOBALS['wpdb'];
+			return;
+		}
+
+		throw new RuntimeException( 'WordPress database object is not available.' );
 	}
 
 	/**

@@ -14,15 +14,12 @@
     "autoload": {
         "psr-4": {
             "ClubCompetitions\\": [
-                "includes/",
-                "admin/",
-                "public/"
+                "club-competitions/includes/",
+                "club-competitions/admin/",
+                "club-competitions/public/"
             ],
-            "ClubCompetitions\\Support\\": "includes/Support/"
-        ],
-        "files": [
-            "includes/bootstrap.php"
-        ]
+            "ClubCompetitions\\Support\\": "club-competitions/includes/Support/"
+        }
     },
     "autoload-dev": {
         "psr-4": {
@@ -34,7 +31,10 @@
         "test": "phpunit"
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

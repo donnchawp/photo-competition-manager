@@ -14,4 +14,8 @@
             <directory suffix=".php">public</directory>
         </include>
     </coverage>
+    <php>
+	    <env name="WP_TESTS_DIR" value="/Users/donncha/.wp-env/f357678ee7c122bd1ca96b81029479d4/WordPress-PHPUnit/tests/phpunit"/>
+	    <env name="WP_CORE_DIR" value="/Users/donncha/.wp-env/f357678ee7c122bd1ca96b81029479d4/WordPress"/>
+    </php>
 </phpunit>

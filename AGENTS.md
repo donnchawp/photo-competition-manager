@@ -2,12 +2,12 @@
 
 ## Project Structure & Module Organization
 - `clubcompete_prd.md` captures the product definition; keep it current when scope or terminology shifts.
-- Bootstrap the WordPress plugin from `plugin/club-competitions.php`, loading discrete modules from `includes/`.
-- Group admin interfaces under `admin/`, public features under `public/`, shared utilities in `includes/Support/`, templates in `templates/`, and assets in `assets/`.
+- Bootstrap the WordPress plugin from `club-competitions/club-competitions.php`, loading discrete modules from `club-competitions/includes/`.
+- Group admin interfaces under `club-competitions/admin/`, public features under `club-competitions/public/`, shared utilities in `club-competitions/includes/Support/`, templates in `club-competitions/templates/`, and assets in `assets/`.
 - Mirror the source layout in `tests/phpunit` and `tests/js` so failures map directly back to modules.
 
 ## Build, Test, and Development Commands
-- `npx @wordpress/env start` spins up a disposable WordPress install with the plugin symlinked from `plugin/`.
+- `npx @wordpress/env start` spins up a disposable WordPress install with the plugin symlinked from `club-competitions/`.
 - `npm run dev` (run inside `assets/`) watches JS/CSS via `@wordpress/scripts`.
 - `npm run build` produces minified bundles for release packaging.
 - `composer install` in the repository root provisions PHP dependencies and the WordPress core test scaffold.
@@ -27,6 +27,7 @@
 ## Commit & Pull Request Guidelines
 - The repository currently lacks Git history; follow Conventional Commits (`feat:`, `fix:`, `docs:`) to establish consistency from the outset.
 - Keep pull requests focused on a single logical change; include a summary, testing notes, and screenshots or screencasts for UI-impacting work.
+- When archiving competitions, pair repository updates with UI affordances (archive/restore links) and tests covering repository-state transitions.
 - Update supporting docs (`clubcompete_prd.md`, schema diagrams, configuration samples) alongside code changes.
 - Ensure local tests pass and planned CI pipelines succeed before merging.
 

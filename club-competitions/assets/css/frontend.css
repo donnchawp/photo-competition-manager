@@ -1,0 +1,180 @@
+/**
+ * Frontend styles for Club Competitions plugin.
+ */
+
+.club-competitions-upload {
+	max-width: 800px;
+	margin: 2em auto;
+	padding: 2em;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.club-competitions-upload h2 {
+	margin-top: 0;
+	color: #333;
+}
+
+.club-competitions-upload h3 {
+	margin-top: 2em;
+	color: #333;
+	border-bottom: 2px solid #ddd;
+	padding-bottom: 0.5em;
+}
+
+.competition-upload-form p {
+	margin-bottom: 1.5em;
+}
+
+.competition-upload-form label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+	color: #333;
+}
+
+.competition-upload-form .required {
+	color: #d63638;
+}
+
+.competition-upload-form input[type="email"],
+.competition-upload-form select {
+	width: 100%;
+	max-width: 500px;
+	padding: 0.5em;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 1em;
+}
+
+.competition-upload-form input[type="file"] {
+	display: block;
+	margin-top: 0.5em;
+}
+
+.competition-upload-form small {
+	display: block;
+	margin-top: 0.5em;
+	color: #666;
+	font-size: 0.9em;
+}
+
+.competition-upload-form .button {
+	padding: 0.75em 1.5em;
+	background: #2271b1;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 1em;
+	transition: background 0.2s;
+}
+
+.competition-upload-form .button:hover {
+	background: #135e96;
+}
+
+.member-info {
+	padding: 1em;
+	background: #e7f3ff;
+	border-left: 4px solid #2271b1;
+	margin-bottom: 1.5em;
+}
+
+/* Messages */
+.club-competitions-upload .error {
+	padding: 1em;
+	background: #fef7f8;
+	border-left: 4px solid #d63638;
+	color: #d63638;
+	margin-bottom: 1.5em;
+}
+
+.club-competitions-upload .success {
+	padding: 1em;
+	background: #edfaef;
+	border-left: 4px solid #00a32a;
+	color: #00a32a;
+	margin-bottom: 1.5em;
+}
+
+.club-competitions-upload .notice {
+	padding: 1em;
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	color: #8a6d3b;
+	margin-bottom: 1.5em;
+}
+
+/* Member Submissions */
+.member-submissions {
+	margin: 2em 0;
+	padding: 1.5em;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.submissions-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 1.5em;
+	margin-top: 1.5em;
+}
+
+.submission-item {
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 1em;
+	text-align: center;
+}
+
+.submission-item img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 4px;
+	margin-bottom: 0.5em;
+}
+
+.submission-item .category-label {
+	margin: 0.5em 0;
+	font-weight: 600;
+	color: #333;
+	font-size: 0.9em;
+}
+
+.submission-item .delete-form {
+	margin-top: 0.5em;
+}
+
+.submission-item .button-link-delete {
+	background: none;
+	color: #d63638;
+	padding: 0.5em;
+	font-size: 0.9em;
+	text-decoration: underline;
+}
+
+.submission-item .button-link-delete:hover {
+	background: none;
+	color: #a00;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.club-competitions-upload {
+		padding: 1em;
+	}
+
+	.submissions-grid {
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 1em;
+	}
+
+	.competition-upload-form input[type="email"],
+	.competition-upload-form select {
+		max-width: 100%;
+	}
+}
