@@ -622,7 +622,7 @@ class VotingShortcode {
 								</div>
 								<div class="vote-selector">
 									<label for="vote_<?php echo esc_attr( $image->id ); ?>">
-										<?php esc_html_e( 'Position:', 'club-competitions' ); ?>
+										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
 										<option value="">-</option>
@@ -653,25 +653,6 @@ class VotingShortcode {
 					</div>
 				</form>
 
-				<script>
-				(function() {
-					// Prevent duplicate position selection.
-					const selects = document.querySelectorAll('.vote-select');
-					selects.forEach(function(select) {
-						select.addEventListener('change', function() {
-							const selectedValue = this.value;
-							if (selectedValue) {
-								// Clear other selects with the same value.
-								selects.forEach(function(otherSelect) {
-									if (otherSelect !== select && otherSelect.value === selectedValue) {
-										otherSelect.value = '';
-									}
-								});
-							}
-						});
-					});
-				})();
-				</script>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -798,9 +779,12 @@ class VotingShortcode {
 										implode( ', ', $score_matrix )
 									)
 								);
-								?>
-							</p>
-						</div>
+					?>
+				</p>
+				<p>
+					<?php esc_html_e( 'You can assign the same score to multiple images if you feel they deserve identical points.', 'club-competitions' ); ?>
+				</p>
+			</div>
 
 						<!-- Voting form -->
 						<form method="post" class="voting-form">
@@ -854,15 +838,15 @@ class VotingShortcode {
 											<?php endif; ?>
 											<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 										</div>
-										<div class="vote-selector">
-											<label for="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>">
-												<?php esc_html_e( 'Position:', 'club-competitions' ); ?>
-											</label>
-											<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-												<option value="">-</option>
-												<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
-													<option value="<?php echo esc_attr( $i ); ?>">
-														<?php
+								<div class="vote-selector">
+									<label for="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>">
+										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
+									</label>
+									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
+										<option value="">-</option>
+										<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
+											<option value="<?php echo esc_attr( $i ); ?>">
+												<?php
 														echo esc_html(
 															sprintf(
 																/* translators: 1: position number, 2: score points */
@@ -891,27 +875,6 @@ class VotingShortcode {
 					</div>
 				<?php endforeach; ?>
 
-				<script>
-				(function() {
-					// Prevent duplicate position selection within each form.
-					document.querySelectorAll('.voting-form').forEach(function(form) {
-						const selects = form.querySelectorAll('.vote-select');
-						selects.forEach(function(select) {
-							select.addEventListener('change', function() {
-								const selectedValue = this.value;
-								if (selectedValue) {
-									// Clear other selects with the same value within this form.
-									selects.forEach(function(otherSelect) {
-										if (otherSelect !== select && otherSelect.value === selectedValue) {
-											otherSelect.value = '';
-										}
-									});
-								}
-							});
-						});
-					});
-				})();
-				</script>
 			</div>
 		</div>
 		<?php
