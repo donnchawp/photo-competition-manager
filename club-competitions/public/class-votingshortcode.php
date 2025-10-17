@@ -16,6 +16,13 @@ use ClubCompetitions\Service\EmailService;
 use ClubCompetitions\Support\CompetitionSettings;
 use ClubCompetitions\Support\ImageProcessor;
 
+/**
+ * Shortcode renderer for competition voting (token- and password-based).
+ *
+ * Responsible for rendering forms, validating input, and recording votes.
+ *
+ * @since 1.0.0
+ */
 class VotingShortcode {
 
 	/**
@@ -87,13 +94,13 @@ class VotingShortcode {
 		?EmailService $email_service = null,
 		?ImageProcessor $image_processor = null
 	) {
-		$this->competitions_repo = $competitions_repo ?: new CompetitionsRepository();
-		$this->images_repo       = $images_repo ?: new ImagesRepository();
-		$this->votes_repo        = $votes_repo ?: new VotesRepository();
-		$this->members_repo      = $members_repo ?: new MembersRepository();
-		$this->token_repo        = $token_repo ?: new VotingTokenRepository();
-		$this->email_service     = $email_service ?: new EmailService();
-		$this->image_processor   = $image_processor ?: new ImageProcessor();
+		$this->competitions_repo = $competitions_repo ? $competitions_repo : new CompetitionsRepository();
+		$this->images_repo       = $images_repo ? $images_repo : new ImagesRepository();
+		$this->votes_repo        = $votes_repo ? $votes_repo : new VotesRepository();
+		$this->members_repo      = $members_repo ? $members_repo : new MembersRepository();
+		$this->token_repo        = $token_repo ? $token_repo : new VotingTokenRepository();
+		$this->email_service     = $email_service ? $email_service : new EmailService();
+		$this->image_processor   = $image_processor ? $image_processor : new ImageProcessor();
 	}
 
 	/**
@@ -150,6 +157,7 @@ class VotingShortcode {
 	 */
 	private function render_token_based_voting( object $competition, array $settings ): string {
 		// Check for voting token in URL.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading a read-only token from the URL for magic-link auth; sanitized and hashed below.
 		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 		$token_hash   = $token_string ? hash( 'sha256', $token_string ) : '';
 		$token_record = null;
@@ -167,14 +175,14 @@ class VotingShortcode {
 		// Handle token request form submission.
 		$message = '';
 		if ( isset( $_POST['club_competitions_request_voting_token'] ) && check_admin_referer( 'club_competitions_request_voting_token', 'club_competitions_voting_nonce' ) ) {
-			$message = $this->handle_token_request( $competition, $settings );
+			$message = $this->handle_token_request( $competition, $settings, $_POST );
 		}
 
 		$submitted_votes = array();
 
 		// Handle vote submission with token.
 		if ( $token_record && $member && isset( $_POST['club_competitions_vote'] ) && check_admin_referer( 'club_competitions_vote_with_token', 'club_competitions_vote_nonce' ) ) {
-			$submitted_votes = $this->collect_vote_selections( $settings );
+			$submitted_votes = $this->collect_vote_selections_from_request( $_POST, $settings );
 			$message         = $this->handle_vote_submission_token( $competition, $token_record, $settings, $submitted_votes );
 		}
 
@@ -202,7 +210,7 @@ class VotingShortcode {
 		);
 
 		if ( isset( $_POST['club_competitions_vote'] ) && check_admin_referer( 'club_competitions_vote', 'club_competitions_vote_nonce' ) ) {
-			$submitted_data = $this->collect_password_submission_data( $settings );
+			$submitted_data = $this->collect_password_submission_data( $_POST, $settings );
 			$message        = $this->handle_vote_submission_password( $competition, $settings, $submitted_data );
 		}
 
@@ -217,11 +225,12 @@ class VotingShortcode {
 	 *
 	 * @param object $competition Competition object.
 	 * @param array  $settings    Competition settings.
+	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.
 	 * @return string Message to display.
 	 */
-	private function handle_token_request( object $competition, array $settings ): string {
-		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-		$category     = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+	private function handle_token_request( object $competition, array $settings, array $request ): string {
+		$member_email = isset( $request['member_email'] ) ? sanitize_email( wp_unslash( $request['member_email'] ) ) : '';
+		$category     = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
 
 		if ( empty( $member_email ) ) {
 			return '<p class="error">' . esc_html__( 'Please enter your email address.', 'club-competitions' ) . '</p>';
@@ -429,7 +438,7 @@ class VotingShortcode {
 	/**
 	 * Render voting interface for token-based voting.
 	 *
-	 * @param object         $competition   Competition object.
+	 * @param object         $competition     Competition object.
 	 * @param string         $message         Message to display.
 	 * @param object|null    $token_record    Token record if validated.
 	 * @param object|null    $member          Member object if authenticated.
@@ -577,7 +586,7 @@ class VotingShortcode {
 							sprintf(
 								/* translators: %d: number of images to select */
 								_n(
-									'Select your top image and assign it a position (1 for best).',
+									'Select your top %d image and assign it a position (1 for best).',
 									'Select your top %d images and assign each a position (1 for best).',
 									count( $score_matrix ),
 									'club-competitions'
@@ -617,12 +626,14 @@ class VotingShortcode {
 								<div class="image-wrapper">
 									<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
 										<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-											<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number ) ); ?>" loading="lazy" />
+											<?php
+											// translators: %d: image random number.
+											$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
+											?>
+											<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
 										</a>
 									<?php else : ?>
-										<div class="image-unavailable">
-											<?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?>
-										</div>
+										<div class="image-unavailable"><?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?></div>
 									<?php endif; ?>
 									<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 								</div>
@@ -635,7 +646,8 @@ class VotingShortcode {
 									?>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
 										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
-										<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
+										<?php $matrix_count = count( $score_matrix ); ?>
+										<?php for ( $i = 1; $i <= $matrix_count; $i++ ) : ?>
 											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
 												<?php
 												echo esc_html(
@@ -690,7 +702,9 @@ class VotingShortcode {
 			echo '<div class="image-wrapper">';
 			if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) {
 				echo '<a href="' . esc_url( $image_url ) . '" target="_blank" rel="noopener noreferrer" class="image-link">';
-				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number ) ) . '" loading="lazy" />';
+				// translators: %d: image random number.
+				$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
+				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $alt ) . '" loading="lazy" />';
 				echo '</a>';
 			} else {
 				echo '<div class="image-unavailable">' . esc_html__( 'Image unavailable', 'club-competitions' ) . '</div>';
@@ -774,7 +788,7 @@ class VotingShortcode {
 									sprintf(
 										/* translators: %d: number of images to select */
 										_n(
-											'Select your top image and assign it a position (1 for best).',
+											'Select your top %d image and assign it a position (1 for best).',
 											'Select your top %d images and assign each a position (1 for best).',
 											count( $score_matrix ),
 											'club-competitions'
@@ -845,12 +859,14 @@ class VotingShortcode {
 										<div class="image-wrapper">
 											<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
 												<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-													<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number ) ); ?>" loading="lazy" />
+													<?php
+													// translators: %d: image random number.
+													$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
+													?>
+													<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
 												</a>
 											<?php else : ?>
-												<div class="image-unavailable">
-													<?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?>
-												</div>
+												<div class="image-unavailable"><?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?></div>
 											<?php endif; ?>
 											<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 										</div>
@@ -865,7 +881,8 @@ class VotingShortcode {
 									?>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
 										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
-										<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
+										<?php $matrix_count = count( $score_matrix ); ?>
+										<?php for ( $i = 1; $i <= $matrix_count; $i++ ) : ?>
 											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
 												<?php
 												echo esc_html(
@@ -904,6 +921,7 @@ class VotingShortcode {
 	/**
 	 * Collect sanitized submission values for password-based voting.
 	 *
+	 * @param array $request  Request array (typically $_POST) already nonce-verified by the caller.
 	 * @param array $settings Competition settings.
 	 * @return array{
 	 *     voter_name:string,
@@ -912,11 +930,11 @@ class VotingShortcode {
 	 *     votes:array<int,int>
 	 * }
 	 */
-	private function collect_password_submission_data( array $settings ): array {
-		$voter_name      = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
-		$category        = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
-		$voting_password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '';
-		$votes           = $this->collect_vote_selections( $settings );
+	private function collect_password_submission_data( array $request, array $settings ): array {
+		$voter_name      = isset( $request['voter_name'] ) ? sanitize_text_field( wp_unslash( $request['voter_name'] ) ) : '';
+		$category        = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
+		$voting_password = isset( $request['voting_password'] ) ? sanitize_text_field( wp_unslash( $request['voting_password'] ) ) : '';
+		$votes           = $this->collect_vote_selections_from_request( $request, $settings );
 
 		return array(
 			'voter_name'      => $voter_name,
@@ -927,17 +945,18 @@ class VotingShortcode {
 	}
 
 	/**
-	 * Collect sanitized vote selections from the current request.
+	 * Collect sanitized vote selections from the given request array.
 	 *
+	 * @param array $request  Request array (typically $_POST) already nonce-verified by the caller.
 	 * @param array $settings Competition settings.
 	 * @return array<int, int> Sanitized vote selections keyed by image ID.
 	 */
-	private function collect_vote_selections( array $settings ): array {
-		if ( ! isset( $_POST['votes'] ) || ! is_array( $_POST['votes'] ) ) {
+	private function collect_vote_selections_from_request( array $request, array $settings ): array {
+		if ( ! isset( $request['votes'] ) || ! is_array( $request['votes'] ) ) {
 			return array();
 		}
 
-		$raw_votes = wp_unslash( $_POST['votes'] );
+		$raw_votes = wp_unslash( $request['votes'] );
 		if ( ! is_array( $raw_votes ) ) {
 			return array();
 		}
