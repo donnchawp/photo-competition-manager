@@ -35,7 +35,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 | **Slideshow Display** | Admin projects images in a timed slideshow view for group voting. |
 | **Email Reminders** | Automated reminders and notifications (1 week before, and configurable follow-ups). |
 | **Results & Archiving** | Automatically sort and display results by grade. Provide CSV export and HTML results page with top 3 thumbnails per grade. |
-| **Security Options** | Public voting link by default; optional per-user or per-competition unique links for tighter access control. |
+| **Security Options** | Public voting link by default; optional per-user or per-competition unique links and upload/voting passwords for tighter access control. |
 
 ---
 
@@ -69,6 +69,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Max number of images per category defined by admin.
   - Only JPEG (.jpg/.jpeg) accepted.
   - Admin defines maximum file size (e.g. 5MB) and pixel dimensions.
+  - Optional upload password per competition; when set, members must enter it before accessing the upload form.
   - Plugin automatically resizes oversized images.
   - Filenames automatically reformatted to:
     **`username-categoryslug-[counter].jpg`**
@@ -90,6 +91,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 
 ### 4.4 Voting System
 - Voting opened manually by admin or automatically by schedule.
+- Optional voting password per competition; when set, voters must provide it before submitting ballots.
 - Admin may restrict to one vote per device/session.
 - Default scoring matrix: 9, 8, 7, 6, 5 (configurable).
 - Voters prompted for **Name** before voting; recorded with results.

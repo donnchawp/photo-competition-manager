@@ -49,11 +49,13 @@ class CompetitionSettings {
 				'max_width'        => 1920,
 				'max_height'       => 1920,
 				'allowed_formats'  => array( 'jpg', 'jpeg' ),
+				'password'         => '',
 			),
 			'voting'          => array(
 				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
 				'auto_open'       => false,
 				'open_categories' => array(), // Array of category slugs where voting is open.
+				'password'        => '',
 			),
 			'slideshow'       => array(
 				'duration_seconds' => 10,
@@ -196,10 +198,18 @@ class CompetitionSettings {
 			}
 		}
 
+		if ( isset( $settings['upload']['password'] ) && ! is_string( $settings['upload']['password'] ) ) {
+			return new WP_Error( 'invalid_upload_password', __( 'Upload password must be a string.', 'club-competitions' ) );
+		}
+
 		if ( isset( $settings['voting']['score_matrix'] ) ) {
 			if ( ! is_array( $settings['voting']['score_matrix'] ) || empty( $settings['voting']['score_matrix'] ) ) {
 				return new WP_Error( 'invalid_score_matrix', __( 'Score matrix must be a non-empty array.', 'club-competitions' ) );
 			}
+		}
+
+		if ( isset( $settings['voting']['password'] ) && ! is_string( $settings['voting']['password'] ) ) {
+			return new WP_Error( 'invalid_voting_password', __( 'Voting password must be a string.', 'club-competitions' ) );
 		}
 
 		return true;

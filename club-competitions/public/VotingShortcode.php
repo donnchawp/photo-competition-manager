@@ -129,6 +129,21 @@ class VotingShortcode {
 
 		// Verify voting is open for this category.
 		$settings = CompetitionSettings::parse( $competition->settings );
+		$voting_config = CompetitionSettings::get_voting_config( $settings );
+
+		$expected_password = isset( $voting_config['password'] ) ? (string) $voting_config['password'] : '';
+		$provided_password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '';
+
+		if ( '' !== $expected_password ) {
+			if ( '' === $provided_password ) {
+				return '<p class="error">' . esc_html__( 'Please enter the voting password.', 'club-competitions' ) . '</p>';
+			}
+
+			if ( ! \hash_equals( $expected_password, $provided_password ) ) {
+				return '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'club-competitions' ) . '</p>';
+			}
+		}
+
 		if ( ! CompetitionSettings::is_voting_open_for_category( $settings, $category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'club-competitions' ) . '</p>';
 		}
@@ -143,7 +158,6 @@ class VotingShortcode {
 		}
 
 		// Get score matrix from settings.
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
 		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 
 		// Process votes.
@@ -179,8 +193,9 @@ class VotingShortcode {
 	 * @return void
 	 */
 	private function render_voting_interface( object $competition, string $message ): void {
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$categories = CompetitionSettings::get_categories( $settings );
+		$settings      = CompetitionSettings::parse( $competition->settings );
+		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$categories    = CompetitionSettings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
 		$open_categories   = CompetitionSettings::get_open_voting_categories( $settings );
@@ -192,8 +207,9 @@ class VotingShortcode {
 		);
 
 		// Get score matrix.
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
-		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_matrix     = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$voting_password  = $voting_config['password'] ?? '';
+		$password_needed  = '' !== $voting_password;
 
 		// Use the first open category (only one category allowed at a time).
 		$selected_category = '';
@@ -322,8 +338,24 @@ class VotingShortcode {
 						value="<?php echo esc_attr( $voter_name ); ?>"
 						required
 					/>
-					<small><?php esc_html_e( 'Your name will be recorded with your votes.', 'club-competitions' ); ?></small>
+						<small><?php esc_html_e( 'Your name will be recorded with your votes.', 'club-competitions' ); ?></small>
 				</div>
+
+				<?php if ( $password_needed ) : ?>
+					<div class="voter-password">
+						<label for="voting_password">
+							<?php esc_html_e( 'Voting Password:', 'club-competitions' ); ?>
+							<span class="required">*</span>
+						</label>
+						<input
+							type="password"
+							id="voting_password"
+							name="voting_password"
+							required
+						/>
+						<small><?php esc_html_e( 'Provided by your competition organizer.', 'club-competitions' ); ?></small>
+					</div>
+				<?php endif; ?>
 
 				<div class="images-grid">
 					<?php foreach ( $images as $image ) : ?>

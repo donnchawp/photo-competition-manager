@@ -22,6 +22,10 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'voting', $defaults );
 		$this->assertArrayHasKey( 'slideshow', $defaults );
 		$this->assertArrayHasKey( 'email_reminders', $defaults );
+		$this->assertArrayHasKey( 'password', $defaults['upload'] );
+		$this->assertArrayHasKey( 'password', $defaults['voting'] );
+		$this->assertSame( '', $defaults['upload']['password'] );
+		$this->assertSame( '', $defaults['voting']['password'] );
 
 		$this->assertCount( 2, $defaults['categories'] );
 		$this->assertCount( 3, $defaults['grades'] );
@@ -193,6 +197,26 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertEquals( 'invalid_score_matrix', $result->get_error_code() );
 	}
 
+	public function test_validate_rejects_non_string_upload_password(): void {
+		$settings                        = CompetitionSettings::defaults();
+		$settings['upload']['password'] = array( 'not-a-string' );
+
+		$result = CompetitionSettings::validate( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'invalid_upload_password', $result->get_error_code() );
+	}
+
+	public function test_validate_rejects_non_string_voting_password(): void {
+		$settings                       = CompetitionSettings::defaults();
+		$settings['voting']['password'] = array( 'not-a-string' );
+
+		$result = CompetitionSettings::validate( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'invalid_voting_password', $result->get_error_code() );
+	}
+
 	public function test_encode_returns_json_string(): void {
 		$settings = CompetitionSettings::defaults();
 		$result   = CompetitionSettings::encode( $settings );
@@ -230,6 +254,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'max_file_size_mb', $result );
 		$this->assertArrayHasKey( 'max_width', $result );
 		$this->assertArrayHasKey( 'max_height', $result );
+		$this->assertArrayHasKey( 'password', $result );
 		$this->assertEquals( 5, $result['max_file_size_mb'] );
 	}
 
@@ -238,6 +263,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$result   = CompetitionSettings::get_voting_config( $settings );
 
 		$this->assertIsArray( $result );
+		$this->assertArrayHasKey( 'password', $result );
 		$this->assertArrayHasKey( 'score_matrix', $result );
 		$this->assertArrayHasKey( 'auto_open', $result );
 		$this->assertEquals( array( 9, 8, 7, 6, 5 ), $result['score_matrix'] );

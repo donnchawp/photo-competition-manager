@@ -83,19 +83,65 @@ class UploadShortcode {
 			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
 		}
 
+		$settings        = CompetitionSettings::parse( $competition->settings );
+		$upload_settings = CompetitionSettings::get_upload_constraints( $settings );
+		$stored_password = isset( $upload_settings['password'] ) ? (string) $upload_settings['password'] : '';
+
+		$submitted_password = isset( $_POST['upload_access_password'] ) ? sanitize_text_field( wp_unslash( $_POST['upload_access_password'] ) ) : '';
+		$password_required  = '' !== $stored_password;
+		$nonce_present      = isset( $_POST['club_competitions_nonce'] );
+
+		$password_valid   = ! $password_required;
+		$password_message = '';
+
+		if ( $password_required ) {
+			$password_valid = false;
+
+			if ( $nonce_present ) {
+				if ( '' === $submitted_password ) {
+					$password_message = '<p class="error">' . esc_html__( 'Please enter the upload password.', 'club-competitions' ) . '</p>';
+				} elseif ( ! \hash_equals( $stored_password, $submitted_password ) ) {
+					$password_message = '<p class="error">' . esc_html__( 'The upload password is incorrect.', 'club-competitions' ) . '</p>';
+				} else {
+					$password_valid = true;
+				}
+			}
+		}
+
 		// Handle form submission.
 		$message = '';
 		if ( isset( $_POST['club_competitions_upload'] ) && check_admin_referer( 'club_competitions_upload', 'club_competitions_nonce' ) ) {
-			$message = $this->handle_submission( $competition->id );
+			if ( $password_valid ) {
+				$message = $this->handle_submission( $competition->id );
+			} else {
+				$message = $password_message ?: '<p class="error">' . esc_html__( 'Upload password required.', 'club-competitions' ) . '</p>';
+			}
 		}
 
 		// Handle deletion.
 		if ( isset( $_POST['club_competitions_delete'] ) && check_admin_referer( 'club_competitions_delete', 'club_competitions_delete_nonce' ) ) {
-			$message = $this->handle_deletion( $competition->id );
+			if ( $password_valid ) {
+				$message = $this->handle_deletion( $competition->id );
+			} else {
+				$message = $password_message ?: '<p class="error">' . esc_html__( 'Upload password required.', 'club-competitions' ) . '</p>';
+			}
+		}
+
+		if ( '' === $message && '' !== $password_message ) {
+			$message = $password_message;
 		}
 
 		ob_start();
-		$this->render_form( $competition, $message );
+		$this->render_form(
+			$competition,
+			$message,
+			array(
+				'upload_password_required' => $password_required,
+				'upload_password_valid'    => $password_valid,
+				'provided_password'        => $password_valid ? $submitted_password : '',
+				'settings'                 => $settings,
+			)
+		);
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -183,13 +229,28 @@ class UploadShortcode {
 	 * @param object $competition Competition object.
 	 * @param string $message     Message to display.
 	 */
-	private function render_form( $competition, string $message ): void {
-		$settings    = CompetitionSettings::parse( $competition->settings );
+	private function render_form( $competition, string $message, array $state = array() ): void {
+		$state = wp_parse_args(
+			$state,
+			array(
+				'upload_password_required' => false,
+				'upload_password_valid'    => true,
+				'provided_password'        => '',
+				'settings'                 => null,
+			)
+		);
+
+		$settings        = is_array( $state['settings'] ) ? $state['settings'] : CompetitionSettings::parse( $competition->settings );
+		$password_needed = (bool) $state['upload_password_required'];
+		$password_valid  = (bool) $state['upload_password_valid'];
+		$provided_pass   = $password_valid ? (string) $state['provided_password'] : '';
+
 		$categories  = CompetitionSettings::get_categories( $settings );
 		$constraints = CompetitionSettings::get_upload_constraints( $settings );
 
-		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-		$member       = $member_email ? $this->members_repo->find_by_email( $member_email ) : null;
+		$member_email_input = isset( $_POST['member_email'] ) ? wp_unslash( $_POST['member_email'] ) : '';
+		$member_email       = sanitize_email( $member_email_input );
+		$member             = ( $member_email && ( ! $password_needed || $password_valid ) ) ? $this->members_repo->find_by_email( $member_email ) : null;
 
 		// Get existing submissions and filter categories.
 		$submissions          = array();
@@ -233,7 +294,7 @@ class UploadShortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
-			<?php if ( ! $member || ! $member_email ) : ?>
+			<?php if ( ! $member || ! $member_email || ( $password_needed && ! $password_valid ) ) : ?>
 				<!-- Email identification form -->
 				<form method="post" enctype="multipart/form-data" class="competition-upload-form">
 					<?php wp_nonce_field( 'club_competitions_upload', 'club_competitions_nonce' ); ?>
@@ -252,6 +313,22 @@ class UploadShortcode {
 						/>
 						<small><?php esc_html_e( 'Enter the email address associated with your membership.', 'club-competitions' ); ?></small>
 					</p>
+
+					<?php if ( $password_needed ) : ?>
+						<p>
+							<label for="upload_access_password">
+								<?php esc_html_e( 'Upload Password:', 'club-competitions' ); ?>
+								<span class="required">*</span>
+							</label>
+							<input
+								type="password"
+								id="upload_access_password"
+								name="upload_access_password"
+								required
+							/>
+							<small><?php esc_html_e( 'Provided by your competition organizer.', 'club-competitions' ); ?></small>
+						</p>
+					<?php endif; ?>
 
 					<p>
 						<button type="submit" class="button">
@@ -300,6 +377,9 @@ class UploadShortcode {
 										<?php wp_nonce_field( 'club_competitions_delete', 'club_competitions_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
 										<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
+										<?php if ( $password_needed && $password_valid && '' !== $provided_pass ) : ?>
+											<input type="hidden" name="upload_access_password" value="<?php echo esc_attr( $provided_pass ); ?>" />
+										<?php endif; ?>
 										<button
 											type="submit"
 											name="club_competitions_delete"
@@ -328,6 +408,9 @@ class UploadShortcode {
 
 						<!-- Preserve member email for upload -->
 						<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
+						<?php if ( $password_needed && $password_valid && '' !== $provided_pass ) : ?>
+							<input type="hidden" name="upload_access_password" value="<?php echo esc_attr( $provided_pass ); ?>" />
+						<?php endif; ?>
 
 						<p>
 							<label for="category">
