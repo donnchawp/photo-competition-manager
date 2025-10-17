@@ -95,13 +95,16 @@ class Activator {
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			competition_id BIGINT UNSIGNED NOT NULL,
 			category VARCHAR(100) NOT NULL,
-			voter_name VARCHAR(191) NOT NULL,
+			voter_name VARCHAR(191) NULL,
+			voting_token_id BIGINT UNSIGNED NULL,
 			image_id BIGINT UNSIGNED NOT NULL,
 			score DECIMAL(6,2) NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY competition (competition_id),
-			KEY image (image_id)
+			KEY image (image_id),
+			KEY voting_token (voting_token_id),
+			KEY voter_name (voter_name)
 		) {$charset_collate};";
 
 		$upload_tokens = "CREATE TABLE {$wpdb->prefix}clubcompete_upload_tokens (
@@ -118,12 +121,28 @@ class Activator {
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 
+		$voting_tokens = "CREATE TABLE {$wpdb->prefix}clubcompete_voting_tokens (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			member_id BIGINT UNSIGNED NOT NULL,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			category VARCHAR(100) NOT NULL,
+			token_hash VARCHAR(64) NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY token_hash (token_hash),
+			KEY member_competition_category (member_id, competition_id, category),
+			KEY expires_at (expires_at)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
 			$images,
 			$votes,
 			$upload_tokens,
+			$voting_tokens,
 		);
 	}
 }

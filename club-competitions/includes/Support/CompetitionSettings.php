@@ -55,6 +55,7 @@ class CompetitionSettings {
 				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
 				'auto_open'       => false,
 				'open_categories' => array(), // Array of category slugs where voting is open.
+				'auth_mode'       => 'password', // 'password' or 'token' (email magic links).
 				'password'        => '',
 			),
 			'slideshow'       => array(
@@ -210,6 +211,13 @@ class CompetitionSettings {
 
 		if ( isset( $settings['voting']['password'] ) && ! is_string( $settings['voting']['password'] ) ) {
 			return new WP_Error( 'invalid_voting_password', __( 'Voting password must be a string.', 'club-competitions' ) );
+		}
+
+		if ( isset( $settings['voting']['auth_mode'] ) ) {
+			$valid_modes = array( 'password', 'token' );
+			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
+				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'club-competitions' ) );
+			}
 		}
 
 		return true;

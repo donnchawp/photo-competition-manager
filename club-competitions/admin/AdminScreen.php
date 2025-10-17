@@ -942,6 +942,7 @@ class AdminScreen {
 					'score_matrix'    => $score_matrix,
 					'auto_open'       => isset( $_POST['auto_open_voting'] ),
 					'open_categories' => $existing_open_categories,
+					'auth_mode'       => isset( $_POST['voting_auth_mode'] ) && in_array( $_POST['voting_auth_mode'], array( 'password', 'token' ), true ) ? sanitize_text_field( wp_unslash( $_POST['voting_auth_mode'] ) ) : 'password',
 					'password'        => isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '',
 				),
 				'slideshow'       => array(
@@ -1045,6 +1046,7 @@ class AdminScreen {
 					'score_matrix'    => $score_matrix,
 					'auto_open'       => isset( $_POST['auto_open_voting'] ),
 					'open_categories' => $existing_open_categories,
+					'auth_mode'       => isset( $_POST['voting_auth_mode'] ) && in_array( $_POST['voting_auth_mode'], array( 'password', 'token' ), true ) ? sanitize_text_field( wp_unslash( $_POST['voting_auth_mode'] ) ) : 'password',
 					'password'        => isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '',
 				),
 				'slideshow'       => array(
@@ -1338,10 +1340,21 @@ class AdminScreen {
 
 		echo '<h3>' . esc_html__( 'Voting Configuration', 'club-competitions' ) . '</h3>';
 
+		$auth_mode = $voting['auth_mode'] ?? 'password';
+
 		echo '<p>';
-		echo '<label for="voting_password">' . esc_html__( 'Voting Password', 'club-competitions' ) . '</label><br />';
-		echo '<input type="password" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable.', 'club-competitions' ) . '</span>';
+		echo '<label for="voting_auth_mode">' . esc_html__( 'Voting Authentication Mode', 'club-competitions' ) . '</label><br />';
+		echo '<select id="voting_auth_mode" name="voting_auth_mode">';
+		echo '<option value="password"' . selected( $auth_mode, 'password', false ) . '>' . esc_html__( 'Password-based (traditional)', 'club-competitions' ) . '</option>';
+		echo '<option value="token"' . selected( $auth_mode, 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'club-competitions' ) . '</option>';
+		echo '</select><br />';
+		echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'club-competitions' ) . '</label><br />';
+		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
+		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based".', 'club-competitions' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';
@@ -2049,10 +2062,21 @@ class AdminScreen {
 
 		echo '<h2>' . esc_html__( 'Voting Configuration', 'club-competitions' ) . '</h2>';
 
+		$auth_mode = $voting['auth_mode'] ?? 'password';
+
 		echo '<p>';
-		echo '<label for="voting_password">' . esc_html__( 'Voting Password', 'club-competitions' ) . '</label><br />';
-		echo '<input type="password" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable by default.', 'club-competitions' ) . '</span>';
+		echo '<label for="voting_auth_mode">' . esc_html__( 'Voting Authentication Mode', 'club-competitions' ) . '</label><br />';
+		echo '<select id="voting_auth_mode" name="voting_auth_mode">';
+		echo '<option value="password"' . selected( $auth_mode, 'password', false ) . '>' . esc_html__( 'Password-based (traditional)', 'club-competitions' ) . '</option>';
+		echo '<option value="token"' . selected( $auth_mode, 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'club-competitions' ) . '</option>';
+		echo '</select><br />';
+		echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'club-competitions' ) . '</label><br />';
+		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
+		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable by default. Only used when auth mode is "Password-based".', 'club-competitions' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';

@@ -21,7 +21,50 @@ class VotesRepository extends AbstractRepository {
 	}
 
 	/**
-	 * Record a vote.
+	 * Record an anonymous vote using token.
+	 *
+	 * @param int   $competition_id   Competition ID.
+	 * @param string $category         Category slug.
+	 * @param int   $voting_token_id  Voting token ID.
+	 * @param int   $image_id         Image ID.
+	 * @param float $score            Score value.
+	 * @return int|WP_Error Vote ID or error.
+	 */
+	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, float $score ) {
+		if ( ! $this->table_exists() ) {
+			return new WP_Error( 'table_missing', __( 'Votes table does not exist.', 'club-competitions' ) );
+		}
+
+		if ( $voting_token_id <= 0 ) {
+			return new WP_Error( 'missing_token_id', __( 'Voting token ID is required.', 'club-competitions' ) );
+		}
+
+		if ( $score < 0 ) {
+			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'club-competitions' ) );
+		}
+
+		$inserted = $this->wpdb->insert(
+			$this->table(),
+			array(
+				'competition_id'   => $competition_id,
+				'category'         => $category,
+				'voting_token_id'  => $voting_token_id,
+				'image_id'         => $image_id,
+				'score'            => $score,
+				'created_at'       => current_time( 'mysql' ),
+			),
+			array( '%d', '%s', '%d', '%d', '%f', '%s' )
+		);
+
+		if ( false === $inserted ) {
+			return new WP_Error( 'insert_failed', $this->wpdb->last_error );
+		}
+
+		return (int) $this->wpdb->insert_id;
+	}
+
+	/**
+	 * Record a vote with voter name (for password-based voting).
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
@@ -46,12 +89,12 @@ class VotesRepository extends AbstractRepository {
 		$inserted = $this->wpdb->insert(
 			$this->table(),
 			array(
-				'competition_id' => $competition_id,
-				'category'       => $category,
-				'voter_name'     => $voter_name,
-				'image_id'       => $image_id,
-				'score'          => $score,
-				'created_at'     => current_time( 'mysql' ),
+				'competition_id'   => $competition_id,
+				'category'         => $category,
+				'voter_name'       => $voter_name,
+				'image_id'         => $image_id,
+				'score'            => $score,
+				'created_at'       => current_time( 'mysql' ),
 			),
 			array( '%d', '%s', '%s', '%d', '%f', '%s' )
 		);
@@ -114,7 +157,33 @@ class VotesRepository extends AbstractRepository {
 	}
 
 	/**
-	 * Check if voter has already voted in a category.
+	 * Check if voting token has already been used to vote.
+	 *
+	 * @param int $voting_token_id Voting token ID.
+	 * @return bool
+	 */
+	public function has_voted_with_token( int $voting_token_id ): bool {
+		if ( ! $this->table_exists() ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$sql = $this->wpdb->prepare(
+			sprintf(
+				'SELECT COUNT(*) FROM %s WHERE voting_token_id = %%d',
+				$this->table()
+			),
+			$voting_token_id
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$count = (int) $this->wpdb->get_var( $sql );
+
+		return $count > 0;
+	}
+
+	/**
+	 * Check if voter has already voted in a category (for password-based voting).
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.

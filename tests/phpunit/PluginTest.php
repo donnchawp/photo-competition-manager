@@ -30,11 +30,12 @@ class PluginTest extends WP_UnitTestCase {
 	public function test_activation_schema_contains_expected_tables(): void {
 		$schema = Activator::get_schema( $GLOBALS['wpdb'] );
 
-		$this->assertCount( 5, $schema );
+		$this->assertCount( 6, $schema );
 		$this->assertStringContainsString( 'clubcompete_members', $schema[0] );
 		$this->assertStringContainsString( 'clubcompete_competitions', $schema[1] );
 		$this->assertStringContainsString( 'clubcompete_images', $schema[2] );
 		$this->assertStringContainsString( 'clubcompete_votes', $schema[3] );
 		$this->assertStringContainsString( 'clubcompete_upload_tokens', $schema[4] );
+		$this->assertStringContainsString( 'clubcompete_voting_tokens', $schema[5] );
 	}
 }
