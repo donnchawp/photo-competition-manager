@@ -756,10 +756,8 @@ class VotingShortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
-			<!-- Category selector and voting form -->
+			<!-- Voting form -->
 			<div class="password-voting-section">
-				<p><?php esc_html_e( 'Select a category to vote in:', 'club-competitions' ); ?></p>
-
 				<?php foreach ( $voting_categories as $category_data ) : ?>
 					<?php
 					$category_slug = $category_data['slug'];
