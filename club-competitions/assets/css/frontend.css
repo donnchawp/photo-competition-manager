@@ -508,6 +508,7 @@
 	color: #333;
 	position: sticky;
 	top: 0;
+	text-align: center;
 }
 
 .results-table tr:hover {

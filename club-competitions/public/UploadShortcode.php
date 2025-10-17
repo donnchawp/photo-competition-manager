@@ -184,15 +184,15 @@ class UploadShortcode {
 	 * @param string $message     Message to display.
 	 */
 	private function render_form( $competition, string $message ): void {
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$categories = CompetitionSettings::get_categories( $settings );
+		$settings    = CompetitionSettings::parse( $competition->settings );
+		$categories  = CompetitionSettings::get_categories( $settings );
 		$constraints = CompetitionSettings::get_upload_constraints( $settings );
 
 		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
 		$member       = $member_email ? $this->members_repo->find_by_email( $member_email ) : null;
 
 		// Get existing submissions and filter categories.
-		$submissions = array();
+		$submissions          = array();
 		$available_categories = array();
 
 		if ( $member ) {

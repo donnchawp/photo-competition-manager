@@ -82,6 +82,7 @@ class ResultsShortcode {
 		$atts = shortcode_atts(
 			array(
 				'competition' => '',
+				'hide_names'  => 'false',
 			),
 			$atts,
 			'competition_results'
@@ -103,8 +104,10 @@ class ResultsShortcode {
 			}
 		}
 
+		$hide_names = filter_var( $atts['hide_names'], FILTER_VALIDATE_BOOLEAN );
+
 		ob_start();
-		$this->render_results( $competition );
+		$this->render_results( $competition, $hide_names );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -113,11 +116,12 @@ class ResultsShortcode {
 	 * Render results display.
 	 *
 	 * @param object $competition Competition object.
+	 * @param bool   $hide_names  Whether to hide member names.
 	 * @return void
 	 */
-	private function render_results( object $competition ): void {
-		$settings = CompetitionSettings::parse( $competition->settings );
-		$grades   = CompetitionSettings::get_grades( $settings );
+	private function render_results( object $competition, bool $hide_names = false ): void {
+		$settings   = CompetitionSettings::parse( $competition->settings );
+		$grades     = CompetitionSettings::get_grades( $settings );
 		$categories = CompetitionSettings::get_categories( $settings );
 
 		// Get all images for this competition with their scores
@@ -142,9 +146,9 @@ class ResultsShortcode {
 				continue;
 			}
 
-			$category = $image->category;
-			$grade = $member->grade ?: 'unknown';
-			$score_data = $image_scores[ (int) $image->id ] ?? null;
+			$category    = $image->category;
+			$grade       = $member->grade ?: 'unknown';
+			$score_data  = $image_scores[ (int) $image->id ] ?? null;
 			$total_score = $score_data ? $score_data['average_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
@@ -156,19 +160,22 @@ class ResultsShortcode {
 			}
 
 			$results_by_category[ $category ][ $grade ][] = array(
-				'image'      => $image,
-				'member'     => $member,
+				'image'       => $image,
+				'member'      => $member,
 				'total_score' => $total_score,
-				'vote_count' => $score_data ? $score_data['vote_count'] : 0,
+				'vote_count'  => $score_data ? $score_data['vote_count'] : 0,
 			);
 		}
 
 		// Sort each grade within each category by total score (highest first)
 		foreach ( $results_by_category as $category => $grade_results ) {
 			foreach ( $grade_results as $grade => $results ) {
-				usort( $results_by_category[ $category ][ $grade ], function( $a, $b ) {
-					return $b['total_score'] <=> $a['total_score'];
-				});
+				usort(
+					$results_by_category[ $category ][ $grade ],
+					function ( $a, $b ) {
+						return $b['total_score'] <=> $a['total_score'];
+					}
+				);
 			}
 		}
 
@@ -178,8 +185,8 @@ class ResultsShortcode {
 
 			<?php foreach ( $categories as $category_config ) : ?>
 				<?php
-				$category_slug = $category_config['slug'];
-				$category_label = $category_config['label'];
+				$category_slug    = $category_config['slug'];
+				$category_label   = $category_config['label'];
 				$category_results = $results_by_category[ $category_slug ] ?? array();
 				?>
 				<?php if ( ! empty( $category_results ) ) : ?>
@@ -188,8 +195,8 @@ class ResultsShortcode {
 
 						<?php foreach ( $grades as $grade_config ) : ?>
 							<?php
-							$grade_slug = $grade_config['slug'];
-							$grade_label = $grade_config['label'];
+							$grade_slug    = $grade_config['slug'];
+							$grade_label   = $grade_config['label'];
 							$grade_results = $category_results[ $grade_slug ] ?? array();
 							?>
 							<?php if ( ! empty( $grade_results ) ) : ?>
@@ -201,7 +208,9 @@ class ResultsShortcode {
 												<tr>
 													<th><?php esc_html_e( 'Position', 'club-competitions' ); ?></th>
 													<th><?php esc_html_e( 'Image', 'club-competitions' ); ?></th>
-													<th><?php esc_html_e( 'Member', 'club-competitions' ); ?></th>
+													<?php if ( ! $hide_names ) : ?>
+														<th><?php esc_html_e( 'Member', 'club-competitions' ); ?></th>
+													<?php endif; ?>
 													<th><?php esc_html_e( 'Score', 'club-competitions' ); ?></th>
 													<th><?php esc_html_e( 'Votes', 'club-competitions' ); ?></th>
 												</tr>
@@ -209,12 +218,12 @@ class ResultsShortcode {
 											<tbody>
 												<?php foreach ( $grade_results as $position => $result ) : ?>
 													<?php
-													$image = $result['image'];
-													$member = $result['member'];
+													$image       = $result['image'];
+													$member      = $result['member'];
 													$total_score = $result['total_score'];
-													$vote_count = $result['vote_count'];
-													$image_urls = $this->get_image_urls( $competition, $image, $members );
-													$thumb_url = $image_urls['thumb'] ?: $image_urls['full'];
+													$vote_count  = $result['vote_count'];
+													$image_urls  = $this->get_image_urls( $competition, $image, $members );
+													$thumb_url   = $image_urls['thumb'] ?: $image_urls['full'];
 													?>
 													<tr>
 														<td class="position"><?php echo esc_html( $position + 1 ); ?></td>
@@ -230,7 +239,9 @@ class ResultsShortcode {
 															<?php endif; ?>
 															<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 														</td>
-														<td class="member-name"><?php echo esc_html( $member->name ); ?></td>
+														<?php if ( ! $hide_names ) : ?>
+															<td class="member-name"><?php echo esc_html( $member->name ); ?></td>
+														<?php endif; ?>
 														<td class="score"><?php echo esc_html( number_format( $total_score, 2 ) ); ?></td>
 														<td class="vote-count"><?php echo esc_html( $vote_count ); ?></td>
 													</tr>
@@ -262,12 +273,18 @@ class ResultsShortcode {
 	 */
 	private function get_image_urls( object $competition, object $image, array $members ): array {
 		if ( empty( $competition->slug ) || empty( $image->filename ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$uploads = wp_upload_dir();
 		if ( ! empty( $uploads['error'] ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$base = trailingslashit( $uploads['baseurl'] ) . 'competitions/';

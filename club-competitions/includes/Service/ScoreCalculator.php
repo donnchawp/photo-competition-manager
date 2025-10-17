@@ -119,9 +119,9 @@ class ScoreCalculator {
 	/**
 	 * Get leaderboard by grade.
 	 *
-	 * @param int                  $competition_id Competition ID.
-	 * @param string|null          $category       Optional category filter.
-	 * @param array<int, object>   $members        Members lookup array (keyed by member ID).
+	 * @param int                $competition_id Competition ID.
+	 * @param string|null        $category       Optional category filter.
+	 * @param array<int, object> $members        Members lookup array (keyed by member ID).
 	 * @return array<string, array<object>> Results grouped by grade.
 	 */
 	public function get_leaderboard_by_grade( int $competition_id, ?string $category, array $members ): array {
@@ -146,11 +146,11 @@ class ScoreCalculator {
 	/**
 	 * Get top N winners for a category/grade.
 	 *
-	 * @param int                  $competition_id Competition ID.
-	 * @param string               $category       Category slug.
-	 * @param string               $grade          Grade name.
-	 * @param array<int, object>   $members        Members lookup array.
-	 * @param int                  $limit          Number of winners to return.
+	 * @param int                $competition_id Competition ID.
+	 * @param string             $category       Category slug.
+	 * @param string             $grade          Grade name.
+	 * @param array<int, object> $members        Members lookup array.
+	 * @param int                $limit          Number of winners to return.
 	 * @return array<object>
 	 */
 	public function get_top_winners( int $competition_id, string $category, string $grade, array $members, int $limit = 3 ): array {

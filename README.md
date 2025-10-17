@@ -18,6 +18,7 @@ The plugin provides several shortcodes for displaying competition functionality:
 ### Results Display
 - `[competition_results]` - Complete results table for most recent competition
 - `[competition_results competition="slug"]` - Complete results table for specific competition
+- `[competition_results hide_names="true"]` - Results table without member names
 - `[competition_top3]` - Top 3 winners per grade for most recent competition
 - `[competition_top3 competition="slug"]` - Top 3 winners per grade for specific competition
 
@@ -36,6 +37,10 @@ The plugin provides several shortcodes for displaying competition functionality:
 // Show results for specific competition
 [competition_results competition="october-2024"]
 [competition_top3 competition="october-2024"]
+
+// Show results without member names (anonymous display)
+[competition_results hide_names="true"]
+[competition_results competition="october-2024" hide_names="true"]
 ```
 
 ## Documentation

@@ -156,8 +156,8 @@ class MembersRepository extends AbstractRepository {
 	/**
 	 * Update a member record.
 	 *
-	 * @param int                   $id   Member ID.
-	 * @param array<string, mixed>  $data Member fields.
+	 * @param int                  $id   Member ID.
+	 * @param array<string, mixed> $data Member fields.
 	 * @return bool|WP_Error
 	 */
 	public function update( int $id, array $data ) {
@@ -251,7 +251,7 @@ class MembersRepository extends AbstractRepository {
 
 		if ( $exclude_id ) {
 			$conditions .= ' AND id != %d';
-			$params[] = $exclude_id;
+			$params[]    = $exclude_id;
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared

@@ -18,7 +18,7 @@ class CompetitionSettings {
 	 */
 	public static function defaults(): array {
 		return array(
-			'categories'       => array(
+			'categories'      => array(
 				array(
 					'slug'  => 'colour',
 					'label' => __( 'Colour', 'club-competitions' ),
@@ -30,7 +30,7 @@ class CompetitionSettings {
 					'quota' => 2,
 				),
 			),
-			'grades'           => array(
+			'grades'          => array(
 				array(
 					'slug'  => 'beginner',
 					'label' => __( 'Beginner', 'club-competitions' ),
@@ -44,21 +44,21 @@ class CompetitionSettings {
 					'label' => __( 'Advanced', 'club-competitions' ),
 				),
 			),
-			'upload'           => array(
+			'upload'          => array(
 				'max_file_size_mb' => 5,
 				'max_width'        => 1920,
 				'max_height'       => 1920,
 				'allowed_formats'  => array( 'jpg', 'jpeg' ),
 			),
-			'voting'           => array(
+			'voting'          => array(
 				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
 				'auto_open'       => false,
 				'open_categories' => array(), // Array of category slugs where voting is open.
 			),
-			'slideshow'        => array(
+			'slideshow'       => array(
 				'duration_seconds' => 10,
 			),
-			'email_reminders'  => array(
+			'email_reminders' => array(
 				'enabled'                => true,
 				'days_before_open'       => 7,
 				'days_before_close'      => 1,
@@ -263,8 +263,8 @@ class CompetitionSettings {
 	 * @return bool
 	 */
 	public static function is_voting_open_for_category( array $settings, string $category ): bool {
-		$voting_config    = self::get_voting_config( $settings );
-		$open_categories  = $voting_config['open_categories'] ?? array();
+		$voting_config   = self::get_voting_config( $settings );
+		$open_categories = $voting_config['open_categories'] ?? array();
 
 		return in_array( $category, $open_categories, true );
 	}

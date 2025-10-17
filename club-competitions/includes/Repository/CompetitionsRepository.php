@@ -148,15 +148,15 @@ class CompetitionsRepository extends AbstractRepository {
 		$now         = current_time( 'mysql' );
 
 		$payload = array(
-			'title'        => $title,
-			'slug'         => $slug,
-			'status'       => $status ?: 'draft',
-			'open_date'    => $open_date,
-			'close_date'   => $close_date,
-			'voting_open'  => $voting_open,
-			'settings'     => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
-			'created_at'   => $now,
-			'updated_at'   => $now,
+			'title'       => $title,
+			'slug'        => $slug,
+			'status'      => $status ?: 'draft',
+			'open_date'   => $open_date,
+			'close_date'  => $close_date,
+			'voting_open' => $voting_open,
+			'settings'    => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
+			'created_at'  => $now,
+			'updated_at'  => $now,
 		);
 
 		$format = array(
@@ -182,8 +182,8 @@ class CompetitionsRepository extends AbstractRepository {
 	/**
 	 * Update a competition.
 	 *
-	 * @param int                     $id   Competition ID.
-	 * @param array<string, mixed>    $data Updated data.
+	 * @param int                  $id   Competition ID.
+	 * @param array<string, mixed> $data Updated data.
 	 * @return bool|WP_Error
 	 */
 	public function update( int $id, array $data ) {
@@ -326,7 +326,7 @@ class CompetitionsRepository extends AbstractRepository {
 
 		if ( $exclude_id ) {
 			$conditions .= ' AND id != %d';
-			$params[] = $exclude_id;
+			$params[]    = $exclude_id;
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared

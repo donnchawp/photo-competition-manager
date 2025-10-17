@@ -183,10 +183,10 @@ class VotingShortcode {
 		$categories = CompetitionSettings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
-		$open_categories = CompetitionSettings::get_open_voting_categories( $settings );
+		$open_categories   = CompetitionSettings::get_open_voting_categories( $settings );
 		$voting_categories = array_filter(
 			$categories,
-			function( $cat ) use ( $open_categories ) {
+			function ( $cat ) use ( $open_categories ) {
 				return in_array( $cat['slug'], $open_categories, true );
 			}
 		);
@@ -198,7 +198,7 @@ class VotingShortcode {
 		// Use the first open category (only one category allowed at a time).
 		$selected_category = '';
 		if ( ! empty( $voting_categories ) ) {
-			$first_open = reset( $voting_categories );
+			$first_open        = reset( $voting_categories );
 			$selected_category = $first_open['slug'];
 		}
 
@@ -453,12 +453,18 @@ class VotingShortcode {
 	 */
 	private function get_image_urls( object $competition, object $image, array $members ): array {
 		if ( empty( $competition->slug ) || empty( $image->filename ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$uploads = wp_upload_dir();
 		if ( ! empty( $uploads['error'] ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$base = trailingslashit( $uploads['baseurl'] ) . 'competitions/';

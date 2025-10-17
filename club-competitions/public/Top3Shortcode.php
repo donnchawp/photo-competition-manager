@@ -116,8 +116,8 @@ class Top3Shortcode {
 	 * @return void
 	 */
 	private function render_top3_results( object $competition ): void {
-		$settings = CompetitionSettings::parse( $competition->settings );
-		$grades   = CompetitionSettings::get_grades( $settings );
+		$settings   = CompetitionSettings::parse( $competition->settings );
+		$grades     = CompetitionSettings::get_grades( $settings );
 		$categories = CompetitionSettings::get_categories( $settings );
 
 		// Get all images for this competition with their scores
@@ -142,9 +142,9 @@ class Top3Shortcode {
 				continue;
 			}
 
-			$category = $image->category;
-			$grade = $member->grade ?: 'unknown';
-			$score_data = $image_scores[ (int) $image->id ] ?? null;
+			$category    = $image->category;
+			$grade       = $member->grade ?: 'unknown';
+			$score_data  = $image_scores[ (int) $image->id ] ?? null;
 			$total_score = $score_data ? $score_data['average_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
@@ -156,19 +156,22 @@ class Top3Shortcode {
 			}
 
 			$results_by_category[ $category ][ $grade ][] = array(
-				'image'      => $image,
-				'member'     => $member,
+				'image'       => $image,
+				'member'      => $member,
 				'total_score' => $total_score,
-				'vote_count' => $score_data ? $score_data['vote_count'] : 0,
+				'vote_count'  => $score_data ? $score_data['vote_count'] : 0,
 			);
 		}
 
 		// Sort each grade within each category by total score (highest first) and take top 3
 		foreach ( $results_by_category as $category => $grade_results ) {
 			foreach ( $grade_results as $grade => $results ) {
-				usort( $results_by_category[ $category ][ $grade ], function( $a, $b ) {
-					return $b['total_score'] <=> $a['total_score'];
-				});
+				usort(
+					$results_by_category[ $category ][ $grade ],
+					function ( $a, $b ) {
+						return $b['total_score'] <=> $a['total_score'];
+					}
+				);
 				$results_by_category[ $category ][ $grade ] = array_slice( $results_by_category[ $category ][ $grade ], 0, 3 );
 			}
 		}
@@ -179,8 +182,8 @@ class Top3Shortcode {
 
 			<?php foreach ( $categories as $category_config ) : ?>
 				<?php
-				$category_slug = $category_config['slug'];
-				$category_label = $category_config['label'];
+				$category_slug    = $category_config['slug'];
+				$category_label   = $category_config['label'];
 				$category_results = $results_by_category[ $category_slug ] ?? array();
 				?>
 				<?php if ( ! empty( $category_results ) ) : ?>
@@ -189,8 +192,8 @@ class Top3Shortcode {
 
 						<?php foreach ( $grades as $grade_config ) : ?>
 							<?php
-							$grade_slug = $grade_config['slug'];
-							$grade_label = $grade_config['label'];
+							$grade_slug    = $grade_config['slug'];
+							$grade_label   = $grade_config['label'];
 							$grade_results = $category_results[ $grade_slug ] ?? array();
 							?>
 							<?php if ( ! empty( $grade_results ) ) : ?>
@@ -198,7 +201,7 @@ class Top3Shortcode {
 									<h4><?php echo esc_html( $grade_label ); ?></h4>
 									<div class="top3-podium">
 										<?php
-										$positions = array( 'first', 'second', 'third' );
+										$positions       = array( 'first', 'second', 'third' );
 										$position_labels = array(
 											'first'  => __( '1st Place', 'club-competitions' ),
 											'second' => __( '2nd Place', 'club-competitions' ),
@@ -207,13 +210,13 @@ class Top3Shortcode {
 										?>
 										<?php foreach ( $grade_results as $index => $result ) : ?>
 											<?php
-											$image = $result['image'];
-											$member = $result['member'];
-											$total_score = $result['total_score'];
-											$vote_count = $result['vote_count'];
-											$image_urls = $this->get_image_urls( $competition, $image, $members );
-											$thumb_url = $image_urls['thumb'] ?: $image_urls['full'];
-											$position = $positions[ $index ] ?? 'third';
+											$image          = $result['image'];
+											$member         = $result['member'];
+											$total_score    = $result['total_score'];
+											$vote_count     = $result['vote_count'];
+											$image_urls     = $this->get_image_urls( $competition, $image, $members );
+											$thumb_url      = $image_urls['thumb'] ?: $image_urls['full'];
+											$position       = $positions[ $index ] ?? 'third';
 											$position_label = $position_labels[ $position ] ?? __( '3rd Place', 'club-competitions' );
 											?>
 											<div class="podium-item <?php echo esc_attr( $position ); ?>">
@@ -266,12 +269,18 @@ class Top3Shortcode {
 	 */
 	private function get_image_urls( object $competition, object $image, array $members ): array {
 		if ( empty( $competition->slug ) || empty( $image->filename ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$uploads = wp_upload_dir();
 		if ( ! empty( $uploads['error'] ) ) {
-			return array( 'full' => '', 'thumb' => '' );
+			return array(
+				'full'  => '',
+				'thumb' => '',
+			);
 		}
 
 		$base = trailingslashit( $uploads['baseurl'] ) . 'competitions/';
