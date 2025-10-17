@@ -78,19 +78,21 @@ class EmailService {
 			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
 				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?></h2>
 
-				<p><?php
+				<p>
+				<?php
 					printf(
 						/* translators: %s: Member name */
 						esc_html__( 'Hi %s,', 'club-competitions' ),
 						esc_html( $member_name )
 					);
-				?></p>
+				?>
+				</p>
 
 				<p><?php esc_html_e( 'You requested to upload images for this competition. Click the link below to access the upload form:', 'club-competitions' ); ?></p>
 
 				<p style="margin: 30px 0;">
 					<a href="<?php echo esc_url( $magic_link ); ?>"
-					   style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+						style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
 						<?php esc_html_e( 'Upload Images', 'club-competitions' ); ?>
 					</a>
 				</p>
@@ -144,7 +146,7 @@ class EmailService {
 
 				<p style="margin: 30px 0;">
 					<a href="<?php echo esc_url( $magic_link ); ?>"
-					   style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+						style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
 						<?php esc_html_e( 'Vote Now', 'club-competitions' ); ?>
 					</a>
 				</p>

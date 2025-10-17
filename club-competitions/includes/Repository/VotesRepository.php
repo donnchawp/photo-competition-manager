@@ -23,11 +23,11 @@ class VotesRepository extends AbstractRepository {
 	/**
 	 * Record an anonymous vote using token.
 	 *
-	 * @param int   $competition_id   Competition ID.
+	 * @param int    $competition_id   Competition ID.
 	 * @param string $category         Category slug.
-	 * @param int   $voting_token_id  Voting token ID.
-	 * @param int   $image_id         Image ID.
-	 * @param float $score            Score value.
+	 * @param int    $voting_token_id  Voting token ID.
+	 * @param int    $image_id         Image ID.
+	 * @param float  $score            Score value.
 	 * @return int|WP_Error Vote ID or error.
 	 */
 	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, float $score ) {
@@ -46,12 +46,12 @@ class VotesRepository extends AbstractRepository {
 		$inserted = $this->wpdb->insert(
 			$this->table(),
 			array(
-				'competition_id'   => $competition_id,
-				'category'         => $category,
-				'voting_token_id'  => $voting_token_id,
-				'image_id'         => $image_id,
-				'score'            => $score,
-				'created_at'       => current_time( 'mysql' ),
+				'competition_id'  => $competition_id,
+				'category'        => $category,
+				'voting_token_id' => $voting_token_id,
+				'image_id'        => $image_id,
+				'score'           => $score,
+				'created_at'      => current_time( 'mysql' ),
 			),
 			array( '%d', '%s', '%d', '%d', '%f', '%s' )
 		);
@@ -89,12 +89,12 @@ class VotesRepository extends AbstractRepository {
 		$inserted = $this->wpdb->insert(
 			$this->table(),
 			array(
-				'competition_id'   => $competition_id,
-				'category'         => $category,
-				'voter_name'       => $voter_name,
-				'image_id'         => $image_id,
-				'score'            => $score,
-				'created_at'       => current_time( 'mysql' ),
+				'competition_id' => $competition_id,
+				'category'       => $category,
+				'voter_name'     => $voter_name,
+				'image_id'       => $image_id,
+				'score'          => $score,
+				'created_at'     => current_time( 'mysql' ),
 			),
 			array( '%d', '%s', '%s', '%d', '%f', '%s' )
 		);

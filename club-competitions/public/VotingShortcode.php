@@ -70,13 +70,13 @@ class VotingShortcode {
 	/**
 	 * Constructor.
 	 *
-	 * @param CompetitionsRepository|null   $competitions_repo Competitions repository.
-	 * @param ImagesRepository|null         $images_repo       Images repository.
-	 * @param VotesRepository|null          $votes_repo        Votes repository.
-	 * @param MembersRepository|null        $members_repo      Members repository.
-	 * @param VotingTokenRepository|null    $token_repo        Token repository.
-	 * @param EmailService|null             $email_service     Email service.
-	 * @param ImageProcessor|null           $image_processor   Image processor.
+	 * @param CompetitionsRepository|null $competitions_repo Competitions repository.
+	 * @param ImagesRepository|null       $images_repo       Images repository.
+	 * @param VotesRepository|null        $votes_repo        Votes repository.
+	 * @param MembersRepository|null      $members_repo      Members repository.
+	 * @param VotingTokenRepository|null  $token_repo        Token repository.
+	 * @param EmailService|null           $email_service     Email service.
+	 * @param ImageProcessor|null         $image_processor   Image processor.
 	 */
 	public function __construct(
 		?CompetitionsRepository $competitions_repo = null,
@@ -170,13 +170,16 @@ class VotingShortcode {
 			$message = $this->handle_token_request( $competition, $settings );
 		}
 
+		$submitted_votes = array();
+
 		// Handle vote submission with token.
 		if ( $token_record && $member && isset( $_POST['club_competitions_vote'] ) && check_admin_referer( 'club_competitions_vote_with_token', 'club_competitions_vote_nonce' ) ) {
-			$message = $this->handle_vote_submission_token( $competition, $token_record, $settings );
+			$submitted_votes = $this->collect_vote_selections( $settings );
+			$message         = $this->handle_vote_submission_token( $competition, $token_record, $settings, $submitted_votes );
 		}
 
 		ob_start();
-		$this->render_voting_interface( $competition, $message, $token_record, $member, $settings, $category );
+		$this->render_voting_interface( $competition, $message, $token_record, $member, $settings, $category, $submitted_votes );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -190,13 +193,21 @@ class VotingShortcode {
 	 */
 	private function render_password_based_voting( object $competition, array $settings ): string {
 		// Handle vote submission.
-		$message = '';
+		$message        = '';
+		$submitted_data = array(
+			'voter_name'      => '',
+			'category'        => '',
+			'voting_password' => '',
+			'votes'           => array(),
+		);
+
 		if ( isset( $_POST['club_competitions_vote'] ) && check_admin_referer( 'club_competitions_vote', 'club_competitions_vote_nonce' ) ) {
-			$message = $this->handle_vote_submission_password( $competition, $settings );
+			$submitted_data = $this->collect_password_submission_data( $settings );
+			$message        = $this->handle_vote_submission_password( $competition, $settings, $submitted_data );
 		}
 
 		ob_start();
-		$this->render_password_voting_interface( $competition, $message, $settings );
+		$this->render_password_voting_interface( $competition, $message, $settings, $submitted_data );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -278,15 +289,14 @@ class VotingShortcode {
 	/**
 	 * Handle vote submission with valid token (for token-based voting).
 	 *
-	 * @param object $competition  Competition object.
-	 * @param object $token_record Token record.
-	 * @param array  $settings     Competition settings.
+	 * @param object         $competition     Competition object.
+	 * @param object         $token_record    Token record.
+	 * @param array          $settings        Competition settings.
+	 * @param array<int,int> $submitted_votes Sanitized vote selections keyed by image ID.
 	 * @return string Message to display.
 	 */
-	private function handle_vote_submission_token( object $competition, object $token_record, array $settings ): string {
-		$votes = isset( $_POST['votes'] ) && is_array( $_POST['votes'] ) ? $_POST['votes'] : array();
-
-		if ( empty( $votes ) ) {
+	private function handle_vote_submission_token( object $competition, object $token_record, array $settings, array $submitted_votes ): string {
+		if ( empty( $submitted_votes ) ) {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>';
 		}
 
@@ -306,11 +316,8 @@ class VotingShortcode {
 
 		// Process votes.
 		$success_count = 0;
-		foreach ( $votes as $image_id => $position ) {
-			$image_id = absint( $image_id );
-			$position = absint( $position );
-
-			if ( $image_id < 1 || $position < 1 || $position > count( $score_matrix ) ) {
+		foreach ( $submitted_votes as $image_id => $position ) {
+			if ( $position < 1 || $position > count( $score_matrix ) ) {
 				continue;
 			}
 
@@ -349,18 +356,20 @@ class VotingShortcode {
 	 *
 	 * @param object $competition Competition object.
 	 * @param array  $settings    Competition settings.
+	 * @param array  $submission  Sanitized submission data.
 	 * @return string Message to display.
 	 */
-	private function handle_vote_submission_password( object $competition, array $settings ): string {
-		$voter_name = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
-		$category   = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
-		$votes      = isset( $_POST['votes'] ) && is_array( $_POST['votes'] ) ? $_POST['votes'] : array();
+	private function handle_vote_submission_password( object $competition, array $settings, array $submission ): string {
+		$voter_name    = $submission['voter_name'] ?? '';
+		$category      = $submission['category'] ?? '';
+		$votes         = $submission['votes'] ?? array();
+		$provided_pass = $submission['voting_password'] ?? '';
 
-		if ( empty( $voter_name ) ) {
+		if ( '' === $voter_name ) {
 			return '<p class="error">' . esc_html__( 'Please enter your name.', 'club-competitions' ) . '</p>';
 		}
 
-		if ( empty( $category ) ) {
+		if ( '' === $category ) {
 			return '<p class="error">' . esc_html__( 'Invalid category.', 'club-competitions' ) . '</p>';
 		}
 
@@ -368,14 +377,13 @@ class VotingShortcode {
 		$voting_config = CompetitionSettings::get_voting_config( $settings );
 
 		$expected_password = isset( $voting_config['password'] ) ? (string) $voting_config['password'] : '';
-		$provided_password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '';
 
 		if ( '' !== $expected_password ) {
-			if ( '' === $provided_password ) {
+			if ( '' === $provided_pass ) {
 				return '<p class="error">' . esc_html__( 'Please enter the voting password.', 'club-competitions' ) . '</p>';
 			}
 
-			if ( ! \hash_equals( $expected_password, $provided_password ) ) {
+			if ( ! \hash_equals( $expected_password, $provided_pass ) ) {
 				return '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'club-competitions' ) . '</p>';
 			}
 		}
@@ -399,10 +407,7 @@ class VotingShortcode {
 		// Process votes.
 		$success_count = 0;
 		foreach ( $votes as $image_id => $position ) {
-			$image_id = absint( $image_id );
-			$position = absint( $position );
-
-			if ( $image_id < 1 || $position < 1 || $position > count( $score_matrix ) ) {
+			if ( $position < 1 || $position > count( $score_matrix ) ) {
 				continue;
 			}
 
@@ -424,15 +429,16 @@ class VotingShortcode {
 	/**
 	 * Render voting interface for token-based voting.
 	 *
-	 * @param object      $competition   Competition object.
-	 * @param string      $message       Message to display.
-	 * @param object|null $token_record  Token record if validated.
-	 * @param object|null $member        Member object if authenticated.
-	 * @param array       $settings      Competition settings.
-	 * @param string      $category      Category slug from token.
+	 * @param object         $competition   Competition object.
+	 * @param string         $message         Message to display.
+	 * @param object|null    $token_record    Token record if validated.
+	 * @param object|null    $member          Member object if authenticated.
+	 * @param array          $settings        Competition settings.
+	 * @param string         $category        Category slug from token.
+	 * @param array<int,int> $submitted_votes Previously submitted vote selections.
 	 * @return void
 	 */
-	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category ): void {
+	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes ): void {
 		$voting_config = CompetitionSettings::get_voting_config( $settings );
 		$categories    = CompetitionSettings::get_categories( $settings );
 
@@ -624,10 +630,13 @@ class VotingShortcode {
 									<label for="vote_<?php echo esc_attr( $image->id ); ?>">
 										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
+									<?php
+									$selected_position = $submitted_votes[ $image->id ] ?? '';
+									?>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-										<option value="">-</option>
+										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
 										<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
-											<option value="<?php echo esc_attr( $i ); ?>">
+											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
 												<?php
 												echo esc_html(
 													sprintf(
@@ -699,9 +708,10 @@ class VotingShortcode {
 	 * @param object $competition Competition object.
 	 * @param string $message     Message to display.
 	 * @param array  $settings    Competition settings.
+	 * @param array  $submitted_data Sanitized previously submitted data.
 	 * @return void
 	 */
-	private function render_password_voting_interface( object $competition, string $message, array $settings ): void {
+	private function render_password_voting_interface( object $competition, string $message, array $settings, array $submitted_data ): void {
 		$voting_config = CompetitionSettings::get_voting_config( $settings );
 		$categories    = CompetitionSettings::get_categories( $settings );
 
@@ -718,6 +728,10 @@ class VotingShortcode {
 		$score_matrix     = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$voting_password  = $voting_config['password'] ?? '';
 		$password_enabled = '' !== $voting_password;
+		$voter_name_value = $submitted_data['voter_name'] ?? '';
+		$password_value   = $submitted_data['voting_password'] ?? '';
+		$current_category = $submitted_data['category'] ?? '';
+		$submitted_votes  = $submitted_data['votes'] ?? array();
 
 		?>
 		<div class="club-competitions-voting">
@@ -779,7 +793,7 @@ class VotingShortcode {
 										implode( ', ', $score_matrix )
 									)
 								);
-					?>
+								?>
 				</p>
 				<p>
 					<?php esc_html_e( 'You can assign the same score to multiple images if you feel they deserve identical points.', 'club-competitions' ); ?>
@@ -800,6 +814,7 @@ class VotingShortcode {
 									type="text"
 									id="voter_name_<?php echo esc_attr( $category_slug ); ?>"
 									name="voter_name"
+									value="<?php echo esc_attr( $voter_name_value ); ?>"
 									required
 								/>
 							</p>
@@ -814,6 +829,7 @@ class VotingShortcode {
 										type="password"
 										id="voting_password_<?php echo esc_attr( $category_slug ); ?>"
 										name="voting_password"
+										value="<?php echo esc_attr( $password_value ); ?>"
 										required
 									/>
 								</p>
@@ -842,27 +858,32 @@ class VotingShortcode {
 									<label for="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>">
 										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
+									<?php
+									$selected_position = ( $category_slug === $current_category && isset( $submitted_votes[ $image->id ] ) )
+										? $submitted_votes[ $image->id ]
+										: '';
+									?>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-										<option value="">-</option>
+										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
 										<?php for ( $i = 1; $i <= count( $score_matrix ); $i++ ) : ?>
-											<option value="<?php echo esc_attr( $i ); ?>">
+											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
 												<?php
-														echo esc_html(
-															sprintf(
-																/* translators: 1: position number, 2: score points */
-																__( '%1$d (%2$d pts)', 'club-competitions' ),
-																$i,
-																$score_matrix[ $i - 1 ]
-															)
-														);
-														?>
-													</option>
-												<?php endfor; ?>
-											</select>
-										</div>
-									</div>
-								<?php endforeach; ?>
+												echo esc_html(
+													sprintf(
+														/* translators: 1: position number, 2: score points */
+														__( '%1$d (%2$d pts)', 'club-competitions' ),
+														$i,
+														$score_matrix[ $i - 1 ]
+													)
+												);
+												?>
+											</option>
+										<?php endfor; ?>
+									</select>
+								</div>
 							</div>
+						<?php endforeach; ?>
+					</div>
 
 							<div class="voting-submit">
 								<button type="submit" name="club_competitions_vote" class="button button-primary button-large">
@@ -878,5 +899,85 @@ class VotingShortcode {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Collect sanitized submission values for password-based voting.
+	 *
+	 * @param array $settings Competition settings.
+	 * @return array{
+	 *     voter_name:string,
+	 *     category:string,
+	 *     voting_password:string,
+	 *     votes:array<int,int>
+	 * }
+	 */
+	private function collect_password_submission_data( array $settings ): array {
+		$voter_name      = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
+		$category        = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+		$voting_password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '';
+		$votes           = $this->collect_vote_selections( $settings );
+
+		return array(
+			'voter_name'      => $voter_name,
+			'category'        => $category,
+			'voting_password' => $voting_password,
+			'votes'           => $votes,
+		);
+	}
+
+	/**
+	 * Collect sanitized vote selections from the current request.
+	 *
+	 * @param array $settings Competition settings.
+	 * @return array<int, int> Sanitized vote selections keyed by image ID.
+	 */
+	private function collect_vote_selections( array $settings ): array {
+		if ( ! isset( $_POST['votes'] ) || ! is_array( $_POST['votes'] ) ) {
+			return array();
+		}
+
+		$raw_votes = wp_unslash( $_POST['votes'] );
+		if ( ! is_array( $raw_votes ) ) {
+			return array();
+		}
+
+		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_limit   = count( $score_matrix );
+
+		if ( $score_limit < 1 ) {
+			return array();
+		}
+
+		return $this->sanitize_vote_selections( $raw_votes, $score_limit );
+	}
+
+	/**
+	 * Sanitize vote selections by enforcing valid image IDs and score positions.
+	 *
+	 * @param array<int|string, mixed> $votes       Raw vote selections.
+	 * @param int                      $score_limit Maximum allowed score position.
+	 * @return array<int, int> Sanitized vote selections keyed by image ID.
+	 */
+	private function sanitize_vote_selections( array $votes, int $score_limit ): array {
+		$sanitized = array();
+
+		foreach ( $votes as $image_id => $position ) {
+			$image_id = absint( $image_id );
+			$position = absint( $position );
+
+			if ( $image_id < 1 ) {
+				continue;
+			}
+
+			if ( $position < 1 || $position > $score_limit ) {
+				continue;
+			}
+
+			$sanitized[ $image_id ] = $position;
+		}
+
+		return $sanitized;
 	}
 }
