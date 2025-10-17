@@ -22,9 +22,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'voting', $defaults );
 		$this->assertArrayHasKey( 'slideshow', $defaults );
 		$this->assertArrayHasKey( 'email_reminders', $defaults );
-		$this->assertArrayHasKey( 'password', $defaults['upload'] );
 		$this->assertArrayHasKey( 'password', $defaults['voting'] );
-		$this->assertSame( '', $defaults['upload']['password'] );
 		$this->assertSame( '', $defaults['voting']['password'] );
 
 		$this->assertCount( 2, $defaults['categories'] );
@@ -244,7 +242,6 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'max_file_size_mb', $result );
 		$this->assertArrayHasKey( 'max_width', $result );
 		$this->assertArrayHasKey( 'max_height', $result );
-		$this->assertArrayHasKey( 'password', $result );
 		$this->assertEquals( 5, $result['max_file_size_mb'] );
 	}
 
