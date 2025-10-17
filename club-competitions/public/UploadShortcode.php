@@ -9,6 +9,8 @@ namespace ClubCompetitions\Frontend;
 
 use ClubCompetitions\Repository\CompetitionsRepository;
 use ClubCompetitions\Repository\MembersRepository;
+use ClubCompetitions\Repository\UploadTokenRepository;
+use ClubCompetitions\Service\EmailService;
 use ClubCompetitions\Service\UploadHandler;
 use ClubCompetitions\Support\CompetitionSettings;
 
@@ -36,20 +38,40 @@ class UploadShortcode {
 	private $members_repo;
 
 	/**
+	 * Upload token repository.
+	 *
+	 * @var UploadTokenRepository
+	 */
+	private $token_repo;
+
+	/**
+	 * Email service.
+	 *
+	 * @var EmailService
+	 */
+	private $email_service;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param UploadHandler|null          $upload_handler    Upload handler.
 	 * @param CompetitionsRepository|null $competitions_repo Competitions repository.
 	 * @param MembersRepository|null      $members_repo      Members repository.
+	 * @param UploadTokenRepository|null  $token_repo        Token repository.
+	 * @param EmailService|null           $email_service     Email service.
 	 */
 	public function __construct(
 		?UploadHandler $upload_handler = null,
 		?CompetitionsRepository $competitions_repo = null,
-		?MembersRepository $members_repo = null
+		?MembersRepository $members_repo = null,
+		?UploadTokenRepository $token_repo = null,
+		?EmailService $email_service = null
 	) {
 		$this->upload_handler    = $upload_handler ?: new UploadHandler();
 		$this->competitions_repo = $competitions_repo ?: new CompetitionsRepository();
 		$this->members_repo      = $members_repo ?: new MembersRepository();
+		$this->token_repo        = $token_repo ?: new UploadTokenRepository();
+		$this->email_service     = $email_service ?: new EmailService();
 	}
 
 	/**
@@ -83,87 +105,133 @@ class UploadShortcode {
 			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
 		}
 
-		$settings        = CompetitionSettings::parse( $competition->settings );
-		$upload_settings = CompetitionSettings::get_upload_constraints( $settings );
-		$stored_password = isset( $upload_settings['password'] ) ? (string) $upload_settings['password'] : '';
+		$settings = CompetitionSettings::parse( $competition->settings );
 
-		$submitted_password = isset( $_POST['upload_access_password'] ) ? sanitize_text_field( wp_unslash( $_POST['upload_access_password'] ) ) : '';
-		$password_required  = '' !== $stored_password;
-		$nonce_present      = isset( $_POST['club_competitions_nonce'] );
+		// Check for upload token in URL.
+		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+		$token_hash   = $token_string ? hash( 'sha256', $token_string ) : '';
+		$token_record = null;
+		$member       = null;
 
-		$password_valid   = ! $password_required;
-		$password_message = '';
+		if ( $token_hash ) {
+			$debug_file = '/tmp/token-validation.log';
+			file_put_contents( $debug_file, '[' . gmdate( 'Y-m-d H:i:s' ) . '] Validating token...' . PHP_EOL, FILE_APPEND );
+			file_put_contents( $debug_file, 'Token hash: ' . $token_hash . PHP_EOL, FILE_APPEND );
 
-		if ( $password_required ) {
-			$password_valid = false;
+			$token_record = $this->token_repo->find_valid_token( $token_hash );
+			file_put_contents( $debug_file, 'Token found: ' . ( $token_record ? 'YES' : 'NO' ) . PHP_EOL, FILE_APPEND );
 
-			if ( $nonce_present ) {
-				if ( '' === $submitted_password ) {
-					$password_message = '<p class="error">' . esc_html__( 'Please enter the upload password.', 'club-competitions' ) . '</p>';
-				} elseif ( ! \hash_equals( $stored_password, $submitted_password ) ) {
-					$password_message = '<p class="error">' . esc_html__( 'The upload password is incorrect.', 'club-competitions' ) . '</p>';
-				} else {
-					$password_valid = true;
+			if ( $token_record ) {
+				file_put_contents( $debug_file, 'Token competition_id: ' . $token_record->competition_id . PHP_EOL, FILE_APPEND );
+				file_put_contents( $debug_file, 'Current competition_id: ' . $competition->id . PHP_EOL, FILE_APPEND );
+				file_put_contents( $debug_file, 'Match: ' . ( (int) $token_record->competition_id === (int) $competition->id ? 'YES' : 'NO' ) . PHP_EOL, FILE_APPEND );
+
+				if ( (int) $token_record->competition_id === (int) $competition->id ) {
+					$member = $this->members_repo->find( (int) $token_record->member_id );
+					file_put_contents( $debug_file, 'Member found: ' . ( $member ? $member->name : 'NO' ) . PHP_EOL, FILE_APPEND );
 				}
 			}
 		}
 
-		// Handle form submission.
+		// Handle token request form submission.
 		$message = '';
-		if ( isset( $_POST['club_competitions_upload'] ) && check_admin_referer( 'club_competitions_upload', 'club_competitions_nonce' ) ) {
-			if ( $password_valid ) {
-				$message = $this->handle_submission( $competition->id );
-			} else {
-				$message = $password_message ?: '<p class="error">' . esc_html__( 'Upload password required.', 'club-competitions' ) . '</p>';
-			}
+		if ( isset( $_POST['club_competitions_request_token'] ) && check_admin_referer( 'club_competitions_request_token', 'club_competitions_nonce' ) ) {
+			$message = $this->handle_token_request( $competition );
 		}
 
-		// Handle deletion.
-		if ( isset( $_POST['club_competitions_delete'] ) && check_admin_referer( 'club_competitions_delete', 'club_competitions_delete_nonce' ) ) {
-			if ( $password_valid ) {
-				$message = $this->handle_deletion( $competition->id );
-			} else {
-				$message = $password_message ?: '<p class="error">' . esc_html__( 'Upload password required.', 'club-competitions' ) . '</p>';
-			}
+		// Handle upload with token.
+		if ( $token_record && $member && isset( $_POST['club_competitions_upload'] ) && check_admin_referer( 'club_competitions_upload_with_token', 'club_competitions_nonce' ) ) {
+			$message = $this->handle_token_upload( $competition->id, $member->id, $token_record );
 		}
 
-		if ( '' === $message && '' !== $password_message ) {
-			$message = $password_message;
+		// Handle deletion with token.
+		if ( $token_record && $member && isset( $_POST['club_competitions_delete'] ) && check_admin_referer( 'club_competitions_delete_with_token', 'club_competitions_delete_nonce' ) ) {
+			$message = $this->handle_token_deletion( $competition->id, $member->id, $token_record );
 		}
 
 		ob_start();
-		$this->render_form(
-			$competition,
-			$message,
-			array(
-				'upload_password_required' => $password_required,
-				'upload_password_valid'    => $password_valid,
-				'provided_password'        => $password_valid ? $submitted_password : '',
-				'settings'                 => $settings,
-			)
-		);
+		$this->render_form( $competition, $message, $token_record, $member, $settings, $token_string );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
 
 	/**
-	 * Handle form submission.
+	 * Handle token request form submission.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param object $competition Competition object.
 	 * @return string Message to display.
 	 */
-	private function handle_submission( int $competition_id ): string {
+	private function handle_token_request( $competition ): string {
 		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-		$category     = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 
-		if ( empty( $member_email ) || empty( $category ) ) {
-			return '<p class="error">' . esc_html__( 'Please fill in all required fields.', 'club-competitions' ) . '</p>';
+		if ( empty( $member_email ) ) {
+			return '<p class="error">' . esc_html__( 'Please enter your email address.', 'club-competitions' ) . '</p>';
 		}
 
-		// Find member by email.
+		// Generic success message for security (prevents email enumeration).
+		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'club-competitions' ) . '</p>';
+
+		// Find member by email silently.
 		$member = $this->members_repo->find_by_email( $member_email );
 		if ( ! $member ) {
-			return '<p class="error">' . esc_html__( 'Member email not found. Please contact the administrator.', 'club-competitions' ) . '</p>';
+			// Return success message but don't send email.
+			return $generic_success;
+		}
+
+		// Check for recent token to prevent spam.
+		if ( $this->token_repo->has_recent_token( $member->id, $competition->id ) ) {
+			return $generic_success;
+		}
+
+		// Generate secure token.
+		$token_string = bin2hex( random_bytes( 32 ) );
+		$token_hash   = hash( 'sha256', $token_string );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + HOUR_IN_SECONDS );
+
+		// Create token record.
+		$token_id = $this->token_repo->create( $member->id, $competition->id, $token_hash, $expires_at );
+
+		if ( is_wp_error( $token_id ) ) {
+			return '<p class="error">' . esc_html__( 'Failed to create upload link. Please try again.', 'club-competitions' ) . '</p>';
+		}
+
+		// Build magic link.
+		$upload_url = add_query_arg(
+			array(
+				'token'       => $token_string,
+				'competition' => $competition->slug,
+			),
+			get_permalink()
+		);
+
+		// Send email.
+		$email_sent = $this->email_service->send_upload_link(
+			$member_email,
+			$member->name,
+			$competition->title,
+			$upload_url
+		);
+
+		if ( ! $email_sent ) {
+			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'club-competitions' ) . '</p>';
+		}
+
+		return $generic_success;
+	}
+
+	/**
+	 * Handle upload with valid token.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param object $token_record   Token record.
+	 * @return string Message to display.
+	 */
+	private function handle_token_upload( int $competition_id, int $member_id, $token_record ): string {
+		$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+
+		if ( empty( $category ) ) {
+			return '<p class="error">' . esc_html__( 'Please select a category.', 'club-competitions' ) . '</p>';
 		}
 
 		// Check file upload.
@@ -172,35 +240,34 @@ class UploadShortcode {
 		}
 
 		// Process upload.
-		$result = $this->upload_handler->handle_upload( $competition_id, $member->id, $category, $_FILES['image'] );
+		$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, $_FILES['image'] );
 
 		if ( is_wp_error( $result ) ) {
 			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
 		}
 
-		return '<p class="success">' . esc_html__( 'Image uploaded successfully!', 'club-competitions' ) . '</p>';
+		// Mark token as used after successful upload.
+		$this->token_repo->mark_as_used( (int) $token_record->id );
+
+		return '<p class="success">' . esc_html__( 'Image uploaded successfully! Your upload link has been used and is no longer valid.', 'club-competitions' ) . '</p>';
 	}
 
 	/**
-	 * Handle image deletion.
+	 * Handle deletion with valid token.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param object $token_record   Token record.
 	 * @return string Message to display.
 	 */
-	private function handle_deletion( int $competition_id ): string {
-		$image_id     = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
-		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
+	private function handle_token_deletion( int $competition_id, int $member_id, $token_record ): string {
+		$image_id = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
 
-		if ( ! $image_id || ! $member_email ) {
+		if ( ! $image_id ) {
 			return '<p class="error">' . esc_html__( 'Invalid deletion request.', 'club-competitions' ) . '</p>';
 		}
 
-		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member ) {
-			return '<p class="error">' . esc_html__( 'Member not found.', 'club-competitions' ) . '</p>';
-		}
-
-		$result = $this->upload_handler->delete_submission( $image_id, $member->id, $competition_id );
+		$result = $this->upload_handler->delete_submission( $image_id, $member_id, $competition_id );
 
 		if ( is_wp_error( $result ) ) {
 			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
@@ -226,37 +293,22 @@ class UploadShortcode {
 	/**
 	 * Render the upload form.
 	 *
-	 * @param object $competition Competition object.
-	 * @param string $message     Message to display.
+	 * @param object      $competition   Competition object.
+	 * @param string      $message       Message to display.
+	 * @param object|null $token_record  Token record if validated.
+	 * @param object|null $member        Member object if authenticated.
+	 * @param array       $settings      Competition settings.
+	 * @param string      $token_string  Token string for URL preservation.
 	 */
-	private function render_form( $competition, string $message, array $state = array() ): void {
-		$state = wp_parse_args(
-			$state,
-			array(
-				'upload_password_required' => false,
-				'upload_password_valid'    => true,
-				'provided_password'        => '',
-				'settings'                 => null,
-			)
-		);
-
-		$settings        = is_array( $state['settings'] ) ? $state['settings'] : CompetitionSettings::parse( $competition->settings );
-		$password_needed = (bool) $state['upload_password_required'];
-		$password_valid  = (bool) $state['upload_password_valid'];
-		$provided_pass   = $password_valid ? (string) $state['provided_password'] : '';
-
+	private function render_form( $competition, string $message, $token_record, $member, array $settings, string $token_string ): void {
 		$categories  = CompetitionSettings::get_categories( $settings );
 		$constraints = CompetitionSettings::get_upload_constraints( $settings );
 
-		$member_email_input = isset( $_POST['member_email'] ) ? wp_unslash( $_POST['member_email'] ) : '';
-		$member_email       = sanitize_email( $member_email_input );
-		$member             = ( $member_email && ( ! $password_needed || $password_valid ) ) ? $this->members_repo->find_by_email( $member_email ) : null;
-
-		// Get existing submissions and filter categories.
+		// Get existing submissions and filter categories if member is authenticated.
 		$submissions          = array();
 		$available_categories = array();
 
-		if ( $member ) {
+		if ( $member && $token_record ) {
 			$submissions = $this->upload_handler->get_member_submissions( $competition->id, $member->id );
 
 			// Group submissions by category for quota checking.
@@ -294,56 +346,43 @@ class UploadShortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
-			<?php if ( ! $member || ! $member_email || ( $password_needed && ! $password_valid ) ) : ?>
-				<!-- Email identification form -->
-				<form method="post" enctype="multipart/form-data" class="competition-upload-form">
-					<?php wp_nonce_field( 'club_competitions_upload', 'club_competitions_nonce' ); ?>
+			<?php if ( ! $token_record || ! $member ) : ?>
+				<!-- Token request form -->
+				<div class="token-request-section">
+					<p><?php esc_html_e( 'To upload images, please enter your registered email address. We will send you a secure upload link.', 'club-competitions' ); ?></p>
 
-					<p>
-						<label for="member_email">
-							<?php esc_html_e( 'Your Email Address:', 'club-competitions' ); ?>
-							<span class="required">*</span>
-						</label>
-						<input
-							type="email"
-							id="member_email"
-							name="member_email"
-							value="<?php echo esc_attr( $member_email ); ?>"
-							required
-						/>
-						<small><?php esc_html_e( 'Enter the email address associated with your membership.', 'club-competitions' ); ?></small>
-					</p>
+					<form method="post" class="competition-token-request-form">
+						<?php wp_nonce_field( 'club_competitions_request_token', 'club_competitions_nonce' ); ?>
 
-					<?php if ( $password_needed ) : ?>
 						<p>
-							<label for="upload_access_password">
-								<?php esc_html_e( 'Upload Password:', 'club-competitions' ); ?>
+							<label for="member_email">
+								<?php esc_html_e( 'Your Email Address:', 'club-competitions' ); ?>
 								<span class="required">*</span>
 							</label>
 							<input
-								type="password"
-								id="upload_access_password"
-								name="upload_access_password"
+								type="email"
+								id="member_email"
+								name="member_email"
 								required
 							/>
-							<small><?php esc_html_e( 'Provided by your competition organizer.', 'club-competitions' ); ?></small>
+							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'club-competitions' ); ?></small>
 						</p>
-					<?php endif; ?>
 
-					<p>
-						<button type="submit" class="button">
-							<?php esc_html_e( 'Continue', 'club-competitions' ); ?>
-						</button>
-					</p>
-				</form>
+						<p>
+							<button type="submit" name="club_competitions_request_token" class="button">
+								<?php esc_html_e( 'Send Upload Link', 'club-competitions' ); ?>
+							</button>
+						</p>
+					</form>
+				</div>
 			<?php else : ?>
-				<!-- Member is identified, show submissions and upload form -->
+				<!-- Member is authenticated with valid token, show submissions and upload form -->
 				<p class="member-info">
 					<?php
 					echo esc_html(
 						sprintf(
 							/* translators: %s: member name */
-							__( 'Logged in as: %s', 'club-competitions' ),
+							__( 'Authenticated as: %s', 'club-competitions' ),
 							$member->name
 						)
 					);
@@ -374,12 +413,8 @@ class UploadShortcode {
 										?>
 									</p>
 									<form method="post" class="delete-form">
-										<?php wp_nonce_field( 'club_competitions_delete', 'club_competitions_delete_nonce' ); ?>
+										<?php wp_nonce_field( 'club_competitions_delete_with_token', 'club_competitions_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
-										<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
-										<?php if ( $password_needed && $password_valid && '' !== $provided_pass ) : ?>
-											<input type="hidden" name="upload_access_password" value="<?php echo esc_attr( $provided_pass ); ?>" />
-										<?php endif; ?>
 										<button
 											type="submit"
 											name="club_competitions_delete"
@@ -404,13 +439,7 @@ class UploadShortcode {
 					<h3><?php esc_html_e( 'Upload New Image', 'club-competitions' ); ?></h3>
 
 					<form method="post" enctype="multipart/form-data" class="competition-upload-form">
-						<?php wp_nonce_field( 'club_competitions_upload', 'club_competitions_nonce' ); ?>
-
-						<!-- Preserve member email for upload -->
-						<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
-						<?php if ( $password_needed && $password_valid && '' !== $provided_pass ) : ?>
-							<input type="hidden" name="upload_access_password" value="<?php echo esc_attr( $provided_pass ); ?>" />
-						<?php endif; ?>
+						<?php wp_nonce_field( 'club_competitions_upload_with_token', 'club_competitions_nonce' ); ?>
 
 						<p>
 							<label for="category">

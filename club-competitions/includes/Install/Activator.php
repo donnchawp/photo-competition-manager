@@ -104,11 +104,26 @@ class Activator {
 			KEY image (image_id)
 		) {$charset_collate};";
 
+		$upload_tokens = "CREATE TABLE {$wpdb->prefix}clubcompete_upload_tokens (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			member_id BIGINT UNSIGNED NOT NULL,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			token_hash VARCHAR(64) NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY token_hash (token_hash),
+			KEY member_competition (member_id, competition_id),
+			KEY expires_at (expires_at)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
 			$images,
 			$votes,
+			$upload_tokens,
 		);
 	}
 }

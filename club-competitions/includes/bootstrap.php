@@ -40,5 +40,9 @@ spl_autoload_register(
 );
 
 use ClubCompetitions\Plugin;
+use ClubCompetitions\Support\MailpitSMTP;
+
+// Initialize Mailpit SMTP for development.
+MailpitSMTP::init();
 
 Plugin::instance()->register();
