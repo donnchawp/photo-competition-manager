@@ -27,7 +27,7 @@
         }
     },
     "scripts": {
-        "lint": "phpcs --standard=WordPress --extensions=php plugin includes admin public",
+        "lint": "phpcs --standard=WordPress --extensions=php club-competitions",
         "test": "phpunit"
     },
     "config": {
