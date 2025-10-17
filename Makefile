@@ -5,7 +5,7 @@ MAKEFLAGS += --no-builtin-rules
 ASSETS_DIR := assets
 WP_ENV := npx @wordpress/env
 
-.PHONY: help install env-start env-stop env-destroy dev build lint phpcbf test test-js check
+.PHONY: help install up down env-destroy dev build lint phpcbf test test-js check
 
 help: ## Show available targets
 	@echo "Club Competitions Make targets:"
@@ -37,7 +37,23 @@ phpcbf: ## Auto-fix PHP coding standard violations
 	vendor/bin/phpcbf --standard=WordPress --extensions=php club-competitions
 
 test: ## Execute the PHPUnit test suite
-	composer test
+	@set -e; \
+	DB_HOST="$$WP_ENV_TEST_DB_HOST"; \
+	if [ -z "$$DB_HOST" ]; then \
+		PORT_OUTPUT="$$( $(WP_ENV) start )"; \
+		printf '%s\n' "$$PORT_OUTPUT"; \
+		TEST_PORT="$$( printf '%s\n' "$$PORT_OUTPUT" | awk '/MySQL for automated testing is listening on port/ {print $$NF}' )"; \
+		if [ -z "$$TEST_PORT" ]; then \
+			echo "Unable to determine MySQL automated test port. Run 'make up' and export WP_ENV_TEST_DB_HOST=\"127.0.0.1:<port>\"." >&2; \
+			exit 1; \
+		fi; \
+		DB_HOST="127.0.0.1:$$TEST_PORT"; \
+		echo "Using WP_ENV_TEST_DB_HOST=$$DB_HOST"; \
+		echo "Tip: export WP_ENV_TEST_DB_HOST=\"$$DB_HOST\" to reuse this setting for future test runs."; \
+	else \
+		echo "Using existing WP_ENV_TEST_DB_HOST=$$DB_HOST"; \
+	fi; \
+	WP_ENV_TEST_DB_HOST="$$DB_HOST" composer test
 
 test-js: ## Execute the JavaScript test suite
 	npm --prefix $(ASSETS_DIR) run test:js
