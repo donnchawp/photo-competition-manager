@@ -284,6 +284,22 @@ class ImageProcessor {
 	 */
 	public function get_thumbnail_url( string $competition_slug, string $category_slug, string $filename ) {
 		$thumb_filename = str_replace( '.jpg', '-thumb.jpg', $filename );
-		return $this->get_image_url( $competition_slug, $category_slug, $thumb_filename );
+		$url            = $this->get_image_url( $competition_slug, $category_slug, $thumb_filename );
+
+		if ( is_wp_error( $url ) ) {
+			return $url;
+		}
+
+		// Add cache-busting parameter based on file modification time.
+		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
+		if ( ! is_wp_error( $upload_dir ) ) {
+			$file_path = trailingslashit( $upload_dir['path'] ) . $thumb_filename;
+			if ( file_exists( $file_path ) ) {
+				$mtime = filemtime( $file_path );
+				$url   = add_query_arg( 'v', $mtime, $url );
+			}
+		}
+
+		return $url;
 	}
 }
