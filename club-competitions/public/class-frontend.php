@@ -1,12 +1,17 @@
 <?php
 /**
- * Public-facing hooks.
+ * Registers public-facing shortcodes and assets.
  *
  * @package ClubCompetitions\Frontend
  */
 
 namespace ClubCompetitions\Frontend;
 
+/**
+ * Coordinate public functionality (shortcodes and styles).
+ *
+ * @since 0.1.0
+ */
 class Frontend {
 
 	/**

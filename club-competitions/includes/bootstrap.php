@@ -30,7 +30,21 @@ spl_autoload_register(
 			}
 
 			$relative_class = substr( $class, $len );
-			$file           = $base_dir . str_replace( '\\', '/', $relative_class ) . '.php';
+			$relative_path  = str_replace( '\\', '/', $relative_class );
+			$file           = $base_dir . $relative_path . '.php';
+
+			if ( ! file_exists( $file ) ) {
+				$path_parts   = explode( '/', $relative_path );
+				$class_file   = array_pop( $path_parts );
+				$hyphenated   = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_file ) );
+				$alternate    = 'class-' . $hyphenated . '.php';
+				$path_prefix  = empty( $path_parts ) ? '' : implode( '/', $path_parts ) . '/';
+				$alternate_fp = $base_dir . $path_prefix . $alternate;
+
+				if ( file_exists( $alternate_fp ) ) {
+					$file = $alternate_fp;
+				}
+			}
 
 			if ( file_exists( $file ) ) {
 				require_once $file;
