@@ -936,7 +936,6 @@ class AdminScreen {
 					'max_width'        => isset( $_POST['max_width'] ) ? absint( $_POST['max_width'] ) : 1920,
 					'max_height'       => isset( $_POST['max_height'] ) ? absint( $_POST['max_height'] ) : 1920,
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
-					'password'         => isset( $_POST['upload_password'] ) ? sanitize_text_field( wp_unslash( $_POST['upload_password'] ) ) : '',
 				),
 				'voting'          => array(
 					'score_matrix'    => $score_matrix,
@@ -1040,7 +1039,6 @@ class AdminScreen {
 					'max_width'        => isset( $_POST['max_width'] ) ? absint( $_POST['max_width'] ) : 1920,
 					'max_height'       => isset( $_POST['max_height'] ) ? absint( $_POST['max_height'] ) : 1920,
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
-					'password'         => isset( $_POST['upload_password'] ) ? sanitize_text_field( wp_unslash( $_POST['upload_password'] ) ) : '',
 				),
 				'voting'          => array(
 					'score_matrix'    => $score_matrix,
@@ -1316,12 +1314,6 @@ class AdminScreen {
 		echo '</p>';
 
 		echo '<h3>' . esc_html__( 'Upload Constraints', 'club-competitions' ) . '</h3>';
-
-		echo '<p>';
-		echo '<label for="upload_password">' . esc_html__( 'Upload Password', 'club-competitions' ) . '</label><br />';
-		echo '<input type="password" id="upload_password" name="upload_password" value="' . esc_attr( $upload['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Members must enter this password before uploading. Leave blank to disable.', 'club-competitions' ) . '</span>';
-		echo '</p>';
 
 		echo '<p>';
 		echo '<label for="max_file_size_mb">' . esc_html__( 'Max File Size (MB)', 'club-competitions' ) . '</label><br />';
@@ -2038,12 +2030,6 @@ class AdminScreen {
 		echo '</p>';
 
 		echo '<h2>' . esc_html__( 'Upload Constraints', 'club-competitions' ) . '</h2>';
-
-		echo '<p>';
-		echo '<label for="upload_password">' . esc_html__( 'Upload Password', 'club-competitions' ) . '</label><br />';
-		echo '<input type="password" id="upload_password" name="upload_password" value="' . esc_attr( $upload['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Members must enter this password before uploading. Leave blank to disable by default.', 'club-competitions' ) . '</span>';
-		echo '</p>';
 
 		echo '<p>';
 		echo '<label for="max_file_size_mb">' . esc_html__( 'Max File Size (MB)', 'club-competitions' ) . '</label><br />';

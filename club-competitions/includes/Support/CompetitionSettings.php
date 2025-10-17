@@ -49,7 +49,6 @@ class CompetitionSettings {
 				'max_width'        => 1920,
 				'max_height'       => 1920,
 				'allowed_formats'  => array( 'jpg', 'jpeg' ),
-				'password'         => '',
 			),
 			'voting'          => array(
 				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
@@ -197,10 +196,6 @@ class CompetitionSettings {
 			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < 1 ) {
 				return new WP_Error( 'invalid_file_size', __( 'Max file size must be at least 1 MB.', 'club-competitions' ) );
 			}
-		}
-
-		if ( isset( $settings['upload']['password'] ) && ! is_string( $settings['upload']['password'] ) ) {
-			return new WP_Error( 'invalid_upload_password', __( 'Upload password must be a string.', 'club-competitions' ) );
 		}
 
 		if ( isset( $settings['voting']['score_matrix'] ) ) {

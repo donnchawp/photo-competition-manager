@@ -197,16 +197,6 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		$this->assertEquals( 'invalid_score_matrix', $result->get_error_code() );
 	}
 
-	public function test_validate_rejects_non_string_upload_password(): void {
-		$settings                        = CompetitionSettings::defaults();
-		$settings['upload']['password'] = array( 'not-a-string' );
-
-		$result = CompetitionSettings::validate( $settings );
-
-		$this->assertWPError( $result );
-		$this->assertEquals( 'invalid_upload_password', $result->get_error_code() );
-	}
-
 	public function test_validate_rejects_non_string_voting_password(): void {
 		$settings                       = CompetitionSettings::defaults();
 		$settings['voting']['password'] = array( 'not-a-string' );
