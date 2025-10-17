@@ -4,6 +4,8 @@
  * Description: Manage photography club competitions, submissions, and voting.
  * Version: 0.1.0
  * Author: Club Competitions Team
+ *
+ * @package ClubCompetitions
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
