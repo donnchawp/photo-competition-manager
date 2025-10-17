@@ -114,22 +114,9 @@ class UploadShortcode {
 		$member       = null;
 
 		if ( $token_hash ) {
-			$debug_file = '/tmp/token-validation.log';
-			file_put_contents( $debug_file, '[' . gmdate( 'Y-m-d H:i:s' ) . '] Validating token...' . PHP_EOL, FILE_APPEND );
-			file_put_contents( $debug_file, 'Token hash: ' . $token_hash . PHP_EOL, FILE_APPEND );
-
 			$token_record = $this->token_repo->find_valid_token( $token_hash );
-			file_put_contents( $debug_file, 'Token found: ' . ( $token_record ? 'YES' : 'NO' ) . PHP_EOL, FILE_APPEND );
-
-			if ( $token_record ) {
-				file_put_contents( $debug_file, 'Token competition_id: ' . $token_record->competition_id . PHP_EOL, FILE_APPEND );
-				file_put_contents( $debug_file, 'Current competition_id: ' . $competition->id . PHP_EOL, FILE_APPEND );
-				file_put_contents( $debug_file, 'Match: ' . ( (int) $token_record->competition_id === (int) $competition->id ? 'YES' : 'NO' ) . PHP_EOL, FILE_APPEND );
-
-				if ( (int) $token_record->competition_id === (int) $competition->id ) {
-					$member = $this->members_repo->find( (int) $token_record->member_id );
-					file_put_contents( $debug_file, 'Member found: ' . ( $member ? $member->name : 'NO' ) . PHP_EOL, FILE_APPEND );
-				}
+			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
+				$member = $this->members_repo->find( (int) $token_record->member_id );
 			}
 		}
 
