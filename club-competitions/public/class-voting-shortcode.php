@@ -323,18 +323,13 @@ class Voting_Shortcode {
 
 		// Process votes.
 		$success_count = 0;
-		foreach ( $submitted_votes as $image_id => $position ) {
-			if ( $position < 1 || $position > count( $score_matrix ) ) {
-				continue;
-			}
-
+		foreach ( $submitted_votes as $image_id => $score ) {
 			// Verify image belongs to this competition and category.
 			$image = $this->images_repo->find( $image_id );
 			if ( ! $image || (int) $image->competition_id !== (int) $competition->id || $image->category !== $token_record->category ) {
 				continue;
 			}
 
-			$score  = $score_matrix[ $position - 1 ];
 			$result = $this->votes_repo->create_anonymous(
 				(int) $competition->id,
 				$token_record->category,
@@ -349,9 +344,6 @@ class Voting_Shortcode {
 		}
 
 		if ( $success_count > 0 ) {
-			// Mark token as used to prevent reuse if desired; removing votes has already occurred.
-			$this->token_repo->mark_as_used( (int) $token_record->id );
-
 			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded anonymously.', 'club-competitions' ) . '</p>';
 		}
 
@@ -403,20 +395,12 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>';
 		}
 
-		// Get score matrix from settings.
-		$score_matrix = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
-
 		// Clear existing votes for this voter/category before saving replacements.
 		$this->votes_repo->delete_by_voter( (int) $competition->id, $category, $voter_name );
 
 		// Process votes.
 		$success_count = 0;
-		foreach ( $votes as $image_id => $position ) {
-			if ( $position < 1 || $position > count( $score_matrix ) ) {
-				continue;
-			}
-
-			$score  = $score_matrix[ $position - 1 ];
+		foreach ( $votes as $image_id => $score ) {
 			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (float) $score );
 
 			if ( ! is_wp_error( $result ) ) {
@@ -435,13 +419,13 @@ class Voting_Shortcode {
 	/**
 	 * Render voting interface for token-based voting.
 	 *
-	 * @param object         $competition     Competition object.
-	 * @param string         $message         Message to display.
-	 * @param object|null    $token_record    Token record if validated.
-	 * @param object|null    $member          Member object if authenticated.
-	 * @param array          $settings        Competition settings.
-	 * @param string         $category        Category slug from token.
-	 * @param array<int,int> $submitted_votes Previously submitted vote selections.
+	 * @param object           $competition     Competition object.
+	 * @param string           $message         Message to display.
+	 * @param object|null      $token_record    Token record if validated.
+	 * @param object|null      $member          Member object if authenticated.
+	 * @param array            $settings        Competition settings.
+	 * @param string           $category        Category slug from token.
+	 * @param array<int,float> $submitted_votes Previously submitted vote selections.
 	 * @return void
 	 */
 	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes ): void {
@@ -532,12 +516,12 @@ class Voting_Shortcode {
 					return;
 				}
 
-				$existing_positions = array();
+				$existing_votes = array();
 				if ( $token_record ) {
-					$existing_scores    = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
-					$existing_positions = $this->map_scores_to_positions( $existing_scores, $score_matrix );
+					$existing_scores = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
+					$existing_votes  = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
 
-					if ( ! empty( $existing_positions ) ) {
+					if ( ! empty( $existing_votes ) ) {
 						echo '<p class="notice notice-info">' . esc_html__( 'We pre-filled your previous votes. Adjust and submit again if you would like to change them.', 'club-competitions' ) . '</p>';
 					}
 				}
@@ -560,7 +544,7 @@ class Voting_Shortcode {
 				}
 
 				if ( empty( $submitted_votes ) ) {
-					$submitted_votes = $existing_positions;
+					$submitted_votes = $existing_votes;
 				}
 				?>
 
@@ -584,30 +568,31 @@ class Voting_Shortcode {
 					<h3><?php esc_html_e( 'How to Vote', 'club-competitions' ); ?></h3>
 					<p>
 						<?php
-						echo esc_html(
-							sprintf(
-								/* translators: %d: number of images to select */
-								_n(
-									'Select your top %d image and assign it a position (1 for best).',
-									'Select your top %d images and assign each a position (1 for best).',
-									count( $score_matrix ),
-									'club-competitions'
-								),
-								count( $score_matrix )
-							)
-						);
+							echo esc_html(
+								sprintf(
+									/* translators: %d: number of scoring options */
+									_n(
+										'Assign points to each image using the dropdown. You have %d score option available.',
+										'Assign points to each image using the dropdown. You have %d score options available.',
+										count( $score_matrix ),
+										'club-competitions'
+									),
+									count( $score_matrix )
+								)
+							);
 						?>
 					</p>
 					<p>
-						<?php
-						echo esc_html(
-							sprintf(
-								/* translators: %s: comma-separated score values */
-								__( 'Points awarded: %s', 'club-competitions' ),
-								implode( ', ', $score_matrix )
-							)
-						);
-						?>
+				<?php
+					$score_labels = array_map( 'number_format_i18n', $score_matrix );
+					echo esc_html(
+						sprintf(
+							/* translators: %s: comma-separated score values */
+							__( 'Points awarded: %s', 'club-competitions' ),
+							implode( ', ', $score_labels )
+						)
+					);
+				?>
 					</p>
 					<p class="anonymity-notice" style="color: #666; font-style: italic;">
 						<?php esc_html_e( 'Your votes are completely anonymous. Your name will not be associated with your votes.', 'club-competitions' ); ?>
@@ -643,27 +628,26 @@ class Voting_Shortcode {
 									<label for="vote_<?php echo esc_attr( $image->id ); ?>">
 										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
-									<?php
-									$selected_position = $submitted_votes[ $image->id ] ?? '';
-									?>
-									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
-										<?php $matrix_count = count( $score_matrix ); ?>
-										<?php for ( $i = 1; $i <= $matrix_count; $i++ ) : ?>
-											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
-												<?php
-												echo esc_html(
-													sprintf(
-														/* translators: 1: position number, 2: score points */
-														__( '%1$d (%2$d pts)', 'club-competitions' ),
-														$i,
-														$score_matrix[ $i - 1 ]
-													)
-												);
-												?>
-											</option>
-										<?php endfor; ?>
-									</select>
+							<?php
+							$selected_score = $submitted_votes[ $image->id ] ?? '';
+							?>
+				<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
+					<option value="" <?php selected( '', (string) $selected_score ); ?>>-</option>
+							<?php foreach ( $score_matrix as $score_value ) : ?>
+								<?php $score_label = number_format_i18n( $score_value ); ?>
+						<option value="<?php echo esc_attr( (string) $score_value ); ?>" <?php selected( (string) $selected_score, (string) $score_value ); ?>>
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %s: score value */
+										__( '%s pts', 'club-competitions' ),
+										$score_label
+									)
+								);
+								?>
+						</option>
+					<?php endforeach; ?>
+				</select>
 								</div>
 							</div>
 						<?php endforeach; ?>
@@ -721,9 +705,9 @@ class Voting_Shortcode {
 	/**
 	 * Render voting interface for password-based voting.
 	 *
-	 * @param object $competition Competition object.
-	 * @param string $message     Message to display.
-	 * @param array  $settings    Competition settings.
+	 * @param object $competition    Competition object.
+	 * @param string $message        Message to display.
+	 * @param array  $settings       Competition settings.
 	 * @param array  $submitted_data Sanitized previously submitted data.
 	 * @return void
 	 */
@@ -787,15 +771,14 @@ class Voting_Shortcode {
 						continue;
 					}
 
+					$category_votes         = array();
 					$prefilled_from_history = false;
 					if ( $current_category === $category_slug && ! empty( $submitted_votes ) ) {
 						$category_votes = $submitted_votes;
 					} elseif ( '' !== $voter_name_value ) {
 						$existing_scores        = $this->votes_repo->get_votes_by_voter( (int) $competition->id, $category_slug, $voter_name_value );
-						$category_votes         = $this->map_scores_to_positions( $existing_scores, $score_matrix );
+						$category_votes         = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
 						$prefilled_from_history = ! empty( $category_votes );
-					} else {
-						$category_votes = array();
 					}
 
 					if ( $prefilled_from_history ) {
@@ -809,31 +792,32 @@ class Voting_Shortcode {
 						<!-- Voting instructions -->
 						<div class="voting-instructions">
 							<p>
-								<?php
-								echo esc_html(
-									sprintf(
-										/* translators: %d: number of images to select */
-										_n(
-											'Select your top %d image and assign it a position (1 for best).',
-											'Select your top %d images and assign each a position (1 for best).',
-											count( $score_matrix ),
-											'club-competitions'
-										),
-										count( $score_matrix )
-									)
-								);
-								?>
+					<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %d: number of scoring options */
+								_n(
+									'Assign points to each image using the dropdown. You have %d score option available.',
+									'Assign points to each image using the dropdown. You have %d score options available.',
+									count( $score_matrix ),
+									'club-competitions'
+								),
+								count( $score_matrix )
+							)
+						);
+					?>
 							</p>
 							<p>
-								<?php
-								echo esc_html(
-									sprintf(
-										/* translators: %s: comma-separated score values */
-										__( 'Points awarded: %s', 'club-competitions' ),
-										implode( ', ', $score_matrix )
-									)
-								);
-								?>
+					<?php
+					$score_labels = array_map( 'number_format_i18n', $score_matrix );
+					echo esc_html(
+						sprintf(
+							/* translators: %s: comma-separated score values */
+							__( 'Points awarded: %s', 'club-competitions' ),
+							implode( ', ', $score_labels )
+						)
+					);
+					?>
 				</p>
 				<p>
 					<?php esc_html_e( 'You can assign the same score to multiple images if you feel they deserve identical points.', 'club-competitions' ); ?>
@@ -901,26 +885,25 @@ class Voting_Shortcode {
 										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
 									<?php
-									$selected_position = $category_votes[ $image->id ] ?? '';
+									$selected_score = $category_votes[ $image->id ] ?? '';
 									?>
-									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
-										<?php $matrix_count = count( $score_matrix ); ?>
-										<?php for ( $i = 1; $i <= $matrix_count; $i++ ) : ?>
-											<option value="<?php echo esc_attr( $i ); ?>" <?php selected( $selected_position, $i ); ?>>
-												<?php
-												echo esc_html(
-													sprintf(
-														/* translators: 1: position number, 2: score points */
-														__( '%1$d (%2$d pts)', 'club-competitions' ),
-														$i,
-														$score_matrix[ $i - 1 ]
-													)
-												);
-												?>
-											</option>
-										<?php endfor; ?>
-									</select>
+		<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
+			<option value="" <?php selected( '', (string) $selected_score ); ?>>-</option>
+									<?php foreach ( $score_matrix as $score_value ) : ?>
+										<?php $score_label = number_format_i18n( $score_value ); ?>
+				<option value="<?php echo esc_attr( (string) $score_value ); ?>" <?php selected( (string) $selected_score, (string) $score_value ); ?>>
+										<?php
+										echo esc_html(
+											sprintf(
+											/* translators: %s: score value */
+												__( '%s pts', 'club-competitions' ),
+												$score_label
+											)
+										);
+										?>
+				</option>
+			<?php endforeach; ?>
+		</select>
 								</div>
 							</div>
 						<?php endforeach; ?>
@@ -951,7 +934,7 @@ class Voting_Shortcode {
 	 *     voter_name:string,
 	 *     category:string,
 	 *     voting_password:string,
-	 *     votes:array<int,int>
+	 *     votes:array<int,float>
 	 * }
 	 */
 	private function collect_password_submission_data( array $request, array $settings ): array {
@@ -973,7 +956,7 @@ class Voting_Shortcode {
 	 *
 	 * @param array $request  Request array (typically $_POST) already nonce-verified by the caller.
 	 * @param array $settings Competition settings.
-	 * @return array<int, int> Sanitized vote selections keyed by image ID.
+	 * @return array<int, float> Sanitized vote selections keyed by image ID.
 	 */
 	private function collect_vote_selections_from_request( array $request, array $settings ): array {
 		if ( ! isset( $request['votes'] ) || ! is_array( $request['votes'] ) ) {
@@ -985,71 +968,50 @@ class Voting_Shortcode {
 			return array();
 		}
 
-		$voting_config = Competition_Settings::get_voting_config( $settings );
-		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
-		$score_limit   = count( $score_matrix );
+		$voting_config   = Competition_Settings::get_voting_config( $settings );
+		$score_matrix    = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$sanitized_votes = $this->sanitize_vote_selections( $raw_votes, $score_matrix );
 
-		if ( $score_limit < 1 ) {
-			return array();
-		}
-
-		return $this->sanitize_vote_selections( $raw_votes, $score_limit );
+		return $sanitized_votes;
 	}
 
 	/**
-	 * Sanitize vote selections by enforcing valid image IDs and score positions.
+	 * Sanitize vote selections by enforcing valid image IDs and allowed score values.
 	 *
-	 * @param array<int|string, mixed> $votes       Raw vote selections.
-	 * @param int                      $score_limit Maximum allowed score position.
-	 * @return array<int, int> Sanitized vote selections keyed by image ID.
+	 * @param array<int|string, mixed> $votes          Raw vote selections.
+	 * @param array<int, int|float>    $allowed_scores Allowed score values.
+	 * @return array<int, float> Sanitized vote selections keyed by image ID.
 	 */
-	private function sanitize_vote_selections( array $votes, int $score_limit ): array {
+	private function sanitize_vote_selections( array $votes, array $allowed_scores ): array {
 		$sanitized = array();
 
-		foreach ( $votes as $image_id => $position ) {
+		if ( empty( $allowed_scores ) ) {
+			return $sanitized;
+		}
+
+		$allowed_lookup = array();
+		foreach ( $allowed_scores as $score_value ) {
+			$normalized = (float) $score_value;
+			$allowed_lookup[ (string) round( $normalized, 4 ) ] = $normalized;
+		}
+
+		foreach ( $votes as $image_id => $raw_score ) {
 			$image_id = absint( $image_id );
-			$position = absint( $position );
+			$score    = (float) $raw_score;
 
 			if ( $image_id < 1 ) {
 				continue;
 			}
 
-			if ( $position < 1 || $position > $score_limit ) {
+			$key = (string) round( $score, 4 );
+			if ( ! isset( $allowed_lookup[ $key ] ) ) {
 				continue;
 			}
 
-			$sanitized[ $image_id ] = $position;
+			$sanitized[ $image_id ] = $allowed_lookup[ $key ];
 		}
 
 		return $sanitized;
-	}
-
-	/**
-	 * Convert stored score values to voting positions.
-	 *
-	 * @param array<int,  float>     $scores_by_image Map of image ID to score.
-	 * @param array<int,  int|float> $score_matrix Score matrix configured for the competition.
-	 * @return array<int, int>       Map of image ID to selected position (1-indexed).
-	 */
-	private function map_scores_to_positions( array $scores_by_image, array $score_matrix ): array {
-		if ( empty( $scores_by_image ) || empty( $score_matrix ) ) {
-			return array();
-		}
-
-		$lookup = array();
-		foreach ( $score_matrix as $index => $value ) {
-			$lookup[ (string) round( (float) $value, 4 ) ] = $index + 1;
-		}
-
-		$positions = array();
-		foreach ( $scores_by_image as $image_id => $score ) {
-			$key = (string) round( (float) $score, 4 );
-			if ( isset( $lookup[ $key ] ) ) {
-				$positions[ (int) $image_id ] = (int) $lookup[ $key ];
-			}
-		}
-
-		return $positions;
 	}
 
 	/**
