@@ -291,7 +291,7 @@ public function test_upload_token_email_sent() {
     $_POST['club_competitions_request_token'] = '1';
     $_POST['club_competitions_nonce'] = wp_create_nonce('club_competitions_request_token');
 
-    $shortcode = new UploadShortcode();
+    $shortcode = new Upload_Shortcode();
     $shortcode->render(['competition' => 'test-competition']);
 
     // Check Mailpit received email
@@ -379,8 +379,8 @@ Use Mailpit's HTML preview to verify emails look good on mobile devices.
 
 **Important**: Mailpit is for **development only**. In production:
 
-1. **Disable MailpitSMTP**:
-   The `MailpitSMTP::init()` only runs when `WP_DEBUG` is true, so it's automatically disabled in production.
+1. **Disable Mailpit_SMTP**:
+   The `Mailpit_SMTP::init()` only runs when `WP_DEBUG` is true, so it's automatically disabled in production.
 
 2. **Use a real SMTP service**:
    - SendGrid

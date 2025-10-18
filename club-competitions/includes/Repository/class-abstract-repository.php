@@ -7,10 +7,15 @@
 
 namespace ClubCompetitions\Repository;
 
-	use RuntimeException;
-	use wpdb;
+use RuntimeException;
+use wpdb;
 
-abstract class AbstractRepository {
+/**
+ * Abstract class Abstract_Repository
+ *
+ * @package ClubCompetitions\Repository
+ */
+abstract class Abstract_Repository {
 
 	/**
 	 * Database connection.
@@ -23,6 +28,7 @@ abstract class AbstractRepository {
 	 * Constructor.
 	 *
 	 * @param wpdb|null $wpdb WordPress database instance.
+	 * @throws RuntimeException If the WordPress database object is not available.
 	 */
 	public function __construct( ?wpdb $wpdb = null ) {
 		if ( $wpdb instanceof wpdb ) {

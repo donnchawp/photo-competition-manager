@@ -6,10 +6,10 @@
 namespace ClubCompetitions\Tests\Repository;
 
 use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Repository\MembersRepository;
+use ClubCompetitions\Repository\Members_Repository;
 use WP_UnitTestCase;
 
-class MembersRepositoryTest extends WP_UnitTestCase {
+class Members_Repository_Test extends WP_UnitTestCase {
 
 	public function setUp(): void {
 		parent::setUp();
@@ -22,7 +22,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_table_name_is_prefixed(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertSame(
 			$GLOBALS['wpdb']->prefix . 'clubcompete_members',
@@ -36,7 +36,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_all_returns_active_members(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$GLOBALS['wpdb']->insert(
 			$repository->table(),
@@ -76,7 +76,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_create_persists_member(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$id = $repository->create(
 			array(
@@ -102,7 +102,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_duplicate_email_returns_error(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$first = $repository->create(
 			array(
@@ -130,7 +130,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_update_modifies_member(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$id = $repository->create(
 			array(
@@ -166,7 +166,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_set_active_updates_flag(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$id = $repository->create(
 			array(
@@ -187,7 +187,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_many_returns_members(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$alice = $repository->create(
 			array(
@@ -217,7 +217,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_email_retrieves_member(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$id = $repository->create(
 			array(
@@ -241,7 +241,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_email_returns_null_for_missing(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$member = $repository->find_by_email( 'nonexistent@example.com' );
 
@@ -254,7 +254,7 @@ class MembersRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_email_validates_format(): void {
-		$repository = new MembersRepository( $GLOBALS['wpdb'] );
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$member = $repository->find_by_email( 'not-an-email' );
 

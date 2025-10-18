@@ -1,21 +1,21 @@
 <?php
 /**
- * Tests for UploadTokenRepository.
+ * Tests for Upload_Token_Repository.
  *
  * @package ClubCompetitions\Tests
  */
 
 namespace ClubCompetitions\Tests\Repository;
 
-use ClubCompetitions\Repository\UploadTokenRepository;
+use ClubCompetitions\Repository\Upload_Token_Repository;
 use WP_UnitTestCase;
 
-class UploadTokenRepositoryTest extends WP_UnitTestCase {
+class Upload_Token_Repository_Test extends WP_UnitTestCase {
 
 	/**
 	 * Repository instance.
 	 *
-	 * @var UploadTokenRepository
+	 * @var Upload_Token_Repository
 	 */
 	private $repo;
 
@@ -24,7 +24,7 @@ class UploadTokenRepositoryTest extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
-		$this->repo = new UploadTokenRepository();
+		$this->repo = new Upload_Token_Repository();
 	}
 
 	/**

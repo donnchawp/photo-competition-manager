@@ -6,10 +6,10 @@
 namespace ClubCompetitions\Tests\Repository;
 
 use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Repository\CompetitionsRepository;
+use ClubCompetitions\Repository\Competitions_Repository;
 use WP_UnitTestCase;
 
-class CompetitionsRepositoryTest extends WP_UnitTestCase {
+class Competitions_Repository_Test extends WP_UnitTestCase {
 
 	public function setUp(): void {
 		parent::setUp();
@@ -23,7 +23,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_table_name_is_prefixed(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertSame(
 			$GLOBALS['wpdb']->prefix . 'clubcompete_competitions',
@@ -37,7 +37,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_create_persists_competition(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$result = $repository->create(
 			array(
@@ -65,7 +65,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_duplicate_slug_returns_error(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$first = $repository->create(
 			array(
@@ -93,7 +93,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_update_persists_changes(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -128,7 +128,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_update_allows_same_slug(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -157,7 +157,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_archive_marks_competition_as_deleted(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -184,7 +184,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_restore_reactivates_competition(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -209,7 +209,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_slug_retrieves_competition(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -232,7 +232,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_slug_excludes_archived(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition_id = $repository->create(
 			array(
@@ -259,7 +259,7 @@ class CompetitionsRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_slug_returns_null_for_missing(): void {
-		$repository = new CompetitionsRepository( $GLOBALS['wpdb'] );
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$competition = $repository->find_by_slug( 'does-not-exist' );
 

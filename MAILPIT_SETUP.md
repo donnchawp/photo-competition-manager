@@ -124,7 +124,7 @@ In production, use a real SMTP service like:
 - AWS SES
 - Your hosting provider
 
-The MailpitSMTP configuration only runs when `WP_DEBUG=true`, so it's automatically disabled in production.
+The Mailpit_SMTP configuration only runs when `WP_DEBUG=true`, so it's automatically disabled in production.
 
 ---
 

@@ -1,21 +1,21 @@
 <?php
 /**
- * Tests for ImageProcessor.
+ * Tests for Image_Processor.
  *
  * @package ClubCompetitions\Tests\Support
  */
 
 namespace ClubCompetitions\Tests\Support;
 
-use ClubCompetitions\Support\ImageProcessor;
+use ClubCompetitions\Support\Image_Processor;
 use WP_UnitTestCase;
 
-class ImageProcessorTest extends WP_UnitTestCase {
+class Image_Processor_Test extends WP_UnitTestCase {
 
 	/**
 	 * Image processor instance.
 	 *
-	 * @var ImageProcessor
+	 * @var Image_Processor
 	 */
 	private $processor;
 
@@ -24,7 +24,7 @@ class ImageProcessorTest extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
-		$this->processor = new ImageProcessor();
+		$this->processor = new Image_Processor();
 	}
 
 	public function test_generate_filename_formats_correctly(): void {

@@ -4,7 +4,7 @@
          verbose="true">
     <testsuites>
         <testsuite name="Club Competitions">
-            <directory suffix="Test.php">tests/phpunit</directory>
+            <directory suffix="-test.php">tests/phpunit</directory>
         </testsuite>
     </testsuites>
     <coverage processUncoveredFiles="true">

@@ -9,7 +9,12 @@ namespace ClubCompetitions\Repository;
 
 use WP_Error;
 
-class ImagesRepository extends AbstractRepository {
+/**
+ * Class Images_Repository
+ *
+ * @package ClubCompetitions\Repository
+ */
+class Images_Repository extends Abstract_Repository {
 
 	/**
 	 * Find all images for a competition.

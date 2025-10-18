@@ -6,10 +6,10 @@
 namespace ClubCompetitions\Tests\Repository;
 
 use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Repository\VotesRepository;
+use ClubCompetitions\Repository\Votes_Repository;
 use WP_UnitTestCase;
 
-class VotesRepositoryTest extends WP_UnitTestCase {
+class Votes_Repository_Test extends WP_UnitTestCase {
 
 	public function setUp(): void {
 		parent::setUp();
@@ -22,7 +22,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_table_name_is_prefixed(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertSame(
 			$GLOBALS['wpdb']->prefix . 'clubcompete_votes',
@@ -36,7 +36,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_create_persists_vote(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$id = $repository->create( 1, 'colour', 'John Doe', 42, 9.0 );
 
@@ -58,7 +58,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_create_requires_voter_name(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$result = $repository->create( 1, 'colour', '', 42, 9.0 );
 
@@ -72,7 +72,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_create_validates_score(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$result = $repository->create( 1, 'colour', 'John Doe', 42, -1.0 );
 
@@ -86,7 +86,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_competition_filters(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create( 1, 'colour', 'Alice', 10, 9.0 );
 		$repository->create( 1, 'bw', 'Alice', 20, 8.0 );
@@ -109,7 +109,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_find_by_image(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create( 1, 'colour', 'Alice', 42, 9.0 );
 		$repository->create( 1, 'colour', 'Bob', 42, 8.0 );
@@ -125,7 +125,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_has_voted(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertFalse( $repository->has_voted( 1, 'colour', 'Alice' ) );
 
@@ -142,7 +142,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_calculate_averages(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create( 1, 'colour', 'Alice', 42, 9.0 );
 		$repository->create( 1, 'colour', 'Bob', 42, 7.0 );
@@ -168,7 +168,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_delete_by_competition(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create( 1, 'colour', 'Alice', 42, 9.0 );
 		$repository->create( 1, 'colour', 'Bob', 43, 8.0 );
@@ -189,7 +189,7 @@ class VotesRepositoryTest extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_get_voters(): void {
-		$repository = new VotesRepository( $GLOBALS['wpdb'] );
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create( 1, 'colour', 'Alice', 42, 9.0 );
 		$repository->create( 1, 'colour', 'Alice', 43, 8.0 );

@@ -9,7 +9,12 @@ namespace ClubCompetitions\Support;
 
 use WP_Error;
 
-class CompetitionSettings {
+/**
+ * Class Competition_Settings
+ *
+ * @package ClubCompetitions\Support
+ */
+class Competition_Settings {
 
 	/**
 	 * Default settings structure.

@@ -17,28 +17,28 @@ class Frontend {
 	/**
 	 * Upload shortcode handler.
 	 *
-	 * @var UploadShortcode|null
+	 * @var Upload_Shortcode|null
 	 */
 	private $upload_shortcode;
 
 	/**
 	 * Voting shortcode handler.
 	 *
-	 * @var VotingShortcode|null
+	 * @var Voting_Shortcode|null
 	 */
 	private $voting_shortcode;
 
 	/**
 	 * Results shortcode handler.
 	 *
-	 * @var ResultsShortcode|null
+	 * @var Results_Shortcode|null
 	 */
 	private $results_shortcode;
 
 	/**
 	 * Top 3 shortcode handler.
 	 *
-	 * @var Top3Shortcode|null
+	 * @var Top3_Shortcode|null
 	 */
 	private $top3_shortcode;
 
@@ -49,19 +49,19 @@ class Frontend {
 	 */
 	public function register(): void {
 		// Register upload shortcode.
-		$this->upload_shortcode = new UploadShortcode();
+		$this->upload_shortcode = new Upload_Shortcode();
 		$this->upload_shortcode->register();
 
 		// Register voting shortcode.
-		$this->voting_shortcode = new VotingShortcode();
+		$this->voting_shortcode = new Voting_Shortcode();
 		$this->voting_shortcode->register();
 
 		// Register results shortcode.
-		$this->results_shortcode = new ResultsShortcode();
+		$this->results_shortcode = new Results_Shortcode();
 		$this->results_shortcode->register();
 
 		// Register top 3 shortcode.
-		$this->top3_shortcode = new Top3Shortcode();
+		$this->top3_shortcode = new Top3_Shortcode();
 		$this->top3_shortcode->register();
 
 		// Enqueue frontend styles.

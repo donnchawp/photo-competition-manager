@@ -7,7 +7,12 @@
 
 namespace ClubCompetitions\Service;
 
-class EmailService {
+/**
+ * Class Email_Service
+ *
+ * @package ClubCompetitions\Service
+ */
+class Email_Service {
 
 	/**
 	 * Send upload magic link email.

@@ -1,6 +1,6 @@
 <?php
 /**
- * Class SampleTest
+ * Class Sample_Test
  *
  * @package Club_Competitions
  */
@@ -8,7 +8,7 @@
 /**
  * Sample test case.
  */
-class SampleTest extends WP_UnitTestCase {
+class Sample_Test extends WP_UnitTestCase {
 
 	/**
 	 * A single example test.

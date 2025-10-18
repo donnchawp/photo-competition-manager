@@ -7,61 +7,66 @@
 
 namespace ClubCompetitions\Service;
 
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
-use ClubCompetitions\Support\CompetitionSettings;
-use ClubCompetitions\Support\ImageProcessor;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
+use ClubCompetitions\Support\Competition_Settings;
+use ClubCompetitions\Support\Image_Processor;
 use WP_Error;
 
-class UploadHandler {
+/**
+ * Upload Handler Service.
+ *
+ * @since 0.1.0
+ */
+class Upload_Handler {
 
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions_repo;
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images_repo;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members_repo;
 
 	/**
 	 * Image processor.
 	 *
-	 * @var ImageProcessor
+	 * @var Image_Processor
 	 */
 	private $image_processor;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param CompetitionsRepository|null $competitions_repo Competitions repository.
-	 * @param ImagesRepository|null       $images_repo       Images repository.
-	 * @param MembersRepository|null      $members_repo      Members repository.
-	 * @param ImageProcessor|null         $image_processor   Image processor.
+	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
+	 * @param Images_Repository|null       $images_repo       Images repository.
+	 * @param Members_Repository|null      $members_repo      Members repository.
+	 * @param Image_Processor|null         $image_processor   Image processor.
 	 */
 	public function __construct(
-		?CompetitionsRepository $competitions_repo = null,
-		?ImagesRepository $images_repo = null,
-		?MembersRepository $members_repo = null,
-		?ImageProcessor $image_processor = null
+		?Competitions_Repository $competitions_repo = null,
+		?Images_Repository $images_repo = null,
+		?Members_Repository $members_repo = null,
+		?Image_Processor $image_processor = null
 	) {
-		$this->competitions_repo = $competitions_repo ?: new CompetitionsRepository();
-		$this->images_repo       = $images_repo ?: new ImagesRepository();
-		$this->members_repo      = $members_repo ?: new MembersRepository();
-		$this->image_processor   = $image_processor ?: new ImageProcessor();
+		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
+		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
+		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
+		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
 	}
 
 	/**
@@ -105,8 +110,8 @@ class UploadHandler {
 		}
 
 		// Parse competition settings.
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$categories = CompetitionSettings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		// Validate category exists.
 		$category_config = null;
@@ -138,7 +143,7 @@ class UploadHandler {
 		}
 
 		// Get upload constraints.
-		$constraints = CompetitionSettings::get_upload_constraints( $settings );
+		$constraints = Competition_Settings::get_upload_constraints( $settings );
 
 		// Process and store the image.
 		$counter  = $current_count + 1;
@@ -252,8 +257,8 @@ class UploadHandler {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'club-competitions' ) );
 		}
 
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$categories = CompetitionSettings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		$category_config = null;
 		foreach ( $categories as $cat ) {

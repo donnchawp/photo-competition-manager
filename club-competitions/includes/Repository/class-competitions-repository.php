@@ -11,12 +11,19 @@ use WP_Error;
 
 use function ClubCompetitions\Support\format_slug;
 
-class CompetitionsRepository extends AbstractRepository {
+/**
+ * Repository for competitions.
+ *
+ * @package ClubCompetitions\Repository
+ */
+class Competitions_Repository extends Abstract_Repository {
 
 	/**
 	 * Fetch competitions ordered by creation date.
 	 *
-	 * @param int $limit Number of records to return.
+	 * @param int  $limit Number of records to return.
+	 * @param bool $include_archived Whether to include archived records.
+	 * @param bool $only_archived Whether to return only archived records.
 	 * @return array<int, object>
 	 */
 	public function all( int $limit = 20, bool $include_archived = false, bool $only_archived = false ): array {
@@ -66,7 +73,8 @@ class CompetitionsRepository extends AbstractRepository {
 	/**
 	 * Locate a competition by ID.
 	 *
-	 * @param int $id Competition ID.
+	 * @param int  $id Competition ID.
+	 * @param bool $include_archived Whether to include archived competitions.
 	 * @return object|null
 	 */
 	public function find( int $id, bool $include_archived = false ) {
@@ -74,19 +82,20 @@ class CompetitionsRepository extends AbstractRepository {
 			return null;
 		}
 
-		$conditions = 'id = %d';
+		$conditions = '';
 
 		if ( ! $include_archived ) {
 			$conditions .= ' AND deleted_at IS NULL';
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE {$conditions}",
+				"SELECT * FROM {$this->table()} WHERE id = %d{$conditions}",
 				$id
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -101,19 +110,19 @@ class CompetitionsRepository extends AbstractRepository {
 			return null;
 		}
 
-		$conditions = 'slug = %s';
-
+		$conditions = '';
 		if ( ! $include_archived ) {
 			$conditions .= ' AND deleted_at IS NULL';
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE {$conditions}",
+				"SELECT * FROM {$this->table()} WHERE slug = %s{$conditions}",
 				$slug
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -150,7 +159,7 @@ class CompetitionsRepository extends AbstractRepository {
 		$payload = array(
 			'title'       => $title,
 			'slug'        => $slug,
-			'status'      => $status ?: 'draft',
+			'status'      => $status ? $status : 'draft',
 			'open_date'   => $open_date,
 			'close_date'  => $close_date,
 			'voting_open' => $voting_open,
@@ -205,9 +214,9 @@ class CompetitionsRepository extends AbstractRepository {
 
 		$slug_source = isset( $data['slug'] ) && '' !== trim( (string) $data['slug'] )
 			? sanitize_title( $data['slug'] )
-			: ( $current->slug ?: format_slug( $title ) );
+			: ( $current->slug ? $current->slug : format_slug( $title ) );
 
-		$slug = $slug_source ?: format_slug( $title );
+		$slug = $slug_source ? $slug_source : format_slug( $title );
 
 		if ( $this->slug_exists( $slug, $id ) ) {
 			return new WP_Error( 'duplicate_slug', __( 'A competition with this slug already exists.', 'club-competitions' ) );
@@ -221,7 +230,7 @@ class CompetitionsRepository extends AbstractRepository {
 		$payload = array(
 			'title'       => $title,
 			'slug'        => $slug,
-			'status'      => $status ?: 'draft',
+			'status'      => $status ? $status : 'draft',
 			'open_date'   => $open_date,
 			'close_date'  => $close_date,
 			'voting_open' => $voting_open,
@@ -295,12 +304,13 @@ class CompetitionsRepository extends AbstractRepository {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'club-competitions' ) );
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
 			"UPDATE {$this->table()} SET deleted_at = NULL, updated_at = %s WHERE id = %d",
 			current_time( 'mysql' ),
 			$id
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$updated = $this->wpdb->query( $sql );
@@ -322,18 +332,19 @@ class CompetitionsRepository extends AbstractRepository {
 	private function slug_exists( string $slug, ?int $exclude_id = null ): bool {
 		$params = array( $slug );
 
-		$conditions = 'slug = %s';
+		$conditions = '';
 
 		if ( $exclude_id ) {
 			$conditions .= ' AND id != %d';
 			$params[]    = $exclude_id;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$this->table()} WHERE {$conditions}",
+			"SELECT COUNT(*) FROM {$this->table()} WHERE slug = %s{$conditions}",
 			...$params
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return (int) $this->wpdb->get_var( $sql ) > 0;

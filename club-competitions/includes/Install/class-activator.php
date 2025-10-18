@@ -9,6 +9,11 @@ namespace ClubCompetitions\Install;
 
 use wpdb;
 
+/**
+ * Plugin Activator.
+ *
+ * @since 0.1.0
+ */
 class Activator {
 
 	/**
@@ -44,7 +49,7 @@ class Activator {
 	 * @return array<string>
 	 */
 	public static function get_schema( wpdb $wpdb = null ): array {
-		$wpdb = $wpdb ?: $GLOBALS['wpdb'];
+		$wpdb = $wpdb ? $wpdb : $GLOBALS['wpdb'];
 
 		$charset_collate = $wpdb->get_charset_collate();
 

@@ -11,7 +11,7 @@ use ClubCompetitions\Install\Activator;
 use ClubCompetitions\Plugin;
 use WP_UnitTestCase;
 
-class PluginTest extends WP_UnitTestCase {
+class Plugin_Test extends WP_UnitTestCase {
 
 	/**
 	 * Plugin bootstraps controllers.

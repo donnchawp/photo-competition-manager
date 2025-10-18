@@ -9,7 +9,12 @@ namespace ClubCompetitions\Repository;
 
 use WP_Error;
 
-class VotesRepository extends AbstractRepository {
+/**
+ * Repository for votes.
+ *
+ * @package ClubCompetitions\Repository
+ */
+class Votes_Repository extends Abstract_Repository {
 
 	/**
 	 * Table suffix.
@@ -146,11 +151,14 @@ class VotesRepository extends AbstractRepository {
 			return array();
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			sprintf( 'SELECT * FROM %s WHERE image_id = %%d ORDER BY created_at DESC', $this->table() ),
+			"SELECT * FROM {$table} WHERE image_id = %d ORDER BY created_at DESC",
 			$image_id
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return $this->wpdb->get_results( $sql );
@@ -167,14 +175,14 @@ class VotesRepository extends AbstractRepository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			sprintf(
-				'SELECT COUNT(*) FROM %s WHERE voting_token_id = %%d',
-				$this->table()
-			),
+			"SELECT COUNT(*) FROM {$table} WHERE voting_token_id = %d",
 			$voting_token_id
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$count = (int) $this->wpdb->get_var( $sql );
@@ -195,16 +203,16 @@ class VotesRepository extends AbstractRepository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			sprintf(
-				'SELECT COUNT(*) FROM %s WHERE competition_id = %%d AND category = %%s AND voter_name = %%s',
-				$this->table()
-			),
+			"SELECT COUNT(*) FROM {$table} WHERE competition_id = %d AND category = %s AND voter_name = %s",
 			$competition_id,
 			$category,
 			$voter_name
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$count = (int) $this->wpdb->get_var( $sql );
@@ -288,14 +296,14 @@ class VotesRepository extends AbstractRepository {
 			return array();
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			sprintf(
-				'SELECT DISTINCT voter_name FROM %s WHERE competition_id = %%d ORDER BY voter_name',
-				$this->table()
-			),
+			"SELECT DISTINCT voter_name FROM {$table} WHERE competition_id = %d ORDER BY voter_name",
 			$competition_id
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$results = $this->wpdb->get_col( $sql );

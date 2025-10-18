@@ -9,7 +9,12 @@ namespace ClubCompetitions\Support;
 
 use WP_Error;
 
-class ImageProcessor {
+/**
+ * Image Processor class.
+ *
+ * @since 0.1.0
+ */
+class Image_Processor {
 
 	/**
 	 * Validate uploaded file against competition settings.
@@ -63,7 +68,7 @@ class ImageProcessor {
 		}
 
 		// Verify actual image.
-		$image_info = @getimagesize( $file['tmp_name'] );
+		$image_info = @getimagesize( $file['tmp_name'] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( false === $image_info ) {
 			return new WP_Error( 'invalid_image', __( 'File is not a valid image.', 'club-competitions' ) );
 		}
@@ -245,13 +250,11 @@ class ImageProcessor {
 		$deleted = true;
 
 		if ( file_exists( $image_path ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
-			$deleted = $deleted && unlink( $image_path );
+			$deleted = $deleted && wp_delete_file( $image_path );
 		}
 
 		if ( file_exists( $thumb_path ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
-			$deleted = $deleted && unlink( $thumb_path );
+			$deleted = $deleted && wp_delete_file( $thumb_path );
 		}
 
 		return $deleted;

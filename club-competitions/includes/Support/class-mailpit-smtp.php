@@ -12,7 +12,7 @@ namespace ClubCompetitions\Support;
  *
  * @package ClubCompetitions\Support
  */
-class MailpitSMTP {
+class Mailpit_SMTP {
 
 	/**
 	 * Initialize SMTP configuration if in development environment.
@@ -41,10 +41,15 @@ class MailpitSMTP {
 	 */
 	public static function configure_phpmailer( $phpmailer ): void {
 		$phpmailer->isSMTP();
+		// phpcs:ignore
 		$phpmailer->Host        = defined( 'SMTP_HOST' ) ? SMTP_HOST : 'club-competitions-mailpit';
+		// phpcs:ignore
 		$phpmailer->Port        = defined( 'SMTP_PORT' ) ? SMTP_PORT : 1025;
+		// phpcs:ignore
 		$phpmailer->SMTPAuth    = false;
+		// phpcs:ignore
 		$phpmailer->SMTPSecure  = '';
+		// phpcs:ignore
 		$phpmailer->SMTPAutoTLS = false;
 
 		// Set From address if defined, or use default.

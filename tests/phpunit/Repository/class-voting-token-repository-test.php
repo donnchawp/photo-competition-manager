@@ -1,21 +1,21 @@
 <?php
 /**
- * Tests for VotingTokenRepository.
+ * Tests for Voting_Token_Repository.
  *
  * @package ClubCompetitions\Tests\Repository
  */
 
 namespace ClubCompetitions\Tests\Repository;
 
-use ClubCompetitions\Repository\VotingTokenRepository;
+use ClubCompetitions\Repository\Voting_Token_Repository;
 use WP_UnitTestCase;
 
-class VotingTokenRepositoryTest extends WP_UnitTestCase {
+class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 	/**
 	 * Repository instance.
 	 *
-	 * @var VotingTokenRepository
+	 * @var Voting_Token_Repository
 	 */
 	private $repository;
 
@@ -26,7 +26,7 @@ class VotingTokenRepositoryTest extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
-		$this->repository = new VotingTokenRepository();
+		$this->repository = new Voting_Token_Repository();
 
 		// Ensure table exists for testing.
 		global $wpdb;

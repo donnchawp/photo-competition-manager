@@ -7,12 +7,17 @@
 
 namespace ClubCompetitions;
 
-use ClubCompetitions\Admin\AdminScreen;
+use ClubCompetitions\Admin\Admin_Screen;
 use ClubCompetitions\Frontend\Frontend;
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
 
+/**
+ * Class Plugin
+ *
+ * @package ClubCompetitions
+ */
 class Plugin {
 
 	/**
@@ -25,7 +30,7 @@ class Plugin {
 	/**
 	 * Admin controller.
 	 *
-	 * @var AdminScreen
+	 * @var Admin_Screen
 	 */
 	private $admin;
 
@@ -39,21 +44,21 @@ class Plugin {
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members;
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images;
 
@@ -76,10 +81,10 @@ class Plugin {
 	 * @return void
 	 */
 	public function register(): void {
-		$this->competitions = new CompetitionsRepository();
-		$this->members      = new MembersRepository();
-		$this->images       = new ImagesRepository();
-		$this->admin        = new AdminScreen( $this->competitions, $this->members, $this->images );
+		$this->competitions = new Competitions_Repository();
+		$this->members      = new Members_Repository();
+		$this->images       = new Images_Repository();
+		$this->admin        = new Admin_Screen( $this->competitions, $this->members, $this->images );
 		$this->frontend     = new Frontend();
 
 		add_action( 'plugins_loaded', array( $this, 'bootstrap' ) );

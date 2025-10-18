@@ -7,60 +7,65 @@
 
 namespace ClubCompetitions\Frontend;
 
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
-use ClubCompetitions\Repository\VotesRepository;
-use ClubCompetitions\Support\CompetitionSettings;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
+use ClubCompetitions\Repository\Votes_Repository;
+use ClubCompetitions\Support\Competition_Settings;
 
-class Top3Shortcode {
+/**
+ * Shortcode to display top 3 results.
+ *
+ * @since 0.1.0
+ */
+class Top3_Shortcode {
 
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions_repo;
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images_repo;
 
 	/**
 	 * Votes repository.
 	 *
-	 * @var VotesRepository
+	 * @var Votes_Repository
 	 */
 	private $votes_repo;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members_repo;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param CompetitionsRepository|null $competitions_repo Competitions repository.
-	 * @param ImagesRepository|null       $images_repo       Images repository.
-	 * @param VotesRepository|null        $votes_repo        Votes repository.
-	 * @param MembersRepository|null      $members_repo      Members repository.
+	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
+	 * @param Images_Repository|null       $images_repo       Images repository.
+	 * @param Votes_Repository|null        $votes_repo        Votes repository.
+	 * @param Members_Repository|null      $members_repo      Members repository.
 	 */
 	public function __construct(
-		?CompetitionsRepository $competitions_repo = null,
-		?ImagesRepository $images_repo = null,
-		?VotesRepository $votes_repo = null,
-		?MembersRepository $members_repo = null
+		?Competitions_Repository $competitions_repo = null,
+		?Images_Repository $images_repo = null,
+		?Votes_Repository $votes_repo = null,
+		?Members_Repository $members_repo = null
 	) {
-		$this->competitions_repo = $competitions_repo ?: new CompetitionsRepository();
-		$this->images_repo       = $images_repo ?: new ImagesRepository();
-		$this->votes_repo        = $votes_repo ?: new VotesRepository();
-		$this->members_repo      = $members_repo ?: new MembersRepository();
+		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
+		$this->images_repo       = $images_repo ?? new Images_Repository();
+		$this->votes_repo        = $votes_repo ?? new Votes_Repository();
+		$this->members_repo      = $members_repo ?? new Members_Repository();
 	}
 
 	/**
@@ -89,7 +94,7 @@ class Top3Shortcode {
 
 		$competition = null;
 
-		// If no competition specified, get the most recent one
+		// If no competition specified, get the most recent one.
 		if ( empty( $atts['competition'] ) ) {
 			$competitions = $this->competitions_repo->all( 1, false, false );
 			if ( empty( $competitions ) ) {
@@ -116,25 +121,25 @@ class Top3Shortcode {
 	 * @return void
 	 */
 	private function render_top3_results( object $competition ): void {
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$grades     = CompetitionSettings::get_grades( $settings );
-		$categories = CompetitionSettings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$grades     = Competition_Settings::get_grades( $settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
-		// Get all images for this competition with their scores
+		// Get all images for this competition with their scores.
 		$images = $this->images_repo->find_by_competition( (int) $competition->id );
 		if ( empty( $images ) ) {
 			echo '<p class="notice">' . esc_html__( 'No images submitted for this competition yet.', 'club-competitions' ) . '</p>';
 			return;
 		}
 
-		// Get member details for building image URLs and grouping by grade
+		// Get member details for building image URLs and grouping by grade.
 		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 		$members    = $this->members_repo->find_many( $member_ids );
 
-		// Calculate scores for each image
+		// Calculate scores for each image.
 		$image_scores = $this->votes_repo->calculate_averages( (int) $competition->id );
 
-		// Group images by category first, then by grade within each category
+		// Group images by category first, then by grade within each category.
 		$results_by_category = array();
 		foreach ( $images as $image ) {
 			$member = $members[ (int) $image->member_id ] ?? null;
@@ -143,7 +148,7 @@ class Top3Shortcode {
 			}
 
 			$category    = $image->category;
-			$grade       = $member->grade ?: 'unknown';
+			$grade       = $member->grade ? $member->grade : 'unknown';
 			$score_data  = $image_scores[ (int) $image->id ] ?? null;
 			$total_score = $score_data ? $score_data['average_score'] : 0;
 
@@ -163,7 +168,7 @@ class Top3Shortcode {
 			);
 		}
 
-		// Sort each grade within each category by total score (highest first) and take top 3
+		// Sort each grade within each category by total score (highest first) and take top 3.
 		foreach ( $results_by_category as $category => $grade_results ) {
 			foreach ( $grade_results as $grade => $results ) {
 				usort(
@@ -214,8 +219,8 @@ class Top3Shortcode {
 											$member         = $result['member'];
 											$total_score    = $result['total_score'];
 											$vote_count     = $result['vote_count'];
-											$image_urls     = $this->get_image_urls( $competition, $image, $members );
-											$thumb_url      = $image_urls['thumb'] ?: $image_urls['full'];
+											$image_urls     = $this->get_image_urls( $competition, $image );
+											$thumb_url      = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 											$position       = $positions[ $index ] ?? 'third';
 											$position_label = $position_labels[ $position ] ?? __( '3rd Place', 'club-competitions' );
 											?>
@@ -226,6 +231,7 @@ class Top3Shortcode {
 												<div class="image-container">
 													<?php if ( $thumb_url ) : ?>
 														<a href="<?php echo esc_url( $image_urls['full'] ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
+															<?php // translators: Image alt text with image number. ?>
 															<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number ) ); ?>" loading="lazy" class="podium-thumbnail" />
 														</a>
 													<?php else : ?>
@@ -262,12 +268,11 @@ class Top3Shortcode {
 	/**
 	 * Get image URLs for display.
 	 *
-	 * @param object        $competition Competition object.
-	 * @param object        $image       Image record.
-	 * @param array<object> $members     Members lookup array.
+	 * @param object $competition Competition object.
+	 * @param object $image       Image record.
 	 * @return array{full: string, thumb: string}
 	 */
-	private function get_image_urls( object $competition, object $image, array $members ): array {
+	private function get_image_urls( object $competition, object $image ): array {
 		if ( empty( $competition->slug ) || empty( $image->filename ) ) {
 			return array(
 				'full'  => '',
@@ -314,7 +319,7 @@ class Top3Shortcode {
 	private function get_thumbnail_filename( string $filename ): string {
 		$info = pathinfo( $filename );
 		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
 
 		return $base . '-thumb' . $ext;
 	}

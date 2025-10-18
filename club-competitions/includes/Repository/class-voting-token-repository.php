@@ -14,7 +14,7 @@ use WP_Error;
  *
  * @package ClubCompetitions\Repository
  */
-class VotingTokenRepository extends AbstractRepository {
+class Voting_Token_Repository extends Abstract_Repository {
 
 	/**
 	 * Create a new voting token.
@@ -66,7 +66,7 @@ class VotingTokenRepository extends AbstractRepository {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
 				"SELECT * FROM {$this->table()}
@@ -78,6 +78,7 @@ class VotingTokenRepository extends AbstractRepository {
 				current_time( 'mysql' )
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -120,13 +121,14 @@ class VotingTokenRepository extends AbstractRepository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->query(
 			$this->wpdb->prepare(
 				"DELETE FROM {$this->table()} WHERE expires_at < %s",
 				current_time( 'mysql' )
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -145,7 +147,7 @@ class VotingTokenRepository extends AbstractRepository {
 		// Check for tokens created in the last 5 minutes that are still valid.
 		$recent_threshold = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 5 * MINUTE_IN_SECONDS ) );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$count = (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
 				"SELECT COUNT(*) FROM {$this->table()}
@@ -162,6 +164,7 @@ class VotingTokenRepository extends AbstractRepository {
 				$recent_threshold
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		return $count > 0;
 	}

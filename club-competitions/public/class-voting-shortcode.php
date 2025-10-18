@@ -7,14 +7,14 @@
 
 namespace ClubCompetitions\Frontend;
 
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
-use ClubCompetitions\Repository\VotesRepository;
-use ClubCompetitions\Repository\VotingTokenRepository;
-use ClubCompetitions\Service\EmailService;
-use ClubCompetitions\Support\CompetitionSettings;
-use ClubCompetitions\Support\ImageProcessor;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
+use ClubCompetitions\Repository\Votes_Repository;
+use ClubCompetitions\Repository\Voting_Token_Repository;
+use ClubCompetitions\Service\Email_Service;
+use ClubCompetitions\Support\Competition_Settings;
+use ClubCompetitions\Support\Image_Processor;
 
 /**
  * Shortcode renderer for competition voting (token- and password-based).
@@ -23,84 +23,84 @@ use ClubCompetitions\Support\ImageProcessor;
  *
  * @since 1.0.0
  */
-class VotingShortcode {
+class Voting_Shortcode {
 
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions_repo;
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images_repo;
 
 	/**
 	 * Votes repository.
 	 *
-	 * @var VotesRepository
+	 * @var Votes_Repository
 	 */
 	private $votes_repo;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members_repo;
 
 	/**
 	 * Voting token repository.
 	 *
-	 * @var VotingTokenRepository
+	 * @var Voting_Token_Repository
 	 */
 	private $token_repo;
 
 	/**
 	 * Email service.
 	 *
-	 * @var EmailService
+	 * @var Email_Service
 	 */
 	private $email_service;
 
 	/**
 	 * Image processor.
 	 *
-	 * @var ImageProcessor
+	 * @var Image_Processor
 	 */
 	private $image_processor;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param CompetitionsRepository|null $competitions_repo Competitions repository.
-	 * @param ImagesRepository|null       $images_repo       Images repository.
-	 * @param VotesRepository|null        $votes_repo        Votes repository.
-	 * @param MembersRepository|null      $members_repo      Members repository.
-	 * @param VotingTokenRepository|null  $token_repo        Token repository.
-	 * @param EmailService|null           $email_service     Email service.
-	 * @param ImageProcessor|null         $image_processor   Image processor.
+	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
+	 * @param Images_Repository|null       $images_repo       Images repository.
+	 * @param Votes_Repository|null        $votes_repo        Votes repository.
+	 * @param Members_Repository|null      $members_repo      Members repository.
+	 * @param Voting_Token_Repository|null $token_repo        Token repository.
+	 * @param Email_Service|null           $email_service     Email service.
+	 * @param Image_Processor|null         $image_processor   Image processor.
 	 */
 	public function __construct(
-		?CompetitionsRepository $competitions_repo = null,
-		?ImagesRepository $images_repo = null,
-		?VotesRepository $votes_repo = null,
-		?MembersRepository $members_repo = null,
-		?VotingTokenRepository $token_repo = null,
-		?EmailService $email_service = null,
-		?ImageProcessor $image_processor = null
+		?Competitions_Repository $competitions_repo = null,
+		?Images_Repository $images_repo = null,
+		?Votes_Repository $votes_repo = null,
+		?Members_Repository $members_repo = null,
+		?Voting_Token_Repository $token_repo = null,
+		?Email_Service $email_service = null,
+		?Image_Processor $image_processor = null
 	) {
-		$this->competitions_repo = $competitions_repo ? $competitions_repo : new CompetitionsRepository();
-		$this->images_repo       = $images_repo ? $images_repo : new ImagesRepository();
-		$this->votes_repo        = $votes_repo ? $votes_repo : new VotesRepository();
-		$this->members_repo      = $members_repo ? $members_repo : new MembersRepository();
-		$this->token_repo        = $token_repo ? $token_repo : new VotingTokenRepository();
-		$this->email_service     = $email_service ? $email_service : new EmailService();
-		$this->image_processor   = $image_processor ? $image_processor : new ImageProcessor();
+		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
+		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
+		$this->votes_repo        = $votes_repo ? $votes_repo : new Votes_Repository();
+		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
+		$this->token_repo        = $token_repo ? $token_repo : new Voting_Token_Repository();
+		$this->email_service     = $email_service ? $email_service : new Email_Service();
+		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
 	}
 
 	/**
@@ -136,8 +136,8 @@ class VotingShortcode {
 			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
 		}
 
-		$settings      = CompetitionSettings::parse( $competition->settings );
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$settings      = Competition_Settings::parse( $competition->settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$auth_mode     = $voting_config['auth_mode'] ?? 'password';
 
 		// Branch based on authentication mode.
@@ -244,7 +244,7 @@ class VotingShortcode {
 		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive a voting link shortly. Please check your inbox.', 'club-competitions' ) . '</p>';
 
 		// Verify category is open for voting.
-		if ( ! CompetitionSettings::is_voting_open_for_category( $settings, $category ) ) {
+		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'club-competitions' ) . '</p>';
 		}
 
@@ -315,11 +315,11 @@ class VotingShortcode {
 		}
 
 		// Get score matrix from settings.
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 
 		// Verify voting is still open for this category.
-		if ( ! CompetitionSettings::is_voting_open_for_category( $settings, $token_record->category ) ) {
+		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $token_record->category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'club-competitions' ) . '</p>';
 		}
 
@@ -383,7 +383,7 @@ class VotingShortcode {
 		}
 
 		// Verify voting is open for this category.
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
 
 		$expected_password = isset( $voting_config['password'] ) ? (string) $voting_config['password'] : '';
 
@@ -397,7 +397,7 @@ class VotingShortcode {
 			}
 		}
 
-		if ( ! CompetitionSettings::is_voting_open_for_category( $settings, $category ) ) {
+		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'club-competitions' ) . '</p>';
 		}
 
@@ -448,11 +448,11 @@ class VotingShortcode {
 	 * @return void
 	 */
 	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes ): void {
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
-		$categories    = CompetitionSettings::get_categories( $settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
+		$categories    = Competition_Settings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
-		$open_categories   = CompetitionSettings::get_open_voting_categories( $settings );
+		$open_categories   = Competition_Settings::get_open_voting_categories( $settings );
 		$voting_categories = array_filter(
 			$categories,
 			function ( $cat ) use ( $open_categories ) {
@@ -539,7 +539,7 @@ class VotingShortcode {
 				}
 
 				// Verify voting is still open for this category.
-				if ( ! CompetitionSettings::is_voting_open_for_category( $settings, $category ) ) {
+				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'club-competitions' ) . '</p>';
 					return;
 				}
@@ -726,11 +726,11 @@ class VotingShortcode {
 	 * @return void
 	 */
 	private function render_password_voting_interface( object $competition, string $message, array $settings, array $submitted_data ): void {
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
-		$categories    = CompetitionSettings::get_categories( $settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
+		$categories    = Competition_Settings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
-		$open_categories   = CompetitionSettings::get_open_voting_categories( $settings );
+		$open_categories   = Competition_Settings::get_open_voting_categories( $settings );
 		$voting_categories = array_filter(
 			$categories,
 			function ( $cat ) use ( $open_categories ) {
@@ -961,7 +961,7 @@ class VotingShortcode {
 			return array();
 		}
 
-		$voting_config = CompetitionSettings::get_voting_config( $settings );
+		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$score_limit   = count( $score_matrix );
 

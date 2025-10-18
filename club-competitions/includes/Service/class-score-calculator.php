@@ -7,34 +7,39 @@
 
 namespace ClubCompetitions\Service;
 
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\VotesRepository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Votes_Repository;
 
-class ScoreCalculator {
+/**
+ * Score Calculator Service.
+ *
+ * @since 0.1.0
+ */
+class Score_Calculator {
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images_repo;
 
 	/**
 	 * Votes repository.
 	 *
-	 * @var VotesRepository
+	 * @var Votes_Repository
 	 */
 	private $votes_repo;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param ImagesRepository|null $images_repo Images repository.
-	 * @param VotesRepository|null  $votes_repo  Votes repository.
+	 * @param Images_Repository|null $images_repo Images repository.
+	 * @param Votes_Repository|null  $votes_repo  Votes repository.
 	 */
-	public function __construct( ?ImagesRepository $images_repo = null, ?VotesRepository $votes_repo = null ) {
-		$this->images_repo = $images_repo ?: new ImagesRepository();
-		$this->votes_repo  = $votes_repo ?: new VotesRepository();
+	public function __construct( ?Images_Repository $images_repo = null, ?Votes_Repository $votes_repo = null ) {
+		$this->images_repo = $images_repo ? $images_repo : new Images_Repository();
+		$this->votes_repo  = $votes_repo ? $votes_repo : new Votes_Repository();
 	}
 
 	/**
@@ -71,10 +76,9 @@ class ScoreCalculator {
 	 *
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
-	 * @param string|null $grade          Optional grade filter.
 	 * @return array<object> Results sorted by score descending.
 	 */
-	public function get_results( int $competition_id, ?string $category = null, ?string $grade = null ): array {
+	public function get_results( int $competition_id, ?string $category = null ): array {
 		// Get all images for the competition.
 		$images = $this->images_repo->find_by_competition( $competition_id, $category );
 

@@ -7,55 +7,60 @@
 
 namespace ClubCompetitions\Admin;
 
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
-use ClubCompetitions\Repository\VotesRepository;
-use ClubCompetitions\Support\CompetitionSettings;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
+use ClubCompetitions\Repository\Votes_Repository;
+use ClubCompetitions\Support\Competition_Settings;
 
-class AdminScreen {
+/**
+ * Manage Club Competitions admin menus, screens, and actions.
+ *
+ * @since 0.1.0
+ */
+class Admin_Screen {
 
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members;
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images;
 
 	/**
 	 * Votes repository.
 	 *
-	 * @var VotesRepository
+	 * @var Votes_Repository
 	 */
 	private $votes;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param CompetitionsRepository|null $competitions Competition repository.
-	 * @param MembersRepository|null      $members      Member repository.
-	 * @param ImagesRepository|null       $images       Images repository.
-	 * @param VotesRepository|null        $votes        Votes repository.
+	 * @param Competitions_Repository|null $competitions Competition repository.
+	 * @param Members_Repository|null      $members      Member repository.
+	 * @param Images_Repository|null       $images       Images repository.
+	 * @param Votes_Repository|null        $votes        Votes repository.
 	 */
-	public function __construct( ?CompetitionsRepository $competitions = null, ?MembersRepository $members = null, ?ImagesRepository $images = null, ?VotesRepository $votes = null ) {
-		$this->competitions = $competitions ?: new CompetitionsRepository();
-		$this->members      = $members ?: new MembersRepository();
-		$this->images       = $images ?: new ImagesRepository();
-		$this->votes        = $votes ?: new VotesRepository();
+	public function __construct( ?Competitions_Repository $competitions = null, ?Members_Repository $members = null, ?Images_Repository $images = null, ?Votes_Repository $votes = null ) {
+		$this->competitions = $competitions ?? new Competitions_Repository();
+		$this->members      = $members ?? new Members_Repository();
+		$this->images       = $images ?? new Images_Repository();
+		$this->votes        = $votes ?? new Votes_Repository();
 	}
 
 	/**
@@ -126,13 +131,19 @@ class AdminScreen {
 	 * @return void
 	 */
 	public function render_dashboard(): void {
-		if ( isset( $_GET['action'], $_GET['competition'] ) && 'edit' === $_GET['action'] ) {
-			$this->render_edit_screen( absint( $_GET['competition'] ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view; actions enforce nonces during processing.
+		$action_query = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view; actions enforce nonces during processing.
+		$competition_query = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+		if ( 'edit' === $action_query && $competition_query ) {
+			$this->render_edit_screen( $competition_query );
 			return;
 		}
 
 		settings_errors( 'club_competitions' );
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars for filtering only; no data mutation.
 		$view         = isset( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : 'active';
 		$competitions = $this->competitions->all( 10, 'archived' === $view, 'archived' === $view );
 
@@ -157,9 +168,11 @@ class AdminScreen {
 
 		settings_errors( 'club_competitions_members' );
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
 		$member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
-		$member_id     = isset( $_GET['member'] ) ? absint( $_GET['member'] ) : 0;
-		$current       = null;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
+		$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+		$current   = null;
 
 		if ( 'edit' === $member_action && $member_id ) {
 			$current = $this->members->find( $member_id );
@@ -194,24 +207,23 @@ class AdminScreen {
 		echo '<tbody>';
 
 		foreach ( $members as $member ) {
-			$edit_link = esc_url(
-				add_query_arg(
-					array(
-						'page'          => 'club-competitions-members',
-						'member_action' => 'edit',
-						'member'        => (int) $member->id,
-					),
-					admin_url( 'admin.php' )
-				)
+			$edit_link    = add_query_arg(
+				array(
+					'page'          => 'club-competitions-members',
+					'member_action' => 'edit',
+					'member'        => (int) $member->id,
+				),
+				admin_url( 'admin.php' )
 			);
+			$status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $member->name ) . '</td>';
 			echo '<td>' . esc_html( $member->email ) . '</td>';
 			echo '<td>' . esc_html( $member->grade ) . '</td>';
-			echo '<td>' . esc_html( $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' ) ) . '</td>';
+			echo '<td>' . esc_html( $status_label ) . '</td>';
 			echo '<td>' . esc_html( $member->created_at ) . '</td>';
-			echo '<td><a href="' . $edit_link . '">' . esc_html__( 'Edit', 'club-competitions' ) . '</a></td>';
+			echo '<td><a href="' . esc_url( $edit_link ) . '">' . esc_html__( 'Edit', 'club-competitions' ) . '</a></td>';
 			echo '</tr>';
 		}
 
@@ -254,12 +266,14 @@ class AdminScreen {
 			$competition_lookup[ (int) $competition->id ] = $competition;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0;
 		if ( ! $competition_id || ! isset( $competition_lookup[ $competition_id ] ) ) {
 			$first          = reset( $competitions );
 			$competition_id = $first ? (int) $first->id : 0;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$member_id = isset( $_GET['member_id'] ) ? absint( wp_unslash( $_GET['member_id'] ) ) : 0;
 
 		$members    = $this->members->all( false );
@@ -271,9 +285,10 @@ class AdminScreen {
 		$submissions = array();
 		$scores_data = array();
 		if ( $competition_id ) {
-			$submissions = $this->images->find_by_competition( $competition_id, null, $member_id ?: null );
+			$member_filter = $member_id > 0 ? $member_id : null;
+			$submissions   = $this->images->find_by_competition( $competition_id, null, $member_filter );
 
-			// Get average scores and vote counts for all submissions
+			// Get average scores and vote counts for all submissions.
 			$scores_data = $this->votes->calculate_averages( $competition_id );
 		}
 
@@ -343,13 +358,17 @@ class AdminScreen {
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
 				? $member_map[ $submission->member_id ]->name
-				: sprintf( __( 'Member #%d', 'club-competitions' ), (int) $submission->member_id );
+				: sprintf(
+					/* translators: %d: Numeric member identifier when the name is unavailable. */
+					__( 'Member #%d', 'club-competitions' ),
+					(int) $submission->member_id
+				);
 
-			$current_competition = $selected_competition ?: ( $competition_lookup[ $submission->competition_id ] ?? null );
+			$current_competition = $selected_competition ?? ( $competition_lookup[ $submission->competition_id ] ?? null );
 			$urls                = $this->get_submission_urls( $current_competition, $submission );
-			$thumb_url           = $urls['thumb'] ?: $urls['full'];
+			$thumb_url           = ! empty( $urls['thumb'] ) ? $urls['thumb'] : $urls['full'];
 
-			// Get score data for this submission
+			// Get score data for this submission.
 			$image_id    = (int) $submission->id;
 			$total_score = '—';
 			$vote_count  = 0;
@@ -420,8 +439,8 @@ class AdminScreen {
 		$open_category_slug   = null;
 
 		foreach ( $active_competitions as $competition ) {
-			$settings        = CompetitionSettings::parse( $competition->settings );
-			$open_categories = CompetitionSettings::get_open_voting_categories( $settings );
+			$settings        = Competition_Settings::parse( $competition->settings );
+			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 
 			if ( ! empty( $open_categories ) ) {
 				$voting_open_globally = true;
@@ -441,9 +460,9 @@ class AdminScreen {
 		echo '<tbody>';
 
 		foreach ( $active_competitions as $competition ) {
-			$settings        = CompetitionSettings::parse( $competition->settings );
-			$categories      = CompetitionSettings::get_categories( $settings );
-			$open_categories = CompetitionSettings::get_open_voting_categories( $settings );
+			$settings        = Competition_Settings::parse( $competition->settings );
+			$categories      = Competition_Settings::get_categories( $settings );
+			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 
 			if ( empty( $categories ) ) {
 				echo '<tr>';
@@ -533,9 +552,9 @@ class AdminScreen {
 		$action = '';
 
 		if ( isset( $_POST['club_competitions_action'] ) ) {
-			$action = sanitize_text_field( wp_unslash( $_POST['club_competitions_action'] ) );
-		} elseif ( isset( $_GET['action'] ) ) {
-			$action = sanitize_text_field( wp_unslash( $_GET['action'] ) );
+			$action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
+		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
 
 		if ( '' === $action ) {
@@ -545,13 +564,29 @@ class AdminScreen {
 		if ( 'create_competition' === $action ) {
 			check_admin_referer( 'club_competitions_create', 'club_competitions_nonce' );
 
+			$title_raw       = $this->get_post_string( 'competition_title' );
+			$slug_raw        = $this->get_post_string( 'competition_slug' );
+			$status_raw      = $this->get_post_string( 'competition_status', 'draft' );
+			$open_date_raw   = $this->get_post_string( 'competition_open_date' );
+			$close_date_raw  = $this->get_post_string( 'competition_close_date' );
+			$voting_open_raw = $this->get_post_string( 'competition_voting_open' );
+
+			$title  = sanitize_text_field( $title_raw );
+			$slug   = sanitize_title( $slug_raw );
+			$status = sanitize_key( $status_raw );
+
+			$allowed_statuses = array( 'draft', 'scheduled', 'active', 'closed' );
+			if ( ! in_array( $status, $allowed_statuses, true ) ) {
+				$status = 'draft';
+			}
+
 			$data = array(
-				'title'       => wp_unslash( $_POST['competition_title'] ?? '' ),
-				'slug'        => wp_unslash( $_POST['competition_slug'] ?? '' ),
-				'status'      => wp_unslash( $_POST['competition_status'] ?? 'draft' ),
-				'open_date'   => $this->parse_date_input( $_POST['competition_open_date'] ?? '' ),
-				'close_date'  => $this->parse_date_input( $_POST['competition_close_date'] ?? '' ),
-				'voting_open' => $this->parse_date_input( $_POST['competition_voting_open'] ?? '' ),
+				'title'       => $title,
+				'slug'        => $slug,
+				'status'      => $status,
+				'open_date'   => $this->parse_date_input( $open_date_raw ),
+				'close_date'  => $this->parse_date_input( $close_date_raw ),
+				'voting_open' => $this->parse_date_input( $voting_open_raw ),
 				'settings'    => $this->get_global_settings(),
 			);
 
@@ -578,17 +613,33 @@ class AdminScreen {
 		}
 
 		if ( 'update_competition' === $action ) {
-			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+			$competition_id = absint( $this->get_post_string( 'competition_id' ) );
 
 			check_admin_referer( 'club_competitions_update_' . $competition_id, 'club_competitions_nonce' );
 
+			$title_raw       = $this->get_post_string( 'competition_title' );
+			$slug_raw        = $this->get_post_string( 'competition_slug' );
+			$status_raw      = $this->get_post_string( 'competition_status', 'draft' );
+			$open_date_raw   = $this->get_post_string( 'competition_open_date' );
+			$close_date_raw  = $this->get_post_string( 'competition_close_date' );
+			$voting_open_raw = $this->get_post_string( 'competition_voting_open' );
+
+			$title  = sanitize_text_field( $title_raw );
+			$slug   = sanitize_title( $slug_raw );
+			$status = sanitize_key( $status_raw );
+
+			$allowed_statuses = array( 'draft', 'scheduled', 'active', 'closed' );
+			if ( ! in_array( $status, $allowed_statuses, true ) ) {
+				$status = 'draft';
+			}
+
 			$data = array(
-				'title'       => wp_unslash( $_POST['competition_title'] ?? '' ),
-				'slug'        => wp_unslash( $_POST['competition_slug'] ?? '' ),
-				'status'      => wp_unslash( $_POST['competition_status'] ?? 'draft' ),
-				'open_date'   => $this->parse_date_input( $_POST['competition_open_date'] ?? '' ),
-				'close_date'  => $this->parse_date_input( $_POST['competition_close_date'] ?? '' ),
-				'voting_open' => $this->parse_date_input( $_POST['competition_voting_open'] ?? '' ),
+				'title'       => $title,
+				'slug'        => $slug,
+				'status'      => $status,
+				'open_date'   => $this->parse_date_input( $open_date_raw ),
+				'close_date'  => $this->parse_date_input( $close_date_raw ),
+				'voting_open' => $this->parse_date_input( $voting_open_raw ),
 			);
 
 			$result = $this->competitions->update( $competition_id, $data );
@@ -626,7 +677,7 @@ class AdminScreen {
 		}
 
 		if ( in_array( $action, array( 'archive', 'restore' ), true ) && isset( $_GET['competition'] ) ) {
-			$competition_id = absint( $_GET['competition'] );
+			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
 			$nonce_action   = 'archive' === $action ? 'club_competitions_archive_' : 'club_competitions_restore_';
 
 			check_admin_referer( $nonce_action . $competition_id );
@@ -672,11 +723,19 @@ class AdminScreen {
 		if ( 'create_member' === $action ) {
 			check_admin_referer( 'club_competitions_member_create', 'club_competitions_member_nonce' );
 
+			$name_raw  = $this->get_post_string( 'member_name' );
+			$email_raw = $this->get_post_string( 'member_email' );
+			$grade_raw = $this->get_post_string( 'member_grade' );
+			$is_active = isset( $_POST['member_active'] );
+			$name      = sanitize_text_field( $name_raw );
+			$email     = sanitize_email( $email_raw );
+			$grade     = sanitize_text_field( $grade_raw );
+
 			$data = array(
-				'name'   => wp_unslash( $_POST['member_name'] ?? '' ),
-				'email'  => wp_unslash( $_POST['member_email'] ?? '' ),
-				'grade'  => wp_unslash( $_POST['member_grade'] ?? '' ),
-				'active' => isset( $_POST['member_active'] ) ? 1 : 0,
+				'name'   => $name,
+				'email'  => $email,
+				'grade'  => $grade,
+				'active' => $is_active ? 1 : 0,
 			);
 
 			$result = $this->members->create( $data );
@@ -702,7 +761,7 @@ class AdminScreen {
 		}
 
 		if ( 'open_category_voting' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( $_GET['competition'] ) : 0;
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
 
 			check_admin_referer( 'club_competitions_open_voting_' . $competition_id . '_' . $category_slug );
@@ -710,8 +769,8 @@ class AdminScreen {
 			// Global constraint validation: ensure no other category has voting open.
 			$all_competitions = $this->competitions->all( 100, false, false );
 			foreach ( $all_competitions as $comp ) {
-				$comp_settings  = CompetitionSettings::parse( $comp->settings );
-				$comp_open_cats = CompetitionSettings::get_open_voting_categories( $comp_settings );
+				$comp_settings  = Competition_Settings::parse( $comp->settings );
+				$comp_open_cats = Competition_Settings::get_open_voting_categories( $comp_settings );
 
 				if ( ! empty( $comp_open_cats ) ) {
 					add_settings_error(
@@ -750,7 +809,7 @@ class AdminScreen {
 				exit;
 			}
 
-			$settings                              = CompetitionSettings::parse( $competition->settings );
+			$settings                              = Competition_Settings::parse( $competition->settings );
 			$settings['voting']['open_categories'] = array( $category_slug );
 
 			$result = $this->competitions->update(
@@ -784,7 +843,7 @@ class AdminScreen {
 		}
 
 		if ( 'close_category_voting' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( $_GET['competition'] ) : 0;
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
 
 			check_admin_referer( 'club_competitions_close_voting_' . $competition_id . '_' . $category_slug );
@@ -807,7 +866,7 @@ class AdminScreen {
 				exit;
 			}
 
-			$settings                              = CompetitionSettings::parse( $competition->settings );
+			$settings                              = Competition_Settings::parse( $competition->settings );
 			$settings['voting']['open_categories'] = array();
 
 			$result = $this->competitions->update(
@@ -841,15 +900,23 @@ class AdminScreen {
 		}
 
 		if ( 'update_member' === $action ) {
-			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
+			$member_id = absint( $this->get_post_string( 'member_id' ) );
 
 			check_admin_referer( 'club_competitions_member_update_' . $member_id, 'club_competitions_member_nonce' );
 
+			$name_raw  = $this->get_post_string( 'member_name' );
+			$email_raw = $this->get_post_string( 'member_email' );
+			$grade_raw = $this->get_post_string( 'member_grade' );
+			$is_active = isset( $_POST['member_active'] );
+			$name      = sanitize_text_field( $name_raw );
+			$email     = sanitize_email( $email_raw );
+			$grade     = sanitize_text_field( $grade_raw );
+
 			$data = array(
-				'name'   => wp_unslash( $_POST['member_name'] ?? '' ),
-				'email'  => wp_unslash( $_POST['member_email'] ?? '' ),
-				'grade'  => wp_unslash( $_POST['member_grade'] ?? '' ),
-				'active' => isset( $_POST['member_active'] ) ? 1 : 0,
+				'name'   => $name,
+				'email'  => $email,
+				'grade'  => $grade,
+				'active' => $is_active ? 1 : 0,
 			);
 
 			$result = $this->members->update( $member_id, $data );
@@ -889,8 +956,8 @@ class AdminScreen {
 		if ( 'update_global_settings' === $action ) {
 			check_admin_referer( 'club_competitions_global_settings', 'club_competitions_nonce' );
 
-			$categories = isset( $_POST['categories'] ) && is_array( $_POST['categories'] ) ? $_POST['categories'] : array();
-			$grades     = isset( $_POST['grades'] ) && is_array( $_POST['grades'] ) ? $_POST['grades'] : array();
+			$categories = $this->get_post_array( 'categories' );
+			$grades     = $this->get_post_array( 'grades' );
 
 			$sanitized_categories = array();
 			foreach ( $categories as $category ) {
@@ -899,8 +966,8 @@ class AdminScreen {
 				}
 
 				$sanitized_categories[] = array(
-					'label' => sanitize_text_field( wp_unslash( $category['label'] ) ),
-					'slug'  => sanitize_title( wp_unslash( $category['slug'] ) ),
+					'label' => sanitize_text_field( $category['label'] ),
+					'slug'  => sanitize_title( $category['slug'] ),
 					'quota' => absint( $category['quota'] ),
 				);
 			}
@@ -912,12 +979,12 @@ class AdminScreen {
 				}
 
 				$sanitized_grades[] = array(
-					'label' => sanitize_text_field( wp_unslash( $grade['label'] ) ),
-					'slug'  => sanitize_title( wp_unslash( $grade['slug'] ) ),
+					'label' => sanitize_text_field( $grade['label'] ),
+					'slug'  => sanitize_title( $grade['slug'] ),
 				);
 			}
 
-			$score_matrix_raw = isset( $_POST['score_matrix'] ) ? sanitize_text_field( wp_unslash( $_POST['score_matrix'] ) ) : '';
+			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 			$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );
 
 			if ( empty( $score_matrix ) ) {
@@ -928,21 +995,28 @@ class AdminScreen {
 			$existing_settings        = $this->get_global_settings();
 			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
+			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
+			if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
+				$auth_mode_input = 'password';
+			}
+
+			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
 				'upload'          => array(
-					'max_file_size_mb' => isset( $_POST['max_file_size_mb'] ) ? absint( $_POST['max_file_size_mb'] ) : 5,
-					'max_width'        => isset( $_POST['max_width'] ) ? absint( $_POST['max_width'] ) : 1920,
-					'max_height'       => isset( $_POST['max_height'] ) ? absint( $_POST['max_height'] ) : 1920,
+					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
+					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
+					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
 					'score_matrix'    => $score_matrix,
 					'auto_open'       => isset( $_POST['auto_open_voting'] ),
 					'open_categories' => $existing_open_categories,
-					'auth_mode'       => isset( $_POST['voting_auth_mode'] ) && in_array( $_POST['voting_auth_mode'], array( 'password', 'token' ), true ) ? sanitize_text_field( wp_unslash( $_POST['voting_auth_mode'] ) ) : 'password',
-					'password'        => isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '',
+					'auth_mode'       => $auth_mode_input,
+					'password'        => $voting_password,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -955,7 +1029,7 @@ class AdminScreen {
 				),
 			);
 
-			$validation = CompetitionSettings::validate( $settings );
+			$validation = Competition_Settings::validate( $settings );
 
 			if ( is_wp_error( $validation ) ) {
 				add_settings_error(
@@ -987,17 +1061,17 @@ class AdminScreen {
 		}
 
 		if ( 'update_competition_settings' === $action ) {
-			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+			$competition_id = absint( $this->get_post_string( 'competition_id' ) );
 
 			check_admin_referer( 'club_competitions_update_settings_' . $competition_id, 'club_competitions_nonce' );
 
 			// Get existing competition to preserve open_categories (controlled via Voting Controls page).
 			$existing_competition     = $this->competitions->find( $competition_id );
-			$existing_settings        = $existing_competition ? CompetitionSettings::parse( $existing_competition->settings ) : array();
+			$existing_settings        = $existing_competition ? Competition_Settings::parse( $existing_competition->settings ) : array();
 			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
-			$categories = isset( $_POST['categories'] ) && is_array( $_POST['categories'] ) ? $_POST['categories'] : array();
-			$grades     = isset( $_POST['grades'] ) && is_array( $_POST['grades'] ) ? $_POST['grades'] : array();
+			$categories = $this->get_post_array( 'categories' );
+			$grades     = $this->get_post_array( 'grades' );
 
 			$sanitized_categories = array();
 			foreach ( $categories as $category ) {
@@ -1006,8 +1080,8 @@ class AdminScreen {
 				}
 
 				$sanitized_categories[] = array(
-					'label' => sanitize_text_field( wp_unslash( $category['label'] ) ),
-					'slug'  => sanitize_title( wp_unslash( $category['slug'] ) ),
+					'label' => sanitize_text_field( $category['label'] ),
+					'slug'  => sanitize_title( $category['slug'] ),
 					'quota' => absint( $category['quota'] ),
 				);
 			}
@@ -1019,33 +1093,40 @@ class AdminScreen {
 				}
 
 				$sanitized_grades[] = array(
-					'label' => sanitize_text_field( wp_unslash( $grade['label'] ) ),
-					'slug'  => sanitize_title( wp_unslash( $grade['slug'] ) ),
+					'label' => sanitize_text_field( $grade['label'] ),
+					'slug'  => sanitize_title( $grade['slug'] ),
 				);
 			}
 
-			$score_matrix_raw = isset( $_POST['score_matrix'] ) ? sanitize_text_field( wp_unslash( $_POST['score_matrix'] ) ) : '';
+			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 			$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );
 
 			if ( empty( $score_matrix ) ) {
 				$score_matrix = array( 9, 8, 7, 6, 5 );
 			}
 
+			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
+			if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
+				$auth_mode_input = 'password';
+			}
+
+			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
 				'upload'          => array(
-					'max_file_size_mb' => isset( $_POST['max_file_size_mb'] ) ? absint( $_POST['max_file_size_mb'] ) : 5,
-					'max_width'        => isset( $_POST['max_width'] ) ? absint( $_POST['max_width'] ) : 1920,
-					'max_height'       => isset( $_POST['max_height'] ) ? absint( $_POST['max_height'] ) : 1920,
+					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
+					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
+					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
 					'score_matrix'    => $score_matrix,
 					'auto_open'       => isset( $_POST['auto_open_voting'] ),
 					'open_categories' => $existing_open_categories,
-					'auth_mode'       => isset( $_POST['voting_auth_mode'] ) && in_array( $_POST['voting_auth_mode'], array( 'password', 'token' ), true ) ? sanitize_text_field( wp_unslash( $_POST['voting_auth_mode'] ) ) : 'password',
-					'password'        => isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '',
+					'auth_mode'       => $auth_mode_input,
+					'password'        => $voting_password,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -1058,7 +1139,7 @@ class AdminScreen {
 				),
 			);
 
-			$validation = CompetitionSettings::validate( $settings );
+			$validation = Competition_Settings::validate( $settings );
 
 			if ( is_wp_error( $validation ) ) {
 				add_settings_error(
@@ -1145,6 +1226,7 @@ class AdminScreen {
 			return;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Query var used to switch tabs only.
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
 
 		$this->render_competition_tabs( $competition_id, $current_tab );
@@ -1276,11 +1358,11 @@ class AdminScreen {
 	 * @return void
 	 */
 	private function render_competition_settings_form( object $competition ): void {
-		$settings   = CompetitionSettings::parse( $competition->settings );
-		$categories = CompetitionSettings::get_categories( $settings );
-		$grades     = CompetitionSettings::get_grades( $settings );
-		$upload     = CompetitionSettings::get_upload_constraints( $settings );
-		$voting     = CompetitionSettings::get_voting_config( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
+		$grades     = Competition_Settings::get_grades( $settings );
+		$upload     = Competition_Settings::get_upload_constraints( $settings );
+		$voting     = Competition_Settings::get_voting_config( $settings );
 
 		echo '<form method="post" class="card" style="max-width: 720px; padding: 16px;">';
 		wp_nonce_field( 'club_competitions_update_settings_' . (int) $competition->id, 'club_competitions_nonce' );
@@ -1520,17 +1602,15 @@ class AdminScreen {
 
 		$index = 0;
 		foreach ( $views as $slug => $data ) {
-			$url = esc_url(
-				add_query_arg(
-					array(
-						'page' => 'club-competitions',
-						'view' => $slug,
-					),
-					admin_url( 'admin.php' )
-				)
+			$url = add_query_arg(
+				array(
+					'page' => 'club-competitions',
+					'view' => $slug,
+				),
+				admin_url( 'admin.php' )
 			);
 
-			echo '<li><a href="' . $url . '"' . ( $slug === $view ? ' class="current"' : '' ) . '>' . esc_html( $data['label'] ) . ' <span class="count">(' . esc_html( (string) $data['count'] ) . ')</span></a>';
+			echo '<li><a href="' . esc_url( $url ) . '"' . ( $slug === $view ? ' class="current"' : '' ) . '>' . esc_html( $data['label'] ) . ' <span class="count">(' . esc_html( (string) $data['count'] ) . ')</span></a>';
 			if ( ++$index < count( $views ) ) {
 				echo ' | ';
 			}
@@ -1557,15 +1637,13 @@ class AdminScreen {
 		foreach ( $competitions as $competition ) {
 			$is_archived = ! empty( $competition->deleted_at );
 
-			$edit_link = esc_url(
-				add_query_arg(
-					array(
-						'page'        => 'club-competitions',
-						'action'      => 'edit',
-						'competition' => (int) $competition->id,
-					),
-					admin_url( 'admin.php' )
-				)
+			$edit_link = add_query_arg(
+				array(
+					'page'        => 'club-competitions',
+					'action'      => 'edit',
+					'competition' => (int) $competition->id,
+				),
+				admin_url( 'admin.php' )
 			);
 
 			echo '<tr>';
@@ -1573,47 +1651,44 @@ class AdminScreen {
 			echo '<td>' . esc_html( $competition->status ) . '</td>';
 			echo '<td>' . esc_html( $this->format_datetime( $competition->open_date ) ) . '</td>';
 			echo '<td>' . esc_html( $this->format_datetime( $competition->close_date ) ) . '</td>';
-			echo '<td>' . esc_html( $this->format_datetime( $competition->updated_at ?: $competition->created_at ) ) . '</td>';
+			$last_updated = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
+			echo '<td>' . esc_html( $this->format_datetime( $last_updated ) ) . '</td>';
 
 			$actions = array(
-				sprintf( '<a href="%s">%s</a>', $edit_link, esc_html__( 'Edit', 'club-competitions' ) ),
+				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'club-competitions' ) ),
 			);
 
 			if ( $is_archived ) {
-				$restore_url = esc_url(
-					wp_nonce_url(
-						add_query_arg(
-							array(
-								'page'        => 'club-competitions',
-								'action'      => 'restore',
-								'competition' => (int) $competition->id,
-							),
-							admin_url( 'admin.php' )
+				$restore_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'club-competitions',
+							'action'      => 'restore',
+							'competition' => (int) $competition->id,
 						),
-						'club_competitions_restore_' . (int) $competition->id
-					)
+						admin_url( 'admin.php' )
+					),
+					'club_competitions_restore_' . (int) $competition->id
 				);
 
-				$actions[] = sprintf( '<a href="%s">%s</a>', $restore_url, esc_html__( 'Restore', 'club-competitions' ) );
+				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $restore_url ), esc_html__( 'Restore', 'club-competitions' ) );
 			} else {
-				$archive_url = esc_url(
-					wp_nonce_url(
-						add_query_arg(
-							array(
-								'page'        => 'club-competitions',
-								'action'      => 'archive',
-								'competition' => (int) $competition->id,
-							),
-							admin_url( 'admin.php' )
+				$archive_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'club-competitions',
+							'action'      => 'archive',
+							'competition' => (int) $competition->id,
 						),
-						'club_competitions_archive_' . (int) $competition->id
-					)
+						admin_url( 'admin.php' )
+					),
+					'club_competitions_archive_' . (int) $competition->id
 				);
 
-				$actions[] = sprintf( '<a href="%s" class="submitdelete">%s</a>', $archive_url, esc_html__( 'Archive', 'club-competitions' ) );
+				$actions[] = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $archive_url ), esc_html__( 'Archive', 'club-competitions' ) );
 			}
 
-			echo '<td>' . implode( ' | ', $actions ) . '</td>';
+			echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
 			echo '</tr>';
 		}
 
@@ -1707,7 +1782,7 @@ class AdminScreen {
 	 * @return string|null
 	 */
 	private function parse_date_input( string $raw ): ?string {
-		$raw = trim( wp_unslash( $raw ) );
+		$raw = trim( $raw );
 
 		if ( '' === $raw ) {
 			return null;
@@ -1735,6 +1810,37 @@ class AdminScreen {
 		}
 
 		return gmdate( 'Y-m-d', $timestamp );
+	}
+
+	/**
+	 * Retrieve a POST value as an unslashed string.
+	 *
+	 * @param string $key      POST key.
+	 * @param string $fallback Fallback value if key not present.
+	 * @return string
+	 */
+	private function get_post_string( string $key, string $fallback = '' ): string {
+		if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonces validated in calling context.
+			return (string) wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Missing -- Nonces validated in calling context.
+		}
+
+		return $fallback;
+	}
+
+	/**
+	 * Retrieve a POST value as an unslashed array.
+	 *
+	 * @param string $key POST key.
+	 * @return array
+	 */
+	private function get_post_array( string $key ): array {
+		// phpcs:ignore -- Nonces verified before calling this helper.
+		if ( isset( $_POST[ $key ] ) && is_array( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonces validated in calling context.
+			$value = wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Missing -- Nonces validated in calling context.
+			return is_array( $value ) ? $value : array();
+		}
+
+		return array();
 	}
 
 	/**
@@ -1791,7 +1897,7 @@ class AdminScreen {
 	private function get_thumbnail_filename( string $filename ): string {
 		$info = pathinfo( $filename );
 		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
 
 		return $base . '-thumb' . $ext;
 	}
@@ -1989,10 +2095,10 @@ class AdminScreen {
 		settings_errors( 'club_competitions_settings' );
 
 		$settings   = $this->get_global_settings();
-		$categories = CompetitionSettings::get_categories( $settings );
-		$grades     = CompetitionSettings::get_grades( $settings );
-		$upload     = CompetitionSettings::get_upload_constraints( $settings );
-		$voting     = CompetitionSettings::get_voting_config( $settings );
+		$categories = Competition_Settings::get_categories( $settings );
+		$grades     = Competition_Settings::get_grades( $settings );
+		$upload     = Competition_Settings::get_upload_constraints( $settings );
+		$voting     = Competition_Settings::get_voting_config( $settings );
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Default Competition Settings', 'club-competitions' ) . '</h1>';
@@ -2093,7 +2199,7 @@ class AdminScreen {
 	 */
 	private function get_global_settings(): array {
 		$saved = get_option( 'club_competitions_default_settings', '' );
-		return CompetitionSettings::parse( $saved );
+		return Competition_Settings::parse( $saved );
 	}
 
 	/**
@@ -2103,6 +2209,6 @@ class AdminScreen {
 	 * @return void
 	 */
 	private function save_global_settings( array $settings ): void {
-		update_option( 'club_competitions_default_settings', CompetitionSettings::encode( $settings ) );
+		update_option( 'club_competitions_default_settings', Competition_Settings::encode( $settings ) );
 	}
 }

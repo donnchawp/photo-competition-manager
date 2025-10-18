@@ -1,37 +1,37 @@
 <?php
 /**
- * Tests for ImagesRepository.
+ * Tests for Images_Repository.
  *
  * @package ClubCompetitions\Tests\Repository
  */
 
 namespace ClubCompetitions\Tests\Repository;
 
-use ClubCompetitions\Repository\CompetitionsRepository;
-use ClubCompetitions\Repository\ImagesRepository;
-use ClubCompetitions\Repository\MembersRepository;
+use ClubCompetitions\Repository\Competitions_Repository;
+use ClubCompetitions\Repository\Images_Repository;
+use ClubCompetitions\Repository\Members_Repository;
 use WP_UnitTestCase;
 
-class ImagesRepositoryTest extends WP_UnitTestCase {
+class Images_Repository_Test extends WP_UnitTestCase {
 
 	/**
 	 * Images repository.
 	 *
-	 * @var ImagesRepository
+	 * @var Images_Repository
 	 */
 	private $images_repo;
 
 	/**
 	 * Competitions repository.
 	 *
-	 * @var CompetitionsRepository
+	 * @var Competitions_Repository
 	 */
 	private $competitions_repo;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var MembersRepository
+	 * @var Members_Repository
 	 */
 	private $members_repo;
 
@@ -55,9 +55,9 @@ class ImagesRepositoryTest extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
-		$this->images_repo       = new ImagesRepository();
-		$this->competitions_repo = new CompetitionsRepository();
-		$this->members_repo      = new MembersRepository();
+		$this->images_repo       = new Images_Repository();
+		$this->competitions_repo = new Competitions_Repository();
+		$this->members_repo      = new Members_Repository();
 
 		// Create test competition.
 		$competition_id = $this->competitions_repo->create(

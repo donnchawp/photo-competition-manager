@@ -9,7 +9,12 @@ namespace ClubCompetitions\Repository;
 
 use WP_Error;
 
-class MembersRepository extends AbstractRepository {
+/**
+ * Repository for members.
+ *
+ * @package ClubCompetitions\Repository
+ */
+class Members_Repository extends Abstract_Repository {
 
 	/**
 	 * Fetch active members.
@@ -41,13 +46,16 @@ class MembersRepository extends AbstractRepository {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE id = %d",
+				"SELECT * FROM {$table} WHERE id = %d",
 				$id
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -61,13 +69,16 @@ class MembersRepository extends AbstractRepository {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE email = %s",
+				"SELECT * FROM {$table} WHERE email = %s",
 				$email
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -247,18 +258,21 @@ class MembersRepository extends AbstractRepository {
 	 */
 	private function email_exists( string $email, ?int $exclude_id = null ): bool {
 		$params     = array( $email );
-		$conditions = 'email = %s';
+		$conditions = '';
 
 		if ( $exclude_id ) {
 			$conditions .= ' AND id != %d';
 			$params[]    = $exclude_id;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$this->table()} WHERE {$conditions}",
+			"SELECT COUNT(*) FROM {$table} WHERE email=%s{$conditions}",
 			...$params
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return (int) $this->wpdb->get_var( $sql ) > 0;

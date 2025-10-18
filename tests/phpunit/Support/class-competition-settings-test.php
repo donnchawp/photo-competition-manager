@@ -1,19 +1,19 @@
 <?php
 /**
- * Tests for CompetitionSettings.
+ * Tests for Competition_Settings.
  *
  * @package ClubCompetitions\Tests\Support
  */
 
 namespace ClubCompetitions\Tests\Support;
 
-use ClubCompetitions\Support\CompetitionSettings;
+use ClubCompetitions\Support\Competition_Settings;
 use WP_UnitTestCase;
 
-class CompetitionSettingsTest extends WP_UnitTestCase {
+class Competition_Settings_Test extends WP_UnitTestCase {
 
 	public function test_defaults_returns_valid_structure(): void {
-		$defaults = CompetitionSettings::defaults();
+		$defaults = Competition_Settings::defaults();
 
 		$this->assertIsArray( $defaults );
 		$this->assertArrayHasKey( 'categories', $defaults );
@@ -30,15 +30,15 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_parse_empty_json_returns_defaults(): void {
-		$result = CompetitionSettings::parse( null );
+		$result = Competition_Settings::parse( null );
 
-		$this->assertEquals( CompetitionSettings::defaults(), $result );
+		$this->assertEquals( Competition_Settings::defaults(), $result );
 	}
 
 	public function test_parse_invalid_json_returns_defaults(): void {
-		$result = CompetitionSettings::parse( '{invalid json' );
+		$result = Competition_Settings::parse( '{invalid json' );
 
-		$this->assertEquals( CompetitionSettings::defaults(), $result );
+		$this->assertEquals( Competition_Settings::defaults(), $result );
 	}
 
 	public function test_parse_valid_json_merges_with_defaults(): void {
@@ -53,7 +53,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 		);
 
 		$json   = wp_json_encode( $custom );
-		$result = CompetitionSettings::parse( $json );
+		$result = Competition_Settings::parse( $json );
 
 		$this->assertCount( 1, $result['categories'] );
 		$this->assertEquals( 'nature', $result['categories'][0]['slug'] );
@@ -62,27 +62,27 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_validate_accepts_valid_settings(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::validate( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::validate( $settings );
 
 		$this->assertTrue( $result );
 	}
 
 	public function test_validate_rejects_missing_categories(): void {
-		$settings = CompetitionSettings::defaults();
+		$settings = Competition_Settings::defaults();
 		unset( $settings['categories'] );
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_categories', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_empty_categories(): void {
-		$settings               = CompetitionSettings::defaults();
+		$settings               = Competition_Settings::defaults();
 		$settings['categories'] = array();
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'missing_categories', $result->get_error_code() );
@@ -104,7 +104,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 			),
 		);
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'missing_category_fields', $result->get_error_code() );
@@ -127,27 +127,27 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 			),
 		);
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_quota', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_missing_grades(): void {
-		$settings = CompetitionSettings::defaults();
+		$settings = Competition_Settings::defaults();
 		unset( $settings['grades'] );
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_grades', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_empty_grades(): void {
-		$settings          = CompetitionSettings::defaults();
+		$settings          = Competition_Settings::defaults();
 		$settings['grades'] = array();
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'missing_grades', $result->get_error_code() );
@@ -169,45 +169,45 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 			),
 		);
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'missing_grade_fields', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_invalid_file_size(): void {
-		$settings                           = CompetitionSettings::defaults();
+		$settings                           = Competition_Settings::defaults();
 		$settings['upload']['max_file_size_mb'] = 0;
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_file_size', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_invalid_score_matrix(): void {
-		$settings                       = CompetitionSettings::defaults();
+		$settings                       = Competition_Settings::defaults();
 		$settings['voting']['score_matrix'] = array();
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_score_matrix', $result->get_error_code() );
 	}
 
 	public function test_validate_rejects_non_string_voting_password(): void {
-		$settings                       = CompetitionSettings::defaults();
+		$settings                       = Competition_Settings::defaults();
 		$settings['voting']['password'] = array( 'not-a-string' );
 
-		$result = CompetitionSettings::validate( $settings );
+		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_voting_password', $result->get_error_code() );
 	}
 
 	public function test_encode_returns_json_string(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::encode( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::encode( $settings );
 
 		$this->assertIsString( $result );
 		$this->assertNotEmpty( $result );
@@ -217,8 +217,8 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_get_categories_extracts_categories(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::get_categories( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::get_categories( $settings );
 
 		$this->assertIsArray( $result );
 		$this->assertCount( 2, $result );
@@ -226,8 +226,8 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_get_grades_extracts_grades(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::get_grades( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::get_grades( $settings );
 
 		$this->assertIsArray( $result );
 		$this->assertCount( 3, $result );
@@ -235,8 +235,8 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_get_upload_constraints_extracts_upload_config(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::get_upload_constraints( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::get_upload_constraints( $settings );
 
 		$this->assertIsArray( $result );
 		$this->assertArrayHasKey( 'max_file_size_mb', $result );
@@ -246,8 +246,8 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 	}
 
 	public function test_get_voting_config_extracts_voting_settings(): void {
-		$settings = CompetitionSettings::defaults();
-		$result   = CompetitionSettings::get_voting_config( $settings );
+		$settings = Competition_Settings::defaults();
+		$result   = Competition_Settings::get_voting_config( $settings );
 
 		$this->assertIsArray( $result );
 		$this->assertArrayHasKey( 'password', $result );
@@ -270,13 +270,13 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 					'quota' => 3,
 				),
 			),
-			'grades'     => CompetitionSettings::defaults()['grades'],
+			'grades'     => Competition_Settings::defaults()['grades'],
 		);
 
-		$json   = CompetitionSettings::encode( $custom );
-		$parsed = CompetitionSettings::parse( $json );
+		$json   = Competition_Settings::encode( $custom );
+		$parsed = Competition_Settings::parse( $json );
 
-		$categories = CompetitionSettings::get_categories( $parsed );
+		$categories = Competition_Settings::get_categories( $parsed );
 		$this->assertCount( 2, $categories );
 		$this->assertEquals( 'portrait', $categories[0]['slug'] );
 		$this->assertEquals( 1, $categories[0]['quota'] );
@@ -286,7 +286,7 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 
 	public function test_custom_grades_persist_through_parse(): void {
 		$custom = array(
-			'categories' => CompetitionSettings::defaults()['categories'],
+			'categories' => Competition_Settings::defaults()['categories'],
 			'grades'     => array(
 				array(
 					'slug'  => 'novice',
@@ -299,10 +299,10 @@ class CompetitionSettingsTest extends WP_UnitTestCase {
 			),
 		);
 
-		$json   = CompetitionSettings::encode( $custom );
-		$parsed = CompetitionSettings::parse( $json );
+		$json   = Competition_Settings::encode( $custom );
+		$parsed = Competition_Settings::parse( $json );
 
-		$grades = CompetitionSettings::get_grades( $parsed );
+		$grades = Competition_Settings::get_grades( $parsed );
 		$this->assertCount( 2, $grades );
 		$this->assertEquals( 'novice', $grades[0]['slug'] );
 		$this->assertEquals( 'expert', $grades[1]['slug'] );

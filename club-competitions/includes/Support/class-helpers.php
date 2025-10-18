@@ -16,5 +16,5 @@ namespace ClubCompetitions\Support;
 function format_slug( string $label ): string {
 	$slug = strtolower( trim( preg_replace( '/[^a-zA-Z0-9]+/', '-', $label ), '-' ) );
 
-	return $slug ?: 'competition';
+	return ! empty( $slug ) ? $slug : 'competition';
 }
