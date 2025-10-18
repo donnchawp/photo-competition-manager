@@ -191,6 +191,48 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Remove existing anonymous votes recorded with a given token.
+	 *
+	 * @param int $voting_token_id Voting token ID.
+	 * @return void
+	 */
+	public function delete_by_token( int $voting_token_id ): void {
+		if ( ! $this->table_exists() ) {
+			return;
+		}
+
+		$this->wpdb->delete(
+			$this->table(),
+			array( 'voting_token_id' => $voting_token_id ),
+			array( '%d' )
+		);
+	}
+
+	/**
+	 * Delete existing votes for a named voter within a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param string $voter_name     Voter name.
+	 * @return void
+	 */
+	public function delete_by_voter( int $competition_id, string $category, string $voter_name ): void {
+		if ( ! $this->table_exists() ) {
+			return;
+		}
+
+		$this->wpdb->delete(
+			$this->table(),
+			array(
+				'competition_id' => $competition_id,
+				'category'       => $category,
+				'voter_name'     => $voter_name,
+			),
+			array( '%d', '%s', '%s' )
+		);
+	}
+
+	/**
 	 * Check if voter has already voted in a category (for password-based voting).
 	 *
 	 * @param int    $competition_id Competition ID.

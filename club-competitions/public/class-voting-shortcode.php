@@ -309,11 +309,6 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>';
 		}
 
-		// Check if token has already been used to vote.
-		if ( $this->votes_repo->has_voted_with_token( (int) $token_record->id ) ) {
-			return '<p class="error">' . esc_html__( 'This voting link has already been used.', 'club-competitions' ) . '</p>';
-		}
-
 		// Get score matrix from settings.
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
@@ -322,6 +317,9 @@ class Voting_Shortcode {
 		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $token_record->category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'club-competitions' ) . '</p>';
 		}
+
+		// Remove any previously recorded votes for this token to allow replacement.
+		$this->votes_repo->delete_by_token( (int) $token_record->id );
 
 		// Process votes.
 		$success_count = 0;
@@ -351,10 +349,10 @@ class Voting_Shortcode {
 		}
 
 		if ( $success_count > 0 ) {
-			// Mark token as used.
+			// Mark token as used to prevent reuse if desired; removing votes has already occurred.
 			$this->token_repo->mark_as_used( (int) $token_record->id );
 
-			return '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded anonymously.', 'club-competitions' ) . '</p>';
+			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded anonymously.', 'club-competitions' ) . '</p>';
 		}
 
 		return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'club-competitions' ) . '</p>';
@@ -405,13 +403,11 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>';
 		}
 
-		// Check if voter has already voted in this category.
-		if ( $this->votes_repo->has_voted( (int) $competition->id, $category, $voter_name ) ) {
-			return '<p class="error">' . esc_html__( 'You have already voted in this category.', 'club-competitions' ) . '</p>';
-		}
-
 		// Get score matrix from settings.
 		$score_matrix = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+
+		// Clear existing votes for this voter/category before saving replacements.
+		$this->votes_repo->delete_by_voter( (int) $competition->id, $category, $voter_name );
 
 		// Process votes.
 		$success_count = 0;
@@ -429,7 +425,7 @@ class Voting_Shortcode {
 		}
 
 		if ( $success_count > 0 ) {
-			return '<p class="success">' . esc_html__( 'Thank you for voting!', 'club-competitions' ) . '</p>';
+			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded.', 'club-competitions' ) . '</p>';
 		}
 
 		return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'club-competitions' ) . '</p>';
