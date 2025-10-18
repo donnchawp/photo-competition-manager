@@ -4,8 +4,10 @@ MAKEFLAGS += --no-builtin-rules
 
 ASSETS_DIR := assets
 WP_ENV := npx @wordpress/env
+MAILPIT_SCRIPT := ./start-mailpit.sh
+MAILPIT_CONTAINER := club-competitions-mailpit
 
-.PHONY: help install up down env-destroy dev build lint phpcbf test test-js check
+.PHONY: help install up down env-destroy dev build lint phpcbf test test-js check mailpit-start mailpit-stop
 
 help: ## Show available targets
 	@echo "Club Competitions Make targets:"
@@ -17,12 +19,15 @@ install: ## Install PHP and JS dependencies
 
 up: ## Boot the local WordPress environment
 	$(WP_ENV) start
+	bash $(MAILPIT_SCRIPT)
 
 down: ## Stop the local WordPress environment
 	$(WP_ENV) stop
+	$(MAKE) mailpit-stop
 
 env-destroy: ## Destroy the local WordPress environment
 	$(WP_ENV) destroy
+	$(MAKE) mailpit-stop
 
 dev: ## Watch JS/CSS bundles with @wordpress/scripts
 	npm --prefix $(ASSETS_DIR) run dev
@@ -59,3 +64,15 @@ test-js: ## Execute the JavaScript test suite
 	npm --prefix $(ASSETS_DIR) run test:js
 
 check: lint test test-js ## Run all linting and tests
+
+mailpit-start: ## Manually start Mailpit SMTP relay
+	bash $(MAILPIT_SCRIPT)
+
+mailpit-stop: ## Stop and remove the Mailpit container
+	@if docker ps -a --format '{{.Names}}' | grep -q '^$(MAILPIT_CONTAINER)$$'; then \
+		echo "Stopping Mailpit container $(MAILPIT_CONTAINER)..."; \
+		docker stop $(MAILPIT_CONTAINER) >/dev/null 2>&1 || true; \
+		docker rm $(MAILPIT_CONTAINER) >/dev/null 2>&1 || true; \
+	else \
+		echo "Mailpit container $(MAILPIT_CONTAINER) is not running."; \
+	fi
