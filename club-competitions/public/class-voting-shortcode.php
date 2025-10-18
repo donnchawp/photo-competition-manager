@@ -425,6 +425,7 @@ class Voting_Shortcode {
 		}
 
 		if ( $success_count > 0 ) {
+			$this->refresh_voter_cookie( $voter_name, $provided_pass );
 			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded.', 'club-competitions' ) . '</p>';
 		}
 
@@ -525,19 +526,20 @@ class Voting_Shortcode {
 			<?php else : ?>
 				<!-- Member is authenticated with valid token, show voting form -->
 				<?php
-				// Check if token has already been used.
-				$has_voted = $this->votes_repo->has_voted_with_token( (int) $token_record->id );
-
-				if ( $has_voted ) {
-					echo '<p class="notice">' . esc_html__( 'You have already voted in this category. Thank you!', 'club-competitions' ) . '</p>';
-					$this->render_image_gallery( $competition, $category );
-					return;
-				}
-
 				// Verify voting is still open for this category.
 				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'club-competitions' ) . '</p>';
 					return;
+				}
+
+				$existing_positions = array();
+				if ( $token_record ) {
+					$existing_scores    = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
+					$existing_positions = $this->map_scores_to_positions( $existing_scores, $score_matrix );
+
+					if ( ! empty( $existing_positions ) ) {
+						echo '<p class="notice notice-info">' . esc_html__( 'We pre-filled your previous votes. Adjust and submit again if you would like to change them.', 'club-competitions' ) . '</p>';
+					}
 				}
 
 				// Get category label.
@@ -555,6 +557,10 @@ class Voting_Shortcode {
 				if ( empty( $images ) ) {
 					echo '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'club-competitions' ) . '</p>';
 					return;
+				}
+
+				if ( empty( $submitted_votes ) ) {
+					$submitted_votes = $existing_positions;
 				}
 				?>
 
@@ -738,8 +744,17 @@ class Voting_Shortcode {
 		$score_matrix     = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$voting_password  = $voting_config['password'] ?? '';
 		$password_enabled = '' !== $voting_password;
+		$cookie_payload   = $this->get_voter_cookie();
+
 		$voter_name_value = $submitted_data['voter_name'] ?? '';
-		$password_value   = $submitted_data['voting_password'] ?? '';
+		if ( '' === $voter_name_value ) {
+			$voter_name_value = $cookie_payload['name'];
+		}
+
+		$password_value = $submitted_data['voting_password'] ?? '';
+		if ( '' === $password_value ) {
+			$password_value = $cookie_payload['password'];
+		}
 		$current_category = $submitted_data['category'] ?? '';
 		$submitted_votes  = $submitted_data['votes'] ?? array();
 
@@ -770,6 +785,21 @@ class Voting_Shortcode {
 
 					if ( empty( $images ) ) {
 						continue;
+					}
+
+					$prefilled_from_history = false;
+					if ( $current_category === $category_slug && ! empty( $submitted_votes ) ) {
+						$category_votes = $submitted_votes;
+					} elseif ( '' !== $voter_name_value ) {
+						$existing_scores        = $this->votes_repo->get_votes_by_voter( (int) $competition->id, $category_slug, $voter_name_value );
+						$category_votes         = $this->map_scores_to_positions( $existing_scores, $score_matrix );
+						$prefilled_from_history = ! empty( $category_votes );
+					} else {
+						$category_votes = array();
+					}
+
+					if ( $prefilled_from_history ) {
+						echo '<p class="notice notice-info">' . esc_html__( 'We pre-filled your previous votes. Adjust and submit again if you would like to change them.', 'club-competitions' ) . '</p>';
 					}
 					?>
 
@@ -836,7 +866,7 @@ class Voting_Shortcode {
 										<span class="required">*</span>
 									</label>
 									<input
-										type="password"
+										type="text"
 										id="voting_password_<?php echo esc_attr( $category_slug ); ?>"
 										name="voting_password"
 										value="<?php echo esc_attr( $password_value ); ?>"
@@ -871,9 +901,7 @@ class Voting_Shortcode {
 										<?php esc_html_e( 'Score:', 'club-competitions' ); ?>
 									</label>
 									<?php
-									$selected_position = ( $category_slug === $current_category && isset( $submitted_votes[ $image->id ] ) )
-										? $submitted_votes[ $image->id ]
-										: '';
+									$selected_position = $category_votes[ $image->id ] ?? '';
 									?>
 									<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
 										<option value="" <?php selected( '', $selected_position ); ?>>-</option>
@@ -994,5 +1022,103 @@ class Voting_Shortcode {
 		}
 
 		return $sanitized;
+	}
+
+	/**
+	 * Convert stored score values to voting positions.
+	 *
+	 * @param array<int,  float>     $scores_by_image Map of image ID to score.
+	 * @param array<int,  int|float> $score_matrix Score matrix configured for the competition.
+	 * @return array<int, int>       Map of image ID to selected position (1-indexed).
+	 */
+	private function map_scores_to_positions( array $scores_by_image, array $score_matrix ): array {
+		if ( empty( $scores_by_image ) || empty( $score_matrix ) ) {
+			return array();
+		}
+
+		$lookup = array();
+		foreach ( $score_matrix as $index => $value ) {
+			$lookup[ (string) round( (float) $value, 4 ) ] = $index + 1;
+		}
+
+		$positions = array();
+		foreach ( $scores_by_image as $image_id => $score ) {
+			$key = (string) round( (float) $score, 4 );
+			if ( isset( $lookup[ $key ] ) ) {
+				$positions[ (int) $image_id ] = (int) $lookup[ $key ];
+			}
+		}
+
+		return $positions;
+	}
+
+	/**
+	 * Retrieve the persisted voter cookie values.
+	 *
+	 * @return array{name:string,password:string}
+	 */
+	private function get_voter_cookie(): array {
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Value is sanitized after json_decode.
+		if ( empty( $_COOKIE['club_competitions_voter'] ) ) {
+			return array(
+				'name'     => '',
+				'password' => '',
+			);
+		}
+
+		$raw_cookie = wp_unslash( $_COOKIE['club_competitions_voter'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Value is sanitized after json_decode.
+		if ( ! is_string( $raw_cookie ) ) {
+			return array(
+				'name'     => '',
+				'password' => '',
+			);
+		}
+
+		$decoded = json_decode( $raw_cookie, true );
+
+		if ( ! is_array( $decoded ) ) {
+			return array(
+				'name'     => '',
+				'password' => '',
+			);
+		}
+
+		$name     = isset( $decoded['name'] ) ? sanitize_text_field( $decoded['name'] ) : '';
+		$password = isset( $decoded['password'] ) ? sanitize_text_field( $decoded['password'] ) : '';
+
+		return array(
+			'name'     => $name,
+			'password' => $password,
+		);
+	}
+
+	/**
+	 * Persist voter name and password in a long-lived cookie.
+	 *
+	 * @param string $name     Voter name.
+	 * @param string $password Voting password (if applicable).
+	 * @return void
+	 */
+	private function refresh_voter_cookie( string $name, string $password ): void {
+		$payload = array(
+			'name'     => $name,
+			'password' => $password,
+		);
+
+		setcookie(
+			'club_competitions_voter',
+			wp_json_encode( $payload ),
+			array(
+				'expires'  => time() + YEAR_IN_SECONDS,
+				'path'     => COOKIEPATH ? COOKIEPATH : '/',
+				'domain'   => COOKIE_DOMAIN,
+				'secure'   => is_ssl(),
+				'samesite' => 'Lax',
+				'httponly' => false,
+			)
+		);
+
+		// Make the cookie immediately available during this request.
+		$_COOKIE['club_competitions_voter'] = wp_json_encode( $payload );
 	}
 }

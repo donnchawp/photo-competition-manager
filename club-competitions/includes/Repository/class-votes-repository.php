@@ -233,6 +233,80 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Retrieve votes recorded with a specific token.
+	 *
+	 * @param int $voting_token_id Voting token ID.
+	 * @return array<int, float> Map of image ID to score.
+	 */
+	public function get_votes_by_token( int $voting_token_id ): array {
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$sql = $this->wpdb->prepare(
+			"SELECT image_id, score FROM {$table} WHERE voting_token_id = %d",
+			$voting_token_id
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_results( $sql, ARRAY_A );
+
+		if ( ! is_array( $results ) ) {
+			return array();
+		}
+
+		$votes = array();
+		foreach ( $results as $row ) {
+			$votes[ (int) $row['image_id'] ] = (float) $row['score'];
+		}
+
+		return $votes;
+	}
+
+	/**
+	 * Retrieve votes for a named voter within a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param string $voter_name     Voter name.
+	 * @return array<int, float> Map of image ID to score.
+	 */
+	public function get_votes_by_voter( int $competition_id, string $category, string $voter_name ): array {
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$sql = $this->wpdb->prepare(
+			"SELECT image_id, score FROM {$table} WHERE competition_id = %d AND category = %s AND voter_name = %s",
+			$competition_id,
+			$category,
+			$voter_name
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_results( $sql, ARRAY_A );
+
+		if ( ! is_array( $results ) ) {
+			return array();
+		}
+
+		$votes = array();
+		foreach ( $results as $row ) {
+			$votes[ (int) $row['image_id'] ] = (float) $row['score'];
+		}
+
+		return $votes;
+	}
+
+	/**
 	 * Check if voter has already voted in a category (for password-based voting).
 	 *
 	 * @param int    $competition_id Competition ID.
