@@ -3,7 +3,8 @@
  * Plugin Name: Club Competitions
  * Description: Manage photography club competitions, submissions, and voting.
  * Version: 0.1.0
- * Author: Club Competitions Team
+ * Author: Donncha O Caoimh
+ * License: GPL2
  *
  * @package ClubCompetitions
  */
