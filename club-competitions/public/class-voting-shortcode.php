@@ -115,25 +115,14 @@ class Voting_Shortcode {
 	/**
 	 * Render voting shortcode.
 	 *
-	 * @param array<string, string> $atts Shortcode attributes.
 	 * @return string
 	 */
-	public function render( $atts ): string {
-		$atts = shortcode_atts(
-			array(
-				'competition' => '',
-			),
-			$atts,
-			'competition_voting'
-		);
+	public function render(): string {
+		// Find the most recent active competition.
+		$competition = $this->competitions_repo->find_current_active();
 
-		if ( empty( $atts['competition'] ) ) {
-			return '<p class="error">' . esc_html__( 'Please specify a competition slug.', 'club-competitions' ) . '</p>';
-		}
-
-		$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
 		if ( ! $competition ) {
-			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'No active competition found.', 'club-competitions' ) . '</p>';
 		}
 
 		$settings      = Competition_Settings::parse( $competition->settings );
