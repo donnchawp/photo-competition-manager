@@ -335,6 +335,17 @@ class Admin_Screen {
 				'<h2>%s</h2>',
 				esc_html( $selected_competition->title )
 			);
+
+			// Add regenerate numbers button.
+			echo '<form method="post" style="margin-bottom: 15px;">';
+			wp_nonce_field( 'club_competitions_regenerate_numbers_' . $competition_id, '_wpnonce' );
+			echo '<input type="hidden" name="action" value="regenerate_numbers" />';
+			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
+			echo '<button type="submit" class="button" onclick="return confirm(\'' . esc_js( __( 'Are you sure you want to regenerate random numbers? Each member will still have the same number across all their images, but the numbers will be reassigned.', 'club-competitions' ) ) . '\');">';
+			echo esc_html__( 'Regenerate Random Numbers', 'club-competitions' );
+			echo '</button>';
+			echo ' <span class="description">' . esc_html__( 'Reassign random numbers to members in this competition (each member keeps one consistent number).', 'club-competitions' ) . '</span>';
+			echo '</form>';
 		}
 
 		if ( empty( $submissions ) ) {
@@ -655,6 +666,8 @@ class Admin_Screen {
 
 		if ( isset( $_POST['club_competitions_action'] ) ) {
 			$action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
+		} elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
 		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
@@ -1301,6 +1314,52 @@ class Admin_Screen {
 			);
 			exit;
 		}
+
+		if ( 'regenerate_numbers' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'club_competitions_regenerate_numbers_' . $competition_id );
+
+			if ( ! $competition_id ) {
+				add_settings_error(
+					'club_competitions_submissions',
+					'invalid_competition',
+					__( 'Invalid competition.', 'club-competitions' ),
+					'error'
+				);
+				wp_safe_redirect( admin_url( 'admin.php?page=club-competitions-submissions' ) );
+				exit;
+			}
+
+			$result = $this->images->regenerate_member_numbers( $competition_id );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_submissions',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_submissions',
+					'numbers_regenerated',
+					__( 'Random numbers regenerated successfully.', 'club-competitions' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'           => 'club-competitions-submissions',
+						'competition_id' => $competition_id,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
 	}
 
 	/**
@@ -1544,6 +1603,22 @@ class Admin_Screen {
 		echo '<input type="checkbox" name="auto_open_voting" value="1"' . checked( $voting['auto_open'], true, false ) . ' /> ';
 		echo esc_html__( 'Automatically open voting at scheduled time', 'club-competitions' );
 		echo '</label>';
+		echo '</p>';
+
+		echo '<h3>' . esc_html__( 'URLs', 'club-competitions' ) . '</h3>';
+
+		$urls = $settings['urls'] ?? array( 'upload_page' => '', 'voting_page' => '' );
+
+		echo '<p>';
+		echo '<label for="upload_page_url">' . esc_html__( 'Upload Page URL', 'club-competitions' ) . '</label><br />';
+		echo '<input type="url" id="upload_page_url" name="upload_page_url" value="' . esc_attr( $urls['upload_page'] ) . '" class="regular-text" placeholder="https://example.com/upload" />';
+		echo '<br /><span class="description">' . esc_html__( 'The page where members can upload their images. This URL will be included in email notifications with the member\'s upload token.', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_page_url">' . esc_html__( 'Voting Page URL', 'club-competitions' ) . '</label><br />';
+		echo '<input type="url" id="voting_page_url" name="voting_page_url" value="' . esc_attr( $urls['voting_page'] ) . '" class="regular-text" placeholder="https://example.com/vote" />';
+		echo '<br /><span class="description">' . esc_html__( 'The page where members can vote on images. This URL will be included in voting notification emails.', 'club-competitions' ) . '</span>';
 		echo '</p>';
 
 		submit_button( __( 'Save Settings', 'club-competitions' ) );

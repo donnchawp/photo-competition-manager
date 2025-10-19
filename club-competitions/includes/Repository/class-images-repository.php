@@ -156,6 +156,107 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Get random number for a member in a competition.
+	 *
+	 * Each member gets one sequential number per competition (1, 2, 3...)
+	 * shared across all their images in that competition.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @param int $member_id      Member ID.
+	 * @return int
+	 */
+	public function get_member_random_number( int $competition_id, int $member_id ): int {
+		if ( ! $this->table_exists() ) {
+			return 1;
+		}
+
+		// Check if member already has images in this competition.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$existing_sql = sprintf(
+			'SELECT random_number FROM %s WHERE competition_id = %%d AND member_id = %%d LIMIT 1',
+			$this->table()
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$existing = $this->wpdb->get_var( $this->wpdb->prepare( $existing_sql, $competition_id, $member_id ) );
+
+		if ( $existing ) {
+			return (int) $existing;
+		}
+
+		// Member doesn't have images yet, assign next sequential number.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$max_sql = sprintf(
+			'SELECT MAX(random_number) FROM %s WHERE competition_id = %%d',
+			$this->table()
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$max = $this->wpdb->get_var( $this->wpdb->prepare( $max_sql, $competition_id ) );
+
+		return $max ? (int) $max + 1 : 1;
+	}
+
+	/**
+	 * Regenerate random numbers for all members in a competition.
+	 *
+	 * Assigns new sequential numbers (1, 2, 3...) to members randomly,
+	 * but ensures each member gets one consistent number across all their images.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public function regenerate_member_numbers( int $competition_id ) {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'club-competitions' ) );
+		}
+
+		// Get all unique member IDs who have submitted images to this competition.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$sql = sprintf(
+			'SELECT DISTINCT member_id FROM %s WHERE competition_id = %%d',
+			$this->table()
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$member_ids = $this->wpdb->get_col( $this->wpdb->prepare( $sql, $competition_id ) );
+
+		if ( empty( $member_ids ) ) {
+			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'club-competitions' ) );
+		}
+
+		// Shuffle member IDs to randomize the number assignment.
+		shuffle( $member_ids );
+
+		// Assign sequential numbers to each member.
+		$next_number = 1;
+		foreach ( $member_ids as $member_id ) {
+			// Update all images for this member in this competition.
+			$updated = $this->wpdb->update(
+				$this->table(),
+				array(
+					'random_number' => $next_number,
+					'updated_at'    => current_time( 'mysql' ),
+				),
+				array(
+					'competition_id' => $competition_id,
+					'member_id'      => (int) $member_id,
+				),
+				array( '%d', '%s' ),
+				array( '%d', '%d' )
+			);
+
+			if ( false === $updated ) {
+				return new WP_Error( 'db_update_failed', __( 'Failed to update random numbers.', 'club-competitions' ), $this->wpdb->last_error );
+			}
+
+			++$next_number;
+		}
+
+		return true;
+	}
+
+	/**
 	 * Create an image record.
 	 *
 	 * @param array<string, mixed> $data Image data.
@@ -177,7 +278,7 @@ class Images_Repository extends Abstract_Repository {
 
 		$random_number = isset( $data['random_number'] )
 			? absint( $data['random_number'] )
-			: $this->get_next_random_number( $competition_id, $category );
+			: $this->get_member_random_number( $competition_id, $member_id );
 
 		$payload = array(
 			'competition_id' => $competition_id,
