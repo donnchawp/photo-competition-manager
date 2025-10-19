@@ -7,7 +7,7 @@ WP_ENV := npx @wordpress/env
 MAILPIT_SCRIPT := ./start-mailpit.sh
 MAILPIT_CONTAINER := club-competitions-mailpit
 
-.PHONY: help install up down env-destroy dev build lint phpcbf test test-js check mailpit-start mailpit-stop
+.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop
 
 help: ## Show available targets
 	@echo "Club Competitions Make targets:"
@@ -38,7 +38,7 @@ build: ## Build production JS/CSS bundles
 lint: ## Run PHP_CodeSniffer against the plugin
 	composer lint
 
-phpcbf: ## Auto-fix PHP coding standard violations
+fix: ## Auto-fix PHP coding standard violations
 	vendor/bin/phpcbf --standard=WordPress --extensions=php club-competitions
 
 test: ## Execute the PHPUnit test suite
