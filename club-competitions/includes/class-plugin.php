@@ -98,5 +98,8 @@ class Plugin {
 	public function bootstrap(): void {
 		$this->admin->register();
 		$this->frontend->register();
+
+		$cron_handler = new \ClubCompetitions\Service\Cron_Handler();
+		$cron_handler->register();
 	}
 }
