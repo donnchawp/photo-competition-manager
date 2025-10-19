@@ -126,6 +126,33 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find the current active competition.
+	 *
+	 * Prefers competitions with status "active" whose open date has started and
+	 * that have not been archived.
+	 *
+	 * @return object|null
+	 */
+	public function find_current_active() {
+		if ( ! $this->table_exists() ) {
+			return null;
+		}
+
+		$current = current_time( 'mysql' );
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		return $this->wpdb->get_row(
+			$this->wpdb->prepare(
+				"SELECT * FROM {$this->table()}\n\t\t\t\tWHERE status = %s\n\t\t\t\tAND deleted_at IS NULL\n\t\t\t\tAND (open_date IS NULL OR open_date <= %s)\n\t\t\t\tAND (close_date IS NULL OR close_date >= %s)\n\t\t\t\tORDER BY open_date DESC, created_at DESC\n\t\t\t\tLIMIT 1",
+				'active',
+				$current,
+				$current
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+	}
+
+	/**
 	 * Create a competition.
 	 *
 	 * @param array<string, mixed> $data Competition data.

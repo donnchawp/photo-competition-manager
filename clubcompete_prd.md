@@ -167,7 +167,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 
 | Shortcode | Description |
 |------------|-------------|
-| `[competition_upload competition="slug"]` | Member upload form. |
+| `[competition_upload]` | Member upload form for the active competition. |
 | `[competition_voting competition="slug"]` | Public/mobile voting interface. |
 | `[competition_slideshow competition="slug"]` | Admin slideshow view. |
 | `[competition_results]` | Complete results table for most recent competition. |

@@ -5,12 +5,12 @@ This guide explains how to use the Club Competitions plugin shortcodes to displa
 ## Available Shortcodes
 
 ### 1. Upload Form
-**Shortcode:** `[competition_upload competition="slug"]`
+**Shortcode:** `[competition_upload]`
 **Purpose:** Allows members to upload images for a specific competition.
 
 **Example:**
 ```php
-[competition_upload competition="october-2024"]
+[competition_upload]
 ```
 
 **Features:**
@@ -162,7 +162,7 @@ Create a page with the following content:
 <h2>October 2024 Competition</h2>
 
 <h3>Upload Your Images</h3>
-[competition_upload competition="october-2024"]
+[competition_upload]
 
 <h3>Vote on Submissions</h3>
 [competition_voting competition="october-2024"]
@@ -294,7 +294,7 @@ You can use WordPress conditional tags to show different content:
 
 ```php
 <?php if (is_user_logged_in()): ?>
-    [competition_upload competition="october-2024"]
+    [competition_upload]
 <?php else: ?>
     <p>Please log in to upload images.</p>
 <?php endif; ?>

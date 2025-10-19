@@ -92,22 +92,10 @@ class Upload_Shortcode {
 	 * @param array<string, string> $atts Shortcode attributes.
 	 * @return string
 	 */
-	public function render( $atts ): string {
-		$atts = shortcode_atts(
-			array(
-				'competition' => '',
-			),
-			$atts,
-			'competition_upload'
-		);
-
-		if ( empty( $atts['competition'] ) ) {
-			return '<p class="error">' . esc_html__( 'Please specify a competition slug.', 'club-competitions' ) . '</p>';
-		}
-
-		$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
+	public function render( $atts ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Shortcode signature requires $atts.
+		$competition = $this->competitions_repo->find_current_active();
 		if ( ! $competition ) {
-			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'No active competition is currently accepting uploads.', 'club-competitions' ) . '</p>';
 		}
 
 		$settings = Competition_Settings::parse( $competition->settings );

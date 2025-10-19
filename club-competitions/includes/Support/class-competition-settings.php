@@ -71,6 +71,10 @@ class Competition_Settings {
 				'days_before_close'      => 1,
 				'include_qr_code_voting' => true,
 			),
+			'urls'            => array(
+				'upload_page' => '',
+				'voting_page' => '',
+			),
 		);
 	}
 

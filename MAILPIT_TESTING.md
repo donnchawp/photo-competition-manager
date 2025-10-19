@@ -74,7 +74,7 @@ exit;
 ### Test 2: Upload Token Request
 
 1. **Navigate to the upload page** in WordPress:
-   - Go to a page with the `[competition_upload competition="your-slug"]` shortcode
+   - Go to a page with the `[competition_upload]` shortcode
 
 2. **Request an upload link**:
    - Enter a valid member email address

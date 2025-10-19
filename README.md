@@ -12,7 +12,7 @@ WordPress plugin that helps photography clubs run recurring competitions, collec
 The plugin provides several shortcodes for displaying competition functionality:
 
 ### Upload & Voting
-- `[competition_upload competition="slug"]` - Member upload form
+- `[competition_upload]` - Member upload form for the active competition
 - `[competition_voting competition="slug"]` - Public voting interface
 
 ### Results Display
@@ -25,7 +25,7 @@ The plugin provides several shortcodes for displaying competition functionality:
 ### Example Usage
 ```php
 // Show upload form for a specific competition
-[competition_upload competition="october-2024"]
+[competition_upload]
 
 // Display voting interface
 [competition_voting competition="october-2024"]

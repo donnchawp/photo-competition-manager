@@ -1117,6 +1117,9 @@ class Admin_Screen {
 
 			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 
+			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
+			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
@@ -1141,6 +1144,10 @@ class Admin_Screen {
 					'days_before_open'       => 7,
 					'days_before_close'      => 1,
 					'include_qr_code_voting' => true,
+				),
+				'urls'            => array(
+					'upload_page' => $upload_page_url,
+					'voting_page' => $voting_page_url,
 				),
 			);
 
@@ -1227,6 +1234,9 @@ class Admin_Screen {
 
 			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 
+			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
+			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
@@ -1251,6 +1261,10 @@ class Admin_Screen {
 					'days_before_open'       => 7,
 					'days_before_close'      => 1,
 					'include_qr_code_voting' => true,
+				),
+				'urls'            => array(
+					'upload_page' => $upload_page_url,
+					'voting_page' => $voting_page_url,
 				),
 			);
 
@@ -1607,7 +1621,10 @@ class Admin_Screen {
 
 		echo '<h3>' . esc_html__( 'URLs', 'club-competitions' ) . '</h3>';
 
-		$urls = $settings['urls'] ?? array( 'upload_page' => '', 'voting_page' => '' );
+		$urls = $settings['urls'] ?? array(
+			'upload_page' => '',
+			'voting_page' => '',
+		);
 
 		echo '<p>';
 		echo '<label for="upload_page_url">' . esc_html__( 'Upload Page URL', 'club-competitions' ) . '</label><br />';
