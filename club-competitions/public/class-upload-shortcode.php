@@ -257,10 +257,7 @@ class Upload_Shortcode {
 			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
 		}
 
-		// Mark token as used after successful upload.
-		$this->token_repo->mark_as_used( (int) $token_record->id );
-
-		return '<p class="success">' . esc_html__( 'Image uploaded successfully! Your upload link has been used and is no longer valid.', 'club-competitions' ) . '</p>';
+		return '<p class="success">' . esc_html__( 'Image uploaded successfully!', 'club-competitions' ) . '</p>';
 	}
 
 	/**
@@ -421,7 +418,13 @@ class Upload_Shortcode {
 										echo esc_html( $category_label );
 										?>
 									</p>
-									<form method="post" class="delete-form">
+									<?php
+									// Build form action URL with token to preserve it across submissions.
+									// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
+									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
+									?>
+									<form method="post" class="delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'club_competitions_delete_with_token', 'club_competitions_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
 										<button
@@ -447,7 +450,13 @@ class Upload_Shortcode {
 					<!-- Upload form (separate from delete forms) -->
 					<h3><?php esc_html_e( 'Upload New Image', 'club-competitions' ); ?></h3>
 
-					<form method="post" enctype="multipart/form-data" class="competition-upload-form">
+					<?php
+					// Build form action URL with token to preserve it across submissions.
+					// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
+					$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+					$form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
+					?>
+					<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">
 						<?php wp_nonce_field( 'club_competitions_upload_with_token', 'club_competitions_nonce' ); ?>
 
 						<p>
