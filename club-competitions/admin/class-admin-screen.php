@@ -186,6 +186,9 @@ class Admin_Screen {
 		// Find currently active competition for per-member email action.
 		$active_competition = $this->competitions->find_current_active();
 
+		// Get grade options for label lookups.
+		$grade_options = $this->get_grade_options();
+
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Members', 'club-competitions' ) . '</h1>';
 
@@ -222,11 +225,12 @@ class Admin_Screen {
 				admin_url( 'admin.php' )
 			);
 			$status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
+			$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $member->name ) . '</td>';
 			echo '<td>' . esc_html( $member->email ) . '</td>';
-			echo '<td>' . esc_html( $member->grade ) . '</td>';
+			echo '<td>' . esc_html( $grade_label ) . '</td>';
 			echo '<td>' . esc_html( $status_label ) . '</td>';
 			echo '<td>' . esc_html( $member->created_at ) . '</td>';
 
