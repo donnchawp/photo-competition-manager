@@ -413,31 +413,57 @@ class Upload_Shortcode {
 					<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">
 						<?php wp_nonce_field( 'club_competitions_upload_with_token', 'club_competitions_nonce' ); ?>
 
-						<p>
-							<label for="category">
-								<?php esc_html_e( 'Category:', 'club-competitions' ); ?>
-								<span class="required">*</span>
-							</label>
-							<select id="category" name="category" required>
-								<option value=""><?php esc_html_e( '-- Select Category --', 'club-competitions' ); ?></option>
-								<?php foreach ( $available_categories as $cat ) : ?>
-									<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
-										<?php
-										$remaining = $cat['quota'] - $cat['current'];
-										echo esc_html(
-											sprintf(
-												/* translators: 1: category label, 2: remaining slots, 3: total quota */
-												__( '%1$s (%2$d of %3$d remaining)', 'club-competitions' ),
-												$cat['label'],
-												$remaining,
-												$cat['quota']
-											)
-										);
-										?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-						</p>
+						<?php if ( 1 === count( $available_categories ) ) : ?>
+							<?php
+							$single_category = $available_categories[0];
+							$remaining       = $single_category['quota'] - $single_category['current'];
+							?>
+							<p>
+								<label>
+									<?php esc_html_e( 'Category:', 'club-competitions' ); ?>
+								</label>
+								<strong><?php echo esc_html( $single_category['label'] ); ?></strong>
+								<small>
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: 1: remaining slots, 2: total quota */
+											__( '(%1$d of %2$d remaining)', 'club-competitions' ),
+											$remaining,
+											$single_category['quota']
+										)
+									);
+									?>
+								</small>
+								<input type="hidden" name="category" value="<?php echo esc_attr( $single_category['slug'] ); ?>" />
+							</p>
+						<?php else : ?>
+							<p>
+								<label for="category">
+									<?php esc_html_e( 'Category:', 'club-competitions' ); ?>
+									<span class="required">*</span>
+								</label>
+								<select id="category" name="category" required>
+									<option value=""><?php esc_html_e( '-- Select Category --', 'club-competitions' ); ?></option>
+									<?php foreach ( $available_categories as $cat ) : ?>
+										<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
+											<?php
+											$remaining = $cat['quota'] - $cat['current'];
+											echo esc_html(
+												sprintf(
+													/* translators: 1: category label, 2: remaining slots, 3: total quota */
+													__( '%1$s (%2$d of %3$d remaining)', 'club-competitions' ),
+													$cat['label'],
+													$remaining,
+													$cat['quota']
+												)
+											);
+											?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+							</p>
+						<?php endif; ?>
 
 						<p>
 							<label for="image">
