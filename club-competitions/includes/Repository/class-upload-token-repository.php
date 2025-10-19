@@ -169,9 +169,10 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @param int    $competition_id Competition ID.
 	 * @param int    $member_id      Member ID.
 	 * @param string $upload_page_url Base URL of the upload page containing the [competition_upload] shortcode.
+	 * @param bool   $force_send     Whether to force sending even if a recent token exists.
 	 * @return bool|WP_Error True on success, WP_Error on hard failure (DB/email).
 	 */
-	public function send_upload_link_for_member( int $competition_id, int $member_id, string $upload_page_url ) {
+	public function send_upload_link_for_member( int $competition_id, int $member_id, string $upload_page_url, $force_send = false ) {
 		// Validate competition and member.
 		$competitions_repo = new Competitions_Repository();
 		$members_repo      = new Members_Repository();
@@ -191,7 +192,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		// Rate-limit: if a recent token exists, do not create/send a new one.
-		if ( $this->has_recent_token( $member_id, $competition_id ) ) {
+		if ( $this->has_recent_token( $member_id, $competition_id ) && ! $force_send ) {
 			return true;
 		}
 

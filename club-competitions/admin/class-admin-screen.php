@@ -12,6 +12,7 @@ use ClubCompetitions\Repository\Images_Repository;
 use ClubCompetitions\Repository\Members_Repository;
 use ClubCompetitions\Repository\Votes_Repository;
 use ClubCompetitions\Support\Competition_Settings;
+use ClubCompetitions\Repository\Upload_Token_Repository;
 
 /**
  * Manage Club Competitions admin menus, screens, and actions.
@@ -164,74 +165,106 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_members_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
-		}
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
+        }
 
-		settings_errors( 'club_competitions_members' );
+        settings_errors( 'club_competitions_members' );
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
-		$member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
-		$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
-		$current   = null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
+        $member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
+        $member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+        $current   = null;
 
-		if ( 'edit' === $member_action && $member_id ) {
-			$current = $this->members->find( $member_id );
-		}
+        if ( 'edit' === $member_action && $member_id ) {
+            $current = $this->members->find( $member_id );
+        }
 
-		$members = $this->members->all( false );
+        $members = $this->members->all( false );
 
-		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Members', 'club-competitions' ) . '</h1>';
+        // Find currently active competition for per-member email action.
+        $active_competition = $this->competitions->find_current_active();
 
-		if ( 'edit' === $member_action ) {
-			$this->render_member_edit_form( $current );
-		} else {
-			$this->render_member_create_form();
-		}
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__( 'Members', 'club-competitions' ) . '</h1>';
 
-		if ( empty( $members ) ) {
-			echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'club-competitions' ) . '</p>';
-			echo '</div>';
-			return;
-		}
+        if ( 'edit' === $member_action ) {
+            $this->render_member_edit_form( $current );
+        } else {
+            $this->render_member_create_form();
+        }
 
-		echo '<table class="widefat striped">';
-		echo '<thead><tr>';
-		echo '<th>' . esc_html__( 'Name', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Email', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Grade', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Joined', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Actions', 'club-competitions' ) . '</th>';
-		echo '</tr></thead>';
-		echo '<tbody>';
+        if ( empty( $members ) ) {
+            echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'club-competitions' ) . '</p>';
+            echo '</div>';
+            return;
+        }
 
-		foreach ( $members as $member ) {
-			$edit_link    = add_query_arg(
-				array(
-					'page'          => 'club-competitions-members',
-					'member_action' => 'edit',
-					'member'        => (int) $member->id,
-				),
-				admin_url( 'admin.php' )
-			);
-			$status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th>' . esc_html__( 'Name', 'club-competitions' ) . '</th>';
+        echo '<th>' . esc_html__( 'Email', 'club-competitions' ) . '</th>';
+        echo '<th>' . esc_html__( 'Grade', 'club-competitions' ) . '</th>';
+        echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
+        echo '<th>' . esc_html__( 'Joined', 'club-competitions' ) . '</th>';
+        echo '<th>' . esc_html__( 'Actions', 'club-competitions' ) . '</th>';
+        echo '</tr></thead>';
+        echo '<tbody>';
 
-			echo '<tr>';
-			echo '<td>' . esc_html( $member->name ) . '</td>';
-			echo '<td>' . esc_html( $member->email ) . '</td>';
-			echo '<td>' . esc_html( $member->grade ) . '</td>';
-			echo '<td>' . esc_html( $status_label ) . '</td>';
-			echo '<td>' . esc_html( $member->created_at ) . '</td>';
-			echo '<td><a href="' . esc_url( $edit_link ) . '">' . esc_html__( 'Edit', 'club-competitions' ) . '</a></td>';
-			echo '</tr>';
-		}
+        foreach ( $members as $member ) {
+            $edit_link    = add_query_arg(
+                array(
+                    'page'          => 'club-competitions-members',
+                    'member_action' => 'edit',
+                    'member'        => (int) $member->id,
+                ),
+                admin_url( 'admin.php' )
+            );
+            $status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
 
-		echo '</tbody>';
-		echo '</table>';
-		echo '</div>';
+            echo '<tr>';
+            echo '<td>' . esc_html( $member->name ) . '</td>';
+            echo '<td>' . esc_html( $member->email ) . '</td>';
+            echo '<td>' . esc_html( $member->grade ) . '</td>';
+            echo '<td>' . esc_html( $status_label ) . '</td>';
+            echo '<td>' . esc_html( $member->created_at ) . '</td>';
+
+            $actions = array(
+                sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'club-competitions' ) ),
+            );
+
+            // Add "Send Upload Email" if we have an active competition and active member with email.
+            if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
+                $send_url = wp_nonce_url(
+                    add_query_arg(
+                        array(
+                            'page'        => 'club-competitions-members',
+                            'action'      => 'send_member_upload_email',
+                            'member'      => (int) $member->id,
+                            'competition' => (int) $active_competition->id,
+                        ),
+                        admin_url( 'admin.php' )
+                    ),
+                    'club_competitions_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
+                );
+
+                $actions[] = sprintf(
+                    '<a href="%s">%s</a>',
+                    esc_url( $send_url ),
+                    esc_html__( 'Send Upload Email', 'club-competitions' )
+                );
+            } else {
+                $actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'club-competitions' ) . '">' . esc_html__( 'Send Upload Email', 'club-competitions' ) . '</span>';
+            }
+
+            echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody>';
+        echo '</table>';
+        echo '</div>';
 	}
 
 	/**
@@ -659,22 +692,123 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function handle_actions(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
 
-		$action = '';
+        $action = '';
 
-		if ( isset( $_POST['club_competitions_action'] ) ) {
-			$action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
-		} elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
-			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
-		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
-			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
-		}
+        if ( isset( $_POST['club_competitions_action'] ) ) {
+            $action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
+        } elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+            $action = sanitize_key( wp_unslash( $_POST['action'] ) );
+        } elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+            $action = sanitize_key( wp_unslash( $_GET['action'] ) );
+        }
 
-		if ( '' === $action ) {
-			return;
+        if ( '' === $action ) {
+            return;
+        }
+
+        // Per-member "Send Upload Email".
+        if ( 'send_member_upload_email' === $action ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+            $member_id      = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+            $competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+            if ( ! $member_id || ! $competition_id ) {
+                add_settings_error(
+                    'club_competitions_members',
+                    'invalid_params',
+                    __( 'Invalid member or competition.', 'club-competitions' ),
+                    'error'
+                );
+                wp_safe_redirect( $this->members_url() );
+                exit;
+            }
+
+            check_admin_referer( 'club_competitions_send_member_email_' . $member_id . '_' . $competition_id );
+
+            $competition = $this->competitions->find( $competition_id );
+            $member      = $this->members->find( $member_id );
+
+            if ( ! $competition || 'active' !== $competition->status ) {
+                add_settings_error(
+                    'club_competitions_members',
+                    'invalid_competition',
+                    __( 'Competition must be active to send upload emails.', 'club-competitions' ),
+                    'error'
+                );
+                wp_safe_redirect( $this->members_url() );
+                exit;
+            }
+
+            if ( ! $member || empty( $member->email ) || ! $member->active ) {
+                add_settings_error(
+                    'club_competitions_members',
+                    'invalid_member',
+                    __( 'Member must be active and have an email address.', 'club-competitions' ),
+                    'error'
+                );
+                wp_safe_redirect( $this->members_url() );
+                exit;
+            }
+
+            // Resolve upload page URL from competition settings or shortcode detection, fallback to home.
+            $settings        = Competition_Settings::parse( $competition->settings );
+            $urls            = $settings['urls'] ?? array();
+            $upload_page_url = $urls['upload_page'] ?? '';
+
+            if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
+                $pages = get_pages( array( 'number' => 100 ) );
+                if ( is_array( $pages ) ) {
+                    foreach ( $pages as $page ) {
+                        if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
+                            $upload_page_url = get_permalink( $page->ID );
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ( empty( $upload_page_url ) ) {
+                $upload_page_url = home_url( '/' );
+            }
+
+            $upload_page_url = apply_filters( 'club_compete_upload_page_url', $upload_page_url, $competition );
+
+            $token_repo = new Upload_Token_Repository();
+            $result     = $token_repo->send_upload_link_for_member(
+                (int) $competition_id,
+                (int) $member_id,
+                $upload_page_url,
+				true // Send email immediately.
+            );
+
+            if ( is_wp_error( $result ) ) {
+                add_settings_error(
+                    'club_competitions_members',
+                    $result->get_error_code(),
+                    $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'club_competitions_members',
+                    'upload_email_sent',
+                    sprintf(
+                        /* translators: 1: member name, 2: competition title */
+                        __( 'Upload email sent to %1$s for "%2$s".', 'club-competitions' ),
+                        esc_html( $member->name ),
+                        esc_html( $competition->title )
+                    ),
+                    'updated'
+                );
+            }
+
+            wp_safe_redirect( $this->members_url() );
+            exit;
 		}
 
 		if ( 'create_competition' === $action ) {
