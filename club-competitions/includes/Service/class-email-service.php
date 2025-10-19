@@ -93,7 +93,7 @@ class Email_Service {
 				?>
 				</p>
 
-				<p><?php esc_html_e( 'You requested to upload images for this competition. Click the link below to access the upload form:', 'club-competitions' ); ?></p>
+				<p><?php esc_html_e( 'Here is your link to upload images for this competition. Click the button below to access the upload page:', 'club-competitions' ); ?></p>
 
 				<p style="margin: 30px 0;">
 					<a href="<?php echo esc_url( $magic_link ); ?>"
@@ -107,7 +107,10 @@ class Email_Service {
 				</p>
 
 				<p style="color: #666; font-size: 14px;">
-					<?php esc_html_e( 'If you did not request this link, you can safely ignore this email.', 'club-competitions' ); ?>
+					<?php esc_html_e( 'If you did not request this email, it may have been sent to you by your club competitions officer. You can safely ignore this email if you do not want to take part in this competition.', 'club-competitions' ); ?>
+				</p>
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'If you have any questions, please contact your club competitions officer.', 'club-competitions' ); ?>
 				</p>
 
 				<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
