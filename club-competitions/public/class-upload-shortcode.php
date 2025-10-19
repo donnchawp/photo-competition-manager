@@ -170,48 +170,14 @@ class Upload_Shortcode {
 		// Generic success message for security (prevents email enumeration).
 		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'club-competitions' ) . '</p>';
 
-		// Find member by email silently.
-		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member ) {
-			// Return success message but don't send email.
-			return $generic_success;
-		}
-
-		// Check for recent token to prevent spam.
-		if ( $this->token_repo->has_recent_token( $member->id, $competition->id ) ) {
-			return $generic_success;
-		}
-
-		// Generate secure token.
-		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + HOUR_IN_SECONDS );
-
-		// Create token record.
-		$token_id = $this->token_repo->create( $member->id, $competition->id, $token_hash, $expires_at );
-
-		if ( is_wp_error( $token_id ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to create upload link. Please try again.', 'club-competitions' ) . '</p>';
-		}
-
-		// Build magic link.
-		$upload_url = add_query_arg(
-			array(
-				'token'       => $token_string,
-				'competition' => $competition->slug,
-			),
+		// Delegate creation + email to the token repository.
+		$ok = $this->token_repo->send_upload_link_by_email(
+			(int) $competition->id,
+			$member_email,
 			get_permalink()
 		);
 
-		// Send email.
-		$email_sent = $this->email_service->send_upload_link(
-			$member_email,
-			$member->name,
-			$competition->title,
-			$upload_url
-		);
-
-		if ( ! $email_sent ) {
+		if ( ! $ok ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'club-competitions' ) . '</p>';
 		}
 

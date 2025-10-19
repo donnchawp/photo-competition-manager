@@ -403,4 +403,99 @@ class Competitions_Repository extends Abstract_Repository {
 	protected function table_suffix(): string {
 		return 'clubcompete_competitions';
 	}
+
+	/**
+	 * Send submission reminder emails to all active members for a competition.
+	 *
+	 * @since 1.0.0
+	 * @param int $competition_id Competition ID.
+	 * @return array{success: bool, sent_count: int, total_count: int, message: string}|WP_Error
+	 */
+	public function send_submission_reminder_emails( $competition_id ) {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return new WP_Error(
+				'invalid_competition',
+				__( 'Competition not found.', 'club-competitions' )
+			);
+		}
+
+		$competition = $this->find( $competition_id );
+
+		if ( ! $competition ) {
+			return new WP_Error(
+				'missing_competition',
+				__( 'Competition not found.', 'club-competitions' )
+			);
+		}
+
+		if ( 'active' !== $competition->status ) {
+			return new WP_Error(
+				'invalid_status',
+				__( 'Competition must be active to send reminder emails.', 'club-competitions' )
+			);
+		}
+
+		// Get members repository.
+		$members_repository = new Members_Repository();
+		$members            = $members_repository->all( 9999, false, false );
+
+		if ( empty( $members ) ) {
+			return new WP_Error(
+				'no_members',
+				__( 'No active members found.', 'club-competitions' )
+			);
+		}
+
+		// Determine upload page URL (page containing [competition_upload]); fall back to home URL.
+		$upload_page_url = home_url( '/' );
+		if ( function_exists( 'get_pages' ) ) {
+			$pages = get_pages(
+				array(
+					'number' => 100,
+				)
+			);
+			if ( is_array( $pages ) ) {
+				foreach ( $pages as $page ) {
+					if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
+						$upload_page_url = get_permalink( $page->ID );
+						break;
+					}
+				}
+			}
+		}
+		$upload_page_url = apply_filters( 'club_compete_upload_page_url', $upload_page_url, $competition );
+
+		// Use token repository to generate tokens and send emails.
+		$token_repo  = new Upload_Token_Repository();
+		$sent_count  = 0;
+		$total_count = count( $members );
+
+		foreach ( $members as $member ) {
+			if ( empty( $member->email ) ) {
+				continue;
+			}
+
+			$result = $token_repo->send_upload_link_for_member(
+				(int) $competition_id,
+				(int) $member->id,
+				$upload_page_url
+			);
+
+			if ( true === $result ) {
+				++$sent_count;
+			}
+		}
+
+		return array(
+			'success'     => true,
+			'sent_count'  => $sent_count,
+			'total_count' => $total_count,
+			'message'     => sprintf(
+				/* translators: 1: Number of emails sent, 2: Total number of members */
+				__( 'Sent %1$d of %2$d submission reminder emails.', 'club-competitions' ),
+				$sent_count,
+				$total_count
+			),
+		);
+	}
 }

@@ -791,11 +791,46 @@ class Admin_Screen {
 			exit;
 		}
 
-		if ( in_array( $action, array( 'archive', 'restore' ), true ) && isset( $_GET['competition'] ) ) {
+		if ( in_array( $action, array( 'archive', 'restore', 'send_emails' ), true ) && isset( $_GET['competition'] ) ) {
 			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
-			$nonce_action   = 'archive' === $action ? 'club_competitions_archive_' : 'club_competitions_restore_';
+			$nonces         = array(
+				'send_emails' => 'club_competitions_send_emails_',
+				'archive'     => 'club_competitions_archive_',
+				'restore'     => 'club_competitions_restore_',
+			);
+			$nonce_action   = $nonces[ $action ];
 
 			check_admin_referer( $nonce_action . $competition_id );
+
+			if ( 'send_emails' === $action ) {
+				$result = $this->competitions->send_submission_reminder_emails( $competition_id );
+
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'club_competitions',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					$emails_sent = is_int( $result ) ? $result : 0;
+					$message     = sprintf(
+						/* translators: %d: Number of emails sent */
+						_n( '%d reminder email sent to members.', '%d reminder emails sent to members.', $emails_sent, 'club-competitions' ),
+						$emails_sent
+					);
+
+					add_settings_error(
+						'club_competitions',
+						'emails_sent',
+						$message,
+						'updated'
+					);
+				}
+
+				wp_safe_redirect( $this->dashboard_url() );
+				exit;
+			}
 
 			$result = 'archive' === $action
 				? $this->competitions->archive( $competition_id )
@@ -1851,6 +1886,24 @@ class Admin_Screen {
 			$actions = array(
 				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'club-competitions' ) ),
 			);
+
+			if ( 'active' === $competition->status && ! $is_archived ) {
+				$send_email_link = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'club-competitions',
+							'action'      => 'send_emails',
+							'competition' => (int) $competition->id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'club_competitions_send_emails_' . (int) $competition->id
+				);
+
+				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $send_email_link ), esc_html__( 'Send Upload Emails', 'club-competitions' ) );
+			} else {
+				$actions[] = sprintf( '<span title="Send only on active competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'club-competitions' ) );
+			}
 
 			if ( $is_archived ) {
 				$restore_url = wp_nonce_url(
