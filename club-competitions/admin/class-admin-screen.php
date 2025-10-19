@@ -1255,13 +1255,13 @@ class Admin_Screen {
 
 			$sanitized_grades = array();
 			foreach ( $grades as $grade ) {
-				if ( ! isset( $grade['label'], $grade['slug'] ) ) {
+				if ( ! isset( $grade['label'] ) ) {
 					continue;
 				}
 
 				$sanitized_grades[] = array(
 					'label' => sanitize_text_field( $grade['label'] ),
-					'slug'  => sanitize_title( $grade['slug'] ),
+					'slug'  => sanitize_title( $grade['label'] ),
 				);
 			}
 
@@ -1374,13 +1374,13 @@ class Admin_Screen {
 
 			$sanitized_grades = array();
 			foreach ( $grades as $grade ) {
-				if ( ! isset( $grade['label'], $grade['slug'] ) ) {
+				if ( ! isset( $grade['label'] ) ) {
 					continue;
 				}
 
 				$sanitized_grades[] = array(
 					'label' => sanitize_text_field( $grade['label'] ),
-					'slug'  => sanitize_title( $grade['slug'] ),
+					'slug'  => sanitize_title( $grade['label'] ),
 				);
 			}
 
@@ -1841,11 +1841,6 @@ class Admin_Screen {
 		echo '<input type="text" name="grades[' . esc_attr( $index ) . '][label]" value="' . esc_attr( $grade['label'] ) . '" class="regular-text" required />';
 		echo '</p>';
 
-		echo '<p style="margin: 5px 0;">';
-		echo '<label>' . esc_html__( 'Slug', 'club-competitions' ) . '</label><br />';
-		echo '<input type="text" name="grades[' . esc_attr( $index ) . '][slug]" value="' . esc_attr( $grade['slug'] ) . '" class="regular-text" required />';
-		echo '</p>';
-
 		echo '<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_html__( 'Remove', 'club-competitions' ) . '</button>';
 
 		echo '</div>';
@@ -1896,10 +1891,6 @@ class Admin_Screen {
 					<p style="margin: 5px 0;">
 						<label><?php echo esc_js( __( 'Label', 'club-competitions' ) ); ?></label><br />
 						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label><?php echo esc_js( __( 'Slug', 'club-competitions' ) ); ?></label><br />
-						<input type="text" name="grades[${gradeIndex}][slug]" class="regular-text" required />
 					</p>
 					<button type="button" class="button remove-grade" style="color: #b32d2e;"><?php echo esc_js( __( 'Remove', 'club-competitions' ) ); ?></button>
 				`;
@@ -2432,8 +2423,8 @@ class Admin_Screen {
 
 		$options = array();
 		foreach ( $grades as $grade ) {
-			if ( isset( $grade['slug'], $grade['label'] ) ) {
-				$options[ $grade['slug'] ] = $grade['label'];
+			if ( isset( $grade['label'] ) ) {
+				$options[ $grade['slug'] ?? sanitize_title( $grade['label'] ) ] = $grade['label'];
 			}
 		}
 
