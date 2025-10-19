@@ -84,7 +84,7 @@ class Admin_Screen {
 		add_menu_page(
 			__( 'Club Competitions', 'club-competitions' ),
 			__( 'Competitions', 'club-competitions' ),
-			'manage_options',
+			'publish_posts',
 			'club-competitions',
 			array( $this, 'render_dashboard' ),
 			'dashicons-camera'
@@ -94,7 +94,7 @@ class Admin_Screen {
 			'club-competitions',
 			__( 'Members', 'club-competitions' ),
 			__( 'Members', 'club-competitions' ),
-			'manage_options',
+			'publish_posts',
 			'club-competitions-members',
 			array( $this, 'render_members_page' )
 		);
@@ -103,7 +103,7 @@ class Admin_Screen {
 			'club-competitions',
 			__( 'Submissions', 'club-competitions' ),
 			__( 'Submissions', 'club-competitions' ),
-			'manage_options',
+			'publish_posts',
 			'club-competitions-submissions',
 			array( $this, 'render_submissions_page' )
 		);
@@ -112,7 +112,7 @@ class Admin_Screen {
 			'club-competitions',
 			__( 'Voting Controls', 'club-competitions' ),
 			__( 'Voting Controls', 'club-competitions' ),
-			'manage_options',
+			'publish_posts',
 			'club-competitions-voting',
 			array( $this, 'render_voting_controls_page' )
 		);
@@ -121,7 +121,7 @@ class Admin_Screen {
 			'club-competitions',
 			__( 'Settings', 'club-competitions' ),
 			__( 'Settings', 'club-competitions' ),
-			'manage_options',
+			'publish_posts',
 			'club-competitions-settings',
 			array( $this, 'render_settings_page' )
 		);
@@ -165,7 +165,7 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_members_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
 		}
 
@@ -277,7 +277,7 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_submissions_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
 		}
 
@@ -458,7 +458,7 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_voting_controls_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
 		}
 
@@ -696,7 +696,7 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function handle_actions(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			return;
 		}
 
@@ -2469,7 +2469,7 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_settings_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
 		}
 

@@ -236,7 +236,7 @@ class Slideshow_Shortcode {
 	public function handle_get_images(): void {
 		check_ajax_referer( 'club_compete_admin_slideshow', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'club-competitions' ) ) );
 		}
 
