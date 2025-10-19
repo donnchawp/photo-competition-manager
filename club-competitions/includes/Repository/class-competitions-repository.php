@@ -177,22 +177,20 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_slug', __( 'A competition with this slug already exists.', 'club-competitions' ) );
 		}
 
-		$status      = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : 'draft';
-		$open_date   = $this->normalize_date( $data['open_date'] ?? null );
-		$close_date  = $this->normalize_date( $data['close_date'] ?? null );
-		$voting_open = $this->normalize_date( $data['voting_open'] ?? null );
-		$now         = current_time( 'mysql' );
+		$status     = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : 'draft';
+		$open_date  = $this->normalize_date( $data['open_date'] ?? null );
+		$close_date = $this->normalize_date( $data['close_date'] ?? null );
+		$now        = current_time( 'mysql' );
 
 		$payload = array(
-			'title'       => $title,
-			'slug'        => $slug,
-			'status'      => $status ? $status : 'draft',
-			'open_date'   => $open_date,
-			'close_date'  => $close_date,
-			'voting_open' => $voting_open,
-			'settings'    => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
-			'created_at'  => $now,
-			'updated_at'  => $now,
+			'title'      => $title,
+			'slug'       => $slug,
+			'status'     => $status ? $status : 'draft',
+			'open_date'  => $open_date,
+			'close_date' => $close_date,
+			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
+			'created_at' => $now,
+			'updated_at' => $now,
 		);
 
 		$format = array(
@@ -249,20 +247,18 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_slug', __( 'A competition with this slug already exists.', 'club-competitions' ) );
 		}
 
-		$status      = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : $current->status;
-		$open_date   = array_key_exists( 'open_date', $data ) ? $this->normalize_date( $data['open_date'] ) : $current->open_date;
-		$close_date  = array_key_exists( 'close_date', $data ) ? $this->normalize_date( $data['close_date'] ) : $current->close_date;
-		$voting_open = array_key_exists( 'voting_open', $data ) ? $this->normalize_date( $data['voting_open'] ) : $current->voting_open;
+		$status     = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : $current->status;
+		$open_date  = array_key_exists( 'open_date', $data ) ? $this->normalize_date( $data['open_date'] ) : $current->open_date;
+		$close_date = array_key_exists( 'close_date', $data ) ? $this->normalize_date( $data['close_date'] ) : $current->close_date;
 
 		$payload = array(
-			'title'       => $title,
-			'slug'        => $slug,
-			'status'      => $status ? $status : 'draft',
-			'open_date'   => $open_date,
-			'close_date'  => $close_date,
-			'voting_open' => $voting_open,
-			'settings'    => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
-			'updated_at'  => current_time( 'mysql' ),
+			'title'      => $title,
+			'slug'       => $slug,
+			'status'     => $status ? $status : 'draft',
+			'open_date'  => $open_date,
+			'close_date' => $close_date,
+			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
+			'updated_at' => current_time( 'mysql' ),
 		);
 
 		$format = array(

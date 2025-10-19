@@ -57,7 +57,6 @@ class Competition_Settings {
 			),
 			'voting'          => array(
 				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
-				'auto_open'       => false,
 				'open_categories' => array(), // Array of category slugs where voting is open.
 				'auth_mode'       => 'password', // 'password' or 'token' (email magic links).
 				'password'        => '',

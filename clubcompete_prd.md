@@ -57,7 +57,6 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Categories (e.g., Colour, Black & White)
   - Grades (e.g., Beginner, Intermediate, Advanced)
   - Upload start/end dates
-  - Voting start/end dates (optional; manual override allowed)
 - Only one competition can be active at a time.
 - Past competitions automatically archived.
 
@@ -90,7 +89,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - Each image assigned a random number (1–N) within its category for anonymized presentation.
 
 ### 4.4 Voting System
-- Voting opened manually by admin or automatically by schedule.
+- Voting opened manually by admin.
 - Optional voting password per competition; when set, voters must provide it before submitting ballots.
 - Admin may restrict to one vote per device/session.
 - Default scoring matrix: 9, 8, 7, 6, 5 (configurable).
@@ -155,7 +154,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_clubcompete_members`
   - id, name, email, grade, active, created_at
 - `wp_clubcompete_competitions`
-  - id, title, slug, open_date, close_date, voting_open, created_at
+  - Date normalization for open_date, close_date
 - `wp_clubcompete_images`
   - id, member_id, competition_id, category, filename, random_number, score, created_at
 - `wp_clubcompete_votes`

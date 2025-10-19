@@ -252,7 +252,6 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertIsArray( $result );
 		$this->assertArrayHasKey( 'password', $result );
 		$this->assertArrayHasKey( 'score_matrix', $result );
-		$this->assertArrayHasKey( 'auto_open', $result );
 		$this->assertEquals( array( 9, 8, 7, 6, 5 ), $result['score_matrix'] );
 	}
 

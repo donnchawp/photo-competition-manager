@@ -8,3 +8,7 @@
 /wp-env.json
 /.wp-env
 /*.log
+
+# Release artifacts
+/release/
+/club-competitions.zip

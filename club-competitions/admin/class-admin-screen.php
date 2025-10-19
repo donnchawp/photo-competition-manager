@@ -165,106 +165,106 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function render_members_page(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
-        }
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'club-competitions' ) );
+		}
 
-        settings_errors( 'club_competitions_members' );
+		settings_errors( 'club_competitions_members' );
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
-        $member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
+		$member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
-        $member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
-        $current   = null;
+		$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+		$current   = null;
 
-        if ( 'edit' === $member_action && $member_id ) {
-            $current = $this->members->find( $member_id );
-        }
+		if ( 'edit' === $member_action && $member_id ) {
+			$current = $this->members->find( $member_id );
+		}
 
-        $members = $this->members->all( false );
+		$members = $this->members->all( false );
 
-        // Find currently active competition for per-member email action.
-        $active_competition = $this->competitions->find_current_active();
+		// Find currently active competition for per-member email action.
+		$active_competition = $this->competitions->find_current_active();
 
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html__( 'Members', 'club-competitions' ) . '</h1>';
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Members', 'club-competitions' ) . '</h1>';
 
-        if ( 'edit' === $member_action ) {
-            $this->render_member_edit_form( $current );
-        } else {
-            $this->render_member_create_form();
-        }
+		if ( 'edit' === $member_action ) {
+			$this->render_member_edit_form( $current );
+		} else {
+			$this->render_member_create_form();
+		}
 
-        if ( empty( $members ) ) {
-            echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'club-competitions' ) . '</p>';
-            echo '</div>';
-            return;
-        }
+		if ( empty( $members ) ) {
+			echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'club-competitions' ) . '</p>';
+			echo '</div>';
+			return;
+		}
 
-        echo '<table class="widefat striped">';
-        echo '<thead><tr>';
-        echo '<th>' . esc_html__( 'Name', 'club-competitions' ) . '</th>';
-        echo '<th>' . esc_html__( 'Email', 'club-competitions' ) . '</th>';
-        echo '<th>' . esc_html__( 'Grade', 'club-competitions' ) . '</th>';
-        echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
-        echo '<th>' . esc_html__( 'Joined', 'club-competitions' ) . '</th>';
-        echo '<th>' . esc_html__( 'Actions', 'club-competitions' ) . '</th>';
-        echo '</tr></thead>';
-        echo '<tbody>';
+		echo '<table class="widefat striped">';
+		echo '<thead><tr>';
+		echo '<th>' . esc_html__( 'Name', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Email', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Grade', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Joined', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Actions', 'club-competitions' ) . '</th>';
+		echo '</tr></thead>';
+		echo '<tbody>';
 
-        foreach ( $members as $member ) {
-            $edit_link    = add_query_arg(
-                array(
-                    'page'          => 'club-competitions-members',
-                    'member_action' => 'edit',
-                    'member'        => (int) $member->id,
-                ),
-                admin_url( 'admin.php' )
-            );
-            $status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
+		foreach ( $members as $member ) {
+			$edit_link    = add_query_arg(
+				array(
+					'page'          => 'club-competitions-members',
+					'member_action' => 'edit',
+					'member'        => (int) $member->id,
+				),
+				admin_url( 'admin.php' )
+			);
+			$status_label = $member->active ? __( 'Active', 'club-competitions' ) : __( 'Inactive', 'club-competitions' );
 
-            echo '<tr>';
-            echo '<td>' . esc_html( $member->name ) . '</td>';
-            echo '<td>' . esc_html( $member->email ) . '</td>';
-            echo '<td>' . esc_html( $member->grade ) . '</td>';
-            echo '<td>' . esc_html( $status_label ) . '</td>';
-            echo '<td>' . esc_html( $member->created_at ) . '</td>';
+			echo '<tr>';
+			echo '<td>' . esc_html( $member->name ) . '</td>';
+			echo '<td>' . esc_html( $member->email ) . '</td>';
+			echo '<td>' . esc_html( $member->grade ) . '</td>';
+			echo '<td>' . esc_html( $status_label ) . '</td>';
+			echo '<td>' . esc_html( $member->created_at ) . '</td>';
 
-            $actions = array(
-                sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'club-competitions' ) ),
-            );
+			$actions = array(
+				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'club-competitions' ) ),
+			);
 
-            // Add "Send Upload Email" if we have an active competition and active member with email.
-            if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
-                $send_url = wp_nonce_url(
-                    add_query_arg(
-                        array(
-                            'page'        => 'club-competitions-members',
-                            'action'      => 'send_member_upload_email',
-                            'member'      => (int) $member->id,
-                            'competition' => (int) $active_competition->id,
-                        ),
-                        admin_url( 'admin.php' )
-                    ),
-                    'club_competitions_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
-                );
+			// Add "Send Upload Email" if we have an active competition and active member with email.
+			if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
+				$send_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'club-competitions-members',
+							'action'      => 'send_member_upload_email',
+							'member'      => (int) $member->id,
+							'competition' => (int) $active_competition->id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'club_competitions_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
+				);
 
-                $actions[] = sprintf(
-                    '<a href="%s">%s</a>',
-                    esc_url( $send_url ),
-                    esc_html__( 'Send Upload Email', 'club-competitions' )
-                );
-            } else {
-                $actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'club-competitions' ) . '">' . esc_html__( 'Send Upload Email', 'club-competitions' ) . '</span>';
-            }
+				$actions[] = sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $send_url ),
+					esc_html__( 'Send Upload Email', 'club-competitions' )
+				);
+			} else {
+				$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'club-competitions' ) . '">' . esc_html__( 'Send Upload Email', 'club-competitions' ) . '</span>';
+			}
 
-            echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
-            echo '</tr>';
-        }
+			echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
+			echo '</tr>';
+		}
 
-        echo '</tbody>';
-        echo '</table>';
-        echo '</div>';
+		echo '</tbody>';
+		echo '</table>';
+		echo '</div>';
 	}
 
 	/**
@@ -692,134 +692,133 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function handle_actions(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return;
-        }
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
 
-        $action = '';
+		$action = '';
 
-        if ( isset( $_POST['club_competitions_action'] ) ) {
-            $action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
-        } elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
-            $action = sanitize_key( wp_unslash( $_POST['action'] ) );
-        } elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
-            $action = sanitize_key( wp_unslash( $_GET['action'] ) );
-        }
+		if ( isset( $_POST['club_competitions_action'] ) ) {
+			$action = sanitize_key( wp_unslash( $_POST['club_competitions_action'] ) );
+		} elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
+		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
+		}
 
-        if ( '' === $action ) {
-            return;
-        }
+		if ( '' === $action ) {
+			return;
+		}
 
-        // Per-member "Send Upload Email".
-        if ( 'send_member_upload_email' === $action ) {
+		// Per-member "Send Upload Email".
+		if ( 'send_member_upload_email' === $action ) {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
-            $member_id      = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
-            $competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
-            if ( ! $member_id || ! $competition_id ) {
-                add_settings_error(
-                    'club_competitions_members',
-                    'invalid_params',
-                    __( 'Invalid member or competition.', 'club-competitions' ),
-                    'error'
-                );
-                wp_safe_redirect( $this->members_url() );
-                exit;
-            }
+			if ( ! $member_id || ! $competition_id ) {
+				add_settings_error(
+					'club_competitions_members',
+					'invalid_params',
+					__( 'Invalid member or competition.', 'club-competitions' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
 
-            check_admin_referer( 'club_competitions_send_member_email_' . $member_id . '_' . $competition_id );
+			check_admin_referer( 'club_competitions_send_member_email_' . $member_id . '_' . $competition_id );
 
-            $competition = $this->competitions->find( $competition_id );
-            $member      = $this->members->find( $member_id );
+			$competition = $this->competitions->find( $competition_id );
+			$member      = $this->members->find( $member_id );
 
-            if ( ! $competition || 'active' !== $competition->status ) {
-                add_settings_error(
-                    'club_competitions_members',
-                    'invalid_competition',
-                    __( 'Competition must be active to send upload emails.', 'club-competitions' ),
-                    'error'
-                );
-                wp_safe_redirect( $this->members_url() );
-                exit;
-            }
+			if ( ! $competition || 'active' !== $competition->status ) {
+				add_settings_error(
+					'club_competitions_members',
+					'invalid_competition',
+					__( 'Competition must be active to send upload emails.', 'club-competitions' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
 
-            if ( ! $member || empty( $member->email ) || ! $member->active ) {
-                add_settings_error(
-                    'club_competitions_members',
-                    'invalid_member',
-                    __( 'Member must be active and have an email address.', 'club-competitions' ),
-                    'error'
-                );
-                wp_safe_redirect( $this->members_url() );
-                exit;
-            }
+			if ( ! $member || empty( $member->email ) || ! $member->active ) {
+				add_settings_error(
+					'club_competitions_members',
+					'invalid_member',
+					__( 'Member must be active and have an email address.', 'club-competitions' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
 
-            // Resolve upload page URL from competition settings or shortcode detection, fallback to home.
-            $settings        = Competition_Settings::parse( $competition->settings );
-            $urls            = $settings['urls'] ?? array();
-            $upload_page_url = $urls['upload_page'] ?? '';
+			// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
+			$settings        = Competition_Settings::parse( $competition->settings );
+			$urls            = $settings['urls'] ?? array();
+			$upload_page_url = $urls['upload_page'] ?? '';
 
-            if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
-                $pages = get_pages( array( 'number' => 100 ) );
-                if ( is_array( $pages ) ) {
-                    foreach ( $pages as $page ) {
-                        if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
-                            $upload_page_url = get_permalink( $page->ID );
-                            break;
-                        }
-                    }
-                }
-            }
+			if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
+				$pages = get_pages( array( 'number' => 100 ) );
+				if ( is_array( $pages ) ) {
+					foreach ( $pages as $page ) {
+						if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
+							$upload_page_url = get_permalink( $page->ID );
+							break;
+						}
+					}
+				}
+			}
 
-            if ( empty( $upload_page_url ) ) {
-                $upload_page_url = home_url( '/' );
-            }
+			if ( empty( $upload_page_url ) ) {
+				$upload_page_url = home_url( '/' );
+			}
 
-            $upload_page_url = apply_filters( 'club_compete_upload_page_url', $upload_page_url, $competition );
+			$upload_page_url = apply_filters( 'club_compete_upload_page_url', $upload_page_url, $competition );
 
-            $token_repo = new Upload_Token_Repository();
-            $result     = $token_repo->send_upload_link_for_member(
-                (int) $competition_id,
-                (int) $member_id,
-                $upload_page_url,
+			$token_repo = new Upload_Token_Repository();
+			$result     = $token_repo->send_upload_link_for_member(
+				(int) $competition_id,
+				(int) $member_id,
+				$upload_page_url,
 				true // Send email immediately.
-            );
+			);
 
-            if ( is_wp_error( $result ) ) {
-                add_settings_error(
-                    'club_competitions_members',
-                    $result->get_error_code(),
-                    $result->get_error_message(),
-                    'error'
-                );
-            } else {
-                add_settings_error(
-                    'club_competitions_members',
-                    'upload_email_sent',
-                    sprintf(
-                        /* translators: 1: member name, 2: competition title */
-                        __( 'Upload email sent to %1$s for "%2$s".', 'club-competitions' ),
-                        esc_html( $member->name ),
-                        esc_html( $competition->title )
-                    ),
-                    'updated'
-                );
-            }
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_members',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_members',
+					'upload_email_sent',
+					sprintf(
+						/* translators: 1: member name, 2: competition title */
+						__( 'Upload email sent to %1$s for "%2$s".', 'club-competitions' ),
+						esc_html( $member->name ),
+						esc_html( $competition->title )
+					),
+					'updated'
+				);
+			}
 
-            wp_safe_redirect( $this->members_url() );
-            exit;
+			wp_safe_redirect( $this->members_url() );
+			exit;
 		}
 
 		if ( 'create_competition' === $action ) {
 			check_admin_referer( 'club_competitions_create', 'club_competitions_nonce' );
 
-			$title_raw       = $this->get_post_string( 'competition_title' );
-			$slug_raw        = $this->get_post_string( 'competition_slug' );
-			$status_raw      = $this->get_post_string( 'competition_status', 'draft' );
-			$open_date_raw   = $this->get_post_string( 'competition_open_date' );
-			$close_date_raw  = $this->get_post_string( 'competition_close_date' );
-			$voting_open_raw = $this->get_post_string( 'competition_voting_open' );
+			$title_raw      = $this->get_post_string( 'competition_title' );
+			$slug_raw       = $this->get_post_string( 'competition_slug' );
+			$status_raw     = $this->get_post_string( 'competition_status', 'draft' );
+			$open_date_raw  = $this->get_post_string( 'competition_open_date' );
+			$close_date_raw = $this->get_post_string( 'competition_close_date' );
 
 			$title  = sanitize_text_field( $title_raw );
 			$slug   = sanitize_title( $slug_raw );
@@ -831,13 +830,12 @@ class Admin_Screen {
 			}
 
 			$data = array(
-				'title'       => $title,
-				'slug'        => $slug,
-				'status'      => $status,
-				'open_date'   => $this->parse_date_input( $open_date_raw ),
-				'close_date'  => $this->parse_date_input( $close_date_raw ),
-				'voting_open' => $this->parse_date_input( $voting_open_raw ),
-				'settings'    => $this->get_global_settings(),
+				'title'      => $title,
+				'slug'       => $slug,
+				'status'     => $status,
+				'open_date'  => $this->parse_date_input( $open_date_raw ),
+				'close_date' => $this->parse_date_input( $close_date_raw ),
+				'settings'   => $this->get_global_settings(),
 			);
 
 			$result = $this->competitions->create( $data );
@@ -867,12 +865,11 @@ class Admin_Screen {
 
 			check_admin_referer( 'club_competitions_update_' . $competition_id, 'club_competitions_nonce' );
 
-			$title_raw       = $this->get_post_string( 'competition_title' );
-			$slug_raw        = $this->get_post_string( 'competition_slug' );
-			$status_raw      = $this->get_post_string( 'competition_status', 'draft' );
-			$open_date_raw   = $this->get_post_string( 'competition_open_date' );
-			$close_date_raw  = $this->get_post_string( 'competition_close_date' );
-			$voting_open_raw = $this->get_post_string( 'competition_voting_open' );
+			$title_raw      = $this->get_post_string( 'competition_title' );
+			$slug_raw       = $this->get_post_string( 'competition_slug' );
+			$status_raw     = $this->get_post_string( 'competition_status', 'draft' );
+			$open_date_raw  = $this->get_post_string( 'competition_open_date' );
+			$close_date_raw = $this->get_post_string( 'competition_close_date' );
 
 			$title  = sanitize_text_field( $title_raw );
 			$slug   = sanitize_title( $slug_raw );
@@ -884,12 +881,11 @@ class Admin_Screen {
 			}
 
 			$data = array(
-				'title'       => $title,
-				'slug'        => $slug,
-				'status'      => $status,
-				'open_date'   => $this->parse_date_input( $open_date_raw ),
-				'close_date'  => $this->parse_date_input( $close_date_raw ),
-				'voting_open' => $this->parse_date_input( $voting_open_raw ),
+				'title'      => $title,
+				'slug'       => $slug,
+				'status'     => $status,
+				'open_date'  => $this->parse_date_input( $open_date_raw ),
+				'close_date' => $this->parse_date_input( $close_date_raw ),
 			);
 
 			$result = $this->competitions->update( $competition_id, $data );
@@ -1277,78 +1273,76 @@ class Admin_Screen {
 			}
 
 			// Get existing settings to preserve open_categories (controlled via Voting Controls page).
-			$existing_settings        = $this->get_global_settings();
-			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
+						$existing_settings        = $this->get_global_settings();
+						$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
-			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
+						$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
 			if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
 				$auth_mode_input = 'password';
 			}
 
-			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+						$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 
-			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
-			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+						$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
+						$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 
-			$settings = array(
-				'categories'      => $sanitized_categories,
-				'grades'          => $sanitized_grades,
-				'upload'          => array(
-					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
-					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
-					'allowed_formats'  => array( 'jpg', 'jpeg' ),
-				),
-				'voting'          => array(
-					'score_matrix'    => $score_matrix,
-					'auto_open'       => isset( $_POST['auto_open_voting'] ),
-					'open_categories' => $existing_open_categories,
-					'auth_mode'       => $auth_mode_input,
-					'password'        => $voting_password,
-				),
-				'slideshow'       => array(
-					'duration_seconds' => 10,
-				),
-				'email_reminders' => array(
-					'enabled'                => true,
-					'days_before_open'       => 7,
-					'days_before_close'      => 1,
-					'include_qr_code_voting' => true,
-				),
-				'urls'            => array(
-					'upload_page' => $upload_page_url,
-					'voting_page' => $voting_page_url,
-				),
-			);
+						$settings   = array(
+							'categories'      => $sanitized_categories,
+							'grades'          => $sanitized_grades,
+							'upload'          => array(
+								'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
+								'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
+								'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
+								'allowed_formats'  => array( 'jpg', 'jpeg' ),
+							),
+							'voting'          => array(
+								'score_matrix'    => $score_matrix,
+								'open_categories' => $existing_open_categories,
+								'auth_mode'       => $auth_mode_input,
+								'password'        => $voting_password,
+							),
+							'slideshow'       => array(
+								'duration_seconds' => 10,
+							),
+							'email_reminders' => array(
+								'enabled'                => true,
+								'days_before_open'       => 7,
+								'days_before_close'      => 1,
+								'include_qr_code_voting' => true,
+							),
+							'urls'            => array(
+								'upload_page' => $upload_page_url,
+								'voting_page' => $voting_page_url,
+							),
+						);
+						$validation = Competition_Settings::validate( $settings );
 
-			$validation = Competition_Settings::validate( $settings );
+						if ( is_wp_error( $validation ) ) {
+							add_settings_error(
+								'club_competitions_settings',
+								$validation->get_error_code(),
+								$validation->get_error_message(),
+								'error'
+							);
+						} else {
+							$this->save_global_settings( $settings );
 
-			if ( is_wp_error( $validation ) ) {
-				add_settings_error(
-					'club_competitions_settings',
-					$validation->get_error_code(),
-					$validation->get_error_message(),
-					'error'
-				);
-			} else {
-				$this->save_global_settings( $settings );
+							add_settings_error(
+								'club_competitions_settings',
+								'settings_saved',
+								__( 'Default settings saved successfully.', 'club-competitions' ),
+								'updated'
+							);
+						}
 
-				add_settings_error(
-					'club_competitions_settings',
-					'settings_saved',
-					__( 'Default settings saved successfully.', 'club-competitions' ),
-					'updated'
-				);
-			}
-
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page' => 'club-competitions-settings',
-					),
-					admin_url( 'admin.php' )
-				)
-			);
+						wp_safe_redirect(
+							add_query_arg(
+								array(
+									'page' => 'club-competitions-settings',
+								),
+								admin_url( 'admin.php' )
+							)
+						);
 			exit;
 		}
 
@@ -1418,7 +1412,6 @@ class Admin_Screen {
 				),
 				'voting'          => array(
 					'score_matrix'    => $score_matrix,
-					'auto_open'       => isset( $_POST['auto_open_voting'] ),
 					'open_categories' => $existing_open_categories,
 					'auth_mode'       => $auth_mode_input,
 					'password'        => $voting_password,
@@ -1686,11 +1679,6 @@ class Admin_Screen {
 		echo '<input type="date" id="competition_close_date" name="competition_close_date" value="' . esc_attr( $this->format_date_for_input( $competition->close_date ) ) . '" />';
 		echo '</p>';
 
-		echo '<p>';
-		echo '<label for="competition_voting_open">' . esc_html__( 'Voting Opens', 'club-competitions' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_voting_open" name="competition_voting_open" value="' . esc_attr( $this->format_date_for_input( $competition->voting_open ) ) . '" />';
-		echo '</p>';
-
 		submit_button( __( 'Update Competition', 'club-competitions' ) );
 
 		echo '</form>';
@@ -1780,13 +1768,6 @@ class Admin_Screen {
 		echo '<label for="score_matrix">' . esc_html__( 'Score Matrix (comma-separated)', 'club-competitions' ) . '</label><br />';
 		echo '<input type="text" id="score_matrix" name="score_matrix" value="' . esc_attr( implode( ', ', $voting['score_matrix'] ) ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'E.g., 9, 8, 7, 6, 5', 'club-competitions' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="auto_open_voting" value="1"' . checked( $voting['auto_open'], true, false ) . ' /> ';
-		echo esc_html__( 'Automatically open voting at scheduled time', 'club-competitions' );
-		echo '</label>';
 		echo '</p>';
 
 		echo '<h3>' . esc_html__( 'URLs', 'club-competitions' ) . '</h3>';
@@ -2328,11 +2309,6 @@ class Admin_Screen {
 		echo '<input type="date" id="competition_close_date" name="competition_close_date" />';
 		echo '</p>';
 
-		echo '<p>';
-		echo '<label for="competition_voting_open">' . esc_html__( 'Voting Opens', 'club-competitions' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_voting_open" name="competition_voting_open" />';
-		echo '</p>';
-
 		submit_button( __( 'Create Competition', 'club-competitions' ) );
 
 		echo '</form>';
@@ -2589,13 +2565,6 @@ class Admin_Screen {
 		echo '<label for="score_matrix">' . esc_html__( 'Score Matrix (comma-separated)', 'club-competitions' ) . '</label><br />';
 		echo '<input type="text" id="score_matrix" name="score_matrix" value="' . esc_attr( implode( ', ', $voting['score_matrix'] ) ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'E.g., 9, 8, 7, 6, 5', 'club-competitions' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="auto_open_voting" value="1"' . checked( $voting['auto_open'], true, false ) . ' /> ';
-		echo esc_html__( 'Automatically open voting at scheduled time', 'club-competitions' );
-		echo '</label>';
 		echo '</p>';
 
 		echo '<h2>' . esc_html__( 'URLs', 'club-competitions' ) . '</h2>';
