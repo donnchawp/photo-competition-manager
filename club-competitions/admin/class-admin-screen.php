@@ -2175,7 +2175,12 @@ class Admin_Screen {
 
 		echo '<p>';
 		echo '<label for="member_grade">' . esc_html__( 'Grade', 'club-competitions' ) . '</label><br />';
-		echo '<input type="text" id="member_grade" name="member_grade" class="regular-text" />';
+		echo '<select id="member_grade" name="member_grade" class="regular-text" required>';
+		echo '<option value="">' . esc_html__( 'Select grade', 'club-competitions' ) . '</option>';
+		foreach ( $this->get_grade_options() as $grade_slug => $grade_label ) {
+			echo '<option value="' . esc_attr( $grade_slug ) . '">' . esc_html( $grade_label ) . '</option>';
+		}
+		echo '</select>';
 		echo '</p>';
 
 		echo '<p>';
@@ -2227,7 +2232,11 @@ class Admin_Screen {
 
 		echo '<p>';
 		echo '<label for="member_grade">' . esc_html__( 'Grade', 'club-competitions' ) . '</label><br />';
-		echo '<input type="text" id="member_grade" name="member_grade" class="regular-text" value="' . esc_attr( $member->grade ) . '" />';
+		echo '<select id="member_grade" name="member_grade" class="regular-text" required>';
+		foreach ( $this->get_grade_options() as $grade_slug => $grade_label ) {
+			echo '<option value="' . esc_attr( $grade_slug ) . '"' . selected( $member->grade, $grade_slug, false ) . '>' . esc_html( $grade_label ) . '</option>';
+		}
+		echo '</select>';
 		echo '</p>';
 
 		echo '<p>';
@@ -2246,6 +2255,25 @@ class Admin_Screen {
 			esc_url( $this->members_url() ),
 			esc_html__( 'Back to members', 'club-competitions' )
 		);
+	}
+
+	/**
+	 * Retrieve grade options from default settings.
+	 *
+	 * @return array<string, string>
+	 */
+	private function get_grade_options(): array {
+		$settings = $this->get_global_settings();
+		$grades   = Competition_Settings::get_grades( $settings );
+
+		$options = array();
+		foreach ( $grades as $grade ) {
+			if ( isset( $grade['slug'], $grade['label'] ) ) {
+				$options[ $grade['slug'] ] = $grade['label'];
+			}
+		}
+
+		return $options;
 	}
 
 	/**
