@@ -199,7 +199,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// Create secure token.
 		$token_string = bin2hex( random_bytes( 32 ) );
 		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + HOUR_IN_SECONDS );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
 
 		$token_id = $this->create( $member_id, $competition_id, $token_hash, $expires_at );
 		if ( is_wp_error( $token_id ) ) {

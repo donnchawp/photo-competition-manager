@@ -103,7 +103,7 @@ class Email_Service {
 				</p>
 
 				<p style="color: #666; font-size: 14px;">
-					<?php esc_html_e( 'This link will expire in 1 hour and can only be used once.', 'club-competitions' ); ?>
+					<?php esc_html_e( 'This link will remain active for 14 days so you can return and continue uploading during that window.', 'club-competitions' ); ?>
 				</p>
 
 				<p style="color: #666; font-size: 14px;">
