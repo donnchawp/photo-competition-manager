@@ -2293,6 +2293,10 @@ class Admin_Screen {
 		$grades     = Competition_Settings::get_grades( $settings );
 		$upload     = Competition_Settings::get_upload_constraints( $settings );
 		$voting     = Competition_Settings::get_voting_config( $settings );
+		$urls       = $settings['urls'] ?? array(
+			'upload_page' => '',
+			'voting_page' => '',
+		);
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Default Competition Settings', 'club-competitions' ) . '</h1>';
@@ -2378,6 +2382,21 @@ class Admin_Screen {
 		echo '</label>';
 		echo '</p>';
 
+		echo '<h2>' . esc_html__( 'URLs', 'club-competitions' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'Default pages used in upload and voting notifications.', 'club-competitions' ) . '</p>';
+
+		echo '<p>';
+		echo '<label for="upload_page_url">' . esc_html__( 'Upload Page URL', 'club-competitions' ) . '</label><br />';
+		echo '<input type="url" id="upload_page_url" name="upload_page_url" value="' . esc_attr( $urls['upload_page'] ?? '' ) . '" class="regular-text" placeholder="https://example.com/upload" />';
+		echo '<br /><span class="description">' . esc_html__( 'Members receive this link when requesting upload tokens.', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_page_url">' . esc_html__( 'Voting Page URL', 'club-competitions' ) . '</label><br />';
+		echo '<input type="url" id="voting_page_url" name="voting_page_url" value="' . esc_attr( $urls['voting_page'] ?? '' ) . '" class="regular-text" placeholder="https://example.com/vote" />';
+		echo '<br /><span class="description">' . esc_html__( 'Voters receive this link in voting invitation emails.', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
 		submit_button( __( 'Save Default Settings', 'club-competitions' ) );
 
 		echo '</form>';
@@ -2444,4 +2463,3 @@ class Admin_Screen {
 		);
 	}
 }
-
