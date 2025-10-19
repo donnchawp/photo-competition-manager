@@ -27,12 +27,12 @@ class Competition_Settings {
 				array(
 					'slug'  => 'colour',
 					'label' => __( 'Colour', 'club-competitions' ),
-					'quota' => 2,
+					'quota' => 1,
 				),
 				array(
 					'slug'  => 'black-white',
 					'label' => __( 'Black & White', 'club-competitions' ),
-					'quota' => 2,
+					'quota' => 1,
 				),
 			),
 			'grades'          => array(
