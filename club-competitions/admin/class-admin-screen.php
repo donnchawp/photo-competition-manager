@@ -151,9 +151,10 @@ class Admin_Screen {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Club Competitions Dashboard', 'club-competitions' ) . '</h1>';
 
+		$this->render_competition_table( $competitions, $view );
+
 		$this->render_create_form();
 
-		$this->render_competition_table( $competitions, $view );
 		echo '</div>';
 	}
 
