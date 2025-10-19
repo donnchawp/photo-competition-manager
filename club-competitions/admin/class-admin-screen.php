@@ -71,6 +71,7 @@ class Admin_Screen {
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 	}
 
 	/**
@@ -450,12 +451,13 @@ class Admin_Screen {
 			}
 		}
 
-		echo '<table class="widefat striped" style="max-width: 900px; margin-top: 20px;">';
+		echo '<table class="widefat striped" style="max-width: 1100px; margin-top: 20px;">';
 		echo '<thead><tr>';
 		echo '<th>' . esc_html__( 'Competition', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Category', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
-		echo '<th>' . esc_html__( 'Action', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Voting', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Slideshow', 'club-competitions' ) . '</th>';
 		echo '</tr></thead>';
 		echo '<tbody>';
 
@@ -467,7 +469,7 @@ class Admin_Screen {
 			if ( empty( $categories ) ) {
 				echo '<tr>';
 				echo '<td>' . esc_html( $competition->title ) . '</td>';
-				echo '<td colspan="3"><em>' . esc_html__( 'No categories configured', 'club-competitions' ) . '</em></td>';
+				echo '<td colspan="4"><em>' . esc_html__( 'No categories configured', 'club-competitions' ) . '</em></td>';
 				echo '</tr>';
 				continue;
 			}
@@ -476,6 +478,10 @@ class Admin_Screen {
 				$category_slug  = $category['slug'] ?? '';
 				$category_label = $category['label'] ?? '';
 				$is_open        = in_array( $category_slug, $open_categories, true );
+
+				// Check if category has images.
+				$images      = $this->images->find_by_competition( (int) $competition->id, $category_slug );
+				$image_count = count( $images );
 
 				echo '<tr>';
 				echo '<td>' . esc_html( $competition->title ) . '</td>';
@@ -521,6 +527,52 @@ class Admin_Screen {
 					}
 				}
 
+				// Slideshow button.
+				if ( $image_count > 0 ) {
+					echo '<td>';
+					// Only allow slideshow if this category has voting open OR no category has voting open.
+					$can_start_slideshow = $is_open || ! $voting_open_globally;
+
+					if ( $can_start_slideshow ) {
+						echo '<button type="button" class="button club-compete-start-slideshow" ';
+						echo 'data-competition-id="' . esc_attr( $competition->id ) . '" ';
+						echo 'data-competition-slug="' . esc_attr( $competition->slug ) . '" ';
+						echo 'data-category="' . esc_attr( $category_slug ) . '" ';
+						echo 'data-category-label="' . esc_attr( $category_label ) . '">';
+						echo esc_html(
+							sprintf(
+								/* translators: %d: number of images */
+								_n(
+									'Start Slideshow (%d image)',
+									'Start Slideshow (%d images)',
+									$image_count,
+									'club-competitions'
+								),
+								$image_count
+							)
+						);
+						echo '</button>';
+					} else {
+						echo '<button type="button" class="button" disabled title="' . esc_attr__( 'Close voting in other category first', 'club-competitions' ) . '">';
+						echo esc_html(
+							sprintf(
+								/* translators: %d: number of images */
+								_n(
+									'Start Slideshow (%d image)',
+									'Start Slideshow (%d images)',
+									$image_count,
+									'club-competitions'
+								),
+								$image_count
+							)
+						);
+						echo '</button>';
+					}
+					echo '</td>';
+				} else {
+					echo '<td><em>' . esc_html__( 'No images', 'club-competitions' ) . '</em></td>';
+				}
+
 				echo '</tr>';
 			}
 		}
@@ -536,7 +588,57 @@ class Admin_Screen {
 			echo '</div>';
 		}
 
+		// Slideshow settings.
+		echo '<div class="slideshow-settings-panel" style="max-width: 900px; margin-top: 30px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">';
+		echo '<h3 style="margin-top: 0;">' . esc_html__( 'Slideshow Settings', 'club-competitions' ) . '</h3>';
+		echo '<p>';
+		echo '<label for="slideshow-duration-setting" style="display: inline-block; min-width: 250px;">';
+		echo esc_html__( 'Display duration per image (seconds):', 'club-competitions' );
+		echo '</label>';
+		echo '<input type="number" id="slideshow-duration-setting" min="3" max="60" value="10" step="1" style="width: 80px;" />';
+		echo ' <span class="description">' . esc_html__( 'How long each image is shown before advancing to the next.', 'club-competitions' ) . '</span>';
+		echo '</p>';
 		echo '</div>';
+
+		// Slideshow container (hidden by default).
+		$this->render_slideshow_container();
+
+		echo '</div>';
+	}
+
+	/**
+	 * Render slideshow container for admin voting controls page.
+	 *
+	 * @return void
+	 */
+	private function render_slideshow_container(): void {
+		?>
+		<div id="club-compete-slideshow-modal" class="slideshow-display" style="display: none;">
+			<div class="slideshow-image-container">
+				<img src="" alt="" class="slideshow-current-image" />
+				<div class="slideshow-image-info">
+					<span class="image-number"></span>
+				</div>
+			</div>
+			<div class="slideshow-progress">
+				<div class="progress-bar" style="width: 0%;"></div>
+			</div>
+			<button type="button" class="slideshow-exit" aria-label="<?php esc_attr_e( 'Exit slideshow', 'club-competitions' ); ?>">
+				<span class="dashicons dashicons-no-alt"></span>
+			</button>
+			<div class="slideshow-controls-overlay">
+				<button type="button" class="button button-large slideshow-pause">
+					<?php esc_html_e( 'Pause', 'club-competitions' ); ?>
+				</button>
+				<button type="button" class="button button-large slideshow-resume" style="display: none;">
+					<?php esc_html_e( 'Resume', 'club-competitions' ); ?>
+				</button>
+				<button type="button" class="button button-large button-primary slideshow-stop">
+					<?php esc_html_e( 'Stop Slideshow', 'club-competitions' ); ?>
+				</button>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -2211,4 +2313,43 @@ class Admin_Screen {
 	private function save_global_settings( array $settings ): void {
 		update_option( 'club_competitions_default_settings', Competition_Settings::encode( $settings ) );
 	}
+
+	/**
+	 * Enqueue admin assets for slideshow.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_admin_assets( string $hook ): void {
+		// Only load on voting controls page.
+		if ( 'competitions_page_club-competitions-voting' !== $hook ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'club-competitions-admin-slideshow',
+			plugins_url( 'assets/css/admin-slideshow.css', dirname( __DIR__ ) . '/club-competitions.php' ),
+			array(),
+			'1.0.0'
+		);
+
+		wp_enqueue_script(
+			'club-competitions-admin-slideshow',
+			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			array( 'jquery' ),
+			'1.0.0',
+			true
+		);
+
+		// Pass AJAX URL and nonce to JavaScript.
+		wp_localize_script(
+			'club-competitions-admin-slideshow',
+			'clubCompeteSlideshow',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'club_compete_admin_slideshow' ),
+			)
+		);
+	}
 }
+

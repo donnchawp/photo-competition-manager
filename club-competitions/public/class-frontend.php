@@ -43,6 +43,13 @@ class Frontend {
 	private $top3_shortcode;
 
 	/**
+	 * Slideshow shortcode handler.
+	 *
+	 * @var Slideshow_Shortcode|null
+	 */
+	private $slideshow_shortcode;
+
+	/**
 	 * Attach public hooks.
 	 *
 	 * @return void
@@ -63,6 +70,10 @@ class Frontend {
 		// Register top 3 shortcode.
 		$this->top3_shortcode = new Top3_Shortcode();
 		$this->top3_shortcode->register();
+
+		// Register slideshow shortcode.
+		$this->slideshow_shortcode = new Slideshow_Shortcode();
+		$this->slideshow_shortcode->register();
 
 		// Enqueue frontend styles.
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );
