@@ -6,8 +6,10 @@ ASSETS_DIR := assets
 WP_ENV := npx @wordpress/env
 MAILPIT_SCRIPT := ./start-mailpit.sh
 MAILPIT_CONTAINER := club-competitions-mailpit
+PLUGIN_NAME := club-competitions
+RELEASE_DIR := release
 
-.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop
+.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release
 
 help: ## Show available targets
 	@echo "Club Competitions Make targets:"
@@ -76,3 +78,25 @@ mailpit-stop: ## Stop and remove the Mailpit container
 	else \
 		echo "Mailpit container $(MAILPIT_CONTAINER) is not running."; \
 	fi
+
+release: clean-release build ## Build production release zip file
+	@echo "Creating production release..."
+	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)
+	@echo "Copying plugin files to release directory..."
+	@rsync -a --exclude-from=.releaseignore $(PLUGIN_NAME)/ $(RELEASE_DIR)/$(PLUGIN_NAME)/
+	@echo "Copying built assets..."
+	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/build
+	@cp -r $(ASSETS_DIR)/build/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/build/
+	@echo "Creating zip file..."
+	@cd $(RELEASE_DIR) && zip -qr $(PLUGIN_NAME).zip $(PLUGIN_NAME)
+	@mv $(RELEASE_DIR)/$(PLUGIN_NAME).zip ./$(PLUGIN_NAME).zip
+	@echo "✓ Release zip created: $(PLUGIN_NAME).zip"
+	@echo ""
+	@echo "Release package info:"
+	@unzip -l $(PLUGIN_NAME).zip | head -20
+
+clean-release: ## Remove release build artifacts
+	@echo "Cleaning release artifacts..."
+	@rm -rf $(RELEASE_DIR)
+	@rm -f $(PLUGIN_NAME).zip
+	@echo "✓ Release artifacts cleaned"
