@@ -51,17 +51,12 @@ class Admin_Screen {
 
 	/**
 	 * Constructor.
-	 *
-	 * @param Competitions_Repository|null $competitions Competition repository.
-	 * @param Members_Repository|null      $members      Member repository.
-	 * @param Images_Repository|null       $images       Images repository.
-	 * @param Votes_Repository|null        $votes        Votes repository.
 	 */
-	public function __construct( ?Competitions_Repository $competitions = null, ?Members_Repository $members = null, ?Images_Repository $images = null, ?Votes_Repository $votes = null ) {
-		$this->competitions = $competitions ?? new Competitions_Repository();
-		$this->members      = $members ?? new Members_Repository();
-		$this->images       = $images ?? new Images_Repository();
-		$this->votes        = $votes ?? new Votes_Repository();
+	public function __construct() {
+		$this->competitions = new Competitions_Repository();
+		$this->members      = new Members_Repository();
+		$this->images       = new Images_Repository();
+		$this->votes        = new Votes_Repository();
 	}
 
 	/**
@@ -124,6 +119,15 @@ class Admin_Screen {
 			'publish_posts',
 			'club-competitions-settings',
 			array( $this, 'render_settings_page' )
+		);
+
+		add_submenu_page(
+			'club-competitions',
+			__( 'Export', 'club-competitions' ),
+			__( 'Export', 'club-competitions' ),
+			'publish_posts',
+			'club-competitions-export',
+			array( $this, 'render_export_page' )
 		);
 	}
 
@@ -696,6 +700,9 @@ class Admin_Screen {
 	 * @return void
 	 */
 	public function handle_actions(): void {
+		$export_screen = new Export_Screen();
+		$export_screen->handle_actions();
+
 		if ( ! current_user_can( 'publish_posts' ) ) {
 			return;
 		}
@@ -1541,6 +1548,16 @@ class Admin_Screen {
 			);
 			exit;
 		}
+	}
+
+	/**
+	 * Render the export page.
+	 *
+	 * @return void
+	 */
+	public function render_export_page(): void {
+		$export_screen = new Export_Screen();
+		$export_screen->render();
 	}
 
 	/**

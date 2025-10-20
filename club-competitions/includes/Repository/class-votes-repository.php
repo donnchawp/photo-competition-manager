@@ -426,4 +426,28 @@ class Votes_Repository extends Abstract_Repository {
 
 		return is_array( $results ) ? $results : array();
 	}
+
+	/**
+	 * Get all votes for a competition, including voter name.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<object>
+	 */
+	public function get_votes_by_competition( int $competition_id ): array {
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$table = $this->table();
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$sql = $this->wpdb->prepare(
+			"SELECT * FROM {$table} WHERE competition_id = %d ORDER BY voter_name, created_at",
+			$competition_id
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results( $sql );
+	}
 }

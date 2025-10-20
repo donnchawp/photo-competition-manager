@@ -374,4 +374,40 @@ class Images_Repository extends Abstract_Repository {
 	protected function table_suffix(): string {
 		return 'clubcompete_images';
 	}
+
+	/**
+	 * Get all images with uploader info.
+	 *
+	 * @return array<object>
+	 */
+	public function get_all_images_with_uploader_info(): array {
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$images_table  = $this->table();
+		$members_table = $this->wpdb->prefix . 'clubcompete_members';
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$sql = "
+			SELECT
+				i.id,
+				i.competition_id,
+				i.member_id,
+				i.category,
+				i.filename,
+				i.random_number,
+				i.score,
+				i.created_at,
+				m.name AS member_name,
+				m.email AS member_email
+			FROM {$images_table} AS i
+			LEFT JOIN {$members_table} AS m ON i.member_id = m.id
+			ORDER BY i.member_id ASC
+		";
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results( $sql );
+	}
 }
