@@ -93,6 +93,11 @@ class Upload_Shortcode {
 	 * @return string
 	 */
 	public function render( $atts ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Shortcode signature requires $atts.
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
 		$competition = $this->competitions_repo->find_current_active();
 		if ( ! $competition ) {
 			return '<p class="error">' . esc_html__( 'No active competition is currently accepting uploads.', 'club-competitions' ) . '</p>';
