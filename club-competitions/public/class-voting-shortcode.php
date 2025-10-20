@@ -118,6 +118,11 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	public function render(): string {
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
 		// Find the most recent active competition.
 		$competition = $this->competitions_repo->find_current_active();
 
@@ -190,7 +195,12 @@ class Voting_Shortcode {
 	 */
 	private function render_password_based_voting( object $competition, array $settings ): string {
 		// Handle vote submission.
-		$message        = '';
+		$message      = '';
+		$status_param = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';
+		if ( 'success' === $status_param ) {
+			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'club-competitions' ) . '</p>';
+		}
+
 		$submitted_data = array(
 			'voter_name'      => '',
 			'category'        => '',
@@ -200,7 +210,22 @@ class Voting_Shortcode {
 
 		if ( isset( $_POST['club_competitions_vote'] ) && check_admin_referer( 'club_competitions_vote', 'club_competitions_vote_nonce' ) ) {
 			$submitted_data = $this->collect_password_submission_data( $_POST, $settings );
-			$message        = $this->handle_vote_submission_password( $competition, $settings, $submitted_data );
+			$result         = $this->handle_vote_submission_password( $competition, $settings, $submitted_data );
+
+			if ( 'success' === $result['status'] ) {
+				$redirect_args = array(
+					'vote_status' => 'success',
+				);
+
+				if ( ! empty( $result['category'] ) ) {
+					$redirect_args['vote_category'] = $result['category'];
+				}
+
+				wp_safe_redirect( add_query_arg( $redirect_args, get_permalink() ) );
+				exit;
+			}
+
+			$message = $result['message'];
 		}
 
 		ob_start();
@@ -307,8 +332,10 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'club-competitions' ) . '</p>';
 		}
 
-		// Remove any previously recorded votes for this token to allow replacement.
-		$this->votes_repo->delete_by_token( (int) $token_record->id );
+		$existing_scores = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
+		if ( ! empty( $existing_scores ) ) {
+			return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'club-competitions' ) . '</p>';
+		}
 
 		// Process votes.
 		$success_count = 0;
@@ -345,20 +372,28 @@ class Voting_Shortcode {
 	 * @param object $competition Competition object.
 	 * @param array  $settings    Competition settings.
 	 * @param array  $submission  Sanitized submission data.
-	 * @return string Message to display.
+	 * @return array{status:string,message:string,category:string} Submission outcome.
 	 */
-	private function handle_vote_submission_password( object $competition, array $settings, array $submission ): string {
+	private function handle_vote_submission_password( object $competition, array $settings, array $submission ): array {
 		$voter_name    = $submission['voter_name'] ?? '';
 		$category      = $submission['category'] ?? '';
 		$votes         = $submission['votes'] ?? array();
 		$provided_pass = $submission['voting_password'] ?? '';
 
 		if ( '' === $voter_name ) {
-			return '<p class="error">' . esc_html__( 'Please enter your name.', 'club-competitions' ) . '</p>';
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html__( 'Please enter your name.', 'club-competitions' ) . '</p>',
+				'category' => $category,
+			);
 		}
 
 		if ( '' === $category ) {
-			return '<p class="error">' . esc_html__( 'Invalid category.', 'club-competitions' ) . '</p>';
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html__( 'Invalid category.', 'club-competitions' ) . '</p>',
+				'category' => $category,
+			);
 		}
 
 		// Verify voting is open for this category.
@@ -368,24 +403,46 @@ class Voting_Shortcode {
 
 		if ( '' !== $expected_password ) {
 			if ( '' === $provided_pass ) {
-				return '<p class="error">' . esc_html__( 'Please enter the voting password.', 'club-competitions' ) . '</p>';
+				return array(
+					'status'   => 'error',
+					'message'  => '<p class="error">' . esc_html__( 'Please enter the voting password.', 'club-competitions' ) . '</p>',
+					'category' => $category,
+				);
 			}
 
 			if ( ! \hash_equals( $expected_password, $provided_pass ) ) {
-				return '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'club-competitions' ) . '</p>';
+				return array(
+					'status'   => 'error',
+					'message'  => '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'club-competitions' ) . '</p>',
+					'category' => $category,
+				);
 			}
 		}
 
 		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
-			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'club-competitions' ) . '</p>';
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'club-competitions' ) . '</p>',
+				'category' => $category,
+			);
 		}
 
 		if ( empty( $votes ) ) {
-			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>';
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'club-competitions' ) . '</p>',
+				'category' => $category,
+			);
 		}
 
-		// Clear existing votes for this voter/category before saving replacements.
-		$this->votes_repo->delete_by_voter( (int) $competition->id, $category, $voter_name );
+		if ( $this->votes_repo->has_voted( (int) $competition->id, $category, $voter_name ) ) {
+			$this->refresh_voter_cookie( $voter_name, $provided_pass );
+			return array(
+				'status'   => 'already_voted',
+				'message'  => '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'club-competitions' ) . '</p>',
+				'category' => $category,
+			);
+		}
 
 		// Process votes.
 		$success_count = 0;
@@ -399,10 +456,18 @@ class Voting_Shortcode {
 
 		if ( $success_count > 0 ) {
 			$this->refresh_voter_cookie( $voter_name, $provided_pass );
-			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded.', 'club-competitions' ) . '</p>';
+			return array(
+				'status'   => 'success',
+				'message'  => '',
+				'category' => $category,
+			);
 		}
 
-		return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'club-competitions' ) . '</p>';
+		return array(
+			'status'   => 'error',
+			'message'  => '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'club-competitions' ) . '</p>',
+			'category' => $category,
+		);
 	}
 
 	/**
@@ -509,10 +574,11 @@ class Voting_Shortcode {
 				if ( $token_record ) {
 					$existing_scores = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
 					$existing_votes  = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
+				}
 
-					if ( ! empty( $existing_votes ) ) {
-						echo '<p class="notice notice-info">' . esc_html__( 'We pre-filled your previous votes. Adjust and submit again if you would like to change them.', 'club-competitions' ) . '</p>';
-					}
+				if ( ! empty( $existing_votes ) ) {
+					echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'club-competitions' ) . '</p>';
+					return;
 				}
 
 				// Get category label.
@@ -532,9 +598,6 @@ class Voting_Shortcode {
 					return;
 				}
 
-				if ( empty( $submitted_votes ) ) {
-					$submitted_votes = $existing_votes;
-				}
 				?>
 
 				<div class="current-category">
@@ -719,6 +782,18 @@ class Voting_Shortcode {
 		$password_enabled = '' !== $voting_password;
 		$cookie_payload   = $this->get_voter_cookie();
 
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$success_status = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';
+		$requested_slug = isset( $_GET['vote_category'] ) ? sanitize_text_field( wp_unslash( $_GET['vote_category'] ) ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		$valid_slugs            = array_map(
+			function ( $category ) {
+				return $category['slug'] ?? '';
+			},
+			$voting_categories
+		);
+		$limit_prefill_category = ( 'success' === $success_status && in_array( $requested_slug, $valid_slugs, true ) ) ? $requested_slug : '';
+
 		$voter_name_value = $submitted_data['voter_name'] ?? '';
 		if ( '' === $voter_name_value ) {
 			$voter_name_value = $cookie_payload['name'];
@@ -760,18 +835,25 @@ class Voting_Shortcode {
 						continue;
 					}
 
-					$category_votes         = array();
-					$prefilled_from_history = false;
-					if ( $current_category === $category_slug && ! empty( $submitted_votes ) ) {
-						$category_votes = $submitted_votes;
-					} elseif ( '' !== $voter_name_value ) {
-						$existing_scores        = $this->votes_repo->get_votes_by_voter( (int) $competition->id, $category_slug, $voter_name_value );
-						$category_votes         = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
-						$prefilled_from_history = ! empty( $category_votes );
+					$has_voted = false;
+					if ( '' !== $voter_name_value ) {
+						$has_voted = $this->votes_repo->has_voted( (int) $competition->id, $category_slug, $voter_name_value );
 					}
 
-					if ( $prefilled_from_history ) {
-						echo '<p class="notice notice-info">' . esc_html__( 'We pre-filled your previous votes. Adjust and submit again if you would like to change them.', 'club-competitions' ) . '</p>';
+					if ( $has_voted ) {
+						echo '<div class="voting-category-section voting-category-complete">';
+						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
+						echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'club-competitions' ) . '</p>';
+						echo '</div>';
+						continue;
+					}
+
+					$category_votes = array();
+					if ( $current_category === $category_slug && ! empty( $submitted_votes ) ) {
+						$category_votes = $submitted_votes;
+					} elseif ( '' !== $voter_name_value && ( '' === $limit_prefill_category || $limit_prefill_category === $category_slug ) ) {
+						$existing_scores = $this->votes_repo->get_votes_by_voter( (int) $competition->id, $category_slug, $voter_name_value );
+						$category_votes  = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
 					}
 					?>
 
@@ -809,7 +891,7 @@ class Voting_Shortcode {
 					?>
 				</p>
 				<p>
-					<?php esc_html_e( 'You can assign the same score to multiple images if you feel they deserve identical points.', 'club-competitions' ); ?>
+					<?php esc_html_e( 'You can assign the same score to multiple images.', 'club-competitions' ); ?>
 				</p>
 			</div>
 
