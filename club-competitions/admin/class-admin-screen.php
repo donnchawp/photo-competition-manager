@@ -491,6 +491,7 @@ class Admin_Screen {
 		$voting_open_globally = false;
 		$open_competition_id  = null;
 		$open_category_slug   = null;
+		$open_competition     = null;
 
 		foreach ( $active_competitions as $competition ) {
 			$settings        = Competition_Settings::parse( $competition->settings );
@@ -500,8 +501,76 @@ class Admin_Screen {
 				$voting_open_globally = true;
 				$open_competition_id  = (int) $competition->id;
 				$open_category_slug   = $open_categories[0];
+				$open_competition     = $competition;
 				break;
 			}
+		}
+
+		$voting_page_url    = '';
+		$voting_page_source = '';
+		$voting_category    = '';
+		$voting_competition = '';
+
+		if ( $open_competition ) {
+			$open_settings = Competition_Settings::parse( $open_competition->settings );
+			$urls          = $open_settings['urls'] ?? array();
+
+			if ( ! empty( $urls['voting_page'] ) ) {
+				$voting_page_url    = $urls['voting_page'];
+				$voting_page_source = 'competition';
+				$voting_competition = $open_competition->title;
+			}
+
+			if ( $open_category_slug ) {
+				$categories = Competition_Settings::get_categories( $open_settings );
+
+				foreach ( $categories as $category ) {
+					if ( ( $category['slug'] ?? '' ) === $open_category_slug ) {
+						$voting_category = $category['label'] ?? '';
+						break;
+					}
+				}
+			}
+		}
+
+		if ( empty( $voting_page_url ) ) {
+			$global_settings = $this->get_global_settings();
+			$global_urls     = $global_settings['urls'] ?? array();
+
+			if ( ! empty( $global_urls['voting_page'] ) ) {
+				$voting_page_url    = $global_urls['voting_page'];
+				$voting_page_source = 'default';
+			}
+		}
+
+		if ( ! empty( $voting_page_url ) ) {
+			echo '<div class="club-compete-qr-card" data-voting-url="' . esc_attr( $voting_page_url ) . '">';
+			echo '<div class="club-compete-qr-image" role="img" aria-label="' . esc_attr__( 'Voting page QR code', 'club-competitions' ) . '">';
+			echo '<div class="club-compete-qr-canvas"></div>';
+			echo '</div>';
+			echo '<div class="club-compete-qr-details">';
+			echo '<h2>' . esc_html__( 'Voting Page QR Code', 'club-competitions' ) . '</h2>';
+			echo '<p class="description">' . esc_html__( 'Display this code so voters can quickly open the voting page on their devices.', 'club-competitions' ) . '</p>';
+
+			if ( 'competition' === $voting_page_source && ! empty( $voting_competition ) ) {
+				echo '<p><strong>' . esc_html__( 'Competition:', 'club-competitions' ) . '</strong> ' . esc_html( $voting_competition ) . '</p>';
+
+				if ( ! empty( $voting_category ) ) {
+					echo '<p><strong>' . esc_html__( 'Category:', 'club-competitions' ) . '</strong> ' . esc_html( $voting_category ) . '</p>';
+				}
+			} elseif ( 'default' === $voting_page_source ) {
+				echo '<p class="description">' . esc_html__( 'No competition-specific voting page is configured. Using the default voting page URL.', 'club-competitions' ) . '</p>';
+			}
+
+			echo '<p><a href="' . esc_url( $voting_page_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $voting_page_url ) . '</a></p>';
+			echo '</div>';
+			echo '</div>';
+		} else {
+			echo '<div class="notice notice-warning inline" style="max-width: 900px; margin-top: 20px;">';
+			echo '<p><strong>' . esc_html__( 'Voting page not configured.', 'club-competitions' ) . '</strong> ';
+			echo esc_html__( 'Add a voting page URL to the competition or default settings to show a QR code here.', 'club-competitions' );
+			echo '</p>';
+			echo '</div>';
 		}
 
 		echo '<table class="widefat striped" style="max-width: 1100px; margin-top: 20px;">';
@@ -2645,6 +2714,22 @@ class Admin_Screen {
 			'club-competitions-admin-slideshow',
 			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/club-competitions.php' ),
 			array( 'jquery' ),
+			'1.0.0',
+			true
+		);
+
+		wp_enqueue_script(
+			'club-competitions-qrcode',
+			plugins_url( 'assets/js/vendor/qrcode.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			array(),
+			'1.0.0',
+			true
+		);
+
+		wp_enqueue_script(
+			'club-competitions-admin-qr',
+			plugins_url( 'assets/js/admin-qr.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			array( 'club-competitions-qrcode' ),
 			'1.0.0',
 			true
 		);
