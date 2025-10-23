@@ -56,10 +56,11 @@ class Competition_Settings {
 				'allowed_formats'  => array( 'jpg', 'jpeg' ),
 			),
 			'voting'          => array(
-				'score_matrix'    => array( 9, 8, 7, 6, 5 ),
-				'open_categories' => array(), // Array of category slugs where voting is open.
-				'auth_mode'       => 'password', // 'password' or 'token' (email magic links).
-				'password'        => '',
+				'score_matrix'         => array( 9, 8, 7, 6, 5 ),
+				'open_categories'      => array(), // Array of category slugs where voting is open.
+				'auth_mode'            => 'password', // 'password' or 'token' (email magic links).
+				'password'             => '',
+				'click_image_to_zoom'  => false, // Whether images are clickable to open full-size in voting form.
 			),
 			'slideshow'       => array(
 				'duration_seconds' => 10,

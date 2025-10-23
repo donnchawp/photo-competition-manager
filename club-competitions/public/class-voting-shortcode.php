@@ -495,8 +495,9 @@ class Voting_Shortcode {
 			}
 		);
 
-		// Get score matrix.
-		$score_matrix = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		// Get score matrix and image click setting.
+		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 
 		?>
 		<div class="club-competitions-voting">
@@ -664,13 +665,17 @@ class Voting_Shortcode {
 							<div class="voting-image-item" data-image-id="<?php echo esc_attr( $image->id ); ?>">
 								<div class="image-wrapper">
 									<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
-										<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-											<?php
-											// translators: %d: image random number.
-											$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
-											?>
+										<?php
+										// translators: %d: image random number.
+										$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
+										?>
+										<?php if ( $click_image_to_zoom ) : ?>
+											<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
+												<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
+											</a>
+										<?php else : ?>
 											<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
-										</a>
+										<?php endif; ?>
 									<?php else : ?>
 										<div class="image-unavailable"><?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?></div>
 									<?php endif; ?>
@@ -776,10 +781,11 @@ class Voting_Shortcode {
 			}
 		);
 
-		// Get score matrix.
-		$score_matrix     = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
-		$voting_password  = $voting_config['password'] ?? '';
-		$password_enabled = '' !== $voting_password;
+		// Get score matrix and image click setting.
+		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$voting_password     = $voting_config['password'] ?? '';
+		$password_enabled    = '' !== $voting_password;
+		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$cookie_payload   = $this->get_voter_cookie();
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended
@@ -939,13 +945,17 @@ class Voting_Shortcode {
 									<div class="voting-image-item" data-image-id="<?php echo esc_attr( $image->id ); ?>">
 										<div class="image-wrapper">
 											<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
-												<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-													<?php
-													// translators: %d: image random number.
-													$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
-													?>
+												<?php
+												// translators: %d: image random number.
+												$alt = sprintf( __( 'Image %d', 'club-competitions' ), $image->random_number );
+												?>
+												<?php if ( $click_image_to_zoom ) : ?>
+													<a href="<?php echo esc_url( $image_url ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
+														<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
+													</a>
+												<?php else : ?>
 													<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt ); ?>" loading="lazy" />
-												</a>
+												<?php endif; ?>
 											<?php else : ?>
 												<div class="image-unavailable"><?php esc_html_e( 'Image unavailable', 'club-competitions' ); ?></div>
 											<?php endif; ?>

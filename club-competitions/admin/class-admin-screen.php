@@ -1362,6 +1362,7 @@ class Admin_Screen {
 			}
 
 						$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+						$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
 						$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 						$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
@@ -1376,10 +1377,11 @@ class Admin_Screen {
 								'allowed_formats'  => array( 'jpg', 'jpeg' ),
 							),
 							'voting'          => array(
-								'score_matrix'    => $score_matrix,
-								'open_categories' => $existing_open_categories,
-								'auth_mode'       => $auth_mode_input,
-								'password'        => $voting_password,
+								'score_matrix'         => $score_matrix,
+								'open_categories'      => $existing_open_categories,
+								'auth_mode'            => $auth_mode_input,
+								'password'             => $voting_password,
+								'click_image_to_zoom'  => $click_image_to_zoom,
 							),
 							'slideshow'       => array(
 								'duration_seconds' => 10,
@@ -1477,6 +1479,7 @@ class Admin_Screen {
 			}
 
 			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+			$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
@@ -1491,10 +1494,11 @@ class Admin_Screen {
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
-					'score_matrix'    => $score_matrix,
-					'open_categories' => $existing_open_categories,
-					'auth_mode'       => $auth_mode_input,
-					'password'        => $voting_password,
+					'score_matrix'         => $score_matrix,
+					'open_categories'      => $existing_open_categories,
+					'auth_mode'            => $auth_mode_input,
+					'password'             => $voting_password,
+					'click_image_to_zoom'  => $click_image_to_zoom,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -1852,6 +1856,15 @@ class Admin_Screen {
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'club-competitions' ) . '</label><br />';
 		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based".', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		$click_to_zoom = isset( $voting['click_image_to_zoom'] ) ? (bool) $voting['click_image_to_zoom'] : false;
+		echo '<label for="click_image_to_zoom">';
+		echo '<input type="checkbox" id="click_image_to_zoom" name="click_image_to_zoom" value="1"' . checked( $click_to_zoom, true, false ) . ' />';
+		echo ' ' . esc_html__( 'Click image to zoom on voting form', 'club-competitions' );
+		echo '</label><br />';
+		echo '<span class="description">' . esc_html__( 'When enabled, images in the voting form can be clicked to open full-size in a new tab. When disabled, images are not clickable to prevent accidental navigation. Recommended: off for touch devices.', 'club-competitions' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';
@@ -2640,6 +2653,15 @@ class Admin_Screen {
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'club-competitions' ) . '</label><br />';
 		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable by default. Only used when auth mode is "Password-based".', 'club-competitions' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		$click_to_zoom = isset( $voting['click_image_to_zoom'] ) ? (bool) $voting['click_image_to_zoom'] : false;
+		echo '<label for="click_image_to_zoom">';
+		echo '<input type="checkbox" id="click_image_to_zoom" name="click_image_to_zoom" value="1"' . checked( $click_to_zoom, true, false ) . ' />';
+		echo ' ' . esc_html__( 'Click image to zoom on voting form', 'club-competitions' );
+		echo '</label><br />';
+		echo '<span class="description">' . esc_html__( 'When enabled, images in the voting form can be clicked to open full-size in a new tab. When disabled, images are not clickable to prevent accidental navigation. Recommended: off for touch devices.', 'club-competitions' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';
