@@ -140,8 +140,14 @@ class Results_Shortcode {
 		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 		$members    = $this->members_repo->find_many( $member_ids );
 
-		// Calculate scores for each image.
-		$image_scores = $this->votes_repo->calculate_averages( (int) $competition->id );
+		// Get all unique categories from images.
+		$image_categories = array_unique( array_map( fn( $img ) => $img->category, $images ) );
+
+		// Calculate scores for each image, grouped by category.
+		$image_scores_by_category = array();
+		foreach ( $image_categories as $cat ) {
+			$image_scores_by_category[ $cat ] = $this->votes_repo->calculate_averages( (int) $competition->id, $cat );
+		}
 
 		// Group images by category first, then by grade within each category.
 		$results_by_category = array();
@@ -151,10 +157,11 @@ class Results_Shortcode {
 				continue;
 			}
 
-			$category    = $image->category;
-			$grade       = ! empty( $member->grade ) ? $member->grade : 'unknown';
-			$score_data  = $image_scores[ (int) $image->id ] ?? null;
-			$total_score = null !== $score_data ? $score_data['average_score'] : 0;
+			$category         = $image->category;
+			$grade            = ! empty( $member->grade ) ? $member->grade : 'unknown';
+			$category_scores  = $image_scores_by_category[ $category ] ?? array();
+			$score_data       = $category_scores[ (int) $image->id ] ?? null;
+			$total_score      = null !== $score_data ? $score_data['average_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();
