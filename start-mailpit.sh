@@ -24,8 +24,8 @@ echo "Starting Mailpit..."
 docker run -d \
     --name club-competitions-mailpit \
     --network "$WPENV_NETWORK" \
-    -p 8025:8025 \
-    -p 1025:1025 \
+    -p 8026:8025 \
+    -p 1026:1025 \
     -e MP_SMTP_AUTH_ACCEPT_ANY=1 \
     -e MP_SMTP_AUTH_ALLOW_INSECURE=1 \
     axllent/mailpit:latest
