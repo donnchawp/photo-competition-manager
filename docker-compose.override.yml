@@ -6,8 +6,8 @@ services:
     image: axllent/mailpit:latest
     container_name: club-competitions-mailpit
     ports:
-      - "8025:8025"  # Web UI
-      - "1025:1025"  # SMTP server
+      - "8026:8025"  # Web UI (changed from 8025 to avoid conflicts)
+      - "1026:1025"  # SMTP server (changed from 1025 to avoid conflicts)
     networks:
       - wpenv
     environment:
