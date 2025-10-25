@@ -150,7 +150,7 @@ class Top3_Shortcode {
 			$category    = $image->category;
 			$grade       = $member->grade ? $member->grade : 'unknown';
 			$score_data  = $image_scores[ (int) $image->id ] ?? null;
-			$total_score = $score_data ? $score_data['average_score'] : 0;
+			$total_score = $score_data ? ( $score_data['average_score'] * $score_data['vote_count'] ) : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();
@@ -244,7 +244,7 @@ class Top3_Shortcode {
 												<div class="member-info">
 													<div class="member-name"><?php echo esc_html( $member->name ); ?></div>
 													<div class="score-info">
-														<span class="score"><?php echo esc_html( number_format( $total_score, 2 ) ); ?></span>
+														<span class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></span>
 														<span class="vote-count">(<?php echo esc_html( $vote_count ); ?> <?php esc_html_e( 'votes', 'club-competitions' ); ?>)</span>
 													</div>
 												</div>

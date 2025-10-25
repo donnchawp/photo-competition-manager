@@ -12,6 +12,7 @@ use ClubCompetitions\Repository\Competitions_Repository;
 use ClubCompetitions\Repository\Images_Repository;
 use ClubCompetitions\Repository\Members_Repository;
 use ClubCompetitions\Repository\Votes_Repository;
+use ClubCompetitions\Service\Email_Service;
 use ClubCompetitions\Service\Results_Analytics;
 use ClubCompetitions\Service\Score_Calculator;
 use ClubCompetitions\Support\Competition_Settings;
@@ -68,14 +69,22 @@ class Results_Controller {
 	private $calculator;
 
 	/**
+	 * Email service.
+	 *
+	 * @var Email_Service
+	 */
+	private $email_service;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository $competitions Competitions repository.
-	 * @param Images_Repository       $images       Images repository.
-	 * @param Members_Repository      $members      Members repository.
-	 * @param Votes_Repository        $votes        Votes repository.
-	 * @param Results_Analytics       $analytics    Results analytics service.
-	 * @param Score_Calculator        $calculator   Score calculator service.
+	 * @param Competitions_Repository $competitions  Competitions repository.
+	 * @param Images_Repository       $images        Images repository.
+	 * @param Members_Repository      $members       Members repository.
+	 * @param Votes_Repository        $votes         Votes repository.
+	 * @param Results_Analytics       $analytics     Results analytics service.
+	 * @param Score_Calculator        $calculator    Score calculator service.
+	 * @param Email_Service           $email_service Email service.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -83,14 +92,16 @@ class Results_Controller {
 		Members_Repository $members,
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
-		Score_Calculator $calculator
+		Score_Calculator $calculator,
+		Email_Service $email_service
 	) {
-		$this->competitions = $competitions;
-		$this->images       = $images;
-		$this->members      = $members;
-		$this->votes        = $votes;
-		$this->analytics    = $analytics;
-		$this->calculator   = $calculator;
+		$this->competitions  = $competitions;
+		$this->images        = $images;
+		$this->members       = $members;
+		$this->votes         = $votes;
+		$this->analytics     = $analytics;
+		$this->calculator    = $calculator;
+		$this->email_service = $email_service;
 	}
 
 	/**
@@ -140,6 +151,46 @@ class Results_Controller {
 						/* translators: %d: number of images updated */
 						__( 'Scores recalculated successfully. %d images updated.', 'club-competitions' ),
 						$result['updated']
+					),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'        => 'club-competitions-results',
+						'competition' => $competition_id,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		if ( 'email_results' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'club_competitions_email_results_' . $competition_id );
+
+			$result = $this->email_results_to_members( $competition_id );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_results',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_results',
+					'results_emailed',
+					sprintf(
+						/* translators: 1: Number of emails sent, 2: Total number of members */
+						__( 'Results emailed successfully. Sent %1$d of %2$d emails.', 'club-competitions' ),
+						$result['sent_count'],
+						$result['total_count']
 					),
 					'updated'
 				);
@@ -262,10 +313,10 @@ class Results_Controller {
 		// Summary cards.
 		echo '<div class="club-compete-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">';
 
-		$this->render_summary_card( __( 'Total Images', 'club-competitions' ), $summary['total_images'], 'dashicons-format-image' );
-		$this->render_summary_card( __( 'Total Votes', 'club-competitions' ), $summary['total_votes'], 'dashicons-yes' );
-		$this->render_summary_card( __( 'Participants', 'club-competitions' ), $summary['total_members'], 'dashicons-groups' );
-		$this->render_summary_card( __( 'Avg Score', 'club-competitions' ), $summary['average_score'], 'dashicons-star-filled' );
+		$this->render_summary_card( __( 'Total Images', 'club-competitions' ), number_format( $summary['total_images'], 0 ), 'dashicons-format-image' );
+		$this->render_summary_card( __( 'Total Votes', 'club-competitions' ), number_format( $summary['total_votes'], 0 ), 'dashicons-yes' );
+		$this->render_summary_card( __( 'Participants', 'club-competitions' ), number_format( $summary['total_members'], 0 ), 'dashicons-groups' );
+		$this->render_summary_card( __( 'Avg Score', 'club-competitions' ), number_format( (float) $summary['average_score'], 2 ), 'dashicons-star-filled' );
 
 		echo '</div>';
 
@@ -308,9 +359,9 @@ class Results_Controller {
 			echo '<p>';
 			echo '<strong>' . esc_html__( 'Images:', 'club-competitions' ) . '</strong> ' . absint( $breakdown['images'] ) . ' | ';
 			echo '<strong>' . esc_html__( 'Votes:', 'club-competitions' ) . '</strong> ' . absint( $breakdown['votes'] ) . ' | ';
-			echo '<strong>' . esc_html__( 'Avg Score:', 'club-competitions' ) . '</strong> ' . esc_html( $breakdown['average_score'] ) . ' | ';
-			echo '<strong>' . esc_html__( 'Range:', 'club-competitions' ) . '</strong> ' . esc_html( $breakdown['min_score'] ) . ' - ' . esc_html( $breakdown['max_score'] ) . ' | ';
-			echo '<strong>' . esc_html__( 'Participation:', 'club-competitions' ) . '</strong> ' . esc_html( $breakdown['participation_rate'] ) . '%';
+			echo '<strong>' . esc_html__( 'Avg Score:', 'club-competitions' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['average_score'], 2 ) ) . ' | ';
+			echo '<strong>' . esc_html__( 'Range:', 'club-competitions' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['min_score'], 0 ) ) . ' - ' . esc_html( number_format( (float) $breakdown['max_score'], 0 ) ) . ' | ';
+			echo '<strong>' . esc_html__( 'Participation:', 'club-competitions' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['participation_rate'], 1 ) ) . '%';
 			echo '</p>';
 			echo '</div>';
 
@@ -353,6 +404,23 @@ class Results_Controller {
 		echo '<a href="' . esc_url( $export_url ) . '" class="button button-primary">';
 		echo '<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> ';
 		echo esc_html__( 'Export Results (CSV)', 'club-competitions' );
+		echo '</a> ';
+
+		$email_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'        => 'club-competitions-results',
+					'action'      => 'email_results',
+					'competition' => (int) $competition->id,
+				),
+				admin_url( 'admin.php' )
+			),
+			'club_competitions_email_results_' . (int) $competition->id
+		);
+
+		echo '<a href="' . esc_url( $email_url ) . '" class="button button-secondary">';
+		echo '<span class="dashicons dashicons-email" style="margin-top: 3px;"></span> ';
+		echo esc_html__( 'Email Results', 'club-competitions' );
 		echo '</a>';
 
 		echo '</div>';
@@ -460,7 +528,9 @@ class Results_Controller {
 				}
 				echo '</td>';
 
-				echo '<td><strong>' . esc_html( number_format( (float) $result->average_score, 2 ) ) . '</strong></td>';
+				// Calculate sum of votes (total points).
+				$total_score = (float) $result->average_score * (int) $result->vote_count;
+				echo '<td><strong>' . esc_html( number_format( $total_score, 0 ) ) . '</strong></td>';
 				echo '<td>' . absint( $result->vote_count ) . '</td>';
 
 				echo '<td>';
@@ -557,8 +627,8 @@ class Results_Controller {
 		echo '<tr><th>' . esc_html__( 'Total Votes', 'club-competitions' ) . '</th><td>' . absint( $statistics['count'] ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Average Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['average'], 2 ) ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Median Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['median'], 2 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Min Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['min'], 2 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Max Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['max'], 2 ) ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Min Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['min'], 0 ) ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Max Score', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['max'], 0 ) ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Std Deviation', 'club-competitions' ) . '</th><td>' . esc_html( number_format( $statistics['std_dev'], 2 ) ) . '</td></tr>';
 		echo '</table>';
 
@@ -579,7 +649,7 @@ class Results_Controller {
 
 				echo '<tr>';
 				echo '<td>' . esc_html( $voter_name ) . '</td>';
-				echo '<td><strong>' . esc_html( number_format( (float) $vote->score, 2 ) ) . '</strong></td>';
+				echo '<td><strong>' . esc_html( number_format( (float) $vote->score, 0 ) ) . '</strong></td>';
 				echo '<td>' . esc_html( $this->format_datetime( $vote->created_at ) ) . '</td>';
 				echo '</tr>';
 			}
@@ -663,7 +733,7 @@ class Results_Controller {
 						$member ? $member->name : '',
 						$member ? $member->email : '',
 						$member ? $member->grade : '',
-						number_format( (float) $result->average_score, 2 ),
+						number_format( (float) $result->average_score * (int) $result->vote_count, 0 ),
 						$result->vote_count,
 						$result->filename,
 					)
@@ -706,5 +776,107 @@ class Results_Controller {
 		$settings = get_option( 'club_compete_global_settings', array() );
 
 		return is_array( $settings ) ? $settings : array();
+	}
+
+	/**
+	 * Email results to all members who submitted images.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array{success: bool, sent_count: int, total_count: int, message: string}
+	 */
+	private function email_results_to_members( int $competition_id ): array {
+		$competition = $this->competitions->find( $competition_id );
+		if ( ! $competition ) {
+			return array(
+				'success'     => false,
+				'sent_count'  => 0,
+				'total_count' => 0,
+				'message'     => __( 'Competition not found.', 'club-competitions' ),
+			);
+		}
+
+		$settings   = \ClubCompetitions\Support\Competition_Settings::parse( $competition->settings );
+		$categories = \ClubCompetitions\Support\Competition_Settings::get_categories( $settings );
+
+		// Collect all members who submitted images.
+		$member_ids = array();
+		foreach ( $categories as $category ) {
+			$category_slug = $category['slug'] ?? '';
+			if ( empty( $category_slug ) ) {
+				continue;
+			}
+
+			$images = $this->images->find_by_competition( $competition_id, $category_slug );
+			foreach ( $images as $image ) {
+				$member_ids[ $image->member_id ] = true;
+			}
+		}
+
+		$sent_count  = 0;
+		$total_count = count( $member_ids );
+
+		foreach ( array_keys( $member_ids ) as $member_id ) {
+			$member = $this->members->find( (int) $member_id );
+			if ( ! $member || empty( $member->email ) ) {
+				continue;
+			}
+
+			// Build member results data.
+			$member_results = array(
+				'images' => array(),
+			);
+
+			foreach ( $categories as $category ) {
+				$category_slug  = $category['slug'] ?? '';
+				$category_label = $category['label'] ?? $category_slug;
+
+				if ( empty( $category_slug ) ) {
+					continue;
+				}
+
+				$results = $this->calculator->get_results( $competition_id, $category_slug );
+
+				// Find this member's images in the results.
+				$rank = 1;
+				foreach ( $results as $result ) {
+					if ( (int) $result->member_id === (int) $member_id ) {
+						$image_details = $this->analytics->get_image_details( (int) $result->id );
+
+						$member_results['images'][] = array(
+							'category_label' => $category_label,
+							'image_number'   => $result->random_number,
+							'rank'           => $rank,
+							'statistics'     => $image_details['statistics'],
+							'votes'          => $image_details['votes'],
+						);
+					}
+					++$rank;
+				}
+			}
+
+			// Send email to member.
+			$sent = $this->email_service->send_results_email(
+				$member->email,
+				$member->name,
+				$competition->title,
+				$member_results
+			);
+
+			if ( $sent ) {
+				++$sent_count;
+			}
+		}
+
+		return array(
+			'success'     => true,
+			'sent_count'  => $sent_count,
+			'total_count' => $total_count,
+			'message'     => sprintf(
+				/* translators: %1$d: number of emails sent, %2$d: total number of members */
+				__( 'Sent results to %1$d of %2$d members.', 'club-competitions' ),
+				$sent_count,
+				$total_count
+			),
+		);
 	}
 }

@@ -161,7 +161,7 @@ class Results_Shortcode {
 			$grade           = ! empty( $member->grade ) ? $member->grade : 'unknown';
 			$category_scores = $image_scores_by_category[ $category ] ?? array();
 			$score_data      = $category_scores[ (int) $image->id ] ?? null;
-			$total_score     = null !== $score_data ? $score_data['average_score'] : 0;
+			$total_score     = null !== $score_data ? ( $score_data['average_score'] * $score_data['vote_count'] ) : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();
@@ -256,7 +256,7 @@ class Results_Shortcode {
 														<?php if ( ! $hide_names ) : ?>
 															<td class="member-name"><?php echo esc_html( $member->name ); ?></td>
 														<?php endif; ?>
-														<td class="score"><?php echo esc_html( number_format( $total_score, 2 ) ); ?></td>
+														<td class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
 														<td class="vote-count"><?php echo esc_html( $vote_count ); ?></td>
 													</tr>
 												<?php endforeach; ?>
