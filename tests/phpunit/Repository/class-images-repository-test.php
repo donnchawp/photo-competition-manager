@@ -2,14 +2,14 @@
 /**
  * Tests for Images_Repository.
  *
- * @package ClubCompetitions\Tests\Repository
+ * @package PhotoCompetitionManager\Tests\Repository
  */
 
-namespace ClubCompetitions\Tests\Repository;
+namespace PhotoCompetitionManager\Tests\Repository;
 
-use ClubCompetitions\Repository\Competitions_Repository;
-use ClubCompetitions\Repository\Images_Repository;
-use ClubCompetitions\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_UnitTestCase;
 
 class Images_Repository_Test extends WP_UnitTestCase {

@@ -1,7 +1,7 @@
 # 📸 PRD: WordPress Plugin for Photography Club Competitions
 
-**Product Name (Working Title):**
-**PhotographyClubCompetitions** – A WordPress plugin for managing photography club competitions, submissions, and voting.
+**Product Name:**
+**Photo Competition Manager** – A WordPress plugin for managing photography club competitions, submissions, and voting.
 
 **Version:** 1.0 (Initial Release)
 **Platform:** Self-hosted WordPress (WordPress.org)
@@ -151,13 +151,13 @@ Admins can upload or replace images for any member directly from the dashboard.
 ## 6. Data Model (simplified)
 
 ### Tables
-- `wp_clubcompete_members`
+- `wp_photocomp_members`
   - id, name, email, grade, active, created_at
-- `wp_clubcompete_competitions`
+- `wp_photocomp_competitions`
   - Date normalization for open_date, close_date
-- `wp_clubcompete_images`
+- `wp_photocomp_images`
   - id, member_id, competition_id, category, filename, random_number, score, created_at
-- `wp_clubcompete_votes`
+- `wp_photocomp_votes`
   - id, competition_id, category, voter_name, image_id, score, created_at
 
 ---

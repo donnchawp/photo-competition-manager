@@ -44,7 +44,7 @@ tests_add_filter(
 		require dirname( __DIR__, 2 ) . '/club-competitions/includes/bootstrap.php';
 
 		// Run activation to create database tables.
-		\ClubCompetitions\Install\Activator::activate();
+		\PhotoCompetitionManager\Install\Activator::activate();
 	}
 );
 

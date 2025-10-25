@@ -1,6 +1,6 @@
 {
-    "name": "club/competitions",
-    "description": "WordPress plugin for photography club competitions.",
+    "name": "photo/competition-manager",
+    "description": "WordPress plugin for managing photography competitions.",
     "type": "project",
     "license": "GPL-2.0-or-later",
     "require": {},
@@ -13,21 +13,21 @@
     },
     "autoload": {
         "psr-4": {
-            "ClubCompetitions\\": [
-                "club-competitions/includes/",
-                "club-competitions/admin/",
-                "club-competitions/public/"
+            "PhotoCompetitionManager\\": [
+                "src/includes/",
+                "src/admin/",
+                "src/public/"
             ],
-            "ClubCompetitions\\Support\\": "club-competitions/includes/Support/"
+            "PhotoCompetitionManager\\Support\\": "src/includes/Support/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "ClubCompetitions\\Tests\\": "tests/phpunit/"
+            "PhotoCompetitionManager\\Tests\\": "tests/phpunit/"
         }
     },
     "scripts": {
-        "lint": "phpcs --standard=WordPress --extensions=php club-competitions",
+        "lint": "phpcs --standard=WordPress --extensions=php src",
         "test": "phpunit"
     },
     "config": {

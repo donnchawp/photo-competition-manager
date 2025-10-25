@@ -1,6 +1,6 @@
 # Mailpit Email Testing Guide
 
-This guide explains how to test email functionality in the Club Competitions plugin using Mailpit.
+This guide explains how to test email functionality in the Photo Competition Manager plugin using Mailpit.
 
 ---
 
@@ -223,7 +223,7 @@ lsof -i :1025
 
 **View Mailpit logs**:
 ```bash
-docker logs club-competitions-mailpit
+docker logs photo-comp-mailpit
 ```
 
 **Restart Mailpit**:
@@ -288,8 +288,8 @@ public function test_upload_token_email_sent() {
 
     // Trigger token request
     $_POST['member_email'] = 'test@example.com';
-    $_POST['club_competitions_request_token'] = '1';
-    $_POST['club_competitions_nonce'] = wp_create_nonce('club_competitions_request_token');
+    $_POST['photo_competition_request_token'] = '1';
+    $_POST['photo_competition_nonce'] = wp_create_nonce('photo_competition_request_token');
 
     $shortcode = new Upload_Shortcode();
     $shortcode->render(['competition' => 'test-competition']);

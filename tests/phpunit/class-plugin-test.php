@@ -2,13 +2,13 @@
 /**
  * Basic plugin bootstrap test.
  *
- * @package ClubCompetitions\Tests
+ * @package PhotoCompetitionManager\Tests
  */
 
-namespace ClubCompetitions\Tests;
+namespace PhotoCompetitionManager\Tests;
 
-use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Plugin;
+use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Plugin;
 use WP_UnitTestCase;
 
 class Plugin_Test extends WP_UnitTestCase {
@@ -31,11 +31,11 @@ class Plugin_Test extends WP_UnitTestCase {
 		$schema = Activator::get_schema( $GLOBALS['wpdb'] );
 
 		$this->assertCount( 6, $schema );
-		$this->assertStringContainsString( 'clubcompete_members', $schema[0] );
-		$this->assertStringContainsString( 'clubcompete_competitions', $schema[1] );
-		$this->assertStringContainsString( 'clubcompete_images', $schema[2] );
-		$this->assertStringContainsString( 'clubcompete_votes', $schema[3] );
-		$this->assertStringContainsString( 'clubcompete_upload_tokens', $schema[4] );
-		$this->assertStringContainsString( 'clubcompete_voting_tokens', $schema[5] );
+		$this->assertStringContainsString( 'photocomp_members', $schema[0] );
+		$this->assertStringContainsString( 'photocomp_competitions', $schema[1] );
+		$this->assertStringContainsString( 'photocomp_images', $schema[2] );
+		$this->assertStringContainsString( 'photocomp_votes', $schema[3] );
+		$this->assertStringContainsString( 'photocomp_upload_tokens', $schema[4] );
+		$this->assertStringContainsString( 'photocomp_voting_tokens', $schema[5] );
 	}
 }

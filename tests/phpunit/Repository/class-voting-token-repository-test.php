@@ -2,12 +2,12 @@
 /**
  * Tests for Voting_Token_Repository.
  *
- * @package ClubCompetitions\Tests\Repository
+ * @package PhotoCompetitionManager\Tests\Repository
  */
 
-namespace ClubCompetitions\Tests\Repository;
+namespace PhotoCompetitionManager\Tests\Repository;
 
-use ClubCompetitions\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use WP_UnitTestCase;
 
 class Voting_Token_Repository_Test extends WP_UnitTestCase {
@@ -33,7 +33,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$charset_collate = $wpdb->get_charset_collate();
 
-		$sql = "CREATE TABLE {$wpdb->prefix}clubcompete_voting_tokens (
+		$sql = "CREATE TABLE {$wpdb->prefix}photocomp_voting_tokens (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			member_id BIGINT UNSIGNED NOT NULL,
 			competition_id BIGINT UNSIGNED NOT NULL,
@@ -205,7 +205,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 		$used_at = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT used_at FROM {$wpdb->prefix}clubcompete_voting_tokens WHERE id = %d",
+				"SELECT used_at FROM {$wpdb->prefix}photocomp_voting_tokens WHERE id = %d",
 				$token_id
 			)
 		);
@@ -304,7 +304,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		// Manually backdate the created_at timestamp to 10 minutes ago
 		$old_time = gmdate( 'Y-m-d H:i:s', time() - ( 10 * MINUTE_IN_SECONDS ) );
 		$wpdb->update(
-			"{$wpdb->prefix}clubcompete_voting_tokens",
+			"{$wpdb->prefix}photocomp_voting_tokens",
 			array( 'created_at' => $old_time ),
 			array( 'id' => $token_id ),
 			array( '%s' ),

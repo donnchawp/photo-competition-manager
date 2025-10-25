@@ -3,7 +3,7 @@
          colors="true"
          verbose="true">
     <testsuites>
-        <testsuite name="Club Competitions">
+        <testsuite name="Photo Competition Manager">
             <directory suffix="-test.php">tests/phpunit</directory>
         </testsuite>
     </testsuites>

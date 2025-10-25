@@ -5,14 +5,14 @@ MAKEFLAGS += --no-builtin-rules
 ASSETS_DIR := assets
 WP_ENV := npx @wordpress/env
 MAILPIT_SCRIPT := ./start-mailpit.sh
-MAILPIT_CONTAINER := club-competitions-mailpit
-PLUGIN_NAME := club-competitions
+MAILPIT_CONTAINER := photo-competition-manager-mailpit
+PLUGIN_NAME := photo-competition-manager
 RELEASE_DIR := release
 
 .PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release
 
 help: ## Show available targets
-	@echo "Club Competitions Make targets:"
+	@echo "Photo Competition Manager Make targets:"
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"}; {printf "  %-18s %s\n", $$1, $$2}'
 
 install: ## Install PHP and JS dependencies
@@ -41,7 +41,7 @@ lint: ## Run PHP_CodeSniffer against the plugin
 	composer lint
 
 fix: ## Auto-fix PHP coding standard violations
-	vendor/bin/phpcbf --standard=WordPress --extensions=php club-competitions
+	vendor/bin/phpcbf --standard=WordPress --extensions=php src
 
 test: ## Execute the PHPUnit test suite
 	@set -e; \
@@ -83,10 +83,11 @@ release: clean-release build ## Build production release zip file
 	@echo "Creating production release..."
 	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)
 	@echo "Copying plugin files to release directory..."
-	@rsync -a --exclude-from=.releaseignore $(PLUGIN_NAME)/ $(RELEASE_DIR)/$(PLUGIN_NAME)/
+	@rsync -a --exclude-from=.releaseignore src/ $(RELEASE_DIR)/$(PLUGIN_NAME)/
 	@echo "Copying built assets..."
 	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
-	@cp -r $(PLUGIN_NAME)/$(ASSETS_DIR)/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
+	@cp -r $(ASSETS_DIR)/build/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
+	@cp -r src/$(ASSETS_DIR)/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
 	@echo "Creating zip file..."
 	@cd $(RELEASE_DIR) && zip -qr $(PLUGIN_NAME).zip $(PLUGIN_NAME)
 	@mv $(RELEASE_DIR)/$(PLUGIN_NAME).zip ./$(PLUGIN_NAME).zip

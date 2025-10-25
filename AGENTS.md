@@ -1,20 +1,20 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `clubcompete_prd.md` captures the product definition; keep it current when scope or terminology shifts.
-- Bootstrap the WordPress plugin from `club-competitions/club-competitions.php`, loading discrete modules from `club-competitions/includes/`.
-- Group admin interfaces under `club-competitions/admin/`, public features under `club-competitions/public/`, shared utilities in `club-competitions/includes/Support/`, templates in `club-competitions/templates/`, and assets in `assets/`.
+- `photocomp_prd.md` captures the product definition; keep it current when scope or terminology shifts.
+- Bootstrap the WordPress plugin from `src/photo-competition-manager.php`, loading discrete modules from `src/includes/`.
+- Group admin interfaces under `src/admin/`, public features under `src/public/`, shared utilities in `src/includes/Support/`, templates in `src/templates/`, and assets in `assets/`.
 - Mirror the source layout in `tests/phpunit` and `tests/js` so failures map directly back to modules.
 
 ## Build, Test, and Development Commands
-- `npx @wordpress/env start` spins up a disposable WordPress install with the plugin symlinked from `club-competitions/`.
+- `npx @wordpress/env start` spins up a disposable WordPress install with the plugin symlinked from `src/`.
 - `npm run dev` (run inside `assets/`) watches JS/CSS via `@wordpress/scripts`.
 - `npm run build` produces minified bundles for release packaging.
 - `composer install` in the repository root provisions PHP dependencies and the WordPress core test scaffold.
 
 ## Coding Style & Naming Conventions
-- Follow WordPress PHP coding standards: four-space indentation, snake_case functions, PascalCase classes inside the `ClubCompetitions` namespace.
-- Prefix actions, filters, and option keys with `club_compete_` to avoid collisions.
+- Follow WordPress PHP coding standards: four-space indentation, snake_case functions, PascalCase classes inside the `PhotoCompetitionManager` namespace.
+- Prefix actions, filters, and option keys with `photo_comp_` to avoid collisions.
 - Use kebab-case for asset filenames and camelCase for JavaScript variables; keep React components in PascalCase.
 - Update inline documentation blocks (`@since`, `@param`, `@return`) whenever signatures change.
 
@@ -28,7 +28,7 @@
 - The repository currently lacks Git history; follow Conventional Commits (`feat:`, `fix:`, `docs:`) to establish consistency from the outset.
 - Keep pull requests focused on a single logical change; include a summary, testing notes, and screenshots or screencasts for UI-impacting work.
 - When archiving competitions, pair repository updates with UI affordances (archive/restore links) and tests covering repository-state transitions.
-- Update supporting docs (`clubcompete_prd.md`, schema diagrams, configuration samples) alongside code changes.
+- Update supporting docs (`photocomp_prd.md`, schema diagrams, configuration samples) alongside code changes.
 - Ensure local tests pass and planned CI pipelines succeed before merging.
 
 ## Security & Configuration Tips

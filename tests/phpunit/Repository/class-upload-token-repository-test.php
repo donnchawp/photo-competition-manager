@@ -2,12 +2,12 @@
 /**
  * Tests for Upload_Token_Repository.
  *
- * @package ClubCompetitions\Tests
+ * @package PhotoCompetitionManager\Tests
  */
 
-namespace ClubCompetitions\Tests\Repository;
+namespace PhotoCompetitionManager\Tests\Repository;
 
-use ClubCompetitions\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_UnitTestCase;
 
 class Upload_Token_Repository_Test extends WP_UnitTestCase {
@@ -35,7 +35,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$method     = $reflection->getMethod( 'table_suffix' );
 		$method->setAccessible( true );
 
-		$this->assertEquals( 'clubcompete_upload_tokens', $method->invoke( $this->repo ) );
+		$this->assertEquals( 'photocomp_upload_tokens', $method->invoke( $this->repo ) );
 	}
 
 	/**
@@ -43,7 +43,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 */
 	public function test_table_name() {
 		global $wpdb;
-		$this->assertEquals( $wpdb->prefix . 'clubcompete_upload_tokens', $this->repo->table() );
+		$this->assertEquals( $wpdb->prefix . 'photocomp_upload_tokens', $this->repo->table() );
 	}
 
 	/**

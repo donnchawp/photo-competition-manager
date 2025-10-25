@@ -1,0 +1,230 @@
+/**
+ * Admin slideshow styles for Voting Controls page.
+ */
+
+#photo-comp-slideshow-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: #000;
+	z-index: 999999;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.slideshow-image-container {
+	position: relative;
+	width: 100%;
+	height: calc(100vh - 40px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2rem;
+	box-sizing: border-box;
+}
+
+.slideshow-current-image {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	display: block;
+	margin: 0 auto;
+	box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+	animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.slideshow-image-info {
+	position: absolute;
+	bottom: 60px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: rgba(0, 0, 0, 0.8);
+	color: #fff;
+	padding: 1rem 2rem;
+	border-radius: 8px;
+	font-size: 2rem;
+	font-weight: 700;
+	text-align: center;
+	backdrop-filter: blur(10px);
+}
+
+.slideshow-progress {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 8px;
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.slideshow-progress .progress-bar {
+	height: 100%;
+	background: #0073aa;
+	transition: width 100ms linear;
+}
+
+.slideshow-exit {
+	position: absolute;
+	top: 1rem;
+	right: 1rem;
+	background: rgba(0, 0, 0, 0.7);
+	color: #fff;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-radius: 50%;
+	width: 60px;
+	height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	padding: 0;
+}
+
+.slideshow-exit:hover {
+	background: rgba(255, 0, 0, 0.8);
+	border-color: #fff;
+	transform: scale(1.1);
+}
+
+.slideshow-exit .dashicons {
+	font-size: 32px;
+	width: 32px;
+	height: 32px;
+	line-height: 32px;
+}
+
+.slideshow-controls-overlay {
+	position: absolute;
+	bottom: 20px;
+	right: 20px;
+	display: flex;
+	gap: 0.75rem;
+}
+
+.slideshow-controls-overlay .button {
+	background: rgba(0, 0, 0, 0.8);
+	color: #fff;
+	border-color: rgba(255, 255, 255, 0.3);
+	text-shadow: none;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+	font-size: 1.1rem;
+	padding: 0.75rem 1.5rem;
+}
+
+.slideshow-controls-overlay .button:hover {
+	background: rgba(0, 0, 0, 0.9);
+	border-color: #fff;
+	color: #fff;
+}
+
+.slideshow-controls-overlay .button-primary {
+	background: #2271b1;
+	border-color: #2271b1;
+}
+
+.slideshow-controls-overlay .button-primary:hover {
+	background: #135e96;
+	border-color: #135e96;
+}
+
+.photo-comp-qr-card {
+	display: flex;
+	align-items: center;
+	gap: 24px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	padding: 24px;
+	max-width: 1100px;
+	margin-top: 20px;
+}
+
+.photo-comp-qr-image {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	max-width: 560px;
+	aspect-ratio: 1 / 1;
+}
+
+.photo-comp-qr-canvas canvas,
+.photo-comp-qr-canvas img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	max-width: 100%;
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.photo-comp-qr-details h2 {
+	margin-top: 0;
+	margin-bottom: 8px;
+}
+
+.photo-comp-qr-details p {
+	margin: 0 0 8px;
+}
+
+.photo-comp-qr-details a {
+	word-break: break-all;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+	.slideshow-image-info {
+		font-size: 1.5rem;
+		padding: 0.75rem 1.5rem;
+		bottom: 40px;
+	}
+
+	.slideshow-exit {
+		width: 50px;
+		height: 50px;
+	}
+
+	.slideshow-exit .dashicons {
+		font-size: 24px;
+		width: 24px;
+		height: 24px;
+	}
+
+	.slideshow-controls-overlay {
+		flex-direction: column;
+		bottom: 10px;
+		right: 10px;
+	}
+
+	.slideshow-controls-overlay .button {
+		font-size: 0.95rem;
+		padding: 0.5rem 1rem;
+	}
+
+	.photo-comp-qr-card {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.photo-comp-qr-image {
+		max-width: 440px;
+	}
+}

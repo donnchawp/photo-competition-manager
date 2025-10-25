@@ -1,0 +1,332 @@
+<?php
+/**
+ * Email service for sending notifications.
+ *
+ * @package PhotoCompetitionManager\Service
+ */
+
+namespace PhotoCompetitionManager\Service;
+
+/**
+ * Class Email_Service
+ *
+ * @package PhotoCompetitionManager\Service
+ */
+class Email_Service {
+
+	/**
+	 * Send upload magic link email.
+	 *
+	 * @param string $to_email        Recipient email address.
+	 * @param string $member_name     Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $magic_link      Magic link URL.
+	 * @return bool Whether the email was sent successfully.
+	 */
+	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link ): bool {
+		$subject = sprintf(
+			/* translators: %s: Competition title */
+			__( 'Upload your images for %s', 'photo-competition-manager' ),
+			$competition_title
+		);
+
+		$message = $this->get_upload_email_body( $member_name, $competition_title, $magic_link );
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+		);
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Send voting magic link email.
+	 *
+	 * @param string $to_email        Recipient email address.
+	 * @param string $competition_title Competition title.
+	 * @param string $magic_link      Magic link URL.
+	 * @return bool Whether the email was sent successfully.
+	 */
+	public function send_voting_link( string $to_email, string $competition_title, string $magic_link ): bool {
+		$subject = sprintf(
+			/* translators: %s: Competition title */
+			__( 'Vote in %s', 'photo-competition-manager' ),
+			$competition_title
+		);
+
+		$message = $this->get_voting_email_body( $competition_title, $magic_link );
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+		);
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Get upload email body.
+	 *
+	 * @param string $member_name     Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $magic_link      Magic link URL.
+	 * @return string
+	 */
+	private function get_upload_email_body( string $member_name, string $competition_title, string $magic_link ): string {
+		ob_start();
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+		</head>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?></h2>
+
+				<p>
+				<?php
+					printf(
+						/* translators: %s: Member name */
+						esc_html__( 'Hi %s,', 'photo-competition-manager' ),
+						esc_html( $member_name )
+					);
+				?>
+				</p>
+
+				<p><?php esc_html_e( 'Here is your link to upload images for this competition. Click the button below to access the upload page:', 'photo-competition-manager' ); ?></p>
+
+				<p style="margin: 30px 0;">
+					<a href="<?php echo esc_url( $magic_link ); ?>"
+						style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+						<?php esc_html_e( 'Upload Images', 'photo-competition-manager' ); ?>
+					</a>
+				</p>
+
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'This link will remain active for 14 days so you can return and continue uploading during that window.', 'photo-competition-manager' ); ?>
+				</p>
+
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'If you did not request this email, it may have been sent to you by your club competitions officer. You can safely ignore this email if you do not want to take part in this competition.', 'photo-competition-manager' ); ?>
+				</p>
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'If you have any questions, please contact your club competitions officer.', 'photo-competition-manager' ); ?>
+				</p>
+
+				<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+				<p style="color: #999; font-size: 12px;">
+					<?php
+					printf(
+						/* translators: %s: Site name */
+						esc_html__( 'This email was sent by %s', 'photo-competition-manager' ),
+						esc_html( get_bloginfo( 'name' ) )
+					);
+					?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Get voting email body.
+	 *
+	 * @param string $competition_title Competition title.
+	 * @param string $magic_link      Magic link URL.
+	 * @return string
+	 */
+	private function get_voting_email_body( string $competition_title, string $magic_link ): string {
+		ob_start();
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+		</head>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?></h2>
+
+				<p><?php esc_html_e( 'You requested to vote in this competition. Click the link below to access the voting form:', 'photo-competition-manager' ); ?></p>
+
+				<p style="margin: 30px 0;">
+					<a href="<?php echo esc_url( $magic_link ); ?>"
+						style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+						<?php esc_html_e( 'Vote Now', 'photo-competition-manager' ); ?>
+					</a>
+				</p>
+
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'This link will expire in 1 hour and can only be used once.', 'photo-competition-manager' ); ?>
+				</p>
+
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'If you did not request this link, you can safely ignore this email.', 'photo-competition-manager' ); ?>
+				</p>
+
+				<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+				<p style="color: #999; font-size: 12px;">
+					<?php
+					printf(
+						/* translators: %s: Site name */
+						esc_html__( 'This email was sent by %s', 'photo-competition-manager' ),
+						esc_html( get_bloginfo( 'name' ) )
+					);
+					?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Send competition results email to a member.
+	 *
+	 * @param string               $to_email          Recipient email address.
+	 * @param string               $member_name       Member name.
+	 * @param string               $competition_title Competition title.
+	 * @param array<string, mixed> $member_results    Member's results data.
+	 * @return bool Whether the email was sent successfully.
+	 */
+	public function send_results_email( string $to_email, string $member_name, string $competition_title, array $member_results ): bool {
+		$subject = sprintf(
+			/* translators: %s: Competition title */
+			__( 'Results for %s', 'photo-competition-manager' ),
+			$competition_title
+		);
+
+		$message = $this->get_results_email_body( $member_name, $competition_title, $member_results );
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+		);
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Get results email body.
+	 *
+	 * @param string               $member_name       Member name.
+	 * @param string               $competition_title Competition title.
+	 * @param array<string, mixed> $member_results    Member's results data.
+	 * @return string
+	 */
+	private function get_results_email_body( string $member_name, string $competition_title, array $member_results ): string {
+		ob_start();
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+		</head>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+
+				<p>
+				<?php
+					printf(
+						/* translators: %s: Member name */
+						esc_html__( 'Hi %s,', 'photo-competition-manager' ),
+						esc_html( $member_name )
+					);
+				?>
+				</p>
+
+				<p><?php esc_html_e( 'The results for this competition are now available. Here are your results:', 'photo-competition-manager' ); ?></p>
+
+				<?php if ( empty( $member_results['images'] ) ) : ?>
+					<p><em><?php esc_html_e( 'You did not submit any images for this competition.', 'photo-competition-manager' ); ?></em></p>
+				<?php else : ?>
+					<?php foreach ( $member_results['images'] as $image_data ) : ?>
+						<div style="margin: 30px 0; padding: 20px; background-color: #f9f9f9; border-left: 4px solid #0073aa;">
+							<h3 style="margin-top: 0; color: #0073aa;">
+								<?php echo esc_html( $image_data['category_label'] ); ?> -
+								<?php
+								printf(
+									/* translators: %s: Image number */
+									esc_html__( 'Image #%s', 'photo-competition-manager' ),
+									esc_html( $image_data['image_number'] )
+								);
+								?>
+							</h3>
+
+							<table style="width: 100%; border-collapse: collapse;">
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php esc_html_e( 'Rank:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['rank'] ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['statistics']['average'] * $image_data['statistics']['count'], 0 ) ); ?></strong></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total Votes:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['statistics']['count'] ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Average Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( number_format( $image_data['statistics']['average'], 2 ) ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Median Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( number_format( $image_data['statistics']['median'], 2 ) ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Score Range:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;">
+										<?php
+										printf(
+											'%s - %s',
+											esc_html( number_format( $image_data['statistics']['min'], 0 ) ),
+											esc_html( number_format( $image_data['statistics']['max'], 0 ) )
+										);
+										?>
+									</td>
+								</tr>
+							</table>
+
+							<h4 style="margin-top: 20px; margin-bottom: 10px;"><?php esc_html_e( 'Individual Votes:', 'photo-competition-manager' ); ?></h4>
+							<table style="width: 100%; border-collapse: collapse; background-color: white;">
+								<thead>
+									<tr style="background-color: #0073aa; color: white;">
+										<th style="padding: 10px; text-align: left;"><?php esc_html_e( 'Vote #', 'photo-competition-manager' ); ?></th>
+										<th style="padding: 10px; text-align: left;"><?php esc_html_e( 'Score', 'photo-competition-manager' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php
+									$vote_number = 1;
+									foreach ( $image_data['votes'] as $vote ) :
+										?>
+										<tr style="border-bottom: 1px solid #ddd;">
+											<td style="padding: 10px;"><?php echo esc_html( $vote_number ); ?></td>
+											<td style="padding: 10px;"><strong><?php echo esc_html( number_format( (float) $vote->score, 0 ) ); ?></strong></td>
+										</tr>
+										<?php
+										++$vote_number;
+									endforeach;
+									?>
+								</tbody>
+							</table>
+						</div>
+					<?php endforeach; ?>
+				<?php endif; ?>
+
+				<p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+					<?php esc_html_e( 'Thank you for participating in this competition!', 'photo-competition-manager' ); ?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+}

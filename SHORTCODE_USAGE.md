@@ -1,6 +1,6 @@
-# 📸 Club Competitions Plugin - Shortcode Usage Guide
+# 📸 Photo Competition Manager - Shortcode Usage Guide
 
-This guide explains how to use the Club Competitions plugin shortcodes to display competition functionality on your WordPress site.
+This guide explains how to use the Photo Competition Manager plugin shortcodes to display competition functionality on your WordPress site.
 
 ## Available Shortcodes
 
@@ -222,7 +222,7 @@ You can override the default styles by adding custom CSS to your theme:
 
 ```css
 /* Customize results table */
-.club-competitions-results table {
+.photo-comp-results table {
     border: 2px solid #your-color;
 }
 
@@ -311,4 +311,4 @@ Display multiple competitions on the same page:
 [competition_results competition="september-2024"]
 ```
 
-This guide provides everything you need to effectively use the Club Competitions plugin shortcodes on your WordPress site.
+This guide provides everything you need to effectively use the Photo Competition Manager plugin shortcodes on your WordPress site.

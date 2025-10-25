@@ -4,7 +4,7 @@ services:
   # Add Mailpit for email testing
   mailpit:
     image: axllent/mailpit:latest
-    container_name: club-competitions-mailpit
+    container_name: photo-competition-manager-mailpit
     ports:
       - "8026:8025"  # Web UI (changed from 8025 to avoid conflicts)
       - "1026:1025"  # SMTP server (changed from 1025 to avoid conflicts)
@@ -26,8 +26,8 @@ services:
         define('SMTP_PORT', 1025);
         define('SMTP_USER', '');
         define('SMTP_PASS', '');
-        define('SMTP_FROM', 'wordpress@club-competitions.local');
-        define('SMTP_NAME', 'Club Competitions');
+        define('SMTP_FROM', 'wordpress@photo-competition-manager.local');
+        define('SMTP_NAME', 'Photo Competition Manager');
 
   tests-wordpress:
     depends_on:
@@ -40,8 +40,8 @@ services:
         define('SMTP_PORT', 1025);
         define('SMTP_USER', '');
         define('SMTP_PASS', '');
-        define('SMTP_FROM', 'wordpress@club-competitions.local');
-        define('SMTP_NAME', 'Club Competitions');
+        define('SMTP_FROM', 'wordpress@photo-competition-manager.local');
+        define('SMTP_NAME', 'Photo Competition Manager');
 
 networks:
   wpenv:

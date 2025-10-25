@@ -1,12 +1,12 @@
 <?php
 /**
- * @package ClubCompetitions\Tests\Repository
+ * @package PhotoCompetitionManager\Tests\Repository
  */
 
-namespace ClubCompetitions\Tests\Repository;
+namespace PhotoCompetitionManager\Tests\Repository;
 
-use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Repository\Members_Repository;
+use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_UnitTestCase;
 
 class Members_Repository_Test extends WP_UnitTestCase {
@@ -25,7 +25,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertSame(
-			$GLOBALS['wpdb']->prefix . 'clubcompete_members',
+			$GLOBALS['wpdb']->prefix . 'photocomp_members',
 			$repository->table()
 		);
 	}

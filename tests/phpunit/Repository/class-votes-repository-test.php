@@ -1,12 +1,12 @@
 <?php
 /**
- * @package ClubCompetitions\Tests\Repository
+ * @package PhotoCompetitionManager\Tests\Repository
  */
 
-namespace ClubCompetitions\Tests\Repository;
+namespace PhotoCompetitionManager\Tests\Repository;
 
-use ClubCompetitions\Install\Activator;
-use ClubCompetitions\Repository\Votes_Repository;
+use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use WP_UnitTestCase;
 
 class Votes_Repository_Test extends WP_UnitTestCase {
@@ -25,7 +25,7 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
 
 		$this->assertSame(
-			$GLOBALS['wpdb']->prefix . 'clubcompete_votes',
+			$GLOBALS['wpdb']->prefix . 'photocomp_votes',
 			$repository->table()
 		);
 	}

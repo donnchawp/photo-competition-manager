@@ -13,16 +13,16 @@ fi
 echo "Found wp-env network: $WPENV_NETWORK"
 
 # Stop existing Mailpit if running
-if [ "$(docker ps -aq -f name=club-competitions-mailpit)" ]; then
+if [ "$(docker ps -aq -f name=photo-competition-manager-mailpit)" ]; then
     echo "Stopping existing Mailpit container..."
-    docker stop club-competitions-mailpit 2>/dev/null
-    docker rm club-competitions-mailpit 2>/dev/null
+    docker stop photo-competition-manager-mailpit 2>/dev/null
+    docker rm photo-competition-manager-mailpit 2>/dev/null
 fi
 
 # Start Mailpit
 echo "Starting Mailpit..."
 docker run -d \
-    --name club-competitions-mailpit \
+    --name photo-competition-manager-mailpit \
     --network "$WPENV_NETWORK" \
     -p 8026:8025 \
     -p 1026:1025 \
@@ -35,7 +35,7 @@ echo "✅ Mailpit started successfully!"
 echo ""
 echo "Web UI:    http://localhost:8025"
 echo "SMTP:      localhost:1025"
-echo "Container: club-competitions-mailpit"
+echo "Container: photo-competition-manager-mailpit"
 echo "Network:   $WPENV_NETWORK"
 echo ""
 echo "WordPress will now send emails to Mailpit automatically."

@@ -2,12 +2,12 @@
 /**
  * Tests for Competition_Settings.
  *
- * @package ClubCompetitions\Tests\Support
+ * @package PhotoCompetitionManager\Tests\Support
  */
 
-namespace ClubCompetitions\Tests\Support;
+namespace PhotoCompetitionManager\Tests\Support;
 
-use ClubCompetitions\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 class Competition_Settings_Test extends WP_UnitTestCase {
