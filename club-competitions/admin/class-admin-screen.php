@@ -62,6 +62,13 @@ class Admin_Screen {
 	private $export_screen;
 
 	/**
+	 * Results controller.
+	 *
+	 * @var Results_Controller
+	 */
+	private $results_controller;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -71,6 +78,10 @@ class Admin_Screen {
 		$images       = new Images_Repository();
 		$votes        = new Votes_Repository();
 
+		// Initialize services.
+		$analytics        = new \ClubCompetitions\Service\Results_Analytics( $competitions, $images, $members, $votes );
+		$score_calculator = new \ClubCompetitions\Service\Score_Calculator( $images, $votes );
+
 		// Initialize controllers with their dependencies.
 		$this->competitions_controller = new Competitions_Controller( $competitions );
 		$this->members_controller      = new Members_Controller( $competitions, $members );
@@ -78,6 +89,7 @@ class Admin_Screen {
 		$this->voting_controller       = new Voting_Controller( $competitions, $images );
 		$this->settings_controller     = new Settings_Controller();
 		$this->export_screen           = new Export_Screen();
+		$this->results_controller      = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator );
 	}
 
 	/**
@@ -95,6 +107,7 @@ class Admin_Screen {
 		$this->submissions_controller->register();
 		$this->voting_controller->register();
 		$this->settings_controller->register();
+		$this->results_controller->register();
 	}
 
 	/**
@@ -137,6 +150,15 @@ class Admin_Screen {
 			'publish_posts',
 			'club-competitions-voting',
 			array( $this->voting_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'club-competitions',
+			__( 'Results', 'club-competitions' ),
+			__( 'Results', 'club-competitions' ),
+			'publish_posts',
+			'club-competitions-results',
+			array( $this->results_controller, 'render' )
 		);
 
 		add_submenu_page(
