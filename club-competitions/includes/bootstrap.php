@@ -46,6 +46,9 @@ spl_autoload_register(
 					$base_dir . $path_prefix . 'class-' . $camel_case_variant . '.php',
 					$base_dir . $path_prefix . 'class-' . $underscore_variant . '.php',
 					$base_dir . $path_prefix . 'class-' . $lower_variant . '.php',
+					$base_dir . $path_prefix . 'trait-' . $camel_case_variant . '.php',
+					$base_dir . $path_prefix . 'trait-' . $underscore_variant . '.php',
+					$base_dir . $path_prefix . 'trait-' . $lower_variant . '.php',
 				)
 			);
 
