@@ -206,7 +206,7 @@ class Email_Results_Job_Manager {
 	public function process_batch( string $job_id ): void {
 		$job = $this->get_job( $job_id );
 
-		if ( ! $job || 'pending' !== $job['status'] && 'processing' !== $job['status'] ) {
+		if ( ! $job || ( 'pending' !== $job['status'] && 'processing' !== $job['status'] ) ) {
 			return;
 		}
 

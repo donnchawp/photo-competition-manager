@@ -331,8 +331,10 @@ class Export_Screen {
 	 * @return void
 	 */
 	private function export_original_images(): void {
+		// Nonce is verified in handle_actions() before this method is called.
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$competition_id      = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$delete_after_export = isset( $_POST['delete_after_export'] ) && '1' === $_POST['delete_after_export'];
 
 		if ( ! $competition_id ) {
@@ -382,7 +384,16 @@ class Export_Screen {
 		header( 'Content-Type: application/zip' );
 		header( 'Content-Disposition: attachment; filename=' . $zip_filename );
 		header( 'Content-Length: ' . filesize( $zip_path ) );
-		readfile( $zip_path );
+
+		// Use WP_Filesystem to read the file.
+		global $wp_filesystem;
+		if ( ! $wp_filesystem ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+		}
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo $wp_filesystem->get_contents( $zip_path );
 
 		// Clean up temporary ZIP file.
 		wp_delete_file( $zip_path );
