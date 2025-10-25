@@ -311,6 +311,16 @@ class Upload_Shortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
+			<?php
+			// Check if uploads have been manually closed.
+			$settings       = \ClubCompetitions\Support\Competition_Settings::parse( $competition->settings );
+			$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
+			if ( $uploads_closed ) :
+				?>
+				<p class="notice"><?php esc_html_e( 'Image uploads have been closed for this competition.', 'club-competitions' ); ?></p>
+				<?php return; ?>
+			<?php endif; ?>
+
 			<?php if ( ! $token_record || ! $member ) : ?>
 				<!-- Token request form -->
 				<div class="token-request-section">

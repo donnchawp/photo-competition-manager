@@ -89,6 +89,13 @@ class Upload_Handler {
 			return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'club-competitions' ) );
 		}
 
+		// Check if uploads have been manually closed.
+		$settings       = \ClubCompetitions\Support\Competition_Settings::parse( $competition->settings );
+		$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
+		if ( $uploads_closed ) {
+			return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed for this competition.', 'club-competitions' ) );
+		}
+
 		// Check if competition is within submission period.
 		$now = current_time( 'mysql' );
 		if ( $competition->open_date && $now < $competition->open_date ) {
@@ -236,6 +243,13 @@ class Upload_Handler {
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition || 'active' !== $competition->status ) {
 			return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'club-competitions' ) );
+		}
+
+		// Check if uploads have been manually closed.
+		$settings       = \ClubCompetitions\Support\Competition_Settings::parse( $competition->settings );
+		$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
+		if ( $uploads_closed ) {
+			return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed. You can no longer delete images.', 'club-competitions' ) );
 		}
 
 		// Delete files and original attachment.

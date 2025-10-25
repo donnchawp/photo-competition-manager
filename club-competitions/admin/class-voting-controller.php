@@ -212,6 +212,118 @@ class Voting_Controller {
 			);
 			exit;
 		}
+
+		if ( 'close_uploads' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'club_competitions_close_uploads_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'club_competitions_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'club-competitions' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'club-competitions-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                             = Competition_Settings::parse( $competition->settings );
+			$settings['upload']['uploads_closed'] = true;
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_voting',
+					'uploads_closed',
+					__( 'Uploads closed successfully. Members can no longer upload or delete images.', 'club-competitions' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'club-competitions-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		if ( 'open_uploads' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'club_competitions_open_uploads_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'club_competitions_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'club-competitions' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'club-competitions-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                             = Competition_Settings::parse( $competition->settings );
+			$settings['upload']['uploads_closed'] = false;
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'club_competitions_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'club_competitions_voting',
+					'uploads_opened',
+					__( 'Uploads reopened successfully. Members can now upload and delete images again.', 'club-competitions' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'club-competitions-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
 	}
 
 	/**
@@ -331,11 +443,12 @@ class Voting_Controller {
 			echo '</div>';
 		}
 
-		echo '<table class="widefat striped" style="max-width: 1100px; margin-top: 20px;">';
+		echo '<table class="widefat striped" style="max-width: 1200px; margin-top: 20px;">';
 		echo '<thead><tr>';
 		echo '<th>' . esc_html__( 'Competition', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Category', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Status', 'club-competitions' ) . '</th>';
+		echo '<th>' . esc_html__( 'Uploads', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Voting', 'club-competitions' ) . '</th>';
 		echo '<th>' . esc_html__( 'Slideshow', 'club-competitions' ) . '</th>';
 		echo '</tr></thead>';
@@ -345,14 +458,18 @@ class Voting_Controller {
 			$settings        = Competition_Settings::parse( $competition->settings );
 			$categories      = Competition_Settings::get_categories( $settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
+			$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
 
 			if ( empty( $categories ) ) {
 				echo '<tr>';
 				echo '<td>' . esc_html( $competition->title ) . '</td>';
-				echo '<td colspan="4"><em>' . esc_html__( 'No categories configured', 'club-competitions' ) . '</em></td>';
+				echo '<td colspan="5"><em>' . esc_html__( 'No categories configured', 'club-competitions' ) . '</em></td>';
 				echo '</tr>';
 				continue;
 			}
+
+			$category_count = count( $categories );
+			$category_index = 0;
 
 			foreach ( $categories as $category ) {
 				$category_slug  = $category['slug'] ?? '';
@@ -369,7 +486,53 @@ class Voting_Controller {
 
 				if ( $is_open ) {
 					echo '<td><strong style="color: #2271b1;">' . esc_html__( 'Voting Open', 'club-competitions' ) . '</strong></td>';
+				} else {
+					echo '<td>' . esc_html__( 'Closed', 'club-competitions' ) . '</td>';
+				}
 
+				// Uploads column - only show on first category row with rowspan.
+				if ( 0 === $category_index ) {
+					echo '<td rowspan="' . esc_attr( $category_count ) . '">';
+
+					if ( $uploads_closed ) {
+						echo '<strong style="color: #d63638;">' . esc_html__( 'Closed', 'club-competitions' ) . '</strong><br>';
+
+						$open_uploads_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page'        => 'club-competitions-voting',
+									'action'      => 'open_uploads',
+									'competition' => (int) $competition->id,
+								),
+								admin_url( 'admin.php' )
+							),
+							'club_competitions_open_uploads_' . (int) $competition->id
+						);
+
+						echo '<a href="' . esc_url( $open_uploads_url ) . '" class="button" style="margin-top: 5px;">' . esc_html__( 'Reopen Uploads', 'club-competitions' ) . '</a>';
+					} else {
+						echo '<strong style="color: #00a32a;">' . esc_html__( 'Open', 'club-competitions' ) . '</strong><br>';
+
+						$close_uploads_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page'        => 'club-competitions-voting',
+									'action'      => 'close_uploads',
+									'competition' => (int) $competition->id,
+								),
+								admin_url( 'admin.php' )
+							),
+							'club_competitions_close_uploads_' . (int) $competition->id
+						);
+
+						echo '<a href="' . esc_url( $close_uploads_url ) . '" class="button button-primary" style="margin-top: 5px;">' . esc_html__( 'Close Uploads', 'club-competitions' ) . '</a>';
+					}
+
+					echo '</td>';
+				}
+
+				// Voting column.
+				if ( $is_open ) {
 					$close_url = wp_nonce_url(
 						add_query_arg(
 							array(
@@ -384,28 +547,26 @@ class Voting_Controller {
 					);
 
 					echo '<td><a href="' . esc_url( $close_url ) . '" class="button">' . esc_html__( 'Close Voting', 'club-competitions' ) . '</a></td>';
-				} else {
-					echo '<td>' . esc_html__( 'Closed', 'club-competitions' ) . '</td>';
-
-					if ( $voting_open_globally ) {
+				} elseif ( $voting_open_globally ) {
 						echo '<td><button class="button" disabled title="' . esc_attr__( 'Another category already has voting open', 'club-competitions' ) . '">' . esc_html__( 'Open Voting', 'club-competitions' ) . '</button></td>';
-					} else {
-						$open_url = wp_nonce_url(
-							add_query_arg(
-								array(
-									'page'        => 'club-competitions-voting',
-									'action'      => 'open_category_voting',
-									'competition' => (int) $competition->id,
-									'category'    => rawurlencode( $category_slug ),
-								),
-								admin_url( 'admin.php' )
+				} else {
+					$open_url = wp_nonce_url(
+						add_query_arg(
+							array(
+								'page'        => 'club-competitions-voting',
+								'action'      => 'open_category_voting',
+								'competition' => (int) $competition->id,
+								'category'    => rawurlencode( $category_slug ),
 							),
-							'club_competitions_open_voting_' . (int) $competition->id . '_' . $category_slug
-						);
+							admin_url( 'admin.php' )
+						),
+						'club_competitions_open_voting_' . (int) $competition->id . '_' . $category_slug
+					);
 
-						echo '<td><a href="' . esc_url( $open_url ) . '" class="button button-primary">' . esc_html__( 'Open Voting', 'club-competitions' ) . '</a></td>';
-					}
+					echo '<td><a href="' . esc_url( $open_url ) . '" class="button button-primary">' . esc_html__( 'Open Voting', 'club-competitions' ) . '</a></td>';
 				}
+
+				++$category_index;
 
 				// Slideshow button.
 				if ( $image_count > 0 ) {
