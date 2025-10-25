@@ -761,10 +761,30 @@ class Results_Controller {
 			return null;
 		}
 
-		$upload_dir = wp_upload_dir();
-		$base_url   = trailingslashit( $upload_dir['baseurl'] ) . 'competitions/' . $competition->slug . '/' . $category . '/slideshow/';
+		$upload_dir  = wp_upload_dir();
+		$folder_url  = trailingslashit( $upload_dir['baseurl'] ) . 'competitions/' . $competition->slug . '/' . $category . '/';
+		$folder_path = trailingslashit( $upload_dir['basedir'] ) . 'competitions/' . $competition->slug . '/' . $category . '/';
 
-		return $base_url . $filename;
+		// Get thumbnail filename.
+		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_path = $folder_path . $thumb_name;
+
+		// Return thumbnail URL if it exists, otherwise null.
+		return file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : null;
+	}
+
+	/**
+	 * Get thumbnail filename from base filename.
+	 *
+	 * @param string $filename Base filename.
+	 * @return string
+	 */
+	private function get_thumbnail_filename( string $filename ): string {
+		$info = pathinfo( $filename );
+		$base = $info['filename'] ?? $filename;
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
+
+		return $base . '-thumb' . $ext;
 	}
 
 	/**
