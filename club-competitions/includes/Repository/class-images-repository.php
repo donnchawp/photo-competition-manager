@@ -280,18 +280,21 @@ class Images_Repository extends Abstract_Repository {
 			? absint( $data['random_number'] )
 			: $this->get_member_random_number( $competition_id, $member_id );
 
+		$original_attachment_id = isset( $data['original_attachment_id'] ) ? absint( $data['original_attachment_id'] ) : null;
+
 		$payload = array(
-			'competition_id' => $competition_id,
-			'member_id'      => $member_id,
-			'category'       => $category,
-			'filename'       => $filename,
-			'random_number'  => $random_number,
-			'score'          => null,
-			'created_at'     => current_time( 'mysql' ),
-			'updated_at'     => current_time( 'mysql' ),
+			'competition_id'         => $competition_id,
+			'member_id'              => $member_id,
+			'category'               => $category,
+			'filename'               => $filename,
+			'random_number'          => $random_number,
+			'score'                  => null,
+			'original_attachment_id' => $original_attachment_id,
+			'created_at'             => current_time( 'mysql' ),
+			'updated_at'             => current_time( 'mysql' ),
 		);
 
-		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' );
+		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s', '%s' );
 
 		$inserted = $this->wpdb->insert( $this->table(), $payload, $format );
 
@@ -409,5 +412,59 @@ class Images_Repository extends Abstract_Repository {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return $this->wpdb->get_results( $sql );
+	}
+
+	/**
+	 * Get all original attachment IDs for a competition.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<int> Array of attachment IDs.
+	 */
+	public function get_original_attachment_ids( int $competition_id ): array {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$sql = sprintf(
+			'SELECT original_attachment_id FROM %s WHERE competition_id = %%d AND original_attachment_id IS NOT NULL',
+			$this->table()
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_col( $this->wpdb->prepare( $sql, $competition_id ) );
+
+		return array_map( 'intval', $results );
+	}
+
+	/**
+	 * Clear original attachment IDs for a competition.
+	 *
+	 * Sets original_attachment_id to NULL for all images in a competition.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public function clear_original_attachment_ids( int $competition_id ) {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'club-competitions' ) );
+		}
+
+		$updated = $this->wpdb->update(
+			$this->table(),
+			array(
+				'original_attachment_id' => null,
+				'updated_at'             => current_time( 'mysql' ),
+			),
+			array( 'competition_id' => $competition_id ),
+			array( '%d', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not clear original attachment IDs.', 'club-competitions' ), $this->wpdb->last_error );
+		}
+
+		return true;
 	}
 }

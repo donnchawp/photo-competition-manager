@@ -87,7 +87,7 @@ class Image_Processor {
 	 * @param string               $username        Member username for filename.
 	 * @param int                  $counter         Counter for filename uniqueness.
 	 * @param array<string, mixed> $constraints     Upload constraints from settings.
-	 * @return string|WP_Error Stored filename on success, WP_Error on failure.
+	 * @return array<string, mixed>|WP_Error Array with 'filename' and 'attachment_id' on success, WP_Error on failure.
 	 */
 	public function process( array $file, string $competition_slug, string $category_slug, string $username, int $counter, array $constraints ) {
 		$validation = $this->validate( $file, $constraints );
@@ -104,7 +104,13 @@ class Image_Processor {
 		// Generate filename: username-categoryslug-[counter].jpg.
 		$filename = $this->generate_filename( $username, $category_slug, $counter );
 
-		// Load image and resize to max dimensions.
+		// Save original to media library first.
+		$attachment_id = $this->save_original_to_media_library( $file, $competition_slug, $category_slug, $username, $counter, $constraints );
+		if ( is_wp_error( $attachment_id ) ) {
+			return $attachment_id;
+		}
+
+		// Load image and resize to max dimensions for slideshow.
 		$image = wp_get_image_editor( $file['tmp_name'] );
 		if ( is_wp_error( $image ) ) {
 			return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'club-competitions' ) );
@@ -115,7 +121,7 @@ class Image_Processor {
 		$max_height = $constraints['max_height'] ?? 1920;
 		$image->resize( $max_width, $max_height, false );
 
-		// Save image.
+		// Save slideshow image.
 		$target_path = trailingslashit( $upload_dir['path'] ) . $filename;
 		$saved       = $image->save( $target_path );
 
@@ -126,7 +132,101 @@ class Image_Processor {
 		// Generate thumbnail.
 		$this->generate_thumbnail( $target_path, $upload_dir['path'] );
 
-		return $filename;
+		return array(
+			'filename'      => $filename,
+			'attachment_id' => $attachment_id,
+		);
+	}
+
+	/**
+	 * Save original image to WordPress media library.
+	 *
+	 * @param array<string, mixed> $file            Uploaded file array from $_FILES.
+	 * @param string               $competition_slug Competition slug.
+	 * @param string               $category_slug   Category slug.
+	 * @param string               $username        Member username.
+	 * @param int                  $counter         Counter for filename uniqueness.
+	 * @param array<string, mixed> $constraints     Upload constraints from settings.
+	 * @return int|WP_Error Attachment ID on success, WP_Error on failure.
+	 */
+	private function save_original_to_media_library( array $file, string $competition_slug, string $category_slug, string $username, int $counter, array $constraints ) {
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+
+		// Get original constraints.
+		$max_width  = $constraints['originals_max_width'] ?? 3840;
+		$max_height = $constraints['originals_max_height'] ?? 3840;
+		$quality    = $constraints['originals_quality'] ?? 90;
+
+		// Load and potentially resize the original.
+		$image = wp_get_image_editor( $file['tmp_name'] );
+		if ( is_wp_error( $image ) ) {
+			return new WP_Error( 'original_processing_failed', __( 'Could not process original image.', 'club-competitions' ) );
+		}
+
+		// Get current dimensions.
+		$size           = $image->get_size();
+		$current_width  = $size['width'];
+		$current_height = $size['height'];
+
+		// Only resize if larger than max dimensions.
+		if ( $current_width > $max_width || $current_height > $max_height ) {
+			$image->resize( $max_width, $max_height, false );
+		}
+
+		// Set quality.
+		$image->set_quality( $quality );
+
+		// Generate filename for original.
+		$original_filename = sprintf( '%s-%s-%d-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ), $counter );
+
+		// Create a temporary file.
+		$upload_dir = wp_upload_dir();
+		$temp_file  = trailingslashit( $upload_dir['path'] ) . $original_filename;
+
+		// Save the processed original to temp location.
+		$saved = $image->save( $temp_file );
+		if ( is_wp_error( $saved ) ) {
+			return new WP_Error( 'original_save_failed', __( 'Could not save original image.', 'club-competitions' ) );
+		}
+
+		// Prepare attachment data.
+		$attachment_title = sprintf(
+			'%s - %s - %s #%d',
+			$competition_slug,
+			$category_slug,
+			$username,
+			$counter
+		);
+
+		$attachment = array(
+			'guid'           => $upload_dir['url'] . '/' . basename( $temp_file ),
+			'post_mime_type' => 'image/jpeg',
+			'post_title'     => $attachment_title,
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+		);
+
+		// Insert the attachment.
+		$attachment_id = wp_insert_attachment( $attachment, $temp_file );
+
+		if ( is_wp_error( $attachment_id ) || 0 === $attachment_id ) {
+			// Clean up temp file.
+			wp_delete_file( $temp_file );
+			return new WP_Error( 'attachment_insert_failed', __( 'Could not create media library attachment.', 'club-competitions' ) );
+		}
+
+		// Generate attachment metadata.
+		$attachment_data = wp_generate_attachment_metadata( $attachment_id, $temp_file );
+		wp_update_attachment_metadata( $attachment_id, $attachment_data );
+
+		// Add competition and category metadata.
+		update_post_meta( $attachment_id, '_club_competition_slug', $competition_slug );
+		update_post_meta( $attachment_id, '_club_competition_category', $category_slug );
+		update_post_meta( $attachment_id, '_club_competition_member', $username );
+
+		return $attachment_id;
 	}
 
 	/**
@@ -235,9 +335,10 @@ class Image_Processor {
 	 * @param string $competition_slug Competition slug.
 	 * @param string $category_slug    Category slug.
 	 * @param string $filename         Filename to delete.
+	 * @param int    $attachment_id    Optional attachment ID to delete from media library.
 	 * @return bool
 	 */
-	public function delete_files( string $competition_slug, string $category_slug, string $filename ): bool {
+	public function delete_files( string $competition_slug, string $category_slug, string $filename, int $attachment_id = 0 ): bool {
 		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
 		if ( is_wp_error( $upload_dir ) ) {
 			return false;
@@ -257,7 +358,28 @@ class Image_Processor {
 			$deleted = $deleted && wp_delete_file( $thumb_path );
 		}
 
+		// Delete original from media library if provided.
+		if ( $attachment_id > 0 ) {
+			$deleted = $deleted && ( false !== wp_delete_attachment( $attachment_id, true ) );
+		}
+
 		return $deleted;
+	}
+
+	/**
+	 * Delete only the original attachment from media library.
+	 *
+	 * Keeps the slideshow image and thumbnail intact.
+	 *
+	 * @param int $attachment_id Attachment ID to delete.
+	 * @return bool True on success, false on failure.
+	 */
+	public function delete_original_attachment( int $attachment_id ): bool {
+		if ( $attachment_id <= 0 ) {
+			return false;
+		}
+
+		return false !== wp_delete_attachment( $attachment_id, true );
 	}
 
 	/**

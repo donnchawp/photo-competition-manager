@@ -161,6 +161,54 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Generate an upload URL with a fresh token for a member.
+	 *
+	 * Creates a new upload token and returns the complete URL that can be shared with the member.
+	 *
+	 * @since 1.0.0
+	 * @param int    $competition_id  Competition ID.
+	 * @param int    $member_id       Member ID.
+	 * @param string $upload_page_url Base URL of the upload page containing the [competition_upload] shortcode.
+	 * @return string|WP_Error Upload URL with token on success, WP_Error on failure.
+	 */
+	public function generate_upload_url( int $competition_id, int $member_id, string $upload_page_url ) {
+		// Validate competition and member.
+		$competitions_repo = new Competitions_Repository();
+		$members_repo      = new Members_Repository();
+
+		$competition = $competitions_repo->find( $competition_id );
+		if ( ! $competition ) {
+			return new \WP_Error( 'missing_competition', __( 'Competition not found.', 'club-competitions' ) );
+		}
+
+		$member = $members_repo->find( $member_id );
+		if ( ! $member ) {
+			return new \WP_Error( 'missing_member', __( 'Member not found.', 'club-competitions' ) );
+		}
+
+		// Create secure token.
+		$token_string = bin2hex( random_bytes( 32 ) );
+		$token_hash   = hash( 'sha256', $token_string );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
+
+		$token_id = $this->create( $member_id, $competition_id, $token_hash, $expires_at );
+		if ( is_wp_error( $token_id ) ) {
+			return $token_id;
+		}
+
+		// Build magic link.
+		$upload_url = add_query_arg(
+			array(
+				'token'       => $token_string,
+				'competition' => $competition->slug,
+			),
+			$upload_page_url
+		);
+
+		return $upload_url;
+	}
+
+	/**
 	 * Create a fresh upload token and email a magic link to a member.
 	 *
 	 * Treats recent token as success (rate-limited) to avoid spamming members.
@@ -196,24 +244,11 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return true;
 		}
 
-		// Create secure token.
-		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
-
-		$token_id = $this->create( $member_id, $competition_id, $token_hash, $expires_at );
-		if ( is_wp_error( $token_id ) ) {
-			return $token_id;
+		// Generate upload URL with token.
+		$upload_url = $this->generate_upload_url( $competition_id, $member_id, $upload_page_url );
+		if ( is_wp_error( $upload_url ) ) {
+			return $upload_url;
 		}
-
-		// Build magic link (preserve existing URL shape).
-		$upload_url = add_query_arg(
-			array(
-				'token'       => $token_string,
-				'competition' => $competition->slug,
-			),
-			$upload_page_url
-		);
 
 		// Send email.
 		$email_service = new \ClubCompetitions\Service\Email_Service();

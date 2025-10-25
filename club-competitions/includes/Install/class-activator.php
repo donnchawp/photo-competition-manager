@@ -88,11 +88,13 @@ class Activator {
 			filename VARCHAR(191) NOT NULL,
 			random_number BIGINT UNSIGNED NOT NULL,
 			score DECIMAL(6,2) NULL,
+			original_attachment_id BIGINT UNSIGNED NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
 			KEY competition (competition_id),
-			KEY member (member_id)
+			KEY member (member_id),
+			KEY original_attachment (original_attachment_id)
 		) {$charset_collate};";
 
 		$votes = "CREATE TABLE {$wpdb->prefix}clubcompete_votes (

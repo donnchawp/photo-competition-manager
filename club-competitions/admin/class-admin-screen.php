@@ -21,6 +21,7 @@ use ClubCompetitions\Repository\Upload_Token_Repository;
  */
 class Admin_Screen {
 
+
 	/**
 	 * Competitions repository.
 	 *
@@ -175,9 +176,9 @@ class Admin_Screen {
 
 		settings_errors( 'club_competitions_members' );
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
 		$member_action = isset( $_GET['member_action'] ) ? sanitize_text_field( wp_unslash( $_GET['member_action'] ) ) : '';
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars to render appropriate admin view.
 		$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
 		$current   = null;
 
@@ -262,6 +263,17 @@ class Admin_Screen {
 					esc_url( $send_url ),
 					esc_html__( 'Send Upload Email', 'club-competitions' )
 				);
+
+				// Add upload page link for copying/sharing.
+				$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+				if ( ! empty( $upload_url ) ) {
+					$actions[] = sprintf(
+						'<a href="%s" target="_blank" title="%s">%s</a>',
+						esc_url( $upload_url ),
+						esc_attr__( 'Copy this link to share with the member', 'club-competitions' ),
+						esc_html__( 'Upload Link', 'club-competitions' )
+					);
+				}
 			} else {
 				$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'club-competitions' ) . '">' . esc_html__( 'Send Upload Email', 'club-competitions' ) . '</span>';
 			}
@@ -379,7 +391,7 @@ class Admin_Screen {
 			);
 
 			// Add regenerate numbers button.
-			echo '<form method="post" style="margin-bottom: 15px;">';
+			echo '<form method="post" style="margin-bottom: 15px; display: inline-block; margin-right: 10px;">';
 			wp_nonce_field( 'club_competitions_regenerate_numbers_' . $competition_id, '_wpnonce' );
 			echo '<input type="hidden" name="action" value="regenerate_numbers" />';
 			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
@@ -387,6 +399,17 @@ class Admin_Screen {
 			echo esc_html__( 'Regenerate Random Numbers', 'club-competitions' );
 			echo '</button>';
 			echo ' <span class="description">' . esc_html__( 'Reassign random numbers to members in this competition (each member keeps one consistent number).', 'club-competitions' ) . '</span>';
+			echo '</form>';
+
+			// Add delete original images button.
+			echo '<form method="post" style="margin-bottom: 15px; display: inline-block;">';
+			wp_nonce_field( 'club_competitions_delete_originals_' . $competition_id, '_wpnonce' );
+			echo '<input type="hidden" name="action" value="delete_original_images" />';
+			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
+			echo '<button type="submit" class="button" onclick="return confirm(\'' . esc_js( __( 'Are you sure you want to delete all original images from the media library for this competition? This will keep thumbnails and slideshow images, but remove the high-resolution originals to save space. This action cannot be undone.', 'club-competitions' ) ) . '\');">';
+			echo esc_html__( 'Delete Original Images', 'club-competitions' );
+			echo '</button>';
+			echo ' <span class="description">' . esc_html__( 'Remove high-resolution originals from media library (keeps thumbnails and slideshow images).', 'club-competitions' ) . '</span>';
 			echo '</form>';
 		}
 
@@ -411,12 +434,12 @@ class Admin_Screen {
 
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
-				? $member_map[ $submission->member_id ]->name
-				: sprintf(
-					/* translators: %d: Numeric member identifier when the name is unavailable. */
-					__( 'Member #%d', 'club-competitions' ),
-					(int) $submission->member_id
-				);
+			? $member_map[ $submission->member_id ]->name
+			: sprintf(
+			/* translators: %d: Numeric member identifier when the name is unavailable. */
+				__( 'Member #%d', 'club-competitions' ),
+				(int) $submission->member_id
+			);
 
 			$current_competition = $selected_competition ?? ( $competition_lookup[ $submission->competition_id ] ?? null );
 			$urls                = $this->get_submission_urls( $current_competition, $submission );
@@ -663,7 +686,7 @@ class Admin_Screen {
 						echo 'data-category-label="' . esc_attr( $category_label ) . '">';
 						echo esc_html(
 							sprintf(
-								/* translators: %d: number of images */
+							/* translators: %d: number of images */
 								_n(
 									'Start Slideshow (%d image)',
 									'Start Slideshow (%d images)',
@@ -678,7 +701,7 @@ class Admin_Screen {
 						echo '<button type="button" class="button" disabled title="' . esc_attr__( 'Close voting in other category first', 'club-competitions' ) . '">';
 						echo esc_html(
 							sprintf(
-								/* translators: %d: number of images */
+							/* translators: %d: number of images */
 								_n(
 									'Start Slideshow (%d image)',
 									'Start Slideshow (%d images)',
@@ -750,13 +773,13 @@ class Admin_Screen {
 			</button>
 			<div class="slideshow-controls-overlay">
 				<button type="button" class="button button-large slideshow-pause">
-					<?php esc_html_e( 'Pause', 'club-competitions' ); ?>
+		<?php esc_html_e( 'Pause', 'club-competitions' ); ?>
 				</button>
 				<button type="button" class="button button-large slideshow-resume" style="display: none;">
-					<?php esc_html_e( 'Resume', 'club-competitions' ); ?>
+		<?php esc_html_e( 'Resume', 'club-competitions' ); ?>
 				</button>
 				<button type="button" class="button button-large button-primary slideshow-stop">
-					<?php esc_html_e( 'Stop Slideshow', 'club-competitions' ); ?>
+		<?php esc_html_e( 'Stop Slideshow', 'club-competitions' ); ?>
 				</button>
 			</div>
 		</div>
@@ -792,9 +815,9 @@ class Admin_Screen {
 
 		// Per-member "Send Upload Email".
 		if ( 'send_member_upload_email' === $action ) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
 			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
 			if ( ! $member_id || ! $competition_id ) {
@@ -878,7 +901,7 @@ class Admin_Screen {
 					'club_competitions_members',
 					'upload_email_sent',
 					sprintf(
-						/* translators: 1: member name, 2: competition title */
+					/* translators: 1: member name, 2: competition title */
 						__( 'Upload email sent to %1$s for "%2$s".', 'club-competitions' ),
 						esc_html( $member->name ),
 						esc_html( $competition->title )
@@ -1026,7 +1049,7 @@ class Admin_Screen {
 				} else {
 					$emails_sent = is_int( $result ) ? $result : 0;
 					$message     = sprintf(
-						/* translators: %d: Number of emails sent */
+					/* translators: %d: Number of emails sent */
 						_n( '%d reminder email sent to members.', '%d reminder emails sent to members.', $emails_sent, 'club-competitions' ),
 						$emails_sent
 					);
@@ -1044,8 +1067,8 @@ class Admin_Screen {
 			}
 
 			$result = 'archive' === $action
-				? $this->competitions->archive( $competition_id )
-				: $this->competitions->restore( $competition_id );
+			? $this->competitions->archive( $competition_id )
+			: $this->competitions->restore( $competition_id );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -1056,8 +1079,8 @@ class Admin_Screen {
 				);
 			} else {
 				$message = 'archive' === $action
-					? __( 'Competition archived.', 'club-competitions' )
-					: __( 'Competition restored.', 'club-competitions' );
+				? __( 'Competition archived.', 'club-competitions' )
+				: __( 'Competition restored.', 'club-competitions' );
 
 				add_settings_error(
 					'club_competitions',
@@ -1068,14 +1091,14 @@ class Admin_Screen {
 			}
 
 			$redirect = 'restore' === $action
-				? add_query_arg(
-					array(
-						'page' => 'club-competitions',
-						'view' => 'archived',
-					),
-					admin_url( 'admin.php' )
-				)
-				: $this->dashboard_url();
+			? add_query_arg(
+				array(
+					'page' => 'club-competitions',
+					'view' => 'archived',
+				),
+				admin_url( 'admin.php' )
+			)
+			: $this->dashboard_url();
 
 			wp_safe_redirect( $redirect );
 			exit;
@@ -1147,7 +1170,7 @@ class Admin_Screen {
 							admin_url( 'admin.php' )
 						)
 					);
-					exit;
+						exit;
 				}
 			}
 
@@ -1353,78 +1376,78 @@ class Admin_Screen {
 			}
 
 			// Get existing settings to preserve open_categories (controlled via Voting Controls page).
-						$existing_settings        = $this->get_global_settings();
-						$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
+			$existing_settings        = $this->get_global_settings();
+			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
-						$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
+			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
 			if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
 				$auth_mode_input = 'password';
 			}
 
-						$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
-						$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
+			$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+			$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
-						$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
-						$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
+			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 
-						$settings   = array(
-							'categories'      => $sanitized_categories,
-							'grades'          => $sanitized_grades,
-							'upload'          => array(
-								'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-								'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
-								'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
-								'allowed_formats'  => array( 'jpg', 'jpeg' ),
-							),
-							'voting'          => array(
-								'score_matrix'         => $score_matrix,
-								'open_categories'      => $existing_open_categories,
-								'auth_mode'            => $auth_mode_input,
-								'password'             => $voting_password,
-								'click_image_to_zoom'  => $click_image_to_zoom,
-							),
-							'slideshow'       => array(
-								'duration_seconds' => 10,
-							),
-							'email_reminders' => array(
-								'enabled'                => true,
-								'days_before_open'       => 7,
-								'days_before_close'      => 1,
-								'include_qr_code_voting' => true,
-							),
-							'urls'            => array(
-								'upload_page' => $upload_page_url,
-								'voting_page' => $voting_page_url,
-							),
-						);
-						$validation = Competition_Settings::validate( $settings );
+			$settings   = array(
+				'categories'      => $sanitized_categories,
+				'grades'          => $sanitized_grades,
+				'upload'          => array(
+					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
+					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
+					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
+					'allowed_formats'  => array( 'jpg', 'jpeg' ),
+				),
+				'voting'          => array(
+					'score_matrix'        => $score_matrix,
+					'open_categories'     => $existing_open_categories,
+					'auth_mode'           => $auth_mode_input,
+					'password'            => $voting_password,
+					'click_image_to_zoom' => $click_image_to_zoom,
+				),
+				'slideshow'       => array(
+					'duration_seconds' => 10,
+				),
+				'email_reminders' => array(
+					'enabled'                => true,
+					'days_before_open'       => 7,
+					'days_before_close'      => 1,
+					'include_qr_code_voting' => true,
+				),
+				'urls'            => array(
+					'upload_page' => $upload_page_url,
+					'voting_page' => $voting_page_url,
+				),
+			);
+			$validation = Competition_Settings::validate( $settings );
 
-						if ( is_wp_error( $validation ) ) {
-							add_settings_error(
-								'club_competitions_settings',
-								$validation->get_error_code(),
-								$validation->get_error_message(),
-								'error'
-							);
-						} else {
-							$this->save_global_settings( $settings );
+			if ( is_wp_error( $validation ) ) {
+				add_settings_error(
+					'club_competitions_settings',
+					$validation->get_error_code(),
+					$validation->get_error_message(),
+					'error'
+				);
+			} else {
+				$this->save_global_settings( $settings );
 
-							add_settings_error(
-								'club_competitions_settings',
-								'settings_saved',
-								__( 'Default settings saved successfully.', 'club-competitions' ),
-								'updated'
-							);
-						}
+				add_settings_error(
+					'club_competitions_settings',
+					'settings_saved',
+					__( 'Default settings saved successfully.', 'club-competitions' ),
+					'updated'
+				);
+			}
 
-						wp_safe_redirect(
-							add_query_arg(
-								array(
-									'page' => 'club-competitions-settings',
-								),
-								admin_url( 'admin.php' )
-							)
-						);
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page' => 'club-competitions-settings',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
 			exit;
 		}
 
@@ -1478,7 +1501,7 @@ class Admin_Screen {
 				$auth_mode_input = 'password';
 			}
 
-			$voting_password = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+			$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 			$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
@@ -1494,11 +1517,11 @@ class Admin_Screen {
 					'allowed_formats'  => array( 'jpg', 'jpeg' ),
 				),
 				'voting'          => array(
-					'score_matrix'         => $score_matrix,
-					'open_categories'      => $existing_open_categories,
-					'auth_mode'            => $auth_mode_input,
-					'password'             => $voting_password,
-					'click_image_to_zoom'  => $click_image_to_zoom,
+					'score_matrix'        => $score_matrix,
+					'open_categories'     => $existing_open_categories,
+					'auth_mode'           => $auth_mode_input,
+					'password'            => $voting_password,
+					'click_image_to_zoom' => $click_image_to_zoom,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -1621,6 +1644,77 @@ class Admin_Screen {
 			);
 			exit;
 		}
+
+		if ( 'delete_original_images' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'club_competitions_delete_originals_' . $competition_id );
+
+			if ( ! $competition_id ) {
+				add_settings_error(
+					'club_competitions_submissions',
+					'invalid_competition',
+					__( 'Invalid competition.', 'club-competitions' ),
+					'error'
+				);
+				wp_safe_redirect( admin_url( 'admin.php?page=club-competitions-submissions' ) );
+				exit;
+			}
+
+			// Get all original attachment IDs.
+			$attachment_ids = $this->images->get_original_attachment_ids( $competition_id );
+
+			if ( empty( $attachment_ids ) ) {
+				add_settings_error(
+					'club_competitions_submissions',
+					'no_originals',
+					__( 'No original images found to delete.', 'club-competitions' ),
+					'updated'
+				);
+			} else {
+				// Delete all original attachments.
+				$deleted_count = 0;
+				foreach ( $attachment_ids as $attachment_id ) {
+					if ( wp_delete_attachment( $attachment_id, true ) ) {
+						++$deleted_count;
+					}
+				}
+
+				// Clear the attachment IDs from the database.
+				$result = $this->images->clear_original_attachment_ids( $competition_id );
+
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'club_competitions_submissions',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					add_settings_error(
+						'club_competitions_submissions',
+						'originals_deleted',
+						sprintf(
+						/* translators: %d: number of deleted images */
+							__( '%d original images deleted successfully.', 'club-competitions' ),
+							$deleted_count
+						),
+						'updated'
+					);
+				}
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'           => 'club-competitions-submissions',
+						'competition_id' => $competition_id,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
 	}
 
 	/**
@@ -1636,7 +1730,7 @@ class Admin_Screen {
 	/**
 	 * Render the edit competition screen.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param  int $competition_id Competition ID.
 	 * @return void
 	 */
 	private function render_edit_screen( int $competition_id ): void {
@@ -1681,8 +1775,8 @@ class Admin_Screen {
 	/**
 	 * Render tabs for competition edit screen.
 	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param string $current_tab    Current active tab.
+	 * @param  int    $competition_id Competition ID.
+	 * @param  string $current_tab    Current active tab.
 	 * @return void
 	 */
 	private function render_competition_tabs( int $competition_id, string $current_tab ): void {
@@ -1720,7 +1814,7 @@ class Admin_Screen {
 	/**
 	 * Render general competition form.
 	 *
-	 * @param object $competition Competition data.
+	 * @param  object $competition Competition data.
 	 * @return void
 	 */
 	private function render_competition_general_form( object $competition ): void {
@@ -1781,7 +1875,7 @@ class Admin_Screen {
 	/**
 	 * Render competition settings form.
 	 *
-	 * @param object $competition Competition data.
+	 * @param  object $competition Competition data.
 	 * @return void
 	 */
 	private function render_competition_settings_form( object $competition ): void {
@@ -1902,8 +1996,8 @@ class Admin_Screen {
 	/**
 	 * Render category field row.
 	 *
-	 * @param int   $index    Category index.
-	 * @param array $category Category data.
+	 * @param  int   $index    Category index.
+	 * @param  array $category Category data.
 	 * @return void
 	 */
 	private function render_category_field( int $index, array $category ): void {
@@ -1932,8 +2026,8 @@ class Admin_Screen {
 	/**
 	 * Render grade field row.
 	 *
-	 * @param int   $index Grade index.
-	 * @param array $grade Grade data.
+	 * @param  int   $index Grade index.
+	 * @param  array $grade Grade data.
 	 * @return void
 	 */
 	private function render_grade_field( int $index, array $grade ): void {
@@ -2017,8 +2111,8 @@ class Admin_Screen {
 	/**
 	 * Render competitions list table.
 	 *
-	 * @param array<int, object> $competitions Competitions.
-	 * @param string             $view         Current view.
+	 * @param  array<int, object> $competitions Competitions.
+	 * @param  string             $view         Current view.
 	 * @return void
 	 */
 	private function render_competition_table( array $competitions, string $view ): void {
@@ -2155,7 +2249,7 @@ class Admin_Screen {
 	/**
 	 * Format datetime for display using site locale.
 	 *
-	 * @param string|null $datetime Datetime value.
+	 * @param  string|null $datetime Datetime value.
 	 * @return string
 	 */
 	private function format_datetime( ?string $datetime ): string {
@@ -2215,7 +2309,7 @@ class Admin_Screen {
 	/**
 	 * Format stored datetime for HTML date inputs.
 	 *
-	 * @param string|null $datetime Datetime value.
+	 * @param  string|null $datetime Datetime value.
 	 * @return string
 	 */
 	private function format_date_for_input( ?string $datetime ): string {
@@ -2235,7 +2329,7 @@ class Admin_Screen {
 	/**
 	 * Parse user input to normalized Y-m-d format.
 	 *
-	 * @param string $raw Raw input.
+	 * @param  string $raw Raw input.
 	 * @return string|null
 	 */
 	private function parse_date_input( string $raw ): ?string {
@@ -2272,8 +2366,8 @@ class Admin_Screen {
 	/**
 	 * Retrieve a POST value as an unslashed string.
 	 *
-	 * @param string $key      POST key.
-	 * @param string $fallback Fallback value if key not present.
+	 * @param  string $key      POST key.
+	 * @param  string $fallback Fallback value if key not present.
 	 * @return string
 	 */
 	private function get_post_string( string $key, string $fallback = '' ): string {
@@ -2287,7 +2381,7 @@ class Admin_Screen {
 	/**
 	 * Retrieve a POST value as an unslashed array.
 	 *
-	 * @param string $key POST key.
+	 * @param  string $key POST key.
 	 * @return array
 	 */
 	private function get_post_array( string $key ): array {
@@ -2303,8 +2397,8 @@ class Admin_Screen {
 	/**
 	 * Build URLs for submission assets.
 	 *
-	 * @param object|null $competition Competition object.
-	 * @param object      $submission Submission record.
+	 * @param  object|null $competition Competition object.
+	 * @param  object      $submission  Submission record.
 	 * @return array{full:string,thumb:string}
 	 */
 	private function get_submission_urls( ?object $competition, object $submission ): array {
@@ -2348,7 +2442,7 @@ class Admin_Screen {
 	/**
 	 * Determine thumbnail filename from base filename.
 	 *
-	 * @param string $filename Base filename.
+	 * @param  string $filename Base filename.
 	 * @return string
 	 */
 	private function get_thumbnail_filename( string $filename ): string {
@@ -2456,7 +2550,7 @@ class Admin_Screen {
 	/**
 	 * Render edit member form.
 	 *
-	 * @param object|null $member Member row.
+	 * @param  object|null $member Member row.
 	 * @return void
 	 */
 	private function render_member_edit_form( $member ): void {
@@ -2532,6 +2626,52 @@ class Admin_Screen {
 		}
 
 		return $options;
+	}
+
+	/**
+	 * Generate the upload URL for a member for a specific competition.
+	 *
+	 * Retrieves the upload page URL from competition settings or auto-discovers it,
+	 * then generates a tokenized URL that can be shared with the member.
+	 *
+	 * @param  int    $member_id   Member ID.
+	 * @param  object $competition Competition object.
+	 * @return string Upload URL with token, or empty string if URL cannot be determined.
+	 */
+	private function get_member_upload_url( int $member_id, object $competition ): string {
+		// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
+		$settings        = Competition_Settings::parse( $competition->settings );
+		$urls            = $settings['urls'] ?? array();
+		$upload_page_url = $urls['upload_page'] ?? '';
+
+		if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
+			$pages = get_pages( array( 'number' => 100 ) );
+			if ( is_array( $pages ) ) {
+				foreach ( $pages as $page ) {
+					if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
+						$upload_page_url = get_permalink( $page->ID );
+						break;
+					}
+				}
+			}
+		}
+
+		if ( empty( $upload_page_url ) ) {
+			return '';
+		}
+
+		$upload_page_url = apply_filters( 'club_compete_upload_page_url', $upload_page_url, $competition );
+
+		// Use the repository to generate the upload URL with a fresh token.
+		$token_repo = new Upload_Token_Repository();
+		$upload_url = $token_repo->generate_upload_url( (int) $competition->id, $member_id, $upload_page_url );
+
+		// Return empty string if there was an error.
+		if ( is_wp_error( $upload_url ) ) {
+			return '';
+		}
+
+		return $upload_url;
 	}
 
 	/**
@@ -2706,7 +2846,7 @@ class Admin_Screen {
 	/**
 	 * Save global default settings.
 	 *
-	 * @param array<string, mixed> $settings Settings to save.
+	 * @param  array<string, mixed> $settings Settings to save.
 	 * @return void
 	 */
 	private function save_global_settings( array $settings ): void {
@@ -2716,7 +2856,7 @@ class Admin_Screen {
 	/**
 	 * Enqueue admin assets for slideshow.
 	 *
-	 * @param string $hook Current admin page hook.
+	 * @param  string $hook Current admin page hook.
 	 * @return void
 	 */
 	public function enqueue_admin_assets( string $hook ): void {

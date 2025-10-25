@@ -786,7 +786,7 @@ class Voting_Shortcode {
 		$voting_password     = $voting_config['password'] ?? '';
 		$password_enabled    = '' !== $voting_password;
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
-		$cookie_payload   = $this->get_voter_cookie();
+		$cookie_payload      = $this->get_voter_cookie();
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended
 		$success_status = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';

@@ -157,11 +157,11 @@ class Results_Shortcode {
 				continue;
 			}
 
-			$category         = $image->category;
-			$grade            = ! empty( $member->grade ) ? $member->grade : 'unknown';
-			$category_scores  = $image_scores_by_category[ $category ] ?? array();
-			$score_data       = $category_scores[ (int) $image->id ] ?? null;
-			$total_score      = null !== $score_data ? $score_data['average_score'] : 0;
+			$category        = $image->category;
+			$grade           = ! empty( $member->grade ) ? $member->grade : 'unknown';
+			$category_scores = $image_scores_by_category[ $category ] ?? array();
+			$score_data      = $category_scores[ (int) $image->id ] ?? null;
+			$total_score     = null !== $score_data ? $score_data['average_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();

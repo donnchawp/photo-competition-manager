@@ -149,7 +149,7 @@ class Upload_Handler {
 		$counter  = $current_count + 1;
 		$username = sanitize_title( $member->name );
 
-		$filename = $this->image_processor->process(
+		$result = $this->image_processor->process(
 			$file,
 			$competition->slug,
 			$category,
@@ -158,23 +158,27 @@ class Upload_Handler {
 			$constraints
 		);
 
-		if ( is_wp_error( $filename ) ) {
-			return $filename;
+		if ( is_wp_error( $result ) ) {
+			return $result;
 		}
+
+		$filename      = $result['filename'];
+		$attachment_id = $result['attachment_id'];
 
 		// Create database record.
 		$image_id = $this->images_repo->create(
 			array(
-				'competition_id' => $competition_id,
-				'member_id'      => $member_id,
-				'category'       => $category,
-				'filename'       => $filename,
+				'competition_id'         => $competition_id,
+				'member_id'              => $member_id,
+				'category'               => $category,
+				'filename'               => $filename,
+				'original_attachment_id' => $attachment_id,
 			)
 		);
 
 		if ( is_wp_error( $image_id ) ) {
-			// Clean up uploaded file if database insert fails.
-			$this->image_processor->delete_files( $competition->slug, $category, $filename );
+			// Clean up uploaded file and attachment if database insert fails.
+			$this->image_processor->delete_files( $competition->slug, $category, $filename, $attachment_id );
 			return $image_id;
 		}
 
@@ -234,8 +238,9 @@ class Upload_Handler {
 			return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'club-competitions' ) );
 		}
 
-		// Delete files.
-		$this->image_processor->delete_files( $competition->slug, $image->category, $image->filename );
+		// Delete files and original attachment.
+		$attachment_id = isset( $image->original_attachment_id ) ? (int) $image->original_attachment_id : 0;
+		$this->image_processor->delete_files( $competition->slug, $image->category, $image->filename, $attachment_id );
 
 		// Delete database record.
 		$result = $this->images_repo->delete( $image_id );

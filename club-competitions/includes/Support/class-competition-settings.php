@@ -50,17 +50,20 @@ class Competition_Settings {
 				),
 			),
 			'upload'          => array(
-				'max_file_size_mb' => 5,
-				'max_width'        => 1920,
-				'max_height'       => 1920,
-				'allowed_formats'  => array( 'jpg', 'jpeg' ),
+				'max_file_size_mb'     => 5,
+				'max_width'            => 1920,
+				'max_height'           => 1920,
+				'allowed_formats'      => array( 'jpg', 'jpeg' ),
+				'originals_max_width'  => 3840,
+				'originals_max_height' => 3840,
+				'originals_quality'    => 90,
 			),
 			'voting'          => array(
-				'score_matrix'         => array( 9, 8, 7, 6, 5 ),
-				'open_categories'      => array(), // Array of category slugs where voting is open.
-				'auth_mode'            => 'password', // 'password' or 'token' (email magic links).
-				'password'             => '',
-				'click_image_to_zoom'  => false, // Whether images are clickable to open full-size in voting form.
+				'score_matrix'        => array( 9, 8, 7, 6, 5 ),
+				'open_categories'     => array(), // Array of category slugs where voting is open.
+				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
+				'password'            => '',
+				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 			),
 			'slideshow'       => array(
 				'duration_seconds' => 10,
