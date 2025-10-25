@@ -82,6 +82,7 @@ class Admin_Screen {
 		$analytics        = new \ClubCompetitions\Service\Results_Analytics( $competitions, $images, $members, $votes );
 		$score_calculator = new \ClubCompetitions\Service\Score_Calculator( $images, $votes );
 		$email_service    = new \ClubCompetitions\Service\Email_Service();
+		$email_job_mgr    = new \ClubCompetitions\Service\Email_Results_Job_Manager( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service );
 
 		// Initialize controllers with their dependencies.
 		$this->competitions_controller = new Competitions_Controller( $competitions );
@@ -90,7 +91,7 @@ class Admin_Screen {
 		$this->voting_controller       = new Voting_Controller( $competitions, $images );
 		$this->settings_controller     = new Settings_Controller();
 		$this->export_screen           = new Export_Screen();
-		$this->results_controller      = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service );
+		$this->results_controller      = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
 	}
 
 	/**

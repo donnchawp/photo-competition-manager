@@ -12,6 +12,7 @@ use ClubCompetitions\Repository\Competitions_Repository;
 use ClubCompetitions\Repository\Images_Repository;
 use ClubCompetitions\Repository\Members_Repository;
 use ClubCompetitions\Repository\Votes_Repository;
+use ClubCompetitions\Service\Email_Results_Job_Manager;
 use ClubCompetitions\Service\Email_Service;
 use ClubCompetitions\Service\Results_Analytics;
 use ClubCompetitions\Service\Score_Calculator;
@@ -76,15 +77,23 @@ class Results_Controller {
 	private $email_service;
 
 	/**
+	 * Email job manager.
+	 *
+	 * @var Email_Results_Job_Manager
+	 */
+	private $email_job_manager;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository $competitions  Competitions repository.
-	 * @param Images_Repository       $images        Images repository.
-	 * @param Members_Repository      $members       Members repository.
-	 * @param Votes_Repository        $votes         Votes repository.
-	 * @param Results_Analytics       $analytics     Results analytics service.
-	 * @param Score_Calculator        $calculator    Score calculator service.
-	 * @param Email_Service           $email_service Email service.
+	 * @param Competitions_Repository   $competitions      Competitions repository.
+	 * @param Images_Repository         $images            Images repository.
+	 * @param Members_Repository        $members           Members repository.
+	 * @param Votes_Repository          $votes             Votes repository.
+	 * @param Results_Analytics         $analytics         Results analytics service.
+	 * @param Score_Calculator          $calculator        Score calculator service.
+	 * @param Email_Service             $email_service     Email service.
+	 * @param Email_Results_Job_Manager $email_job_manager Email job manager.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -93,15 +102,17 @@ class Results_Controller {
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
-		Email_Service $email_service
+		Email_Service $email_service,
+		Email_Results_Job_Manager $email_job_manager
 	) {
-		$this->competitions  = $competitions;
-		$this->images        = $images;
-		$this->members       = $members;
-		$this->votes         = $votes;
-		$this->analytics     = $analytics;
-		$this->calculator    = $calculator;
-		$this->email_service = $email_service;
+		$this->competitions      = $competitions;
+		$this->images            = $images;
+		$this->members           = $members;
+		$this->votes             = $votes;
+		$this->analytics         = $analytics;
+		$this->calculator        = $calculator;
+		$this->email_service     = $email_service;
+		$this->email_job_manager = $email_job_manager;
 	}
 
 	/**
@@ -173,34 +184,40 @@ class Results_Controller {
 
 			check_admin_referer( 'club_competitions_email_results_' . $competition_id );
 
-			$result = $this->email_results_to_members( $competition_id );
+			// Create background job for email sending.
+			$job_id = $this->email_job_manager->create_job( $competition_id );
 
-			if ( is_wp_error( $result ) ) {
+			if ( ! $job_id ) {
 				add_settings_error(
 					'club_competitions_results',
-					$result->get_error_code(),
-					$result->get_error_message(),
+					'email_job_failed',
+					__( 'Failed to create email job. No members found with submissions.', 'club-competitions' ),
 					'error'
 				);
-			} else {
-				add_settings_error(
-					'club_competitions_results',
-					'results_emailed',
-					sprintf(
-						/* translators: 1: Number of emails sent, 2: Total number of members */
-						__( 'Results emailed successfully. Sent %1$d of %2$d emails.', 'club-competitions' ),
-						$result['sent_count'],
-						$result['total_count']
-					),
-					'updated'
+
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'page'        => 'club-competitions-results',
+							'competition' => $competition_id,
+						),
+						admin_url( 'admin.php' )
+					)
 				);
+				exit;
 			}
 
+			// Schedule first batch immediately.
+			$this->email_job_manager->schedule_next_batch( $job_id, 0 );
+
+			// Redirect to results page with job status.
 			wp_safe_redirect(
 				add_query_arg(
 					array(
 						'page'        => 'club-competitions-results',
 						'competition' => $competition_id,
+						'job_id'      => $job_id,
+						'status'      => 'processing',
 					),
 					admin_url( 'admin.php' )
 				)
@@ -229,6 +246,9 @@ class Results_Controller {
 		}
 
 		settings_errors( 'club_competitions_results' );
+
+		// Display email job progress if present.
+		$this->display_email_job_notice();
 
 		// Get selected competition or default to most recent.
 		$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -898,5 +918,83 @@ class Results_Controller {
 				$total_count
 			),
 		);
+	}
+
+	/**
+	 * Display email job progress notice.
+	 *
+	 * @return void
+	 */
+	private function display_email_job_notice(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! isset( $_GET['job_id'] ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$job_id = sanitize_text_field( wp_unslash( $_GET['job_id'] ) );
+		$job    = $this->email_job_manager->get_job_status( $job_id );
+
+		if ( ! $job ) {
+			return;
+		}
+
+		if ( 'processing' === $job['status'] || 'pending' === $job['status'] ) {
+			$progress_percent = $job['total_count'] > 0 ? ( count( $job['processed_ids'] ) / $job['total_count'] ) * 100 : 0;
+
+			echo '<div class="notice notice-info">';
+			echo '<p><strong>' . esc_html__( 'Sending results emails...', 'club-competitions' ) . '</strong></p>';
+			echo '<p>';
+			printf(
+				/* translators: 1: Sent count, 2: Total count, 3: Progress percentage */
+				esc_html__( 'Progress: %1$d of %2$d emails sent (%3$d%%)', 'club-competitions' ),
+				esc_html( count( $job['processed_ids'] ) ),
+				esc_html( $job['total_count'] ),
+				absint( $progress_percent )
+			);
+			echo '</p>';
+			echo '<p><em>' . esc_html__( 'This page will refresh automatically every 5 seconds.', 'club-competitions' ) . '</em> ';
+			echo '<a href="' . esc_url( remove_query_arg( array( 'job_id', 'status' ) ) ) . '">' . esc_html__( 'Refresh now', 'club-competitions' ) . '</a></p>';
+			echo '</div>';
+
+			// Auto-refresh every 5 seconds.
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo '<meta http-equiv="refresh" content="5">';
+		} elseif ( 'completed' === $job['status'] ) {
+			echo '<div class="notice notice-success is-dismissible">';
+			echo '<p><strong>' . esc_html__( 'Email results sent successfully!', 'club-competitions' ) . '</strong></p>';
+			echo '<p>';
+			printf(
+				/* translators: 1: Sent count, 2: Total count */
+				esc_html__( 'Sent %1$d of %2$d emails.', 'club-competitions' ),
+				esc_html( $job['sent_count'] ),
+				esc_html( $job['total_count'] )
+			);
+
+			if ( $job['failed_count'] > 0 ) {
+				echo ' ';
+				printf(
+					/* translators: %d: Failed count */
+					esc_html__( '%d emails failed to send.', 'club-competitions' ),
+					esc_html( $job['failed_count'] )
+				);
+			}
+
+			echo '</p>';
+			echo '</div>';
+		} elseif ( 'failed' === $job['status'] ) {
+			echo '<div class="notice notice-error is-dismissible">';
+			echo '<p><strong>' . esc_html__( 'Email job failed.', 'club-competitions' ) . '</strong></p>';
+
+			if ( ! empty( $job['error_log'] ) ) {
+				echo '<ul>';
+				foreach ( array_slice( $job['error_log'], 0, 5 ) as $error ) {
+					echo '<li>' . esc_html( $error ) . '</li>';
+				}
+				echo '</ul>';
+			}
+
+			echo '</div>';
+		}
 	}
 }
