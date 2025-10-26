@@ -75,6 +75,8 @@ class Members_Controller {
 
 		if ( isset( $_POST['photo_competition_action'] ) ) {
 			$action = sanitize_key( wp_unslash( $_POST['photo_competition_action'] ) );
+		} elseif ( isset( $_POST['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
+			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
 		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
@@ -347,6 +349,142 @@ class Members_Controller {
 			echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV content.
 			exit;
 		}
+
+		// Handle bulk actions.
+		if ( 'bulk_activate' === $action || 'bulk_deactivate' === $action || 'bulk_update_grade' === $action ) {
+			check_admin_referer( 'photo_competition_bulk_members' );
+
+			$member_ids = isset( $_POST['member_ids'] ) && is_array( $_POST['member_ids'] )
+				? array_map( 'absint', wp_unslash( $_POST['member_ids'] ) )
+				: array();
+
+			if ( empty( $member_ids ) ) {
+				add_settings_error(
+					'photo_competition_members',
+					'no_members_selected',
+					__( 'No members selected.', 'photo-competition-manager' ),
+					'error'
+				);
+			} else {
+				$updated_count = 0;
+				$failed_count  = 0;
+
+				if ( 'bulk_activate' === $action ) {
+					foreach ( $member_ids as $member_id ) {
+						$result = $this->members->update( $member_id, array( 'active' => 1 ) );
+						if ( is_wp_error( $result ) ) {
+							++$failed_count;
+						} else {
+							++$updated_count;
+						}
+					}
+
+					if ( $updated_count > 0 ) {
+						add_settings_error(
+							'photo_competition_members',
+							'bulk_activated',
+							sprintf(
+								/* translators: %d: number of activated members */
+								_n(
+									'%d member activated successfully.',
+									'%d members activated successfully.',
+									$updated_count,
+									'photo-competition-manager'
+								),
+								$updated_count
+							),
+							'updated'
+						);
+					}
+				} elseif ( 'bulk_deactivate' === $action ) {
+					foreach ( $member_ids as $member_id ) {
+						$result = $this->members->update( $member_id, array( 'active' => 0 ) );
+						if ( is_wp_error( $result ) ) {
+							++$failed_count;
+						} else {
+							++$updated_count;
+						}
+					}
+
+					if ( $updated_count > 0 ) {
+						add_settings_error(
+							'photo_competition_members',
+							'bulk_deactivated',
+							sprintf(
+								/* translators: %d: number of deactivated members */
+								_n(
+									'%d member deactivated successfully.',
+									'%d members deactivated successfully.',
+									$updated_count,
+									'photo-competition-manager'
+								),
+								$updated_count
+							),
+							'updated'
+						);
+					}
+				} elseif ( 'bulk_update_grade' === $action ) {
+					$new_grade = isset( $_POST['bulk_grade'] ) ? sanitize_text_field( wp_unslash( $_POST['bulk_grade'] ) ) : '';
+
+					if ( empty( $new_grade ) ) {
+						add_settings_error(
+							'photo_competition_members',
+							'no_grade_selected',
+							__( 'Please select a grade.', 'photo-competition-manager' ),
+							'error'
+						);
+					} else {
+						foreach ( $member_ids as $member_id ) {
+							$result = $this->members->update( $member_id, array( 'grade' => $new_grade ) );
+							if ( is_wp_error( $result ) ) {
+								++$failed_count;
+							} else {
+								++$updated_count;
+							}
+						}
+
+						if ( $updated_count > 0 ) {
+							add_settings_error(
+								'photo_competition_members',
+								'bulk_grade_updated',
+								sprintf(
+									/* translators: %d: number of members with updated grade */
+									_n(
+										'%d member grade updated successfully.',
+										'%d member grades updated successfully.',
+										$updated_count,
+										'photo-competition-manager'
+									),
+									$updated_count
+								),
+								'updated'
+							);
+						}
+					}
+				}
+
+				if ( $failed_count > 0 ) {
+					add_settings_error(
+						'photo_competition_members',
+						'bulk_partial_failure',
+						sprintf(
+							/* translators: %d: number of failed updates */
+							_n(
+								'%d member could not be updated.',
+								'%d members could not be updated.',
+								$failed_count,
+								'photo-competition-manager'
+							),
+							$failed_count
+						),
+						'error'
+					);
+				}
+			}
+
+			wp_safe_redirect( $this->members_url() );
+			exit;
+		}
 	}
 
 	/**
@@ -371,7 +509,48 @@ class Members_Controller {
 			$current = $this->members->find( $member_id );
 		}
 
-		$members = $this->members->all( false );
+		// Get filter parameters.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
+		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
+		$status_filter = isset( $_GET['status'] ) ? sanitize_text_field( wp_unslash( $_GET['status'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
+		$grade_filter = isset( $_GET['grade'] ) ? sanitize_text_field( wp_unslash( $_GET['grade'] ) ) : '';
+
+		$all_members = $this->members->all( false );
+
+		// Apply filters.
+		$members = array_filter(
+			$all_members,
+			function ( $member ) use ( $search, $status_filter, $grade_filter ) {
+				// Search filter (name or email).
+				if ( ! empty( $search ) ) {
+					$search_lower = strtolower( $search );
+					$name_match   = false !== stripos( $member->name, $search );
+					$email_match  = false !== stripos( $member->email, $search );
+					if ( ! $name_match && ! $email_match ) {
+						return false;
+					}
+				}
+
+				// Status filter.
+				if ( '' !== $status_filter ) {
+					if ( 'active' === $status_filter && ! $member->active ) {
+						return false;
+					}
+					if ( 'inactive' === $status_filter && $member->active ) {
+						return false;
+					}
+				}
+
+				// Grade filter.
+				if ( ! empty( $grade_filter ) && $member->grade !== $grade_filter ) {
+					return false;
+				}
+
+				return true;
+			}
+		);
 
 		// Find currently active competition for per-member email action.
 		$active_competition = $this->competitions->find_current_active();
@@ -388,11 +567,81 @@ class Members_Controller {
 
 		// Display members list first (unless in edit mode).
 		if ( 'edit' !== $member_action ) {
+			// Display filter form.
+			echo '<form method="get" class="photo-comp-filters" style="margin-bottom: 15px;">';
+			echo '<input type="hidden" name="page" value="photo-competition-manager-members" />';
+
+			echo '<input type="search" name="s" value="' . esc_attr( $search ) . '" placeholder="' . esc_attr__( 'Search members...', 'photo-competition-manager' ) . '" style="margin-right: 10px;" />';
+
+			echo '<select name="status" style="margin-right: 10px;">';
+			echo '<option value="">' . esc_html__( 'All Statuses', 'photo-competition-manager' ) . '</option>';
+			echo '<option value="active"' . selected( $status_filter, 'active', false ) . '>' . esc_html__( 'Active', 'photo-competition-manager' ) . '</option>';
+			echo '<option value="inactive"' . selected( $status_filter, 'inactive', false ) . '>' . esc_html__( 'Inactive', 'photo-competition-manager' ) . '</option>';
+			echo '</select>';
+
+			echo '<select name="grade" style="margin-right: 10px;">';
+			echo '<option value="">' . esc_html__( 'All Grades', 'photo-competition-manager' ) . '</option>';
+			foreach ( $grade_options as $grade_value => $grade_label ) {
+				echo '<option value="' . esc_attr( $grade_value ) . '"' . selected( $grade_filter, $grade_value, false ) . '>' . esc_html( $grade_label ) . '</option>';
+			}
+			echo '</select>';
+
+			echo '<button type="submit" class="button">' . esc_html__( 'Filter', 'photo-competition-manager' ) . '</button>';
+
+			if ( ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) ) {
+				echo ' <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-members' ) ) . '" class="button">' . esc_html__( 'Clear Filters', 'photo-competition-manager' ) . '</a>';
+			}
+
+			echo '</form>';
+
 			if ( empty( $members ) ) {
-				echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'photo-competition-manager' ) . '</p>';
+				if ( ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) ) {
+					echo '<p>' . esc_html__( 'No members found matching the selected filters.', 'photo-competition-manager' ) . '</p>';
+				} else {
+					echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'photo-competition-manager' ) . '</p>';
+				}
 			} else {
+				// Show results count.
+				$total_count    = count( $all_members );
+				$filtered_count = count( $members );
+				if ( $filtered_count < $total_count ) {
+					echo '<p class="description" style="margin-bottom: 10px;">' . esc_html(
+						sprintf(
+							/* translators: 1: filtered count, 2: total count */
+							__( 'Showing %1$d of %2$d members', 'photo-competition-manager' ),
+							$filtered_count,
+							$total_count
+						)
+					) . '</p>';
+				}
+
+				// Bulk actions form.
+				echo '<form method="post" id="bulk-members-form">';
+				wp_nonce_field( 'photo_competition_bulk_members', '_wpnonce' );
+
+				echo '<div class="tablenav top">';
+				echo '<div class="alignleft actions bulkactions">';
+				echo '<select name="action" id="bulk-action-selector-top">';
+				echo '<option value="-1">' . esc_html__( 'Bulk Actions', 'photo-competition-manager' ) . '</option>';
+				echo '<option value="bulk_activate">' . esc_html__( 'Activate', 'photo-competition-manager' ) . '</option>';
+				echo '<option value="bulk_deactivate">' . esc_html__( 'Deactivate', 'photo-competition-manager' ) . '</option>';
+				echo '<option value="bulk_update_grade">' . esc_html__( 'Update Grade', 'photo-competition-manager' ) . '</option>';
+				echo '</select>';
+
+				echo ' <select name="bulk_grade" id="bulk-grade-selector" style="display:none;">';
+				echo '<option value="">' . esc_html__( 'Select Grade...', 'photo-competition-manager' ) . '</option>';
+				foreach ( $grade_options as $grade_value => $grade_label ) {
+					echo '<option value="' . esc_attr( $grade_value ) . '">' . esc_html( $grade_label ) . '</option>';
+				}
+				echo '</select>';
+
+				echo ' <button type="submit" class="button action">' . esc_html__( 'Apply', 'photo-competition-manager' ) . '</button>';
+				echo '</div>';
+				echo '</div>';
+
 				echo '<table class="widefat striped">';
 				echo '<thead><tr>';
+				echo '<td class="check-column"><input type="checkbox" id="cb-select-all-1" /></td>';
 				echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
 				echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
 				echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
@@ -415,6 +664,7 @@ class Members_Controller {
 					$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
 
 					echo '<tr>';
+					echo '<th scope="row" class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '" /></th>';
 					echo '<td>' . esc_html( $member->name ) . '</td>';
 					echo '<td>' . esc_html( $member->email ) . '</td>';
 					echo '<td>' . esc_html( $grade_label ) . '</td>';
@@ -466,6 +716,61 @@ class Members_Controller {
 
 				echo '</tbody>';
 				echo '</table>';
+				echo '</form>';
+
+				// Add JavaScript for bulk actions and select all.
+				echo '<script>';
+				echo 'document.addEventListener("DOMContentLoaded", function() {';
+				// Select all functionality.
+				echo '  const selectAll = document.getElementById("cb-select-all-1");';
+				echo '  if (selectAll) {';
+				echo '    selectAll.addEventListener("change", function() {';
+				echo '      const checkboxes = document.querySelectorAll(\'input[name="member_ids[]"]\');';
+				echo '      checkboxes.forEach(function(checkbox) {';
+				echo '        checkbox.checked = selectAll.checked;';
+				echo '      });';
+				echo '    });';
+				echo '  }';
+				// Show/hide grade selector based on bulk action.
+				echo '  const bulkAction = document.getElementById("bulk-action-selector-top");';
+				echo '  const gradeSelector = document.getElementById("bulk-grade-selector");';
+				echo '  if (bulkAction && gradeSelector) {';
+				echo '    bulkAction.addEventListener("change", function() {';
+				echo '      if (bulkAction.value === "bulk_update_grade") {';
+				echo '        gradeSelector.style.display = "inline-block";';
+				echo '      } else {';
+				echo '        gradeSelector.style.display = "none";';
+				echo '      }';
+				echo '    });';
+				echo '  }';
+				// Form validation.
+				echo '  const bulkForm = document.getElementById("bulk-members-form");';
+				echo '  if (bulkForm) {';
+				echo '    bulkForm.addEventListener("submit", function(e) {';
+				echo '      const action = document.getElementById("bulk-action-selector-top").value;';
+				echo '      if (action === "-1") {';
+				echo '        e.preventDefault();';
+				echo '        alert("' . esc_js( __( 'Please select a bulk action.', 'photo-competition-manager' ) ) . '");';
+				echo '        return false;';
+				echo '      }';
+				echo '      const checked = document.querySelectorAll(\'input[name="member_ids[]"]:checked\');';
+				echo '      if (checked.length === 0) {';
+				echo '        e.preventDefault();';
+				echo '        alert("' . esc_js( __( 'Please select at least one member.', 'photo-competition-manager' ) ) . '");';
+				echo '        return false;';
+				echo '      }';
+				echo '      if (action === "bulk_update_grade") {';
+				echo '        const grade = document.getElementById("bulk-grade-selector").value;';
+				echo '        if (!grade) {';
+				echo '          e.preventDefault();';
+				echo '          alert("' . esc_js( __( 'Please select a grade.', 'photo-competition-manager' ) ) . '");';
+				echo '          return false;';
+				echo '        }';
+				echo '      }';
+				echo '    });';
+				echo '  }';
+				echo '});';
+				echo '</script>';
 			}
 
 			// Show create and import forms after the list.
