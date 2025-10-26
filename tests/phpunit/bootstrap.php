@@ -41,7 +41,7 @@ require_once $_tests_dir . '/includes/functions.php';
 tests_add_filter(
 	'muplugins_loaded',
 	static function () {
-		require dirname( __DIR__, 2 ) . '/club-competitions/includes/bootstrap.php';
+		require dirname( __DIR__, 2 ) . '/src/includes/bootstrap.php';
 
 		// Run activation to create database tables.
 		\PhotoCompetitionManager\Install\Activator::activate();
