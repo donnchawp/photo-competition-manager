@@ -384,92 +384,95 @@ class Members_Controller {
 
 		if ( 'edit' === $member_action ) {
 			$this->render_member_edit_form( $current );
-		} else {
+		}
+
+		// Display members list first (unless in edit mode).
+		if ( 'edit' !== $member_action ) {
+			if ( empty( $members ) ) {
+				echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'photo-competition-manager' ) . '</p>';
+			} else {
+				echo '<table class="widefat striped">';
+				echo '<thead><tr>';
+				echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
+				echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
+				echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
+				echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
+				echo '<th>' . esc_html__( 'Joined', 'photo-competition-manager' ) . '</th>';
+				echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
+				echo '</tr></thead>';
+				echo '<tbody>';
+
+				foreach ( $members as $member ) {
+					$edit_link    = add_query_arg(
+						array(
+							'page'          => 'photo-competition-manager-members',
+							'member_action' => 'edit',
+							'member'        => (int) $member->id,
+						),
+						admin_url( 'admin.php' )
+					);
+					$status_label = $member->active ? __( 'Active', 'photo-competition-manager' ) : __( 'Inactive', 'photo-competition-manager' );
+					$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
+
+					echo '<tr>';
+					echo '<td>' . esc_html( $member->name ) . '</td>';
+					echo '<td>' . esc_html( $member->email ) . '</td>';
+					echo '<td>' . esc_html( $grade_label ) . '</td>';
+					echo '<td>' . esc_html( $status_label ) . '</td>';
+					echo '<td>' . esc_html( $member->created_at ) . '</td>';
+
+					$actions = array(
+						sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
+					);
+
+					// Add "Send Upload Email" if we have an active competition and active member with email.
+					if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
+						$send_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page'        => 'photo-competition-manager-members',
+									'action'      => 'send_member_upload_email',
+									'member'      => (int) $member->id,
+									'competition' => (int) $active_competition->id,
+								),
+								admin_url( 'admin.php' )
+							),
+							'photo_competition_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
+						);
+
+						$actions[] = sprintf(
+							'<a href="%s">%s</a>',
+							esc_url( $send_url ),
+							esc_html__( 'Send Upload Email', 'photo-competition-manager' )
+						);
+
+						// Add upload page link for copying/sharing.
+						$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+						if ( ! empty( $upload_url ) ) {
+							$actions[] = sprintf(
+								'<a href="%s" target="_blank" title="%s">%s</a>',
+								esc_url( $upload_url ),
+								esc_attr__( 'Copy this link to share with the member', 'photo-competition-manager' ),
+								esc_html__( 'Upload Link', 'photo-competition-manager' )
+							);
+						}
+					} else {
+						$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'photo-competition-manager' ) . '">' . esc_html__( 'Send Upload Email', 'photo-competition-manager' ) . '</span>';
+					}
+
+					echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
+					echo '</tr>';
+				}
+
+				echo '</tbody>';
+				echo '</table>';
+			}
+
+			// Show create and import forms after the list.
 			$this->render_member_create_form();
 			$this->render_member_import_form();
 		}
 
-		if ( empty( $members ) ) {
-			echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
-			return;
-		}
-
-		echo '<table class="widefat striped">';
-		echo '<thead><tr>';
-		echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Joined', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
-		echo '</tr></thead>';
-		echo '<tbody>';
-
-		foreach ( $members as $member ) {
-			$edit_link    = add_query_arg(
-				array(
-					'page'          => 'photo-competition-manager-members',
-					'member_action' => 'edit',
-					'member'        => (int) $member->id,
-				),
-				admin_url( 'admin.php' )
-			);
-			$status_label = $member->active ? __( 'Active', 'photo-competition-manager' ) : __( 'Inactive', 'photo-competition-manager' );
-			$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
-
-			echo '<tr>';
-			echo '<td>' . esc_html( $member->name ) . '</td>';
-			echo '<td>' . esc_html( $member->email ) . '</td>';
-			echo '<td>' . esc_html( $grade_label ) . '</td>';
-			echo '<td>' . esc_html( $status_label ) . '</td>';
-			echo '<td>' . esc_html( $member->created_at ) . '</td>';
-
-			$actions = array(
-				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
-			);
-
-			// Add "Send Upload Email" if we have an active competition and active member with email.
-			if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
-				$send_url = wp_nonce_url(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager-members',
-							'action'      => 'send_member_upload_email',
-							'member'      => (int) $member->id,
-							'competition' => (int) $active_competition->id,
-						),
-						admin_url( 'admin.php' )
-					),
-					'photo_competition_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
-				);
-
-				$actions[] = sprintf(
-					'<a href="%s">%s</a>',
-					esc_url( $send_url ),
-					esc_html__( 'Send Upload Email', 'photo-competition-manager' )
-				);
-
-				// Add upload page link for copying/sharing.
-				$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
-				if ( ! empty( $upload_url ) ) {
-					$actions[] = sprintf(
-						'<a href="%s" target="_blank" title="%s">%s</a>',
-						esc_url( $upload_url ),
-						esc_attr__( 'Copy this link to share with the member', 'photo-competition-manager' ),
-						esc_html__( 'Upload Link', 'photo-competition-manager' )
-					);
-				}
-			} else {
-				$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'photo-competition-manager' ) . '">' . esc_html__( 'Send Upload Email', 'photo-competition-manager' ) . '</span>';
-			}
-
-			echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
-			echo '</tr>';
-		}
-
-		echo '</tbody>';
-		echo '</table>';
 		echo '</div>';
 	}
 
