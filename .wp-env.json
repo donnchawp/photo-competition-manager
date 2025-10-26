@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    "./src"
+  ],
+  "config": {
+    "WP_DEBUG": true
+  }
+}
