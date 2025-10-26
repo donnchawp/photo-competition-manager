@@ -9,39 +9,47 @@ WordPress plugin that helps photography clubs run recurring competitions, collec
 
 ## Shortcodes
 
-The plugin provides several shortcodes for displaying competition functionality:
+The plugin provides four main shortcodes for displaying competition functionality on your WordPress site.
 
-### Upload & Voting
-- `[competition_upload]` - Member upload form for the active competition
-- `[competition_voting competition="slug"]` - Public voting interface
+### Available Shortcodes
 
-### Results Display
-- `[competition_results]` - Complete results table for most recent competition
-- `[competition_results competition="slug"]` - Complete results table for specific competition
-- `[competition_results hide_names="true"]` - Results table without member names
-- `[competition_top3]` - Top 3 winners per grade for most recent competition
-- `[competition_top3 competition="slug"]` - Top 3 winners per grade for specific competition
+**1. Upload Form** - `[competition_upload]`
+- Allows members to upload images for the active competition
+- Features: email verification, optional password gate, category selection, automatic image processing
 
-### Example Usage
+**2. Voting Interface** - `[competition_voting competition="slug"]`
+- Displays mobile-optimized voting interface for submitted images
+- Features: position-based scoring, voter name collection, optional password gate, real-time validation
+
+**3. Complete Results** - `[competition_results]` or `[competition_results competition="slug"]`
+- Shows all competition results grouped by category and grade, sorted by score
+- Parameters: `competition` (optional, defaults to most recent), `hide_names` (optional, hides member names)
+- Features: category grouping, grade sub-grouping, responsive tables, clickable thumbnails
+
+**4. Top 3 Podium** - `[competition_top3]` or `[competition_top3 competition="slug"]`
+- Displays top 3 winners per grade in podium-style layout
+- Features: category/grade grouping, gold/silver/bronze styling, responsive design
+
+### Quick Examples
 ```php
-// Show upload form for a specific competition
+// Upload and voting
 [competition_upload]
+[competition_voting]
+[competition_voting competition="october-2025"]
 
-// Display voting interface
-[competition_voting competition="october-2024"]
-
-// Show results for most recent competition
+// Results for most recent competition
 [competition_results]
 [competition_top3]
 
-// Show results for specific competition
-[competition_results competition="october-2024"]
-[competition_top3 competition="october-2024"]
+// Results for specific competition
+[competition_results competition="october-2025"]
+[competition_top3 competition="october-2025"]
 
-// Show results without member names (anonymous display)
+// Anonymous results (hide member names)
 [competition_results hide_names="true"]
-[competition_results competition="october-2024" hide_names="true"]
 ```
+
+For detailed implementation guides, styling options, and troubleshooting, see `SHORTCODE_USAGE.md`.
 
 ## Member CSV Import
 
