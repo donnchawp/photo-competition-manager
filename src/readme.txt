@@ -45,7 +45,7 @@ Perfect for photography clubs, camera clubs, photo societies, and any organizati
 
 **Quick Start**
 
-1. Upload `photo-competition-manager/` to your WordPress `wp-content/plugins/` directory or install via the Plugins screen
+1. Install via the Plugins screen on your WordPress site.
 2. Activate the plugin through **Plugins → Installed Plugins**
 3. Navigate to **Competitions → Setup Wizard** to auto-create pages with shortcodes
 4. Go to **Competitions → Settings** to configure default categories, grades, and scoring
