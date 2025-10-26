@@ -2,7 +2,7 @@
 /**
  * Class Sample_Test
  *
- * @package Club_Competitions
+ * @package Photo_Competition_Manager
  */
 
 /**

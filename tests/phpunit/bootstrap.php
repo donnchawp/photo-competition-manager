@@ -1,6 +1,6 @@
 <?php
 /**
- * PHPUnit bootstrap for Club Competitions.
+ * PHPUnit bootstrap for Photo Competition Manager.
  */
 
 $_tests_dir = getenv( 'WP_TESTS_DIR' );

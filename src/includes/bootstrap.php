@@ -1,6 +1,6 @@
 <?php
 /**
- * Bootstrap the Club Competitions plugin.
+ * Bootstrap the Photo Competition Manager plugin.
  *
  * @package PhotoCompetitionManager
  */

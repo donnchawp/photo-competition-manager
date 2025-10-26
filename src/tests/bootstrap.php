@@ -2,7 +2,7 @@
 /**
  * PHPUnit bootstrap file.
  *
- * @package Club_Competitions
+ * @package Photo_Competition_Manager
  */
 
 $_tests_dir = getenv( 'WP_TESTS_DIR' );

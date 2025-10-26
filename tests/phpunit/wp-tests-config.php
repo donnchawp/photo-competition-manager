@@ -51,7 +51,7 @@ define( 'DB_COLLATE', '' );
 
 define( 'WP_TESTS_DOMAIN', 'example.org' );
 define( 'WP_TESTS_EMAIL', 'admin@example.org' );
-define( 'WP_TESTS_TITLE', 'Club Competitions Tests' );
+define( 'WP_TESTS_TITLE', 'Photo Competition Manager Tests' );
 
 define( 'WP_PHP_BINARY', getenv( 'PHP_BINARY' ) ?: 'php' );
 define( 'WPLANG', '' );

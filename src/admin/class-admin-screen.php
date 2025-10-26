@@ -119,7 +119,7 @@ class Admin_Screen {
 	 */
 	public function register_menu(): void {
 		add_menu_page(
-			__( 'Club Competitions', 'photo-competition-manager' ),
+			__( 'Photo Competition Manager', 'photo-competition-manager' ),
 			__( 'Competitions', 'photo-competition-manager' ),
 			'publish_posts',
 			'photo-competition-manager',

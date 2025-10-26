@@ -433,7 +433,7 @@ class Competitions_Controller {
 		$competitions = $this->competitions->all( 10, 'archived' === $view, 'archived' === $view );
 
 		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Club Competitions Dashboard', 'photo-competition-manager' ) . '</h1>';
+		echo '<h1>' . esc_html__( 'Photo Competition Manager Dashboard', 'photo-competition-manager' ) . '</h1>';
 
 		$this->render_competition_table( $competitions, $view );
 
