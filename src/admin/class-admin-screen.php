@@ -76,6 +76,13 @@ class Admin_Screen {
 	private $setup_wizard_controller;
 
 	/**
+	 * Email templates controller.
+	 *
+	 * @var Email_Templates_Controller
+	 */
+	private $email_templates_controller;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -92,14 +99,15 @@ class Admin_Screen {
 		$email_job_mgr    = new \PhotoCompetitionManager\Service\Email_Results_Job_Manager( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service );
 
 		// Initialize controllers with their dependencies.
-		$this->competitions_controller = new Competitions_Controller( $competitions );
-		$this->members_controller      = new Members_Controller( $competitions, $members );
-		$this->submissions_controller  = new Submissions_Controller( $competitions, $members, $images, $votes );
-		$this->voting_controller       = new Voting_Controller( $competitions, $images );
-		$this->settings_controller     = new Settings_Controller();
-		$this->export_screen           = new Export_Screen();
-		$this->results_controller      = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
-		$this->setup_wizard_controller = new Setup_Wizard_Controller();
+		$this->competitions_controller    = new Competitions_Controller( $competitions );
+		$this->members_controller         = new Members_Controller( $competitions, $members );
+		$this->submissions_controller     = new Submissions_Controller( $competitions, $members, $images, $votes );
+		$this->voting_controller          = new Voting_Controller( $competitions, $images );
+		$this->settings_controller        = new Settings_Controller();
+		$this->export_screen              = new Export_Screen();
+		$this->results_controller         = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
+		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
+		$this->email_templates_controller = new Email_Templates_Controller();
 	}
 
 	/**
@@ -119,6 +127,7 @@ class Admin_Screen {
 		$this->settings_controller->register();
 		$this->results_controller->register();
 		$this->setup_wizard_controller->register();
+		$this->email_templates_controller->register();
 	}
 
 	/**
@@ -197,6 +206,15 @@ class Admin_Screen {
 			'publish_posts',
 			'photo-competition-manager-export',
 			array( $this->export_screen, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Email Templates', 'photo-competition-manager' ),
+			__( 'Email Templates', 'photo-competition-manager' ),
+			'manage_options',
+			'photo-competition-manager-email-templates',
+			array( $this->email_templates_controller, 'render' )
 		);
 	}
 

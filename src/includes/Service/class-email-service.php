@@ -24,13 +24,29 @@ class Email_Service {
 	 * @return bool Whether the email was sent successfully.
 	 */
 	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link ): bool {
-		$subject = sprintf(
-			/* translators: %s: Competition title */
-			__( 'Upload your images for %s', 'photo-competition-manager' ),
-			$competition_title
-		);
+		// Check if template is enabled and customized.
+		$template = $this->get_template( 'upload_reminder' );
 
-		$message = $this->get_upload_email_body( $member_name, $competition_title, $magic_link );
+		if ( $template && $template['enabled'] ) {
+			$merge_data = array(
+				'{member_name}'       => $member_name,
+				'{competition_title}' => $competition_title,
+				'{upload_link}'       => $magic_link,
+				'{site_name}'         => get_bloginfo( 'name' ),
+			);
+
+			$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+			$message = $this->replace_merge_tags( $template['body'], $merge_data );
+			$message = $this->wrap_html_email( $message );
+		} else {
+			// Fallback to default hardcoded email.
+			$subject = sprintf(
+				/* translators: %s: Competition title */
+				__( 'Upload your images for %s', 'photo-competition-manager' ),
+				$competition_title
+			);
+			$message = $this->get_upload_email_body( $member_name, $competition_title, $magic_link );
+		}
 
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
@@ -48,13 +64,28 @@ class Email_Service {
 	 * @return bool Whether the email was sent successfully.
 	 */
 	public function send_voting_link( string $to_email, string $competition_title, string $magic_link ): bool {
-		$subject = sprintf(
-			/* translators: %s: Competition title */
-			__( 'Vote in %s', 'photo-competition-manager' ),
-			$competition_title
-		);
+		// Check if template is enabled and customized.
+		$template = $this->get_template( 'voting_opened' );
 
-		$message = $this->get_voting_email_body( $competition_title, $magic_link );
+		if ( $template && $template['enabled'] ) {
+			$merge_data = array(
+				'{competition_title}' => $competition_title,
+				'{voting_page}'       => $magic_link,
+				'{site_name}'         => get_bloginfo( 'name' ),
+			);
+
+			$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+			$message = $this->replace_merge_tags( $template['body'], $merge_data );
+			$message = $this->wrap_html_email( $message );
+		} else {
+			// Fallback to default hardcoded email.
+			$subject = sprintf(
+				/* translators: %s: Competition title */
+				__( 'Vote in %s', 'photo-competition-manager' ),
+				$competition_title
+			);
+			$message = $this->get_voting_email_body( $competition_title, $magic_link );
+		}
 
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
@@ -195,6 +226,8 @@ class Email_Service {
 	 * @return bool Whether the email was sent successfully.
 	 */
 	public function send_results_email( string $to_email, string $member_name, string $competition_title, array $member_results ): bool {
+		// Note: This method sends detailed results data.
+		// For a simple notification without detailed results, use send_results_published_notification() instead.
 		$subject = sprintf(
 			/* translators: %s: Competition title */
 			__( 'Results for %s', 'photo-competition-manager' ),
@@ -206,6 +239,160 @@ class Email_Service {
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 		);
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Send submission confirmed notification.
+	 *
+	 * @param string $to_email          Recipient email.
+	 * @param string $member_name       Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $category_name     Category name.
+	 * @param int    $current_count     Current submission count.
+	 * @param int    $quota             Maximum allowed submissions.
+	 * @return bool Whether email was sent successfully.
+	 */
+	public function send_submission_confirmed_notification(
+		string $to_email,
+		string $member_name,
+		string $competition_title,
+		string $category_name,
+		int $current_count,
+		int $quota
+	): bool {
+		$template = $this->get_template( 'submission_confirmed' );
+
+		if ( ! $template || ! $template['enabled'] ) {
+			return false; // Template disabled, skip sending.
+		}
+
+		$merge_data = array(
+			'{member_name}'       => $member_name,
+			'{competition_title}' => $competition_title,
+			'{category_name}'     => $category_name,
+			'{current_count}'     => (string) $current_count,
+			'{quota}'             => (string) $quota,
+			'{site_name}'         => get_bloginfo( 'name' ),
+		);
+
+		$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+		$message = $this->replace_merge_tags( $template['body'], $merge_data );
+		$message = $this->wrap_html_email( $message );
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Send voting opened notification.
+	 *
+	 * @param string $to_email          Recipient email.
+	 * @param string $member_name       Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $voting_page_url   Voting page URL.
+	 * @param string $close_date        Competition close date (formatted).
+	 * @return bool Whether email was sent successfully.
+	 */
+	public function send_voting_opened_notification(
+		string $to_email,
+		string $member_name,
+		string $competition_title,
+		string $voting_page_url,
+		string $close_date
+	): bool {
+		$template = $this->get_template( 'voting_opened' );
+
+		if ( ! $template || ! $template['enabled'] ) {
+			return false; // Template disabled, skip sending.
+		}
+
+		$merge_data = array(
+			'{member_name}'       => $member_name,
+			'{competition_title}' => $competition_title,
+			'{voting_page}'       => $voting_page_url,
+			'{close_date}'        => $close_date,
+			'{site_name}'         => get_bloginfo( 'name' ),
+		);
+
+		$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+		$message = $this->replace_merge_tags( $template['body'], $merge_data );
+		$message = $this->wrap_html_email( $message );
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Send competition closed notification.
+	 *
+	 * @param string $to_email          Recipient email.
+	 * @param string $member_name       Member name.
+	 * @param string $competition_title Competition title.
+	 * @return bool Whether email was sent successfully.
+	 */
+	public function send_competition_closed_notification(
+		string $to_email,
+		string $member_name,
+		string $competition_title
+	): bool {
+		$template = $this->get_template( 'competition_closed' );
+
+		if ( ! $template || ! $template['enabled'] ) {
+			return false; // Template disabled, skip sending.
+		}
+
+		$merge_data = array(
+			'{member_name}'       => $member_name,
+			'{competition_title}' => $competition_title,
+			'{site_name}'         => get_bloginfo( 'name' ),
+		);
+
+		$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+		$message = $this->replace_merge_tags( $template['body'], $merge_data );
+		$message = $this->wrap_html_email( $message );
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+		return wp_mail( $to_email, $subject, $message, $headers );
+	}
+
+	/**
+	 * Send results published notification.
+	 *
+	 * @param string $to_email          Recipient email.
+	 * @param string $member_name       Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $results_page_url  Results page URL.
+	 * @return bool Whether email was sent successfully.
+	 */
+	public function send_results_published_notification(
+		string $to_email,
+		string $member_name,
+		string $competition_title,
+		string $results_page_url
+	): bool {
+		$template = $this->get_template( 'results_published' );
+
+		if ( ! $template || ! $template['enabled'] ) {
+			return false; // Template disabled, skip sending.
+		}
+
+		$merge_data = array(
+			'{member_name}'       => $member_name,
+			'{competition_title}' => $competition_title,
+			'{results_page}'      => $results_page_url,
+			'{site_name}'         => get_bloginfo( 'name' ),
+		);
+
+		$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+		$message = $this->replace_merge_tags( $template['body'], $merge_data );
+		$message = $this->wrap_html_email( $message );
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
 		return wp_mail( $to_email, $subject, $message, $headers );
 	}
@@ -322,6 +509,76 @@ class Email_Service {
 
 				<p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
 					<?php esc_html_e( 'Thank you for participating in this competition!', 'photo-competition-manager' ); ?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Get a specific email template.
+	 *
+	 * @param string $template_key Template key.
+	 * @return array<string, mixed>|null Template data or null if not found/enabled.
+	 */
+	private function get_template( string $template_key ): ?array {
+		$templates = get_option( 'photo_comp_email_templates', array() );
+
+		if ( ! isset( $templates[ $template_key ] ) ) {
+			return null;
+		}
+
+		$template = $templates[ $template_key ];
+
+		// Return null if template is disabled or has no content.
+		if ( empty( $template['enabled'] ) || empty( $template['subject'] ) || empty( $template['body'] ) ) {
+			return null;
+		}
+
+		return $template;
+	}
+
+	/**
+	 * Replace merge tags in a string.
+	 *
+	 * @param string               $content    Content with merge tags.
+	 * @param array<string, mixed> $merge_data Merge tag data.
+	 * @return string Content with merge tags replaced.
+	 */
+	private function replace_merge_tags( string $content, array $merge_data ): string {
+		return str_replace( array_keys( $merge_data ), array_values( $merge_data ), $content );
+	}
+
+	/**
+	 * Wrap content in HTML email template.
+	 *
+	 * @param string $content Email body content.
+	 * @return string Wrapped HTML email.
+	 */
+	private function wrap_html_email( string $content ): string {
+		ob_start();
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+		</head>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+				<?php echo wp_kses_post( wpautop( $content ) ); ?>
+
+				<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+				<p style="color: #999; font-size: 12px;">
+					<?php
+					printf(
+						/* translators: %s: Site name */
+						esc_html__( 'This email was sent by %s', 'photo-competition-manager' ),
+						esc_html( get_bloginfo( 'name' ) )
+					);
+					?>
 				</p>
 			</div>
 		</body>
