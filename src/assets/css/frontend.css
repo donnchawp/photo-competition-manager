@@ -427,6 +427,7 @@
 	background: #f9f9f9;
 	border: 1px solid #ddd;
 	border-radius: 4px;
+	box-sizing: border-box;
 }
 
 .photo-comp-results h2,
@@ -447,6 +448,7 @@
 	border: 2px solid #2271b1;
 	border-radius: 8px;
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+	box-sizing: border-box;
 }
 
 .results-category-section h3,
@@ -471,6 +473,7 @@
 	border: 1px solid #ddd;
 	border-radius: 6px;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+	box-sizing: border-box;
 }
 
 .results-grade-section h4,
@@ -587,6 +590,7 @@
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 	transition: transform 0.2s, box-shadow 0.2s;
 	min-width: 200px;
+	box-sizing: border-box;
 }
 
 .podium-item:hover {
@@ -637,13 +641,16 @@
 }
 
 .image-container {
-	margin: 1em 0;
+	margin: 1em auto;
 	position: relative;
+	max-width: 150px;
+	width: 100%;
 }
 
 .podium-thumbnail {
+	width: 100%;
 	max-width: 150px;
-	max-height: 150px;
+	height: auto;
 	object-fit: cover;
 	border-radius: 8px;
 	border: 2px solid #ddd;
@@ -734,7 +741,8 @@
 	.photo-comp-voting,
 	.photo-comp-results,
 	.photo-comp-top3 {
-		padding: 1em;
+		padding: 0.5em;
+		margin: 1em auto;
 	}
 
 	.submissions-grid,
@@ -769,12 +777,16 @@
 
 	.top3-podium {
 		flex-direction: column;
-		align-items: center;
+		align-items: stretch;
+		gap: 1em;
 	}
 
 	.podium-item {
-		min-width: 250px;
-		margin-bottom: 1em;
+		width: 100%;
+		min-width: 0;
+		margin-bottom: 0;
+		padding: 0.75em;
+		border-width: 1px;
 	}
 
 	.podium-item.first {
@@ -787,5 +799,44 @@
 
 	.podium-item.third {
 		order: 3;
+	}
+
+	.position-badge {
+		font-size: 0.9em;
+		padding: 0.3em 0.6em;
+		margin-bottom: 0.5em;
+	}
+
+	.image-container {
+		margin: 0.5em auto;
+	}
+
+	.member-name {
+		font-size: 1em;
+	}
+
+	.score {
+		font-size: 1.1em;
+	}
+
+	.results-category-section,
+	.top3-category-section {
+		padding: 0.75em;
+		margin: 1.5em 0;
+	}
+
+	.results-grade-section,
+	.top3-grade-section {
+		padding: 0.75em;
+		margin: 1em 0;
+	}
+
+	.top3-category-section h3 {
+		font-size: 1.4em;
+		padding: 0.75em;
+	}
+
+	.top3-grade-section h4 {
+		font-size: 1.1em;
 	}
 }
