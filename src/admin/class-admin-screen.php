@@ -69,6 +69,13 @@ class Admin_Screen {
 	private $results_controller;
 
 	/**
+	 * Setup wizard controller.
+	 *
+	 * @var Setup_Wizard_Controller
+	 */
+	private $setup_wizard_controller;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -92,6 +99,7 @@ class Admin_Screen {
 		$this->settings_controller     = new Settings_Controller();
 		$this->export_screen           = new Export_Screen();
 		$this->results_controller      = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
+		$this->setup_wizard_controller = new Setup_Wizard_Controller();
 	}
 
 	/**
@@ -110,6 +118,7 @@ class Admin_Screen {
 		$this->voting_controller->register();
 		$this->settings_controller->register();
 		$this->results_controller->register();
+		$this->setup_wizard_controller->register();
 	}
 
 	/**
@@ -125,6 +134,15 @@ class Admin_Screen {
 			'photo-competition-manager',
 			array( $this->competitions_controller, 'render' ),
 			'dashicons-camera'
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Setup Wizard', 'photo-competition-manager' ),
+			__( 'Setup Wizard', 'photo-competition-manager' ),
+			'publish_posts',
+			'photo-competition-manager-setup',
+			array( $this->setup_wizard_controller, 'render' )
 		);
 
 		add_submenu_page(
