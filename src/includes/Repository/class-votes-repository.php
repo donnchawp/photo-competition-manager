@@ -450,4 +450,25 @@ class Votes_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return $this->wpdb->get_results( $sql );
 	}
+
+	/**
+	 * Delete all votes for a specific image.
+	 *
+	 * @param int $image_id Image ID.
+	 * @return bool
+	 */
+	public function delete_by_image( int $image_id ): bool {
+		if ( ! $this->table_exists() ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$deleted = $this->wpdb->delete(
+			$this->table(),
+			array( 'image_id' => $image_id ),
+			array( '%d' )
+		);
+
+		return false !== $deleted;
+	}
 }
