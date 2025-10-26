@@ -157,7 +157,7 @@ class Settings_Controller {
 		wp_safe_redirect(
 			add_query_arg(
 				array(
-					'page' => 'club-competitions-settings',
+					'page' => 'photo-competition-manager-settings',
 				),
 				admin_url( 'admin.php' )
 			)
@@ -194,7 +194,7 @@ class Settings_Controller {
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 720px; padding: 16px; margin-top: 20px;">';
 		wp_nonce_field( 'photo_competition_global_settings', 'photo_competition_nonce' );
 		echo '<input type="hidden" name="photo_competition_action" value="update_global_settings" />';
-		echo '<input type="hidden" name="page" value="club-competitions-settings" />';
+		echo '<input type="hidden" name="page" value="photo-competition-manager-settings" />';
 
 		echo '<h2>' . esc_html__( 'Categories', 'photo-competition-manager' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'Define default categories and upload quotas.', 'photo-competition-manager' ) . '</p>';

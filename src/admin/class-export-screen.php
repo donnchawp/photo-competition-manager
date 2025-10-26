@@ -13,7 +13,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 
 /**
- * Manage Club Competitions export screen.
+ * Export screen.
  *
  * @since 1.0.0
  */
@@ -353,7 +353,7 @@ class Export_Screen {
 
 		// Create temporary directory for the zip file.
 		$upload_dir = wp_upload_dir();
-		$temp_dir   = trailingslashit( $upload_dir['basedir'] ) . 'club-competitions-temp';
+		$temp_dir   = trailingslashit( $upload_dir['basedir'] ) . 'photo-competition-manager-temp';
 
 		if ( ! file_exists( $temp_dir ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir

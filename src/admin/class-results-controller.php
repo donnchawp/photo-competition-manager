@@ -170,7 +170,7 @@ class Results_Controller {
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'        => 'club-competitions-results',
+						'page'        => 'photo-competition-manager-results',
 						'competition' => $competition_id,
 					),
 					admin_url( 'admin.php' )
@@ -198,7 +198,7 @@ class Results_Controller {
 				wp_safe_redirect(
 					add_query_arg(
 						array(
-							'page'        => 'club-competitions-results',
+							'page'        => 'photo-competition-manager-results',
 							'competition' => $competition_id,
 						),
 						admin_url( 'admin.php' )
@@ -214,7 +214,7 @@ class Results_Controller {
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'        => 'club-competitions-results',
+						'page'        => 'photo-competition-manager-results',
 						'competition' => $competition_id,
 						'job_id'      => $job_id,
 						'status'      => 'processing',
@@ -309,7 +309,7 @@ class Results_Controller {
 			$selected_category = $categories[0]['slug'] ?? '';
 		}
 
-		echo '<div class="wrap club-compete-results-dashboard">';
+		echo '<div class="wrap photo-competition-manager-results-dashboard">';
 		echo '<h1>' . esc_html__( 'Results Dashboard', 'photo-competition-manager' ) . '</h1>';
 
 		// Competition selector.
@@ -319,7 +319,7 @@ class Results_Controller {
 		foreach ( $competitions as $comp ) {
 			$url      = add_query_arg(
 				array(
-					'page'        => 'club-competitions-results',
+					'page'        => 'photo-competition-manager-results',
 					'competition' => (int) $comp->id,
 				),
 				admin_url( 'admin.php' )
@@ -349,7 +349,7 @@ class Results_Controller {
 
 				$cat_url = add_query_arg(
 					array(
-						'page'        => 'club-competitions-results',
+						'page'        => 'photo-competition-manager-results',
 						'competition' => (int) $competition->id,
 						'category'    => rawurlencode( $cat_slug ),
 					),
@@ -395,7 +395,7 @@ class Results_Controller {
 		$recalculate_url = wp_nonce_url(
 			add_query_arg(
 				array(
-					'page'        => 'club-competitions-results',
+					'page'        => 'photo-competition-manager-results',
 					'action'      => 'recalculate_scores',
 					'competition' => (int) $competition->id,
 				),
@@ -412,7 +412,7 @@ class Results_Controller {
 		$export_url = wp_nonce_url(
 			add_query_arg(
 				array(
-					'page'        => 'club-competitions-results',
+					'page'        => 'photo-competition-manager-results',
 					'action'      => 'export_results_csv',
 					'competition' => (int) $competition->id,
 				),
@@ -429,7 +429,7 @@ class Results_Controller {
 		$email_url = wp_nonce_url(
 			add_query_arg(
 				array(
-					'page'        => 'club-competitions-results',
+					'page'        => 'photo-competition-manager-results',
 					'action'      => 'email_results',
 					'competition' => (int) $competition->id,
 				),
@@ -556,7 +556,7 @@ class Results_Controller {
 				echo '<td>';
 				$detail_url = add_query_arg(
 					array(
-						'page'        => 'club-competitions-results',
+						'page'        => 'photo-competition-manager-results',
 						'competition' => $competition_id,
 						'category'    => rawurlencode( $category ),
 						'image'       => (int) $result->id,
@@ -604,14 +604,14 @@ class Results_Controller {
 
 		$back_url = add_query_arg(
 			array(
-				'page'        => 'club-competitions-results',
+				'page'        => 'photo-competition-manager-results',
 				'competition' => (int) $competition->id,
 				'category'    => rawurlencode( $category ),
 			),
 			admin_url( 'admin.php' )
 		);
 
-		echo '<div class="wrap club-compete-image-details">';
+		echo '<div class="wrap photo-competition-manager-image-details">';
 		echo '<h1>' . esc_html__( 'Image Details', 'photo-competition-manager' ) . '</h1>';
 
 		echo '<p><a href="' . esc_url( $back_url ) . '" class="button">&larr; ' . esc_html__( 'Back to Results', 'photo-competition-manager' ) . '</a></p>';

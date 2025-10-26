@@ -198,7 +198,7 @@ class Competitions_Controller {
 
 				if ( is_wp_error( $result ) ) {
 					add_settings_error(
-						'club_competitions',
+						'photo_competition_manager',
 						$result->get_error_code(),
 						$result->get_error_message(),
 						'error'
@@ -212,7 +212,7 @@ class Competitions_Controller {
 					);
 
 					add_settings_error(
-						'club_competitions',
+						'photo_competition_manager',
 						'emails_sent',
 						$message,
 						'updated'

@@ -107,7 +107,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=club-competitions-submissions' ) );
+				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 				exit;
 			}
 
@@ -132,7 +132,7 @@ class Submissions_Controller {
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'           => 'club-competitions-submissions',
+						'page'           => 'photo-competition-manager-submissions',
 						'competition_id' => $competition_id,
 					),
 					admin_url( 'admin.php' )
@@ -153,7 +153,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=club-competitions-submissions' ) );
+				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 				exit;
 			}
 
@@ -203,7 +203,7 @@ class Submissions_Controller {
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'           => 'club-competitions-submissions',
+						'page'           => 'photo-competition-manager-submissions',
 						'competition_id' => $competition_id,
 					),
 					admin_url( 'admin.php' )
@@ -276,7 +276,7 @@ class Submissions_Controller {
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
 
 		echo '<form method="get" class="photo-comp-filters">';
-		echo '<input type="hidden" name="page" value="club-competitions-submissions" />';
+		echo '<input type="hidden" name="page" value="photo-competition-manager-submissions" />';
 		echo '<label for="competition_id" class="screen-reader-text">' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</label>';
 		echo '<select name="competition_id" id="competition_id">';
 		foreach ( $competitions as $competition ) {

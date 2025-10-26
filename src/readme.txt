@@ -1,5 +1,5 @@
 === Photo Competition Manager ===
-Contributors: donncha
+Contributors: donncha, automattic
 Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.0
 Tested up to: 6.8
@@ -24,7 +24,7 @@ The plugin bundles frontend shortcodes for uploads, voting, full results, and to
 
 == Installation ==
 
-1. Upload `club-competitions/` to your WordPress `wp-content/plugins/` directory or install via the Plugins screen.
+1. Upload `photo-competition-manager/` to your WordPress `wp-content/plugins/` directory or install via the Plugins screen.
 2. Activate the plugin through **Plugins → Installed Plugins**.
 3. Navigate to **Competitions** in the admin menu to create your first competition, configure categories/grades, and add members.
 4. Drop the provided shortcodes on public pages:

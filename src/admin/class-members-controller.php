@@ -253,7 +253,7 @@ class Members_Controller {
 				wp_safe_redirect(
 					add_query_arg(
 						array(
-							'page'          => 'club-competitions-members',
+							'page'          => 'photo-competition-manager-members',
 							'member_action' => 'edit',
 							'member'        => $member_id,
 						),
@@ -334,7 +334,7 @@ class Members_Controller {
 		foreach ( $members as $member ) {
 			$edit_link    = add_query_arg(
 				array(
-					'page'          => 'club-competitions-members',
+					'page'          => 'photo-competition-manager-members',
 					'member_action' => 'edit',
 					'member'        => (int) $member->id,
 				),
@@ -359,7 +359,7 @@ class Members_Controller {
 				$send_url = wp_nonce_url(
 					add_query_arg(
 						array(
-							'page'        => 'club-competitions-members',
+							'page'        => 'photo-competition-manager-members',
 							'action'      => 'send_member_upload_email',
 							'member'      => (int) $member->id,
 							'competition' => (int) $active_competition->id,

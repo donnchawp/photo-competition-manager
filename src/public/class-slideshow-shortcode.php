@@ -283,14 +283,14 @@ class Slideshow_Shortcode {
 	 */
 	private function enqueue_assets(): void {
 		wp_enqueue_style(
-			'club-competitions-slideshow',
+			'photo-competition-manager-slideshow',
 			plugins_url( 'assets/css/slideshow.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0'
 		);
 
 		wp_enqueue_script(
-			'club-competitions-slideshow',
+			'photo-competition-manager-slideshow',
 			plugins_url( 'assets/js/slideshow.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array( 'jquery' ),
 			'1.0.0',

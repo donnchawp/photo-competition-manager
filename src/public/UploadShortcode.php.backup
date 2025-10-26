@@ -97,12 +97,12 @@ class UploadShortcode {
 		);
 
 		if ( empty( $atts['competition'] ) ) {
-			return '<p class="error">' . esc_html__( 'Please specify a competition slug.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Please specify a competition slug.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
 		if ( ! $competition ) {
-			return '<p class="error">' . esc_html__( 'Competition not found.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Competition not found.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		$settings        = CompetitionSettings::parse( $competition->settings );
@@ -124,17 +124,17 @@ class UploadShortcode {
 
 		// Handle token request form submission.
 		$message = '';
-		if ( isset( $_POST['club_competitions_request_token'] ) && check_admin_referer( 'club_competitions_request_token', 'club_competitions_nonce' ) ) {
+		if ( isset( $_POST['photo_competition_manager_request_token'] ) && check_admin_referer( 'photo_competition_manager_request_token', 'photo_competition_manager_nonce' ) ) {
 			$message = $this->handle_token_request( $competition );
 		}
 
 		// Handle upload with token.
-		if ( $token_record && $member && isset( $_POST['club_competitions_upload'] ) && check_admin_referer( 'club_competitions_upload_with_token', 'club_competitions_nonce' ) ) {
+		if ( $token_record && $member && isset( $_POST['photo_competition_manager_upload'] ) && check_admin_referer( 'photo_competition_manager_upload_with_token', 'photo_competition_manager_nonce' ) ) {
 			$message = $this->handle_token_upload( $competition->id, $member->id, $token_record );
 		}
 
 		// Handle deletion with token.
-		if ( $token_record && $member && isset( $_POST['club_competitions_delete'] ) && check_admin_referer( 'club_competitions_delete_with_token', 'club_competitions_delete_nonce' ) ) {
+		if ( $token_record && $member && isset( $_POST['photo_competition_manager_delete'] ) && check_admin_referer( 'photo_competition_manager_delete_with_token', 'photo_competition_manager_delete_nonce' ) ) {
 			$message = $this->handle_token_deletion( $competition->id, $member->id, $token_record );
 		}
 
@@ -154,11 +154,11 @@ class UploadShortcode {
 		$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
 
 		if ( empty( $member_email ) ) {
-			return '<p class="error">' . esc_html__( 'Please enter your email address.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Please enter your email address.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Generic success message for security (prevents email enumeration).
-		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'club-competitions' ) . '</p>';
+		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'photo-competition-manager' ) . '</p>';
 
 		// Find member by email silently.
 		$member = $this->members_repo->find_by_email( $member_email );
@@ -181,7 +181,7 @@ class UploadShortcode {
 		$token_id = $this->token_repo->create( $member->id, $competition->id, $token_hash, $expires_at );
 
 		if ( is_wp_error( $token_id ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to create upload link. Please try again.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Failed to create upload link. Please try again.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Build magic link.
@@ -202,7 +202,7 @@ class UploadShortcode {
 		);
 
 		if ( ! $email_sent ) {
-			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		return $generic_success;
@@ -220,12 +220,12 @@ class UploadShortcode {
 		$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 
 		if ( empty( $category ) ) {
-			return '<p class="error">' . esc_html__( 'Please select a category.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Please select a category.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Check file upload.
 		if ( empty( $_FILES['image'] ) || UPLOAD_ERR_NO_FILE === $_FILES['image']['error'] ) {
-			return '<p class="error">' . esc_html__( 'Please select an image to upload.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Please select an image to upload.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Process upload.
@@ -238,7 +238,7 @@ class UploadShortcode {
 		// Mark token as used after successful upload.
 		$this->token_repo->mark_as_used( (int) $token_record->id );
 
-		return '<p class="success">' . esc_html__( 'Image uploaded successfully! Your upload link has been used and is no longer valid.', 'club-competitions' ) . '</p>';
+		return '<p class="success">' . esc_html__( 'Image uploaded successfully! Your upload link has been used and is no longer valid.', 'photo-competition-manager' ) . '</p>';
 	}
 
 	/**
@@ -253,7 +253,7 @@ class UploadShortcode {
 		$image_id = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
 
 		if ( ! $image_id ) {
-			return '<p class="error">' . esc_html__( 'Invalid deletion request.', 'club-competitions' ) . '</p>';
+			return '<p class="error">' . esc_html__( 'Invalid deletion request.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		$result = $this->upload_handler->delete_submission( $image_id, $member_id, $competition_id );
@@ -262,7 +262,7 @@ class UploadShortcode {
 			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
 		}
 
-		return '<p class="success">' . esc_html__( 'Image deleted successfully.', 'club-competitions' ) . '</p>';
+		return '<p class="success">' . esc_html__( 'Image deleted successfully.', 'photo-competition-manager' ) . '</p>';
 	}
 
 	/**
@@ -323,7 +323,7 @@ class UploadShortcode {
 			}
 		}
 		?>
-		<div class="club-competitions-upload">
+		<div class="photo-competition-manager-upload">
 			<h2><?php echo esc_html( $competition->title ); ?></h2>
 
 			<?php if ( $message ) : ?>
@@ -331,18 +331,18 @@ class UploadShortcode {
 			<?php endif; ?>
 
 			<?php if ( 'active' !== $competition->status ) : ?>
-				<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'club-competitions' ); ?></p>
+				<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
 				<?php return; ?>
 			<?php endif; ?>
 
 			<?php if ( ! $member || ! $member_email || ( $password_needed && ! $password_valid ) ) : ?>
 				<!-- Email identification form -->
 				<form method="post" enctype="multipart/form-data" class="competition-upload-form">
-					<?php wp_nonce_field( 'club_competitions_upload', 'club_competitions_nonce' ); ?>
+					<?php wp_nonce_field( 'photo_competition_manager_upload', 'photo_competition_manager_nonce' ); ?>
 
 					<p>
 						<label for="member_email">
-							<?php esc_html_e( 'Your Email Address:', 'club-competitions' ); ?>
+							<?php esc_html_e( 'Your Email Address:', 'photo-competition-manager' ); ?>
 							<span class="required">*</span>
 						</label>
 						<input
@@ -352,13 +352,13 @@ class UploadShortcode {
 							value="<?php echo esc_attr( $member_email ); ?>"
 							required
 						/>
-						<small><?php esc_html_e( 'Enter the email address associated with your membership.', 'club-competitions' ); ?></small>
+						<small><?php esc_html_e( 'Enter the email address associated with your membership.', 'photo-competition-manager' ); ?></small>
 					</p>
 
 					<?php if ( $password_needed ) : ?>
 						<p>
 							<label for="upload_access_password">
-								<?php esc_html_e( 'Upload Password:', 'club-competitions' ); ?>
+								<?php esc_html_e( 'Upload Password:', 'photo-competition-manager' ); ?>
 								<span class="required">*</span>
 							</label>
 							<input
@@ -367,13 +367,13 @@ class UploadShortcode {
 								name="upload_access_password"
 								required
 							/>
-							<small><?php esc_html_e( 'Provided by your competition organizer.', 'club-competitions' ); ?></small>
+							<small><?php esc_html_e( 'Provided by your competition organizer.', 'photo-competition-manager' ); ?></small>
 						</p>
 					<?php endif; ?>
 
 					<p>
 						<button type="submit" class="button">
-							<?php esc_html_e( 'Continue', 'club-competitions' ); ?>
+							<?php esc_html_e( 'Continue', 'photo-competition-manager' ); ?>
 						</button>
 					</p>
 				</form>
@@ -384,7 +384,7 @@ class UploadShortcode {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: member name */
-							__( 'Logged in as: %s', 'club-competitions' ),
+							__( 'Logged in as: %s', 'photo-competition-manager' ),
 							$member->name
 						)
 					);
@@ -396,7 +396,7 @@ class UploadShortcode {
 				if ( ! empty( $submissions ) ) :
 					?>
 					<div class="member-submissions">
-						<h3><?php esc_html_e( 'Your Submissions', 'club-competitions' ); ?></h3>
+						<h3><?php esc_html_e( 'Your Submissions', 'photo-competition-manager' ); ?></h3>
 						<div class="submissions-grid">
 							<?php foreach ( $submissions as $image ) : ?>
 								<div class="submission-item">
@@ -415,7 +415,7 @@ class UploadShortcode {
 										?>
 									</p>
 									<form method="post" class="delete-form">
-										<?php wp_nonce_field( 'club_competitions_delete', 'club_competitions_delete_nonce' ); ?>
+										<?php wp_nonce_field( 'photo_competition_manager_delete', 'photo_competition_manager_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
 										<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
 										<?php if ( $password_needed && $password_valid && '' !== $provided_pass ) : ?>
@@ -423,11 +423,11 @@ class UploadShortcode {
 										<?php endif; ?>
 										<button
 											type="submit"
-											name="club_competitions_delete"
+											name="photo_competition_manager_delete"
 											class="button button-small button-link-delete"
-											onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this image?', 'club-competitions' ) ); ?>');"
+											onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) ); ?>');"
 										>
-											<?php esc_html_e( 'Delete', 'club-competitions' ); ?>
+											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
 										</button>
 									</form>
 								</div>
@@ -438,14 +438,14 @@ class UploadShortcode {
 
 				<?php if ( empty( $available_categories ) ) : ?>
 					<p class="notice">
-						<?php esc_html_e( 'You have reached the maximum number of submissions for all categories. Thank you!', 'club-competitions' ); ?>
+						<?php esc_html_e( 'You have reached the maximum number of submissions for all categories. Thank you!', 'photo-competition-manager' ); ?>
 					</p>
 				<?php else : ?>
 					<!-- Upload form (separate from delete forms) -->
-					<h3><?php esc_html_e( 'Upload New Image', 'club-competitions' ); ?></h3>
+					<h3><?php esc_html_e( 'Upload New Image', 'photo-competition-manager' ); ?></h3>
 
 					<form method="post" enctype="multipart/form-data" class="competition-upload-form">
-						<?php wp_nonce_field( 'club_competitions_upload', 'club_competitions_nonce' ); ?>
+						<?php wp_nonce_field( 'photo_competition_manager_upload', 'photo_competition_manager_nonce' ); ?>
 
 						<!-- Preserve member email for upload -->
 						<input type="hidden" name="member_email" value="<?php echo esc_attr( $member_email ); ?>" />
@@ -455,11 +455,11 @@ class UploadShortcode {
 
 						<p>
 							<label for="category">
-								<?php esc_html_e( 'Category:', 'club-competitions' ); ?>
+								<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
 								<span class="required">*</span>
 							</label>
 							<select id="category" name="category" required>
-								<option value=""><?php esc_html_e( '-- Select Category --', 'club-competitions' ); ?></option>
+								<option value=""><?php esc_html_e( '-- Select Category --', 'photo-competition-manager' ); ?></option>
 								<?php foreach ( $available_categories as $cat ) : ?>
 									<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
 										<?php
@@ -467,7 +467,7 @@ class UploadShortcode {
 										echo esc_html(
 											sprintf(
 												/* translators: 1: category label, 2: remaining slots, 3: total quota */
-												__( '%1$s (%2$d of %3$d remaining)', 'club-competitions' ),
+												__( '%1$s (%2$d of %3$d remaining)', 'photo-competition-manager' ),
 												$cat['label'],
 												$remaining,
 												$cat['quota']
@@ -481,7 +481,7 @@ class UploadShortcode {
 
 						<p>
 							<label for="image">
-								<?php esc_html_e( 'Image:', 'club-competitions' ); ?>
+								<?php esc_html_e( 'Image:', 'photo-competition-manager' ); ?>
 								<span class="required">*</span>
 							</label>
 							<input
@@ -496,7 +496,7 @@ class UploadShortcode {
 								echo esc_html(
 									sprintf(
 										/* translators: 1: max file size in MB, 2: max dimensions, 3: allowed formats */
-										__( 'Max size: %1$d MB. Max dimensions: %2$d x %2$d px. Formats: %3$s', 'club-competitions' ),
+										__( 'Max size: %1$d MB. Max dimensions: %2$d x %2$d px. Formats: %3$s', 'photo-competition-manager' ),
 										$constraints['max_file_size_mb'],
 										$constraints['max_width'],
 										strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
@@ -507,8 +507,8 @@ class UploadShortcode {
 						</p>
 
 						<p>
-							<button type="submit" name="club_competitions_upload" class="button">
-								<?php esc_html_e( 'Upload Image', 'club-competitions' ); ?>
+							<button type="submit" name="photo_competition_manager_upload" class="button">
+								<?php esc_html_e( 'Upload Image', 'photo-competition-manager' ); ?>
 							</button>
 						</p>
 					</form>

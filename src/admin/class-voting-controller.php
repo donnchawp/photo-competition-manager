@@ -96,7 +96,7 @@ class Voting_Controller {
 
 					wp_safe_redirect(
 						add_query_arg(
-							array( 'page' => 'club-competitions-voting' ),
+							array( 'page' => 'photo-competition-manager-voting' ),
 							admin_url( 'admin.php' )
 						)
 					);
@@ -116,7 +116,7 @@ class Voting_Controller {
 
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'club-competitions-voting' ),
+						array( 'page' => 'photo-competition-manager-voting' ),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -149,7 +149,7 @@ class Voting_Controller {
 
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'club-competitions-voting' ),
+					array( 'page' => 'photo-competition-manager-voting' ),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -173,7 +173,7 @@ class Voting_Controller {
 
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'club-competitions-voting' ),
+						array( 'page' => 'photo-competition-manager-voting' ),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -206,7 +206,7 @@ class Voting_Controller {
 
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'club-competitions-voting' ),
+					array( 'page' => 'photo-competition-manager-voting' ),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -229,7 +229,7 @@ class Voting_Controller {
 
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'club-competitions-voting' ),
+						array( 'page' => 'photo-competition-manager-voting' ),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -262,7 +262,7 @@ class Voting_Controller {
 
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'club-competitions-voting' ),
+					array( 'page' => 'photo-competition-manager-voting' ),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -285,7 +285,7 @@ class Voting_Controller {
 
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'club-competitions-voting' ),
+						array( 'page' => 'photo-competition-manager-voting' ),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -318,7 +318,7 @@ class Voting_Controller {
 
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'club-competitions-voting' ),
+					array( 'page' => 'photo-competition-manager-voting' ),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -500,7 +500,7 @@ class Voting_Controller {
 						$open_uploads_url = wp_nonce_url(
 							add_query_arg(
 								array(
-									'page'        => 'club-competitions-voting',
+									'page'        => 'photo-competition-manager-voting',
 									'action'      => 'open_uploads',
 									'competition' => (int) $competition->id,
 								),
@@ -516,7 +516,7 @@ class Voting_Controller {
 						$close_uploads_url = wp_nonce_url(
 							add_query_arg(
 								array(
-									'page'        => 'club-competitions-voting',
+									'page'        => 'photo-competition-manager-voting',
 									'action'      => 'close_uploads',
 									'competition' => (int) $competition->id,
 								),
@@ -536,7 +536,7 @@ class Voting_Controller {
 					$close_url = wp_nonce_url(
 						add_query_arg(
 							array(
-								'page'        => 'club-competitions-voting',
+								'page'        => 'photo-competition-manager-voting',
 								'action'      => 'close_category_voting',
 								'competition' => (int) $competition->id,
 								'category'    => rawurlencode( $category_slug ),
@@ -553,7 +553,7 @@ class Voting_Controller {
 					$open_url = wp_nonce_url(
 						add_query_arg(
 							array(
-								'page'        => 'club-competitions-voting',
+								'page'        => 'photo-competition-manager-voting',
 								'action'      => 'open_category_voting',
 								'competition' => (int) $competition->id,
 								'category'    => rawurlencode( $category_slug ),
@@ -575,7 +575,7 @@ class Voting_Controller {
 					$can_start_slideshow = $is_open || ! $voting_open_globally;
 
 					if ( $can_start_slideshow ) {
-						echo '<button type="button" class="button club-compete-start-slideshow" ';
+						echo '<button type="button" class="button photo-competition-manager-start-slideshow" ';
 						echo 'data-competition-id="' . esc_attr( $competition->id ) . '" ';
 						echo 'data-competition-slug="' . esc_attr( $competition->slug ) . '" ';
 						echo 'data-category="' . esc_attr( $category_slug ) . '" ';

@@ -132,7 +132,7 @@ class Admin_Screen {
 			__( 'Members', 'photo-competition-manager' ),
 			__( 'Members', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-members',
+			'photo-competition-manager-members',
 			array( $this->members_controller, 'render' )
 		);
 
@@ -141,7 +141,7 @@ class Admin_Screen {
 			__( 'Submissions', 'photo-competition-manager' ),
 			__( 'Submissions', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-submissions',
+			'photo-competition-manager-submissions',
 			array( $this->submissions_controller, 'render' )
 		);
 
@@ -150,7 +150,7 @@ class Admin_Screen {
 			__( 'Voting Controls', 'photo-competition-manager' ),
 			__( 'Voting Controls', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-voting',
+			'photo-competition-manager-voting',
 			array( $this->voting_controller, 'render' )
 		);
 
@@ -159,7 +159,7 @@ class Admin_Screen {
 			__( 'Results', 'photo-competition-manager' ),
 			__( 'Results', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-results',
+			'photo-competition-manager-results',
 			array( $this->results_controller, 'render' )
 		);
 
@@ -168,7 +168,7 @@ class Admin_Screen {
 			__( 'Settings', 'photo-competition-manager' ),
 			__( 'Settings', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-settings',
+			'photo-competition-manager-settings',
 			array( $this->settings_controller, 'render' )
 		);
 
@@ -177,7 +177,7 @@ class Admin_Screen {
 			__( 'Export', 'photo-competition-manager' ),
 			__( 'Export', 'photo-competition-manager' ),
 			'publish_posts',
-			'club-competitions-export',
+			'photo-competition-manager-export',
 			array( $this->export_screen, 'render' )
 		);
 	}
@@ -190,19 +190,19 @@ class Admin_Screen {
 	 */
 	public function enqueue_admin_assets( string $hook ): void {
 		// Only load on voting controls page.
-		if ( 'competitions_page_club-competitions-voting' !== $hook ) {
+		if ( 'competitions_page_photo-competition-manager-voting' !== $hook ) {
 			return;
 		}
 
 		wp_enqueue_style(
-			'club-competitions-admin-slideshow',
+			'photo-competition-manager-admin-slideshow',
 			plugins_url( 'assets/css/admin-slideshow.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0'
 		);
 
 		wp_enqueue_script(
-			'club-competitions-admin-slideshow',
+			'photo-competition-manager-admin-slideshow',
 			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array( 'jquery' ),
 			'1.0.0',
@@ -210,7 +210,7 @@ class Admin_Screen {
 		);
 
 		wp_enqueue_script(
-			'club-competitions-qrcode',
+			'photo-competition-manager-qrcode',
 			plugins_url( 'assets/js/vendor/qrcode.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0',
@@ -218,17 +218,17 @@ class Admin_Screen {
 		);
 
 		wp_enqueue_script(
-			'club-competitions-admin-qr',
+			'photo-competition-manager-admin-qr',
 			plugins_url( 'assets/js/admin-qr.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
-			array( 'club-competitions-qrcode' ),
+			array( 'photo-competition-manager-qrcode' ),
 			'1.0.0',
 			true
 		);
 
 		// Pass AJAX URL and nonce to JavaScript.
 		wp_localize_script(
-			'club-competitions-admin-slideshow',
-			'clubCompeteSlideshow',
+			'photo-competition-manager-admin-slideshow',
+			'photoCompetitionManagerSlideshow',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'photo_comp_admin_slideshow' ),

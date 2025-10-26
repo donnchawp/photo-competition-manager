@@ -67,7 +67,7 @@ trait Form_Rendering {
 	private function members_url(): string {
 		return add_query_arg(
 			array(
-				'page' => 'club-competitions-members',
+				'page' => 'photo-competition-manager-members',
 			),
 			admin_url( 'admin.php' )
 		);

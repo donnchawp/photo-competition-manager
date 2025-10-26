@@ -42,7 +42,7 @@ class Mailpit_SMTP {
 	public static function configure_phpmailer( $phpmailer ): void {
 		$phpmailer->isSMTP();
 		// phpcs:ignore
-		$phpmailer->Host        = defined( 'SMTP_HOST' ) ? SMTP_HOST : 'club-competitions-mailpit';
+		$phpmailer->Host        = defined( 'SMTP_HOST' ) ? SMTP_HOST : 'photo-competition-manager-mailpit';
 		// phpcs:ignore
 		$phpmailer->Port        = defined( 'SMTP_PORT' ) ? SMTP_PORT : 1025;
 		// phpcs:ignore
@@ -53,8 +53,8 @@ class Mailpit_SMTP {
 		$phpmailer->SMTPAutoTLS = false;
 
 		// Set From address if defined, or use default.
-		$from_email = defined( 'SMTP_FROM' ) ? SMTP_FROM : 'wordpress@club-competitions.local';
-		$from_name  = defined( 'SMTP_NAME' ) ? SMTP_NAME : 'Club Competitions';
+		$from_email = defined( 'SMTP_FROM' ) ? SMTP_FROM : 'wordpress@photo-competition-manager.local';
+		$from_name  = defined( 'SMTP_NAME' ) ? SMTP_NAME : 'Photo Competition Manager';
 
 		$phpmailer->setFrom( $from_email, $from_name );
 	}

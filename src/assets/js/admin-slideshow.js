@@ -92,11 +92,11 @@
 
 			// Load images via AJAX
 			$.ajax({
-				url: clubCompeteSlideshow.ajaxUrl,
+				url: photoCompetitionManagerSlideshow.ajaxUrl,
 				type: 'POST',
 				data: {
 					action: 'photo_comp_get_slideshow_images',
-					nonce: clubCompeteSlideshow.nonce,
+					nonce: photoCompetitionManagerSlideshow.nonce,
 					competition_id: competitionId,
 					competition_slug: competitionSlug,
 					category: category
