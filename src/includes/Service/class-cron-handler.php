@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 
 /**
  * Class Cron_Handler
@@ -24,12 +25,21 @@ class Cron_Handler {
 	private $competitions_repo;
 
 	/**
+	 * Members repository.
+	 *
+	 * @var Members_Repository
+	 */
+	private $members_repo;
+
+	/**
 	 * Cron_Handler constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
+	 * @param Members_Repository|null      $members_repo      Members repository.
 	 */
-	public function __construct( ?Competitions_Repository $competitions_repo = null ) {
+	public function __construct( ?Competitions_Repository $competitions_repo = null, ?Members_Repository $members_repo = null ) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
+		$this->members_repo      = $members_repo ?? new Members_Repository();
 	}
 
 	/**
@@ -76,6 +86,38 @@ class Cron_Handler {
 
 		if ( $new_status !== $competition->status ) {
 			$this->competitions_repo->update( $competition->id, array( 'status' => $new_status ) );
+
+			// Send notifications when competition closes.
+			if ( 'closed' === $new_status ) {
+				$this->send_competition_closed_notifications( $competition );
+			}
+		}
+	}
+
+	/**
+	 * Send competition closed notifications to all active members.
+	 *
+	 * @param object $competition Competition object.
+	 * @return void
+	 */
+	private function send_competition_closed_notifications( object $competition ): void {
+		// Get all active members.
+		$members = $this->members_repo->all( true );
+
+		if ( empty( $members ) ) {
+			return;
+		}
+
+		$email_service = new Email_Service();
+
+		foreach ( $members as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$email_service->send_competition_closed_notification(
+					$member->email,
+					$member->name,
+					$competition->title
+				);
+			}
 		}
 	}
 }

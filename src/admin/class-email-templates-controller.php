@@ -176,7 +176,13 @@ class Email_Templates_Controller {
 		);
 
 		echo '<p class="description">' . esc_html__( 'Available merge tags:', 'photo-competition-manager' ) . ' ';
-		echo '<code>' . esc_html( implode( '</code>, <code>', $template['merge_tags'] ) ) . '</code>';
+		$merge_tags_html = array_map(
+			function ( $tag ) {
+				return '<code>' . esc_html( $tag ) . '</code>';
+			},
+			$template['merge_tags']
+		);
+		echo implode( ', ', $merge_tags_html ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above in array_map.
 		echo '</p>';
 		echo '</td>';
 		echo '</tr>';
@@ -222,7 +228,7 @@ class Email_Templates_Controller {
 				'description' => __( 'Sent to members when competition results are available.', 'photo-competition-manager' ),
 				'enabled'     => false,
 				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available!</p>\n\n<p><a href=\"{results_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">View Results</a></p>\n\n<p>Congratulations to all participants!</p>", 'photo-competition-manager' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available!</p>\n\n<p><a href=\"{results_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">View Results</a></p>\n\n<p>Thanks to everyone who participated.</p>", 'photo-competition-manager' ),
 				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_page}', '{site_name}' ),
 			),
 			'submission_confirmed' => array(

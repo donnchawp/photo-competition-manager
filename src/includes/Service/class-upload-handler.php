@@ -189,6 +189,17 @@ class Upload_Handler {
 			return $image_id;
 		}
 
+		// Send submission confirmed notification.
+		$email_service = new Email_Service();
+		$email_service->send_submission_confirmed_notification(
+			$member->email,
+			$member->name,
+			$competition->title,
+			$category_config['label'],
+			$counter,
+			$quota
+		);
+
 		return $image_id;
 	}
 

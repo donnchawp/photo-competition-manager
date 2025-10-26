@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Admin;
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -36,17 +38,27 @@ class Voting_Controller {
 	private $images;
 
 	/**
+	 * Members repository.
+	 *
+	 * @var Members_Repository
+	 */
+	private $members;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
 	 * @param Images_Repository       $images       Images repository.
+	 * @param Members_Repository|null $members      Members repository.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
-		Images_Repository $images
+		Images_Repository $images,
+		?Members_Repository $members = null
 	) {
 		$this->competitions = $competitions;
 		$this->images       = $images;
+		$this->members      = $members ?? new Members_Repository();
 	}
 
 	/**
@@ -145,6 +157,9 @@ class Voting_Controller {
 					__( 'Voting opened successfully.', 'photo-competition-manager' ),
 					'updated'
 				);
+
+				// Send voting opened notifications to active members.
+				$this->send_voting_opened_notifications( $competition );
 			}
 
 			wp_safe_redirect(
@@ -690,5 +705,48 @@ class Voting_Controller {
 	private function get_global_settings(): array {
 		$saved = get_option( 'photo_comp_default_settings', '' );
 		return Competition_Settings::parse( $saved );
+	}
+
+	/**
+	 * Send voting opened notifications to all active members.
+	 *
+	 * @param object $competition Competition object.
+	 * @return void
+	 */
+	private function send_voting_opened_notifications( object $competition ): void {
+		// Get voting page URL from global settings.
+		$global_settings = $this->get_global_settings();
+		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
+
+		if ( empty( $voting_page_url ) ) {
+			return; // No voting page URL configured, skip sending.
+		}
+
+		// Get all active members.
+		$members = $this->members->all( true );
+
+		if ( empty( $members ) ) {
+			return;
+		}
+
+		// Format close date.
+		$close_date = '';
+		if ( ! empty( $competition->close_date ) ) {
+			$close_date = wp_date( get_option( 'date_format' ), strtotime( $competition->close_date ) );
+		}
+
+		$email_service = new Email_Service();
+
+		foreach ( $members as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$email_service->send_voting_opened_notification(
+					$member->email,
+					$member->name,
+					$competition->title,
+					$voting_page_url,
+					$close_date
+				);
+			}
+		}
 	}
 }
