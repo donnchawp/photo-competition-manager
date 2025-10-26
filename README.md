@@ -43,6 +43,44 @@ The plugin provides several shortcodes for displaying competition functionality:
 [competition_results competition="october-2024" hide_names="true"]
 ```
 
+## Member CSV Import
+
+Import multiple members at once using a CSV file. Access the import form from the Members admin page.
+
+### CSV Format
+
+The importer supports two CSV formats:
+
+**Format 1: With Header Row (Recommended)**
+```csv
+name,email,grade,active
+"John Doe",john.doe@example.com,Beginner,1
+"Jane Smith",jane.smith@example.com,Advanced,yes
+"Bob Johnson",bob.johnson@example.com,Intermediate,0
+```
+
+**Format 2: Without Header Row**
+```csv
+John Doe,john.doe@example.com
+Jane Smith,jane.smith@example.com
+Bob Johnson,bob.johnson@example.com
+```
+
+**Columns:**
+- Column 1: `name` - Member's full name (required)
+- Column 2: `email` - Member's email address (required, must be valid and unique)
+- Column 3: `grade` - Member's grade/skill level (optional)
+- Column 4: `active` - Member status (optional: 1/yes/true/active = active, anything else = inactive)
+
+### Import Behavior
+
+- **New Members**: Email doesn't exist → new member created
+- **Existing Members**: Email exists → member information updated
+- **Validation**: Each row validated for required fields and email format
+- **Error Handling**: Invalid rows skipped with detailed error messages
+
+Download a sample CSV template from the Members admin page.
+
 ## Documentation
 - **Shortcode Usage:** See `SHORTCODE_USAGE.md` for detailed examples and implementation guides
 - **Product Requirements:** Review `photocomp_prd.md` for feature scope and business rules

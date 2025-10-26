@@ -273,6 +273,80 @@ class Members_Controller {
 			wp_safe_redirect( $this->members_url() );
 			exit;
 		}
+
+		// Handle CSV import.
+		if ( 'import_members_csv' === $action ) {
+			check_admin_referer( 'photo_competition_import_members', 'photo_competition_import_nonce' );
+
+			if ( empty( $_FILES['csv_file'] ) ) {
+				add_settings_error(
+					'photo_competition_members',
+					'no_file',
+					__( 'Please select a CSV file to import.', 'photo-competition-manager' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
+
+			$importer = new \PhotoCompetitionManager\Service\Member_CSV_Importer( $this->members );
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File upload data is validated in importer.
+			$result = $importer->import( $_FILES['csv_file'] );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_members',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				$message = sprintf(
+					/* translators: 1: imported count, 2: updated count, 3: skipped count */
+					__( 'Import complete: %1$d new members, %2$d updated, %3$d skipped.', 'photo-competition-manager' ),
+					$result['imported'],
+					$result['updated'],
+					$result['skipped']
+				);
+
+				if ( ! empty( $result['errors'] ) ) {
+					$message .= ' ' . __( 'Errors:', 'photo-competition-manager' ) . ' ' . implode( ' ', array_slice( $result['errors'], 0, 5 ) );
+					if ( count( $result['errors'] ) > 5 ) {
+						$message .= sprintf(
+							/* translators: %d: number of additional errors */
+							__( ' ...and %d more errors.', 'photo-competition-manager' ),
+							count( $result['errors'] ) - 5
+						);
+					}
+				}
+
+				add_settings_error(
+					'photo_competition_members',
+					'import_complete',
+					$message,
+					empty( $result['errors'] ) ? 'updated' : 'warning'
+				);
+			}
+
+			wp_safe_redirect( $this->members_url() );
+			exit;
+		}
+
+		// Handle sample CSV download.
+		if ( 'download_sample_csv' === $action ) {
+			check_admin_referer( 'photo_competition_download_sample' );
+
+			$importer = new \PhotoCompetitionManager\Service\Member_CSV_Importer( $this->members );
+			$csv      = $importer->generate_sample_csv();
+
+			header( 'Content-Type: text/csv; charset=utf-8' );
+			header( 'Content-Disposition: attachment; filename=members-sample.csv' );
+			header( 'Pragma: no-cache' );
+			header( 'Expires: 0' );
+
+			echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV content.
+			exit;
+		}
 	}
 
 	/**
@@ -312,6 +386,7 @@ class Members_Controller {
 			$this->render_member_edit_form( $current );
 		} else {
 			$this->render_member_create_form();
+			$this->render_member_import_form();
 		}
 
 		if ( empty( $members ) ) {
@@ -568,6 +643,49 @@ class Members_Controller {
 		}
 
 		return $upload_url;
+	}
+
+	/**
+	 * Render member import form.
+	 *
+	 * @return void
+	 */
+	private function render_member_import_form(): void {
+		$sample_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'   => 'photo-competition-manager-members',
+					'action' => 'download_sample_csv',
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_download_sample'
+		);
+
+		echo '<div style="margin-top: 30px;">';
+		echo '<h2>' . esc_html__( 'Import Members from CSV', 'photo-competition-manager' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'Upload a CSV file to import multiple members at once. Existing members (matched by email) will be updated.', 'photo-competition-manager' ) . '</p>';
+
+		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 600px; padding: 16px; margin-top: 10px;">';
+		wp_nonce_field( 'photo_competition_import_members', 'photo_competition_import_nonce' );
+		echo '<input type="hidden" name="photo_competition_action" value="import_members_csv" />';
+		echo '<input type="hidden" name="page" value="photo-competition-manager-members" />';
+
+		echo '<p>';
+		echo '<label for="csv_file">' . esc_html__( 'CSV File', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="file" id="csv_file" name="csv_file" accept=".csv,.txt" required />';
+		echo '</p>';
+
+		echo '<p class="description">';
+		echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inactive)', 'photo-competition-manager' );
+		echo '<br />';
+		echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';
+		echo '</p>';
+
+		submit_button( __( 'Import Members', 'photo-competition-manager' ), 'secondary', 'submit', false );
+
+		echo '</form>';
+		echo '</div>';
 	}
 
 	/**
