@@ -54,10 +54,12 @@ class Setup_Wizard_Controller {
 		$upload_page_title  = sanitize_text_field( $this->get_post_string( 'upload_page_title', 'Photo Upload' ) );
 		$voting_page_title  = sanitize_text_field( $this->get_post_string( 'voting_page_title', 'Vote on Photos' ) );
 		$results_page_title = sanitize_text_field( $this->get_post_string( 'results_page_title', 'Competition Results' ) );
+		$top3_page_title    = sanitize_text_field( $this->get_post_string( 'top3_page_title', 'Top 3 Winners' ) );
 
 		$create_upload_page  = isset( $_POST['create_upload_page'] ) && '1' === $_POST['create_upload_page'];
 		$create_voting_page  = isset( $_POST['create_voting_page'] ) && '1' === $_POST['create_voting_page'];
 		$create_results_page = isset( $_POST['create_results_page'] ) && '1' === $_POST['create_results_page'];
+		$create_top3_page    = isset( $_POST['create_top3_page'] ) && '1' === $_POST['create_top3_page'];
 
 		$created_pages = array();
 		$errors        = array();
@@ -113,6 +115,24 @@ class Setup_Wizard_Controller {
 				);
 			} else {
 				$created_pages['results'] = $results_page_id;
+			}
+		}
+
+		// Create top 3 page.
+		if ( $create_top3_page ) {
+			$top3_page_id = $this->create_page_with_shortcode(
+				$top3_page_title,
+				'[competition_top3]'
+			);
+
+			if ( is_wp_error( $top3_page_id ) ) {
+				$errors[] = sprintf(
+					/* translators: %s: error message */
+					__( 'Top 3 page error: %s', 'photo-competition-manager' ),
+					$top3_page_id->get_error_message()
+				);
+			} else {
+				$created_pages['top3'] = $top3_page_id;
 			}
 		}
 
@@ -246,6 +266,21 @@ class Setup_Wizard_Controller {
 		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_results] shortcode to display competition winners.', 'photo-competition-manager' ) . '</p>';
 		echo '</div>';
 
+		// Top 3 page.
+		echo '<div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">';
+		echo '<p>';
+		echo '<label>';
+		echo '<input type="checkbox" name="create_top3_page" value="1" checked />';
+		echo ' <strong>' . esc_html__( 'Top 3 Page', 'photo-competition-manager' ) . '</strong>';
+		echo '</label>';
+		echo '</p>';
+		echo '<p>';
+		echo '<label for="top3_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="text" id="top3_page_title" name="top3_page_title" value="Top 3 Winners" class="regular-text" />';
+		echo '</p>';
+		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_top3] shortcode to display the top 3 winners in each category and grade.', 'photo-competition-manager' ) . '</p>';
+		echo '</div>';
+
 		submit_button( __( 'Create Pages', 'photo-competition-manager' ), 'primary', 'submit', true );
 
 		echo '</form>';
@@ -337,6 +372,11 @@ class Setup_Wizard_Controller {
 			$parsed['urls']['results_page'] = get_permalink( $created_pages['results'] );
 		}
 
+		// Update top 3 page URL.
+		if ( isset( $created_pages['top3'] ) ) {
+			$parsed['urls']['top3_page'] = get_permalink( $created_pages['top3'] );
+		}
+
 		update_option( 'photo_comp_default_settings', \PhotoCompetitionManager\Support\Competition_Settings::encode( $parsed ) );
 	}
 
@@ -353,6 +393,7 @@ class Setup_Wizard_Controller {
 			'competition_upload'  => __( 'Upload', 'photo-competition-manager' ),
 			'competition_voting'  => __( 'Voting', 'photo-competition-manager' ),
 			'competition_results' => __( 'Results', 'photo-competition-manager' ),
+			'competition_top3'    => __( 'Top 3', 'photo-competition-manager' ),
 		);
 
 		$found_pages = array();
