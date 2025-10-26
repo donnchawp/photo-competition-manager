@@ -1,6 +1,6 @@
 === Photo Competition Manager ===
 Contributors: donncha, automattic
-Tags: competitions, photography, voting, shortcodes, member management, club competitions
+Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
@@ -8,7 +8,7 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Complete photography club competition platform. Handle submissions, member voting, public voting, automated email notifications, and beautiful results displays—all without spreadsheets.
+Complete photography club competition platform. Handle submissions, member voting, public voting, email notifications, and beautiful results displays.
 
 == Description ==
 
