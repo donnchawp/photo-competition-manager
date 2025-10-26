@@ -196,14 +196,14 @@ class Admin_Screen {
 
 		wp_enqueue_style(
 			'club-competitions-admin-slideshow',
-			plugins_url( 'assets/css/admin-slideshow.css', dirname( __DIR__ ) . '/club-competitions.php' ),
+			plugins_url( 'assets/css/admin-slideshow.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0'
 		);
 
 		wp_enqueue_script(
 			'club-competitions-admin-slideshow',
-			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array( 'jquery' ),
 			'1.0.0',
 			true
@@ -211,7 +211,7 @@ class Admin_Screen {
 
 		wp_enqueue_script(
 			'club-competitions-qrcode',
-			plugins_url( 'assets/js/vendor/qrcode.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			plugins_url( 'assets/js/vendor/qrcode.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0',
 			true
@@ -219,7 +219,7 @@ class Admin_Screen {
 
 		wp_enqueue_script(
 			'club-competitions-admin-qr',
-			plugins_url( 'assets/js/admin-qr.js', dirname( __DIR__ ) . '/club-competitions.php' ),
+			plugins_url( 'assets/js/admin-qr.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array( 'club-competitions-qrcode' ),
 			'1.0.0',
 			true

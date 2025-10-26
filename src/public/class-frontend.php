@@ -87,7 +87,7 @@ class Frontend {
 	public function enqueue_styles(): void {
 		wp_enqueue_style(
 			'club-competitions-frontend',
-			plugins_url( 'assets/css/frontend.css', dirname( __DIR__ ) . '/club-competitions.php' ),
+			plugins_url( 'assets/css/frontend.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			'1.0.0'
 		);
