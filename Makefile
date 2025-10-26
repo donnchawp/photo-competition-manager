@@ -95,6 +95,7 @@ release: clean-release build ## Build production release zip file
 	@echo ""
 	@echo "Release package info:"
 	@unzip -l $(PLUGIN_NAME).zip | head -20
+	@rm -fr $(RELEASE_DIR)/$(PLUGIN_NAME)
 
 clean-release: ## Remove release build artifacts
 	@echo "Cleaning release artifacts..."

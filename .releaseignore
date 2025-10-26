@@ -1,0 +1,28 @@
+# Development and testing files
+.circleci/
+bin/
+tests/
+phpunit.xml.dist
+.phpcs.xml.dist
+
+# Build artifacts and dependencies (will be added separately)
+vendor/
+node_modules/
+assets/
+
+# Source files (built assets will be copied separately)
+*.map
+*.scss
+*.jsx
+*.ts
+*.tsx
+
+# Development documentation
+.git
+.gitignore
+.github
+templates/.gitkeep
+
+# WordPress environment
+.wp-env.json
+wp-env.override.json
