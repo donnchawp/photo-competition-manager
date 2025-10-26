@@ -213,13 +213,16 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		$result = $this->processor->process( $file, 'summer-2024', 'colour', 'john-doe', 1, $constraints );
 
-		// Should succeed and return filename.
-		$this->assertIsString( $result );
-		$this->assertEquals( 'john-doe-colour-1.jpg', $result );
+		// Should succeed and return array with filename and attachment_id.
+		$this->assertIsArray( $result );
+		$this->assertArrayHasKey( 'filename', $result );
+		$this->assertArrayHasKey( 'attachment_id', $result );
+		$this->assertEquals( 'john-doe-colour-1.jpg', $result['filename'] );
+		$this->assertIsInt( $result['attachment_id'] );
 
 		// Verify the processed image exists and is resized.
 		$upload_dir = $this->processor->get_upload_directory( 'summer-2024', 'colour' );
-		$image_path = trailingslashit( $upload_dir['path'] ) . $result;
+		$image_path = trailingslashit( $upload_dir['path'] ) . $result['filename'];
 
 		$this->assertFileExists( $image_path );
 
