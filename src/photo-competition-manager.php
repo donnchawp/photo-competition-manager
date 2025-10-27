@@ -20,3 +20,8 @@ register_activation_hook(
 	__FILE__,
 	array( \PhotoCompetitionManager\Install\Activator::class, 'activate' )
 );
+
+register_deactivation_hook(
+	__FILE__,
+	array( \PhotoCompetitionManager\Install\Deactivator::class, 'deactivate' )
+);

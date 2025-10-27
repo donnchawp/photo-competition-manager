@@ -139,7 +139,7 @@ class Admin_Screen {
 		add_menu_page(
 			__( 'Photo Competition Manager', 'photo-competition-manager' ),
 			__( 'Competitions', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager',
 			array( $this->competitions_controller, 'render' ),
 			'dashicons-camera'
@@ -149,7 +149,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Setup Wizard', 'photo-competition-manager' ),
 			__( 'Setup Wizard', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-setup',
 			array( $this->setup_wizard_controller, 'render' )
 		);
@@ -158,7 +158,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Members', 'photo-competition-manager' ),
 			__( 'Members', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-members',
 			array( $this->members_controller, 'render' )
 		);
@@ -167,7 +167,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Submissions', 'photo-competition-manager' ),
 			__( 'Submissions', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-submissions',
 			array( $this->submissions_controller, 'render' )
 		);
@@ -176,7 +176,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Voting Controls', 'photo-competition-manager' ),
 			__( 'Voting Controls', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-voting',
 			array( $this->voting_controller, 'render' )
 		);
@@ -185,7 +185,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Results', 'photo-competition-manager' ),
 			__( 'Results', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-results',
 			array( $this->results_controller, 'render' )
 		);
@@ -194,7 +194,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Settings', 'photo-competition-manager' ),
 			__( 'Settings', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-settings',
 			array( $this->settings_controller, 'render' )
 		);
@@ -203,7 +203,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Export', 'photo-competition-manager' ),
 			__( 'Export', 'photo-competition-manager' ),
-			'publish_posts',
+			'manage_photo_competitions',
 			'photo-competition-manager-export',
 			array( $this->export_screen, 'render' )
 		);

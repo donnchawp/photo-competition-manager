@@ -53,7 +53,7 @@ class Competitions_Controller {
 	 * @return void
 	 */
 	public function handle_actions(): void {
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			return;
 		}
 

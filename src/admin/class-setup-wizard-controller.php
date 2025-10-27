@@ -33,7 +33,7 @@ class Setup_Wizard_Controller {
 	 * @return void
 	 */
 	public function handle_actions(): void {
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			return;
 		}
 
@@ -196,7 +196,7 @@ class Setup_Wizard_Controller {
 	 * @return void
 	 */
 	public function render(): void {
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'photo-competition-manager' ) );
 		}
 

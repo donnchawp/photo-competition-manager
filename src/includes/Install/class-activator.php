@@ -23,6 +23,28 @@ class Activator {
 	 */
 	public static function activate(): void {
 		self::create_tables();
+		self::add_capabilities();
+	}
+
+	/**
+	 * Add custom capabilities to appropriate roles.
+	 *
+	 * @return void
+	 */
+	private static function add_capabilities(): void {
+		$capability = 'manage_photo_competitions';
+
+		// Add capability to administrator role.
+		$admin_role = get_role( 'administrator' );
+		if ( $admin_role ) {
+			$admin_role->add_cap( $capability );
+		}
+
+		// Add capability to editor role.
+		$editor_role = get_role( 'editor' );
+		if ( $editor_role ) {
+			$editor_role->add_cap( $capability );
+		}
 	}
 
 	/**

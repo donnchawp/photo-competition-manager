@@ -235,7 +235,7 @@ class Slideshow_Shortcode {
 	public function handle_get_images(): void {
 		check_ajax_referer( 'photo_comp_admin_slideshow', 'nonce' );
 
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
 		}
 
@@ -308,7 +308,7 @@ class Slideshow_Shortcode {
 	public function handle_slideshow_start(): void {
 		check_ajax_referer( 'photo_comp_slideshow', 'nonce' );
 
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
 		}
 
@@ -338,7 +338,7 @@ class Slideshow_Shortcode {
 	public function handle_slideshow_stop(): void {
 		check_ajax_referer( 'photo_comp_slideshow', 'nonce' );
 
-		if ( ! current_user_can( 'publish_posts' ) ) {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
 		}
 
