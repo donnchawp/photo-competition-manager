@@ -317,6 +317,15 @@ class Competitions_Controller {
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 
+			// Hash the password if provided, otherwise preserve existing hash.
+			$hashed_password = '';
+			if ( ! empty( $voting_password ) ) {
+				$hashed_password = wp_hash_password( $voting_password );
+			} elseif ( isset( $existing_settings['voting']['password'] ) ) {
+				// Preserve existing password hash if no new password provided.
+				$hashed_password = $existing_settings['voting']['password'];
+			}
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
@@ -330,7 +339,7 @@ class Competitions_Controller {
 					'score_matrix'        => $score_matrix,
 					'open_categories'     => $existing_open_categories,
 					'auth_mode'           => $auth_mode_input,
-					'password'            => $voting_password,
+					'password'            => $hashed_password,
 					'click_image_to_zoom' => $click_image_to_zoom,
 				),
 				'slideshow'       => array(

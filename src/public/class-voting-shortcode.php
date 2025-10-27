@@ -410,7 +410,7 @@ class Voting_Shortcode {
 				);
 			}
 
-			if ( ! \hash_equals( $expected_password, $provided_pass ) ) {
+			if ( ! wp_check_password( $provided_pass, $expected_password ) ) {
 				return array(
 					'status'   => 'error',
 					'message'  => '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'photo-competition-manager' ) . '</p>',
@@ -1145,7 +1145,7 @@ class Voting_Shortcode {
 	private function refresh_voter_cookie( string $name, string $password ): void {
 		$payload = array(
 			'name'     => $name,
-			'password' => $password,
+			'password' => $password, // Store password for accessibility on mobile devices.
 		);
 
 		setcookie(
@@ -1157,7 +1157,7 @@ class Voting_Shortcode {
 				'domain'   => COOKIE_DOMAIN,
 				'secure'   => is_ssl(),
 				'samesite' => 'Lax',
-				'httponly' => false,
+				'httponly' => true, // Prevent JavaScript access for security.
 			)
 		);
 
