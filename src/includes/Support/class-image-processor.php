@@ -33,6 +33,12 @@ class Image_Processor {
 			return new WP_Error( 'invalid_upload', __( 'No file was uploaded.', 'photo-competition-manager' ) );
 		}
 
+		// Security: Verify file was uploaded via HTTP POST (not a local file reference).
+		// Skip this check in test environments to allow mock uploads.
+		if ( ! defined( 'WP_TESTS_DOMAIN' ) && ! is_uploaded_file( $file['tmp_name'] ) ) {
+			return new WP_Error( 'security_check_failed', __( 'Security check failed.', 'photo-competition-manager' ) );
+		}
+
 		// Check if file exists (works for both real uploads and test files).
 		if ( ! file_exists( $file['tmp_name'] ) ) {
 			return new WP_Error( 'invalid_upload', __( 'No file was uploaded.', 'photo-competition-manager' ) );
@@ -51,10 +57,28 @@ class Image_Processor {
 			);
 		}
 
-		// Check file type.
+		// Security: Use WordPress robust file type validation.
+		$wp_filetype = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+		if ( ! $wp_filetype['ext'] || ! $wp_filetype['type'] ) {
+			return new WP_Error( 'invalid_file', __( 'Invalid file type.', 'photo-competition-manager' ) );
+		}
+
+		// Verify MIME type is an allowed image type.
+		$allowed_mimes = array( 'image/jpeg', 'image/jpg' );
+		if ( ! in_array( $wp_filetype['type'], $allowed_mimes, true ) ) {
+			return new WP_Error(
+				'invalid_mime',
+				sprintf(
+					/* translators: %s: detected MIME type */
+					__( 'Only JPEG images are allowed. Detected type: %s', 'photo-competition-manager' ),
+					$wp_filetype['type']
+				)
+			);
+		}
+
+		// Check file extension matches allowed formats.
 		$allowed_formats = $constraints['allowed_formats'] ?? array( 'jpg', 'jpeg' );
-		$filetype        = wp_check_filetype( $file['name'] );
-		$extension       = strtolower( $filetype['ext'] ?? '' );
+		$extension       = strtolower( $wp_filetype['ext'] );
 
 		if ( ! in_array( $extension, $allowed_formats, true ) ) {
 			return new WP_Error(
@@ -67,7 +91,7 @@ class Image_Processor {
 			);
 		}
 
-		// Verify actual image.
+		// Verify actual image content.
 		$image_info = @getimagesize( $file['tmp_name'] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( false === $image_info ) {
 			return new WP_Error( 'invalid_image', __( 'File is not a valid image.', 'photo-competition-manager' ) );
