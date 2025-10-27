@@ -266,6 +266,11 @@ class Image_Processor {
 			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
 		}
 
+		// Security: Explicitly check for path traversal sequences.
+		if ( strpos( $competition_slug, '..' ) !== false || strpos( $category_slug, '..' ) !== false ) {
+			return new WP_Error( 'invalid_path', __( 'Invalid directory name.', 'photo-competition-manager' ) );
+		}
+
 		$base_path = trailingslashit( $wp_upload_dir['basedir'] ) . 'competitions';
 		$base_url  = trailingslashit( $wp_upload_dir['baseurl'] ) . 'competitions';
 
@@ -305,6 +310,12 @@ class Image_Processor {
 		// Sanitize and make lowercase with dashes instead of spaces.
 		$safe_username = sanitize_title( $username );
 		$safe_category = sanitize_title( $category_slug );
+
+		// Security: Explicitly check for path traversal sequences after sanitization.
+		if ( strpos( $safe_username, '..' ) !== false || strpos( $safe_category, '..' ) !== false ) {
+			$safe_username = str_replace( '..', '', $safe_username );
+			$safe_category = str_replace( '..', '', $safe_category );
+		}
 
 		return sprintf( '%s-%s-%d.jpg', $safe_username, $safe_category, $counter );
 	}
