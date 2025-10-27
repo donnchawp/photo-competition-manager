@@ -496,10 +496,9 @@ class Upload_Shortcode {
 								<?php
 								echo esc_html(
 									sprintf(
-										/* translators: 1: max file size in MB, 2: max dimensions, 3: allowed formats */
-										__( 'Max size: %1$d MB. Max dimensions: %2$d x %2$d px. Formats: %3$s', 'photo-competition-manager' ),
+										/* translators: 1: max file size in MB, 2: allowed formats */
+										__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
 										$constraints['max_file_size_mb'],
-										$constraints['max_width'],
 										strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
 									)
 								);
