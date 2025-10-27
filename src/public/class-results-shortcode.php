@@ -84,6 +84,11 @@ class Results_Shortcode {
 	 * @return string
 	 */
 	public function render( $atts ): string {
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
 		$atts = shortcode_atts(
 			array(
 				'competition' => '',
