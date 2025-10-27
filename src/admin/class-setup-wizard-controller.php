@@ -60,6 +60,7 @@ class Setup_Wizard_Controller {
 		$create_voting_page  = isset( $_POST['create_voting_page'] ) && '1' === $_POST['create_voting_page'];
 		$create_results_page = isset( $_POST['create_results_page'] ) && '1' === $_POST['create_results_page'];
 		$create_top3_page    = isset( $_POST['create_top3_page'] ) && '1' === $_POST['create_top3_page'];
+		$results_hide_names  = isset( $_POST['results_hide_names'] ) && '1' === $_POST['results_hide_names'];
 
 		$created_pages = array();
 		$errors        = array();
@@ -102,9 +103,15 @@ class Setup_Wizard_Controller {
 
 		// Create results page.
 		if ( $create_results_page ) {
+			$results_shortcode = '[competition_results';
+			if ( $results_hide_names ) {
+				$results_shortcode .= ' hide_names="1"';
+			}
+			$results_shortcode .= ']';
+
 			$results_page_id = $this->create_page_with_shortcode(
 				$results_page_title,
-				'[competition_results]'
+				$results_shortcode
 			);
 
 			if ( is_wp_error( $results_page_id ) ) {
@@ -262,6 +269,12 @@ class Setup_Wizard_Controller {
 		echo '<p>';
 		echo '<label for="results_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
 		echo '<input type="text" id="results_page_title" name="results_page_title" value="Competition Results" class="regular-text" />';
+		echo '</p>';
+		echo '<p>';
+		echo '<label>';
+		echo '<input type="checkbox" name="results_hide_names" value="1" checked />';
+		echo ' ' . esc_html__( 'Hide photographer names on results page', 'photo-competition-manager' );
+		echo '</label>';
 		echo '</p>';
 		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_results] shortcode to display competition winners.', 'photo-competition-manager' ) . '</p>';
 		echo '</div>';
