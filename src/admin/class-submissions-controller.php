@@ -367,7 +367,7 @@ class Submissions_Controller {
 					'error'
 				);
 			} else {
-				// Get competition to temporarily bypass date/status checks for admins.
+				// Get competition.
 				$competition = $this->competitions->find( $competition_id, true );
 
 				if ( ! $competition ) {
@@ -378,38 +378,16 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
-					// Store original status and dates.
-					$original_status     = $competition->status;
-					$original_open_date  = $competition->open_date;
-					$original_close_date = $competition->close_date;
-
-					// Temporarily set competition to active with open dates to bypass upload handler checks.
-					$temp_settings                             = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-					$temp_settings['upload']['uploads_closed'] = false;
-
-					$this->competitions->update(
-						$competition_id,
-						array(
-							'status'     => 'active',
-							'open_date'  => gmdate( 'Y-m-d H:i:s', strtotime( '-1 hour' ) ),
-							'close_date' => gmdate( 'Y-m-d H:i:s', strtotime( '+1 hour' ) ),
-							'settings'   => $temp_settings,
-						)
-					);
+					// Set transient flag to allow admin bypass of competition date/status checks.
+					// This flag expires in 5 minutes to allow for large file uploads.
+					$transient_key = 'photo_comp_admin_upload_' . $competition_id . '_' . $member_id . '_' . get_current_user_id();
+					set_transient( $transient_key, true, 300 );
 
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Upload_Handler.
 					$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
 
-					// Restore original competition settings.
-					$this->competitions->update(
-						$competition_id,
-						array(
-							'status'     => $original_status,
-							'open_date'  => $original_open_date,
-							'close_date' => $original_close_date,
-							'settings'   => json_decode( $competition->settings, true ),
-						)
-					);
+					// Delete transient immediately after upload attempt.
+					delete_transient( $transient_key );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(

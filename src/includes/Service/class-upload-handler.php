@@ -85,25 +85,33 @@ class Upload_Handler {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( 'active' !== $competition->status ) {
-			return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
-		}
+		// Check for admin bypass transient (set when admins upload on behalf of members).
+		$transient_key  = 'photo_comp_admin_upload_' . $competition_id . '_' . $member_id . '_' . get_current_user_id();
+		$admin_bypass   = get_transient( $transient_key );
+		$skip_time_gate = false !== $admin_bypass;
 
-		// Check if uploads have been manually closed.
-		$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
-		if ( $uploads_closed ) {
-			return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed for this competition.', 'photo-competition-manager' ) );
-		}
+		if ( ! $skip_time_gate ) {
+			// Regular validation for public uploads.
+			if ( 'active' !== $competition->status ) {
+				return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
+			}
 
-		// Check if competition is within submission period.
-		$now = current_time( 'mysql' );
-		if ( $competition->open_date && $now < $competition->open_date ) {
-			return new WP_Error( 'not_open_yet', __( 'Competition submissions have not opened yet.', 'photo-competition-manager' ) );
-		}
+			// Check if uploads have been manually closed.
+			$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+			$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
+			if ( $uploads_closed ) {
+				return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed for this competition.', 'photo-competition-manager' ) );
+			}
 
-		if ( $competition->close_date && $now > $competition->close_date ) {
-			return new WP_Error( 'closed', __( 'Competition submissions have closed.', 'photo-competition-manager' ) );
+			// Check if competition is within submission period.
+			$now = current_time( 'mysql' );
+			if ( $competition->open_date && $now < $competition->open_date ) {
+				return new WP_Error( 'not_open_yet', __( 'Competition submissions have not opened yet.', 'photo-competition-manager' ) );
+			}
+
+			if ( $competition->close_date && $now > $competition->close_date ) {
+				return new WP_Error( 'closed', __( 'Competition submissions have closed.', 'photo-competition-manager' ) );
+			}
 		}
 
 		// Validate member exists and is active.
