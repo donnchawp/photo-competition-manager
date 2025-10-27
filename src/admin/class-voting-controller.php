@@ -68,6 +68,7 @@ class Voting_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'wp_ajax_photo_comp_toggle_workflow', array( $this, 'ajax_toggle_workflow' ) );
 	}
 
 	/**
@@ -469,6 +470,9 @@ class Voting_Controller {
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
 		echo '<p class="description">' . esc_html__( 'Open or close voting for competition categories. Only one category across all competitions can have voting open at a time.', 'photo-competition-manager' ) . '</p>';
 
+		// Competition Night Workflow Guide.
+		$this->render_workflow_guide();
+
 		// Get all active competitions.
 		$all_competitions    = $this->competitions->all( 100, false, false );
 		$active_competitions = array_filter(
@@ -858,6 +862,117 @@ class Voting_Controller {
 	private function get_global_settings(): array {
 		$saved = get_option( 'photo_comp_default_settings', '' );
 		return Competition_Settings::parse( $saved );
+	}
+
+	/**
+	 * AJAX handler for toggling workflow guide display preference.
+	 *
+	 * @return void
+	 */
+	public function ajax_toggle_workflow(): void {
+		check_ajax_referer( 'photo_comp_workflow_toggle', 'nonce' );
+
+		if ( ! current_user_can( 'publish_posts' ) ) {
+			wp_send_json_error( 'Unauthorized' );
+		}
+
+		$expanded = isset( $_POST['expanded'] ) ? sanitize_text_field( wp_unslash( $_POST['expanded'] ) ) : '1';
+		$user_id  = get_current_user_id();
+
+		update_user_meta( $user_id, 'photo_comp_workflow_expanded', $expanded );
+
+		wp_send_json_success();
+	}
+
+	/**
+	 * Render competition night workflow guide.
+	 *
+	 * @return void
+	 */
+	private function render_workflow_guide(): void {
+		$user_id     = get_current_user_id();
+		$is_expanded = get_user_meta( $user_id, 'photo_comp_workflow_expanded', true );
+
+		// Default to expanded on first view.
+		if ( '' === $is_expanded ) {
+			$is_expanded = '1';
+		}
+
+		$is_expanded_bool = '1' === $is_expanded;
+		?>
+		<div class="notice notice-info photo-comp-workflow-guide" style="position: relative; padding-right: 38px;">
+			<h3 style="margin-top: 0.5em; margin-bottom: 0.5em; cursor: pointer;" id="photo-comp-workflow-toggle">
+				<span class="dashicons dashicons-arrow-<?php echo $is_expanded_bool ? 'down' : 'right'; ?>" style="color: #2271b1;"></span>
+				<?php esc_html_e( 'Competition Night Workflow Instructions', 'photo-competition-manager' ); ?>
+			</h3>
+			<div id="photo-comp-workflow-content" style="display: <?php echo $is_expanded_bool ? 'block' : 'none'; ?>;">
+				<p><?php esc_html_e( 'Follow these steps for each category during your competition meeting:', 'photo-competition-manager' ); ?></p>
+				<ol style="margin-left: 2em; line-height: 1.8;">
+					<li>
+						<strong><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Prevent last-minute submissions', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Hide Results', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Ensure results page is not visible yet', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Preview Slideshow', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Click "Slideshow" to preview images before voting', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Click "Open Voting" and display QR code for members', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Start Slideshow', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Members view and vote simultaneously', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Close Voting', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Wait 1-2 minutes after slideshow ends, then click "Close Voting"', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Repeat for Next Category', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'Continue steps 3-6 for each remaining category', 'photo-competition-manager' ); ?></span>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'Display Results', 'photo-competition-manager' ); ?></strong>
+						<span style="color: #666;"> — <?php esc_html_e( 'After all voting is complete, click "Display Results" to make results public', 'photo-competition-manager' ); ?></span>
+					</li>
+				</ol>
+				<p style="margin-bottom: 0.5em;">
+					<em><?php esc_html_e( 'Tip: Only one category can have voting open at a time to avoid confusion.', 'photo-competition-manager' ); ?></em>
+				</p>
+			</div>
+		</div>
+		<script>
+		jQuery(document).ready(function($) {
+			$('#photo-comp-workflow-toggle').on('click', function() {
+				var $content = $('#photo-comp-workflow-content');
+				var $icon = $(this).find('.dashicons');
+				var isExpanded = $content.is(':visible');
+
+				// Toggle display.
+				$content.slideToggle(200);
+
+				// Update icon.
+				if (isExpanded) {
+					$icon.removeClass('dashicons-arrow-down').addClass('dashicons-arrow-right');
+				} else {
+					$icon.removeClass('dashicons-arrow-right').addClass('dashicons-arrow-down');
+				}
+
+				// Save preference via AJAX.
+				$.post(ajaxurl, {
+					action: 'photo_comp_toggle_workflow',
+					expanded: isExpanded ? '0' : '1',
+					nonce: '<?php echo esc_js( wp_create_nonce( 'photo_comp_workflow_toggle' ) ); ?>'
+				});
+			});
+		});
+		</script>
+		<?php
 	}
 
 	/**
