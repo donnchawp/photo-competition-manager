@@ -348,7 +348,8 @@ class Competitions_Controller {
 				),
 			);
 
-			$validation = Competition_Settings::validate( $settings );
+			// Allow empty categories/grades for competitions (will fall back to global defaults).
+			$validation = Competition_Settings::validate( $settings, false );
 
 			if ( is_wp_error( $validation ) ) {
 				add_settings_error(

@@ -17,6 +17,28 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * Get global default settings from WordPress options.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function get_global_defaults(): array {
+		$saved = get_option( 'photo_comp_default_settings', '' );
+
+		if ( empty( $saved ) ) {
+			return self::defaults();
+		}
+
+		$decoded = json_decode( $saved, true );
+
+		if ( ! is_array( $decoded ) ) {
+			return self::defaults();
+		}
+
+		// Merge with hard-coded defaults to ensure structure is complete.
+		return array_replace_recursive( self::defaults(), $decoded );
+	}
+
+	/**
 	 * Default settings structure.
 	 *
 	 * @return array<string, mixed>
@@ -129,14 +151,15 @@ class Competition_Settings {
 	 * Validate settings array.
 	 *
 	 * @param array<string, mixed> $settings Settings to validate.
+	 * @param bool                 $require_categories_grades Whether to require at least one category/grade.
 	 * @return true|WP_Error
 	 */
-	public static function validate( array $settings ) {
+	public static function validate( array $settings, bool $require_categories_grades = true ) {
 		if ( ! isset( $settings['categories'] ) || ! is_array( $settings['categories'] ) ) {
 			return new WP_Error( 'invalid_categories', __( 'Categories must be an array.', 'photo-competition-manager' ) );
 		}
 
-		if ( empty( $settings['categories'] ) ) {
+		if ( $require_categories_grades && empty( $settings['categories'] ) ) {
 			return new WP_Error( 'missing_categories', __( 'At least one category is required.', 'photo-competition-manager' ) );
 		}
 
@@ -179,7 +202,7 @@ class Competition_Settings {
 			return new WP_Error( 'invalid_grades', __( 'Grades must be an array.', 'photo-competition-manager' ) );
 		}
 
-		if ( empty( $settings['grades'] ) ) {
+		if ( $require_categories_grades && empty( $settings['grades'] ) ) {
 			return new WP_Error( 'missing_grades', __( 'At least one grade is required.', 'photo-competition-manager' ) );
 		}
 
@@ -250,7 +273,15 @@ class Competition_Settings {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_categories( array $settings ): array {
-		return $settings['categories'] ?? array();
+		$categories = $settings['categories'] ?? array();
+
+		// If empty, fall back to global defaults.
+		if ( empty( $categories ) ) {
+			$global_settings = self::get_global_defaults();
+			$categories      = $global_settings['categories'] ?? self::defaults()['categories'];
+		}
+
+		return $categories;
 	}
 
 	/**
@@ -260,7 +291,15 @@ class Competition_Settings {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_grades( array $settings ): array {
-		return $settings['grades'] ?? array();
+		$grades = $settings['grades'] ?? array();
+
+		// If empty, fall back to global defaults.
+		if ( empty( $grades ) ) {
+			$global_settings = self::get_global_defaults();
+			$grades          = $global_settings['grades'] ?? self::defaults()['grades'];
+		}
+
+		return $grades;
 	}
 
 	/**
