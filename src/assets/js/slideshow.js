@@ -84,29 +84,23 @@
 				return;
 			}
 
-			this.$statusMessage.text('Opening voting...');
+			this.$statusMessage.text('Starting slideshow...');
 
-			// Open voting via AJAX
-			this.openVoting().then(() => {
-				this.isRunning = true;
-				this.isPaused = false;
-				this.currentIndex = 0;
+			this.isRunning = true;
+			this.isPaused = false;
+			this.currentIndex = 0;
 
-				// Update UI
-				this.updateButtonStates();
-				this.$display.fadeIn(300);
-				this.$statusMessage.text('Slideshow running...');
+			// Update UI
+			this.updateButtonStates();
+			this.$display.fadeIn(300);
+			this.$statusMessage.text('Slideshow running...');
 
-				// Show first image
-				this.showImage(0);
-				this.startAutoAdvance();
+			// Show first image
+			this.showImage(0);
+			this.startAutoAdvance();
 
-				// Attempt to enter fullscreen
-				this.requestFullscreen();
-			}).catch((error) => {
-				this.$statusMessage.text('Ready to start');
-				alert('Failed to start slideshow: ' + error.message);
-			});
+			// Attempt to enter fullscreen
+			this.requestFullscreen();
 		}
 
 		pause() {
@@ -137,10 +131,9 @@
 				return;
 			}
 
-			const votingDuration = parseInt(this.$container.find('#voting-duration').val(), 10) || 5;
 
-			// Schedule voting closure via AJAX
-			this.scheduleVotingClosure(votingDuration).then((response) => {
+			// Stop slideshow via AJAX (voting remains open)
+			this.stopSlideshow().then((response) => {
 				this.isRunning = false;
 				this.isPaused = false;
 				this.stopAutoAdvance();
@@ -204,13 +197,10 @@
 				return;
 			}
 
-			// Get voting duration (default 5 minutes)
-			const votingDuration = parseInt(this.$container.find('#voting-duration').val(), 10) || 5;
+			this.$statusMessage.text('Slideshow complete. Close voting manually when ready.');
 
-			this.$statusMessage.text('Slideshow complete. Voting will close in ' + votingDuration + ' minute(s)...');
-
-			// Schedule automatic voting closure
-			this.scheduleVotingClosure(votingDuration).then((response) => {
+			// Stop slideshow via AJAX (voting remains open)
+			this.stopSlideshow().then((response) => {
 				this.isRunning = false;
 				this.isPaused = false;
 				this.stopAutoAdvance();
@@ -224,8 +214,8 @@
 				// Exit fullscreen
 				this.exitFullscreen();
 			}).catch((error) => {
-				console.error('Failed to schedule voting closure:', error);
-				// Still end the slideshow even if scheduling fails
+				console.error('Failed to stop slideshow:', error);
+				// Still end the slideshow even if AJAX fails
 				this.isRunning = false;
 				this.isPaused = false;
 				this.stopAutoAdvance();
@@ -310,58 +300,31 @@
 			}
 		}
 
-		openVoting() {
-			const self = this;
-			return new Promise((resolve, reject) => {
-				$.ajax({
-					url: self.ajaxUrl,
-					type: 'POST',
-					data: {
-						action: 'photo_comp_slideshow_start',
-						nonce: self.nonce,
-						competition_id: self.competitionId,
-						category: self.category
-					},
-					success: function(response) {
-						if (response.success) {
-							resolve(response.data);
-						} else {
-							reject(new Error(response.data.message || 'Failed to open voting'));
-						}
-					},
-					error: function(xhr, status, error) {
-						reject(new Error('AJAX error: ' + error));
+	stopSlideshow() {
+		return new Promise((resolve, reject) => {
+			$.ajax({
+				url: this.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'photo_comp_slideshow_stop',
+					nonce: this.nonce,
+					competition_id: this.competitionId,
+					category: this.category
+				},
+				success: function(response) {
+					if (response.success) {
+						resolve(response.data);
+					} else {
+						reject(new Error(response.data.message || 'Failed to stop slideshow'));
 					}
-				});
+				},
+				error: function(xhr, status, error) {
+					reject(new Error('AJAX error: ' + error));
+				}
 			});
-		}
-
-		scheduleVotingClosure(votingDuration) {
-			return new Promise((resolve, reject) => {
-				$.ajax({
-					url: this.ajaxUrl,
-					type: 'POST',
-					data: {
-						action: 'photo_comp_slideshow_stop',
-						nonce: this.nonce,
-						competition_id: this.competitionId,
-						category: this.category,
-						voting_duration: votingDuration
-					},
-					success: function(response) {
-						if (response.success) {
-							resolve(response.data);
-						} else {
-							reject(new Error(response.data.message || 'Failed to schedule voting closure'));
-						}
-					},
-					error: function(xhr, status, error) {
-						reject(new Error('AJAX error: ' + error));
-					}
-				});
-			});
-		}
+		});
 	}
+}
 
 	// Initialize slideshow on page load
 	$(document).ready(function() {

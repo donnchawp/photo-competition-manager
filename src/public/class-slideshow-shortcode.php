@@ -68,6 +68,8 @@ class Slideshow_Shortcode {
 	public function register(): void {
 		add_shortcode( 'competition_slideshow', array( $this, 'render' ) );
 		add_action( 'wp_ajax_photo_comp_get_slideshow_images', array( $this, 'handle_get_images' ) );
+		add_action( 'wp_ajax_photo_comp_slideshow_start', array( $this, 'handle_slideshow_start' ) );
+		add_action( 'wp_ajax_photo_comp_slideshow_stop', array( $this, 'handle_slideshow_stop' ) );
 	}
 
 	/**
@@ -193,12 +195,9 @@ class Slideshow_Shortcode {
 						<?php esc_html_e( 'Display duration per image (seconds):', 'photo-competition-manager' ); ?>
 						<input type="number" id="slideshow-interval" min="5" max="60" value="10" step="1" />
 					</label>
-
-					<label for="voting-duration">
-						<?php esc_html_e( 'Voting window after slideshow ends (minutes):', 'photo-competition-manager' ); ?>
-						<input type="number" id="voting-duration" min="0" max="120" value="5" step="1" />
-						<small><?php esc_html_e( 'Set to 0 to close voting immediately when slideshow ends.', 'photo-competition-manager' ); ?></small>
-					</label>
+					<p class="description">
+						<?php esc_html_e( 'Note: This slideshow does not control voting. Open and close voting separately using the Voting Controls page.', 'photo-competition-manager' ); ?>
+					</p>
 				</div>
 
 				<div class="slideshow-status">
@@ -295,6 +294,70 @@ class Slideshow_Shortcode {
 			array( 'jquery' ),
 			'1.0.0',
 			true
+		);
+	}
+
+	/**
+	 * Handle AJAX request to start slideshow.
+	 *
+	 * Note: This does NOT open voting. Admin must manually open voting
+	 * using the "Open Voting" button on the Voting Controls page.
+	 *
+	 * @return void
+	 */
+	public function handle_slideshow_start(): void {
+		check_ajax_referer( 'photo_comp_slideshow', 'nonce' );
+
+		if ( ! current_user_can( 'publish_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
+		}
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$category       = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+
+		if ( ! $competition_id || ! $category ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'photo-competition-manager' ) ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id );
+		if ( ! $competition ) {
+			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Slideshow started.', 'photo-competition-manager' ) ) );
+	}
+
+	/**
+	 * Handle AJAX request to stop slideshow.
+	 *
+	 * Note: This does NOT control voting. Admin must use the Voting Controls page
+	 * to open or close voting independently.
+	 *
+	 * @return void
+	 */
+	public function handle_slideshow_stop(): void {
+		check_ajax_referer( 'photo_comp_slideshow', 'nonce' );
+
+		if ( ! current_user_can( 'publish_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
+		}
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$category       = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+
+		if ( ! $competition_id || ! $category ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'photo-competition-manager' ) ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id );
+		if ( ! $competition ) {
+			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message' => __( 'Slideshow stopped.', 'photo-competition-manager' ),
+			)
 		);
 	}
 }

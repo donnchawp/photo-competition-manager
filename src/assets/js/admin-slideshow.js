@@ -40,7 +40,7 @@
 			const self = this;
 
 			// Start slideshow buttons
-			$(document).on('click', '.photo-comp-start-slideshow', function() {
+			$(document).on('click', '.photo-competition-manager-start-slideshow', function() {
 				const $btn = $(this);
 				const competitionId = $btn.data('competition-id');
 				const competitionSlug = $btn.data('competition-slug');
