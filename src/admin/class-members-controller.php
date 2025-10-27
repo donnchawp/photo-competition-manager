@@ -280,7 +280,7 @@ class Members_Controller {
 		if ( 'import_members_csv' === $action ) {
 			check_admin_referer( 'photo_competition_import_members', 'photo_competition_import_nonce' );
 
-			if ( empty( $_FILES['csv_file'] ) ) {
+			if ( empty( $_FILES['csv_file'] ) || ! isset( $_FILES['csv_file']['tmp_name'] ) || ! is_uploaded_file( $_FILES['csv_file']['tmp_name'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a file path and should not be sanitized.
 				add_settings_error(
 					'photo_competition_members',
 					'no_file',

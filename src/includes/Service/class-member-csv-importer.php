@@ -49,6 +49,12 @@ class Member_CSV_Importer {
 			return new WP_Error( 'upload_failed', __( 'File upload failed.', 'photo-competition-manager' ) );
 		}
 
+		// Security: Verify file was uploaded via HTTP POST (not a local file reference).
+		// Skip this check in test environments to allow mock uploads.
+		if ( ! defined( 'WP_TESTS_DOMAIN' ) && ! is_uploaded_file( $file['tmp_name'] ) ) {
+			return new WP_Error( 'security_check_failed', __( 'Security check failed.', 'photo-competition-manager' ) );
+		}
+
 		// Validate file type by extension.
 		$filename  = isset( $file['name'] ) ? $file['name'] : '';
 		$extension = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
