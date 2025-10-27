@@ -129,6 +129,17 @@ class Results_Shortcode {
 		$grades     = Competition_Settings::get_grades( $settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
+		// Check if results are visible.
+		$results_visible = $settings['results']['results_visible'] ?? false;
+
+		if ( ! $results_visible ) {
+			echo '<div class="photo-comp-results">';
+			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';
+			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';
+			echo '</div>';
+			return;
+		}
+
 		// Get all images for this competition with their scores.
 		$images = $this->images_repo->find_by_competition( (int) $competition->id );
 		if ( empty( $images ) ) {

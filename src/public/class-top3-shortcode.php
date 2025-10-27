@@ -84,6 +84,11 @@ class Top3_Shortcode {
 	 * @return string
 	 */
 	public function render( $atts ): string {
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
 		$atts = shortcode_atts(
 			array(
 				'competition' => '',
@@ -124,6 +129,17 @@ class Top3_Shortcode {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$grades     = Competition_Settings::get_grades( $settings );
 		$categories = Competition_Settings::get_categories( $settings );
+
+		// Check if results are visible.
+		$results_visible = $settings['results']['results_visible'] ?? false;
+
+		if ( ! $results_visible ) {
+			echo '<div class="photo-comp-top3">';
+			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Top 3 Winners', 'photo-competition-manager' ) . '</h2>';
+			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';
+			echo '</div>';
+			return;
+		}
 
 		// Get all images for this competition with their scores.
 		$images = $this->images_repo->find_by_competition( (int) $competition->id );

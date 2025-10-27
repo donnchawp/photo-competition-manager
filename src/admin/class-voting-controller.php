@@ -339,6 +339,118 @@ class Voting_Controller {
 			);
 			exit;
 		}
+
+		if ( 'show_results' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_show_results_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'photo-competition-manager-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                               = Competition_Settings::parse( $competition->settings );
+			$settings['results']['results_visible'] = true;
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_voting',
+					'results_shown',
+					__( 'Results are now visible to the public.', 'photo-competition-manager' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'photo-competition-manager-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		if ( 'hide_results' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_hide_results_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+
+				wp_safe_redirect(
+					add_query_arg(
+						array( 'page' => 'photo-competition-manager-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+				exit;
+			}
+
+			$settings                               = Competition_Settings::parse( $competition->settings );
+			$settings['results']['results_visible'] = false;
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_voting',
+					'results_hidden',
+					__( 'Results are now hidden from the public.', 'photo-competition-manager' ),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array( 'page' => 'photo-competition-manager-voting' ),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
 	}
 
 	/**
@@ -464,6 +576,7 @@ class Voting_Controller {
 		echo '<th>' . esc_html__( 'Category', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Uploads', 'photo-competition-manager' ) . '</th>';
+		echo '<th>' . esc_html__( 'Results', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Slideshow', 'photo-competition-manager' ) . '</th>';
 		echo '</tr></thead>';
@@ -474,6 +587,7 @@ class Voting_Controller {
 			$categories      = Competition_Settings::get_categories( $settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 			$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
+			$results_visible = $settings['results']['results_visible'] ?? false;
 
 			if ( empty( $categories ) ) {
 				echo '<tr>';
@@ -541,6 +655,45 @@ class Voting_Controller {
 						);
 
 						echo '<a href="' . esc_url( $close_uploads_url ) . '" class="button button-primary" style="margin-top: 5px;">' . esc_html__( 'Close Uploads', 'photo-competition-manager' ) . '</a>';
+					}
+
+					echo '</td>';
+
+					// Results column - only show on first category row with rowspan.
+					echo '<td rowspan="' . esc_attr( $category_count ) . '">';
+
+					if ( $results_visible ) {
+						echo '<strong style="color: #00a32a;">' . esc_html__( 'Visible', 'photo-competition-manager' ) . '</strong><br>';
+
+						$hide_results_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page'        => 'photo-competition-manager-voting',
+									'action'      => 'hide_results',
+									'competition' => (int) $competition->id,
+								),
+								admin_url( 'admin.php' )
+							),
+							'photo_competition_hide_results_' . (int) $competition->id
+						);
+
+						echo '<a href="' . esc_url( $hide_results_url ) . '" class="button" style="margin-top: 5px;">' . esc_html__( 'Hide Results', 'photo-competition-manager' ) . '</a>';
+					} else {
+						echo '<strong style="color: #d63638;">' . esc_html__( 'Hidden', 'photo-competition-manager' ) . '</strong><br>';
+
+						$show_results_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'page'        => 'photo-competition-manager-voting',
+									'action'      => 'show_results',
+									'competition' => (int) $competition->id,
+								),
+								admin_url( 'admin.php' )
+							),
+							'photo_competition_show_results_' . (int) $competition->id
+						);
+
+						echo '<a href="' . esc_url( $show_results_url ) . '" class="button button-primary" style="margin-top: 5px;">' . esc_html__( 'Display Results', 'photo-competition-manager' ) . '</a>';
 					}
 
 					echo '</td>';

@@ -78,6 +78,9 @@ class Competition_Settings {
 				'upload_page' => '',
 				'voting_page' => '',
 			),
+			'results'         => array(
+				'results_visible' => false, // Whether results are displayed on frontend.
+			),
 		);
 	}
 
