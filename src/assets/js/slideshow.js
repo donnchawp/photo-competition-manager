@@ -34,6 +34,9 @@
 			this.startTime = 0;
 			this.pauseTime = 0;
 
+			// Image pre-caching
+			this.imageCache = new Map();
+
 			this.bindEvents();
 		}
 
@@ -84,23 +87,39 @@
 				return;
 			}
 
-			this.$statusMessage.text('Starting slideshow...');
+			this.$statusMessage.text('Loading first image...');
 
-			this.isRunning = true;
-			this.isPaused = false;
-			this.currentIndex = 0;
+			// Pre-load only the first image before starting
+			this.preloadImage(this.images[0].url).then(() => {
+				this.isRunning = true;
+				this.isPaused = false;
+				this.currentIndex = 0;
 
-			// Update UI
-			this.updateButtonStates();
-			this.$display.fadeIn(300);
-			this.$statusMessage.text('Slideshow running...');
+				// Update UI
+				this.updateButtonStates();
+				this.$display.fadeIn(300);
+				this.$statusMessage.text('Slideshow running...');
 
-			// Show first image
-			this.showImage(0);
-			this.startAutoAdvance();
+				// Show first image
+				this.showImage(0);
+				this.startAutoAdvance();
 
-			// Attempt to enter fullscreen
-			this.requestFullscreen();
+				// Attempt to enter fullscreen
+				this.requestFullscreen();
+			}).catch((error) => {
+				console.error('Failed to pre-load first image:', error);
+				// Start anyway, even if image failed to pre-load
+				this.isRunning = true;
+				this.isPaused = false;
+				this.currentIndex = 0;
+
+				this.updateButtonStates();
+				this.$display.fadeIn(300);
+				this.$statusMessage.text('Slideshow running...');
+				this.showImage(0);
+				this.startAutoAdvance();
+				this.requestFullscreen();
+			});
 		}
 
 		pause() {
@@ -151,7 +170,7 @@
 			});
 		}
 
-		showImage(index) {
+		showImage(index, shouldAutoAdvance = false) {
 			if (index < 0 || index >= this.images.length) {
 				return;
 			}
@@ -159,10 +178,40 @@
 			this.currentIndex = index;
 			const image = this.images[index];
 
-			// Update image
-			this.$image.attr('src', image.url);
-			this.$image.attr('alt', 'Image #' + image.random_number);
+			// Always wait for image to load before displaying and starting timer
+			this.preloadImage(image.url).then(() => {
+				// Image is loaded, now display it
+				this.$image.attr('src', image.url);
+				this.$image.attr('alt', 'Image #' + image.random_number);
+				this.updateImageInfo(index, image);
 
+				// Start auto-advance timer AFTER image is loaded
+				if (shouldAutoAdvance && this.isRunning && !this.isPaused) {
+					this.stopAutoAdvance();
+					this.startAutoAdvance();
+				}
+
+				// Pre-cache next image after current one is displayed
+				this.precacheNextImages(index);
+			}).catch((error) => {
+				console.error('Failed to load image:', error);
+				// Still try to display even if load failed
+				this.$image.attr('src', image.url);
+				this.$image.attr('alt', 'Image #' + image.random_number);
+				this.updateImageInfo(index, image);
+
+				// Start auto-advance even if image failed to load
+				if (shouldAutoAdvance && this.isRunning && !this.isPaused) {
+					this.stopAutoAdvance();
+					this.startAutoAdvance();
+				}
+
+				// Still try to pre-cache next image
+				this.precacheNextImages(index);
+			});
+		}
+
+		updateImageInfo(index, image) {
 			// Update info
 			this.$imageInfo.find('.image-number').text('#' + image.random_number);
 
@@ -184,12 +233,8 @@
 				return;
 			}
 
-			this.showImage(nextIndex);
-
-			if (this.isRunning && !this.isPaused) {
-				this.stopAutoAdvance();
-				this.startAutoAdvance();
-			}
+			// Pass true to restart auto-advance after image loads
+			this.showImage(nextIndex, true);
 		}
 
 		endSlideshow() {
@@ -227,12 +272,8 @@
 
 		previousImage() {
 			const prevIndex = this.currentIndex === 0 ? this.images.length - 1 : this.currentIndex - 1;
-			this.showImage(prevIndex);
-
-			if (this.isRunning && !this.isPaused) {
-				this.stopAutoAdvance();
-				this.startAutoAdvance();
-			}
+			// Pass true to restart auto-advance after image loads
+			this.showImage(prevIndex, true);
 		}
 
 		startAutoAdvance() {
@@ -297,6 +338,53 @@
 				document.mozCancelFullScreen();
 			} else if (document.msExitFullscreen) {
 				document.msExitFullscreen();
+			}
+		}
+
+		preloadImage(url) {
+			return new Promise((resolve, reject) => {
+				// Check if already cached
+				if (this.imageCache.has(url)) {
+					const cachedImg = this.imageCache.get(url);
+					if (cachedImg.complete) {
+						// Already loaded, resolve immediately
+						resolve(cachedImg);
+						return;
+					} else {
+						// Still loading, wait for it to complete
+						cachedImg.addEventListener('load', () => resolve(cachedImg));
+						cachedImg.addEventListener('error', () => reject(new Error('Failed to load image: ' + url)));
+						return;
+					}
+				}
+
+				// Create new image and cache it
+				const img = new Image();
+				this.imageCache.set(url, img);
+
+				img.onload = () => {
+					resolve(img);
+				};
+
+				img.onerror = () => {
+					reject(new Error('Failed to load image: ' + url));
+				};
+
+				img.src = url;
+			});
+		}
+
+		precacheNextImages(currentIndex) {
+			// Pre-cache only the next image
+			const nextIndex = currentIndex + 1;
+			if (nextIndex < this.images.length) {
+				const nextUrl = this.images[nextIndex].url;
+				// Only pre-load if not already cached
+				if (!this.imageCache.has(nextUrl) || !this.imageCache.get(nextUrl).complete) {
+					this.preloadImage(nextUrl).catch(error => {
+						console.error('Failed to pre-cache next image:', error);
+					});
+				}
 			}
 		}
 

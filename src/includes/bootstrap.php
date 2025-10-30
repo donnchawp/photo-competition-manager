@@ -5,6 +5,11 @@
  * @package PhotoCompetitionManager
  */
 
+// Define plugin version.
+if ( ! defined( 'PHOTO_COMPETITION_MANAGER_VERSION' ) ) {
+	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.1.0' );
+}
+
 $autoload = dirname( __DIR__, 2 ) . '/vendor/autoload.php';
 
 if ( file_exists( $autoload ) ) {
