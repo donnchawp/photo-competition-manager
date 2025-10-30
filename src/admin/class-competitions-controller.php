@@ -311,18 +311,23 @@ class Competitions_Controller {
 				$auth_mode_input = 'password';
 			}
 
-			$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
-			$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
+			$voting_password       = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
+			$voting_password_clear = isset( $_POST['voting_password_clear'] ) && '1' === $_POST['voting_password_clear'];
+			$click_image_to_zoom   = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 
-			// Hash the password if provided, otherwise preserve existing hash.
+			// Hash the password if provided, clear if checkbox checked, otherwise preserve existing hash.
 			$hashed_password = '';
-			if ( ! empty( $voting_password ) ) {
+			if ( $voting_password_clear ) {
+				// Clear the password - leave empty.
+				$hashed_password = '';
+			} elseif ( ! empty( $voting_password ) ) {
+				// New password provided - hash it.
 				$hashed_password = wp_hash_password( $voting_password );
 			} elseif ( isset( $existing_settings['voting']['password'] ) ) {
-				// Preserve existing password hash if no new password provided.
+				// Preserve existing password hash if no new password provided and not clearing.
 				$hashed_password = $existing_settings['voting']['password'];
 			}
 
@@ -673,8 +678,20 @@ class Competitions_Controller {
 
 		echo '<p>';
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based".', 'photo-competition-manager' ) . '</span>';
+
+		// Show placeholder if password is set, empty if not
+		$password_placeholder = ! empty( $voting['password'] ) ? esc_attr__( 'Password is set', 'photo-competition-manager' ) : '';
+		echo '<input type="text" id="voting_password" name="voting_password" value="" placeholder="' . $password_placeholder . '" class="regular-text" />';
+
+		if ( ! empty( $voting['password'] ) ) {
+			echo '<br /><label>';
+			echo '<input type="checkbox" id="voting_password_clear" name="voting_password_clear" value="1" />';
+			echo ' ' . esc_html__( 'Remove password protection', 'photo-competition-manager' );
+			echo '</label>';
+			echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password.', 'photo-competition-manager' ) . '</span>';
+		} else {
+			echo '<br /><span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based".', 'photo-competition-manager' ) . '</span>';
+		}
 		echo '</p>';
 
 		echo '<p>';
