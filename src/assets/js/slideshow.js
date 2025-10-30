@@ -330,8 +330,20 @@
 		}
 
 		exitFullscreen() {
+			// Check if we're actually in fullscreen before trying to exit
+			const isFullscreen = document.fullscreenElement ||
+				document.webkitFullscreenElement ||
+				document.mozFullScreenElement ||
+				document.msFullscreenElement;
+
+			if (!isFullscreen) {
+				return; // Already exited, nothing to do
+			}
+
 			if (document.exitFullscreen) {
-				document.exitFullscreen();
+				document.exitFullscreen().catch(() => {
+					// Ignore errors - user may have already exited
+				});
 			} else if (document.webkitExitFullscreen) {
 				document.webkitExitFullscreen();
 			} else if (document.mozCancelFullScreen) {
