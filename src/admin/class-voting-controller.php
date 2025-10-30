@@ -488,6 +488,30 @@ class Voting_Controller {
 			return;
 		}
 
+		// Check for members with submissions but no grades.
+		$members_without_grades = $this->check_members_without_grades( $active_competitions );
+		if ( ! empty( $members_without_grades ) ) {
+			echo '<div class="notice notice-error">';
+			echo '<p><strong>' . esc_html__( 'ERROR: Some members have submitted images but do not have grades assigned!', 'photo-competition-manager' ) . '</strong></p>';
+			echo '<p>' . esc_html__( 'The following members need grades assigned before voting can proceed. Results will not display correctly without grades.', 'photo-competition-manager' ) . '</p>';
+			echo '<ul style="list-style: disc; margin-left: 20px;">';
+			foreach ( $members_without_grades as $member_info ) {
+				echo '<li>';
+				echo esc_html( $member_info['name'] ) . ' (' . esc_html( $member_info['email'] ) . ')';
+				echo ' - ' . sprintf(
+					/* translators: %d: number of images */
+					esc_html( _n( '%d image', '%d images', $member_info['image_count'], 'photo-competition-manager' ) ),
+					$member_info['image_count']
+				);
+				echo '</li>';
+			}
+			echo '</ul>';
+			echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-members' ) ) . '" class="button button-primary">' . esc_html__( 'Go to Members Page to Assign Grades', 'photo-competition-manager' ) . '</a></p>';
+			echo '</div>';
+			echo '</div>'; // Close wrap div.
+			return; // Stop rendering the rest of the page.
+		}
+
 		// Check if any category has voting open globally.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
@@ -1068,5 +1092,46 @@ class Voting_Controller {
 		}
 
 		echo '</div>';
+	}
+
+	/**
+	 * Check for members with submissions but no grades.
+	 *
+	 * @param array $competitions Array of competition objects.
+	 * @return array Array of member info with missing grades.
+	 */
+	private function check_members_without_grades( array $competitions ): array {
+		$members_without_grades = array();
+
+		foreach ( $competitions as $competition ) {
+			// Get all images for this competition.
+			$images = $this->images->find_by_competition( (int) $competition->id );
+
+			if ( empty( $images ) ) {
+				continue;
+			}
+
+			// Get unique member IDs from images.
+			$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
+
+			// Get member details.
+			$members = $this->members->find_many( $member_ids );
+
+			// Check each member for missing grade.
+			foreach ( $members as $member_id => $member ) {
+				if ( empty( $member->grade ) ) {
+					// Count images for this member.
+					$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
+
+					$members_without_grades[ $member_id ] = array(
+						'name'        => $member->name,
+						'email'       => $member->email,
+						'image_count' => $image_count,
+					);
+				}
+			}
+		}
+
+		return $members_without_grades;
 	}
 }
