@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "wp-scripts start",
-    "build": "wp-scripts build",
+    "build": "wp-scripts build && npm run copy-to-src",
+    "build:production": "wp-scripts build --mode=production && npm run copy-to-src",
+    "copy-to-src": "mkdir -p ../src/assets/build && cp -r build/* ../src/assets/build/",
     "test:js": "wp-scripts test-unit-js"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@
 /node_modules/
 /assets/node_modules/
 /assets/build/
+/src/assets/build/
 /composer.lock
 /package-lock.json
 /yarn.lock
