@@ -498,11 +498,13 @@ class Voting_Controller {
 			foreach ( $members_without_grades as $member_info ) {
 				echo '<li>';
 				echo esc_html( $member_info['name'] ) . ' (' . esc_html( $member_info['email'] ) . ')';
-				echo ' - ' . sprintf(
-					/* translators: %d: number of images */
-					esc_html( _n( '%d image', '%d images', $member_info['image_count'], 'photo-competition-manager' ) ),
-					$member_info['image_count']
+				$image_count = isset( $member_info['image_count'] ) ? (int) $member_info['image_count'] : 0;
+				$image_text  = sprintf(
+					/* translators: %s: number of images */
+					_n( '%s image', '%s images', $image_count, 'photo-competition-manager' ),
+					number_format_i18n( $image_count )
 				);
+				echo ' - ' . esc_html( $image_text );
 				echo '</li>';
 			}
 			echo '</ul>';
