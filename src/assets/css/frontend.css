@@ -172,6 +172,13 @@
 	border-radius: 4px;
 }
 
+@media (max-width: 768px) {
+	.photo-comp-voting {
+		padding: 1.25em;
+		margin: 1.5em auto;
+	}
+}
+
 .photo-comp-voting h2,
 .photo-comp-voting h3 {
 	margin-top: 0;
@@ -316,6 +323,13 @@
 	margin: 2em 0;
 }
 
+@media (max-width: 768px) {
+	.images-grid {
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 1.5em;
+	}
+}
+
 .voting-image-item {
 	background: #fff;
 	border: 1px solid #ddd;
@@ -323,6 +337,12 @@
 	padding: 1em;
 	text-align: center;
 	transition: box-shadow 0.2s;
+}
+
+@media (max-width: 768px) {
+	.voting-image-item {
+		padding: 0.75em;
+	}
 }
 
 .voting-image-item:hover {
