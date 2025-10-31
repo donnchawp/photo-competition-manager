@@ -197,7 +197,10 @@ class DragDropUpload {
 			// Display as text instead of dropdown.
 			const categoryLabel = document.createElement('div');
 			categoryLabel.className = 'photo-comp-category-label';
-			categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label} <small>(${quota.remaining} remaining)</small>`;
+
+			// Only show remaining count if quota is more than 1.
+			const remainingText = quota.quota > 1 ? ` <small>(${quota.remaining} remaining)</small>` : '';
+			categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
 			container.appendChild(categoryLabel);
 
 			// Trigger update since we auto-assigned.
@@ -222,7 +225,9 @@ class DragDropUpload {
 			if (quota && quota.remaining > 0) {
 				const option = document.createElement('option');
 				option.value = cat.slug;
-				option.textContent = `${cat.label} (${quota.remaining} remaining)`;
+				// Only show remaining count if quota is more than 1.
+				const remainingText = quota.quota > 1 ? ` (${quota.remaining} remaining)` : '';
+				option.textContent = `${cat.label}${remainingText}`;
 				select.appendChild(option);
 			} else if (quota) {
 				const option = document.createElement('option');
