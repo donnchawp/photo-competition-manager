@@ -76,6 +76,22 @@ class Plugin {
 		$cron_handler->register();
 
 		$this->register_email_job_hooks();
+		$this->register_rest_api();
+	}
+
+	/**
+	 * Register REST API routes.
+	 *
+	 * @return void
+	 */
+	private function register_rest_api(): void {
+		add_action(
+			'rest_api_init',
+			function () {
+				$upload_api = new \PhotoCompetitionManager\API\Upload_API();
+				$upload_api->register_routes();
+			}
+		);
 	}
 
 	/**

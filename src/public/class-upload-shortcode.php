@@ -87,6 +87,40 @@ class Upload_Shortcode {
 	}
 
 	/**
+	 * Enqueue assets for upload shortcode.
+	 */
+	private function enqueue_assets(): void {
+		// This file is in src/public/, main plugin file is in src/
+		// Assets are in src/assets/build/
+		$plugin_dir = dirname( dirname( __FILE__ ) ); // Gets src/ directory.
+		$asset_file = $plugin_dir . '/assets/build/drag-drop-upload.asset.php';
+
+		if ( ! file_exists( $asset_file ) ) {
+			return;
+		}
+
+		$asset = require $asset_file;
+
+		// Get the plugin URL (WordPress sees src/ as the plugin root).
+		$plugin_url = plugin_dir_url( $plugin_dir . '/photo-competition-manager.php' );
+
+		wp_enqueue_script(
+			'photo-comp-drag-drop-upload',
+			$plugin_url . 'assets/build/drag-drop-upload.js',
+			$asset['dependencies'],
+			$asset['version'],
+			true
+		);
+
+		wp_enqueue_style(
+			'photo-comp-drag-drop-upload',
+			$plugin_url . 'assets/build/drag-drop-upload.css',
+			array(),
+			$asset['version']
+		);
+	}
+
+	/**
 	 * Render upload form shortcode.
 	 *
 	 * @param array<string, string> $atts Shortcode attributes.
@@ -97,6 +131,9 @@ class Upload_Shortcode {
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
 			define( 'DONOTCACHEPAGE', true );
 		}
+
+		// Enqueue assets when shortcode is rendered.
+		$this->enqueue_assets();
 
 		$competition = $this->competitions_repo->find_current_active();
 		if ( ! $competition ) {
@@ -119,8 +156,21 @@ class Upload_Shortcode {
 			}
 		}
 
-		// Handle token request form submission.
+		// Handle messages from redirects.
 		$message = '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Message display only, no actions.
+		if ( isset( $_GET['msg_type'], $_GET['msg_text'], $_GET['msg_time'] ) ) {
+			// Only show messages that are less than 30 seconds old to prevent stale messages.
+			$msg_time = absint( $_GET['msg_time'] );
+			if ( ( time() - $msg_time ) < 30 ) {
+				$msg_type = sanitize_text_field( wp_unslash( $_GET['msg_type'] ) );
+				$msg_text = sanitize_text_field( wp_unslash( $_GET['msg_text'] ) );
+				$class    = 'success' === $msg_type ? 'success' : 'error';
+				$message  = '<p class="' . esc_attr( $class ) . '">' . esc_html( $msg_text ) . '</p>';
+			}
+		}
+
+		// Handle token request form submission.
 		if (
 			isset( $_POST['photo_competition_request_token'] )
 			&& check_admin_referer( 'photo_competition_request_token', 'photo_competition_nonce' )
@@ -130,7 +180,7 @@ class Upload_Shortcode {
 			$message      = $this->handle_token_request( $competition, $member_email );
 		}
 
-		// Handle upload with token.
+		// Handle upload with token (redirects, doesn't return).
 		if (
 			$token_record && $member
 			&& isset( $_POST['photo_competition_upload'] )
@@ -140,10 +190,10 @@ class Upload_Shortcode {
 			$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $_FILES cannot be sanitized; validated in Upload_Handler::handle_upload().
 			$image_file = isset( $_FILES['image'] ) ? $_FILES['image'] : null;
-			$message    = $this->handle_token_upload( (int) $competition->id, (int) $member->id, $token_record, $category, $image_file );
+			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $token_record, $category, $image_file );
 		}
 
-		// Handle deletion with token.
+		// Handle deletion with token (redirects, doesn't return).
 		if (
 			$token_record && $member
 			&& isset( $_POST['photo_competition_delete'] )
@@ -151,7 +201,7 @@ class Upload_Shortcode {
 		) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
 			$image_id = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
-			$message  = $this->handle_token_deletion( (int) $competition->id, (int) $member->id, $token_record, $image_id );
+			$this->handle_token_deletion( (int) $competition->id, (int) $member->id, $token_record, $image_id );
 		}
 
 		ob_start();
@@ -197,26 +247,29 @@ class Upload_Shortcode {
 	 * @param object     $token_record   Token record.
 	 * @param string     $category       Selected category (sanitized).
 	 * @param array|null $image_file     Uploaded file array from $_FILES or null.
-	 * @return string Message to display.
+	 * @return void Redirects after processing.
 	 */
-	private function handle_token_upload( int $competition_id, int $member_id, $token_record, string $category, $image_file ): string {
+	private function handle_token_upload( int $competition_id, int $member_id, $token_record, string $category, $image_file ): void {
 		if ( empty( $category ) ) {
-			return '<p class="error">' . esc_html__( 'Please select a category.', 'photo-competition-manager' ) . '</p>';
+			$this->redirect_with_message( 'error', __( 'Please select a category.', 'photo-competition-manager' ) );
+			return;
 		}
 
 		// Check file upload.
 		if ( empty( $image_file ) || ! is_array( $image_file ) || ( isset( $image_file['error'] ) && UPLOAD_ERR_NO_FILE === $image_file['error'] ) ) {
-			return '<p class="error">' . esc_html__( 'Please select an image to upload.', 'photo-competition-manager' ) . '</p>';
+			$this->redirect_with_message( 'error', __( 'Please select an image to upload.', 'photo-competition-manager' ) );
+			return;
 		}
 
 		// Process upload.
 		$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
-			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
+			$this->redirect_with_message( 'error', $result->get_error_message() );
+			return;
 		}
 
-		return '<p class="success">' . esc_html__( 'Image uploaded successfully!', 'photo-competition-manager' ) . '</p>';
+		$this->redirect_with_message( 'success', __( 'Image uploaded successfully!', 'photo-competition-manager' ) );
 	}
 
 	/**
@@ -226,20 +279,47 @@ class Upload_Shortcode {
 	 * @param int    $member_id      Member ID.
 	 * @param object $token_record   Token record.
 	 * @param int    $image_id       Image ID to delete.
-	 * @return string Message to display.
+	 * @return void Redirects after processing.
 	 */
-	private function handle_token_deletion( int $competition_id, int $member_id, $token_record, int $image_id ): string {
+	private function handle_token_deletion( int $competition_id, int $member_id, $token_record, int $image_id ): void {
 		if ( ! $image_id ) {
-			return '<p class="error">' . esc_html__( 'Invalid deletion request.', 'photo-competition-manager' ) . '</p>';
+			$this->redirect_with_message( 'error', __( 'Invalid deletion request.', 'photo-competition-manager' ) );
+			return;
 		}
 
 		$result = $this->upload_handler->delete_submission( $image_id, $member_id, $competition_id );
 
 		if ( is_wp_error( $result ) ) {
-			return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
+			$this->redirect_with_message( 'error', $result->get_error_message() );
+			return;
 		}
 
-		return '<p class="success">' . esc_html__( 'Image deleted successfully.', 'photo-competition-manager' ) . '</p>';
+		$this->redirect_with_message( 'success', __( 'Image deleted successfully.', 'photo-competition-manager' ) );
+	}
+
+	/**
+	 * Redirect with a message using query parameters (Post/Redirect/Get pattern).
+	 *
+	 * @param string $type    Message type (success or error).
+	 * @param string $message Message text.
+	 * @return void
+	 */
+	private function redirect_with_message( string $type, string $message ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
+		$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+
+		$redirect_url = add_query_arg(
+			array(
+				'token'        => rawurlencode( $token_param ),
+				'msg_type'     => $type,
+				'msg_text'     => rawurlencode( $message ),
+				'msg_time'     => time(),
+			),
+			get_permalink()
+		);
+
+		wp_safe_redirect( $redirect_url );
+		exit;
 	}
 
 	/**
@@ -416,102 +496,174 @@ class Upload_Shortcode {
 						<?php esc_html_e( 'You have reached the maximum number of submissions for all categories. Thank you!', 'photo-competition-manager' ); ?>
 					</p>
 				<?php else : ?>
-					<!-- Upload form (separate from delete forms) -->
-					<h3><?php esc_html_e( 'Upload New Image', 'photo-competition-manager' ); ?></h3>
+					<!-- Drag and drop bulk upload UI -->
+					<h3><?php esc_html_e( 'Upload Images', 'photo-competition-manager' ); ?></h3>
+
+					<div class="photo-comp-drag-drop-zone">
+						<div class="drop-zone-icon">📸</div>
+						<div class="drop-zone-text">
+							<?php esc_html_e( 'Drag and drop your images here', 'photo-competition-manager' ); ?>
+						</div>
+						<div class="drop-zone-hint">
+							<?php esc_html_e( 'or click to select files', 'photo-competition-manager' ); ?>
+						</div>
+						<button type="button" class="drop-zone-button">
+							<?php esc_html_e( 'Select Images', 'photo-competition-manager' ); ?>
+						</button>
+					</div>
+
+					<input
+						type="file"
+						id="batch-file-input"
+						multiple
+						accept="<?php echo esc_attr( $this->get_accept_formats( $constraints['allowed_formats'] ) ); ?>"
+					/>
+
+					<div class="photo-comp-preview-grid"></div>
+
+					<button type="button" class="photo-comp-upload-all-btn">
+						<?php esc_html_e( 'Upload All', 'photo-competition-manager' ); ?>
+					</button>
+
+					<div class="photo-comp-upload-progress"></div>
 
 					<?php
-					// Build form action URL with token to preserve it across submissions.
-					// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
+					// Pass configuration to JavaScript.
+					// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
 					$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-					$form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
-					?>
-					<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">
-						<?php wp_nonce_field( 'photo_competition_upload_with_token', 'photo_competition_nonce' ); ?>
 
-						<?php if ( 1 === count( $available_categories ) ) : ?>
-							<?php
-							$single_category = $available_categories[0];
-							$remaining       = $single_category['quota'] - $single_category['current'];
-							?>
+					$categories_js = array();
+					foreach ( $categories as $cat ) {
+						$categories_js[] = array(
+							'slug'  => $cat['slug'],
+							'label' => $cat['label'],
+							'quota' => $cat['quota'],
+						);
+					}
+
+					$quotas_js = array();
+					foreach ( $available_categories as $cat ) {
+						$quotas_js[ $cat['slug'] ] = array(
+							'current'   => $cat['current'],
+							'quota'     => $cat['quota'],
+							'remaining' => $cat['quota'] - $cat['current'],
+						);
+					}
+
+					wp_localize_script(
+						'photo-comp-drag-drop-upload',
+						'photoCompUpload',
+						array(
+							'token'          => $token_param,
+							'apiUrl'         => esc_url_raw( rest_url() ),
+							'nonce'          => wp_create_nonce( 'wp_rest' ),
+							'categories'     => $categories_js,
+							'quotas'         => $quotas_js,
+							'maxFileSize'    => $constraints['max_file_size_mb'] * 1024 * 1024,
+							'allowedFormats' => $constraints['allowed_formats'],
+						)
+					);
+					?>
+
+					<!-- Fallback: Traditional single upload -->
+					<div class="photo-comp-fallback-upload">
+						<h3><?php esc_html_e( 'Or Upload One Image at a Time', 'photo-competition-manager' ); ?></h3>
+						<p><?php esc_html_e( 'If the drag-and-drop interface is not working, you can use this traditional upload form.', 'photo-competition-manager' ); ?></p>
+
+						<?php
+						// Build form action URL with token to preserve it across submissions.
+						// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
+						$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+						$form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
+						?>
+						<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">
+							<?php wp_nonce_field( 'photo_competition_upload_with_token', 'photo_competition_nonce' ); ?>
+
+							<?php if ( 1 === count( $available_categories ) ) : ?>
+								<?php
+								$single_category = $available_categories[0];
+								$remaining       = $single_category['quota'] - $single_category['current'];
+								?>
+								<p>
+									<label>
+										<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
+									</label>
+									<strong><?php echo esc_html( $single_category['label'] ); ?></strong>
+									<small>
+										<?php
+										echo esc_html(
+											sprintf(
+												/* translators: 1: remaining slots, 2: total quota */
+												__( '(%1$d of %2$d remaining)', 'photo-competition-manager' ),
+												$remaining,
+												$single_category['quota']
+											)
+										);
+										?>
+									</small>
+									<input type="hidden" name="category" value="<?php echo esc_attr( $single_category['slug'] ); ?>" />
+								</p>
+							<?php else : ?>
+								<p>
+									<label for="category">
+										<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
+										<span class="required">*</span>
+									</label>
+									<select id="category" name="category" required>
+										<option value=""><?php esc_html_e( '-- Select Category --', 'photo-competition-manager' ); ?></option>
+										<?php foreach ( $available_categories as $cat ) : ?>
+											<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
+												<?php
+												$remaining = $cat['quota'] - $cat['current'];
+												echo esc_html(
+													sprintf(
+														/* translators: 1: category label, 2: remaining slots, 3: total quota */
+														__( '%1$s (%2$d of %3$d remaining)', 'photo-competition-manager' ),
+														$cat['label'],
+														$remaining,
+														$cat['quota']
+													)
+												);
+												?>
+											</option>
+										<?php endforeach; ?>
+									</select>
+								</p>
+							<?php endif; ?>
+
 							<p>
-								<label>
-									<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
+								<label for="image">
+									<?php esc_html_e( 'Image:', 'photo-competition-manager' ); ?>
+									<span class="required">*</span>
 								</label>
-								<strong><?php echo esc_html( $single_category['label'] ); ?></strong>
+								<input
+									type="file"
+									id="image"
+									name="image"
+									accept="<?php echo esc_attr( $this->get_accept_formats( $constraints['allowed_formats'] ) ); ?>"
+									required
+								/>
 								<small>
 									<?php
 									echo esc_html(
 										sprintf(
-											/* translators: 1: remaining slots, 2: total quota */
-											__( '(%1$d of %2$d remaining)', 'photo-competition-manager' ),
-											$remaining,
-											$single_category['quota']
+											/* translators: 1: max file size in MB, 2: allowed formats */
+											__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
+											$constraints['max_file_size_mb'],
+											strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
 										)
 									);
 									?>
 								</small>
-								<input type="hidden" name="category" value="<?php echo esc_attr( $single_category['slug'] ); ?>" />
 							</p>
-						<?php else : ?>
+
 							<p>
-								<label for="category">
-									<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
-									<span class="required">*</span>
-								</label>
-								<select id="category" name="category" required>
-									<option value=""><?php esc_html_e( '-- Select Category --', 'photo-competition-manager' ); ?></option>
-									<?php foreach ( $available_categories as $cat ) : ?>
-										<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
-											<?php
-											$remaining = $cat['quota'] - $cat['current'];
-											echo esc_html(
-												sprintf(
-													/* translators: 1: category label, 2: remaining slots, 3: total quota */
-													__( '%1$s (%2$d of %3$d remaining)', 'photo-competition-manager' ),
-													$cat['label'],
-													$remaining,
-													$cat['quota']
-												)
-											);
-											?>
-										</option>
-									<?php endforeach; ?>
-								</select>
+								<button type="submit" name="photo_competition_upload" class="button">
+									<?php esc_html_e( 'Upload Image', 'photo-competition-manager' ); ?>
+								</button>
 							</p>
-						<?php endif; ?>
-
-						<p>
-							<label for="image">
-								<?php esc_html_e( 'Image:', 'photo-competition-manager' ); ?>
-								<span class="required">*</span>
-							</label>
-							<input
-								type="file"
-								id="image"
-								name="image"
-								accept="<?php echo esc_attr( $this->get_accept_formats( $constraints['allowed_formats'] ) ); ?>"
-								required
-							/>
-							<small>
-								<?php
-								echo esc_html(
-									sprintf(
-										/* translators: 1: max file size in MB, 2: allowed formats */
-										__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
-										$constraints['max_file_size_mb'],
-										strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
-									)
-								);
-								?>
-							</small>
-						</p>
-
-						<p>
-							<button type="submit" name="photo_competition_upload" class="button">
-								<?php esc_html_e( 'Upload Image', 'photo-competition-manager' ); ?>
-							</button>
-						</p>
-					</form>
+						</form>
+					</div>
 				<?php endif; ?>
 			<?php endif; ?>
 		</div>

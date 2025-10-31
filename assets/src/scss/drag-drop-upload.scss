@@ -1,0 +1,320 @@
+/**
+ * Drag and drop upload styles.
+ *
+ * @package PhotoCompetitionManager
+ */
+
+.photo-comp-upload {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 20px;
+}
+
+// Drag and drop zone
+.photo-comp-drag-drop-zone {
+	border: 3px dashed #ccc;
+	border-radius: 8px;
+	padding: 60px 20px;
+	text-align: center;
+	background: #fafafa;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	margin-bottom: 30px;
+
+	&:hover {
+		border-color: #999;
+		background: #f5f5f5;
+	}
+
+	&.drag-over {
+		border-color: #2271b1;
+		background: #e8f4f8;
+	}
+
+	&.has-files {
+		padding: 30px 20px;
+	}
+
+	.drop-zone-icon {
+		font-size: 48px;
+		color: #999;
+		margin-bottom: 15px;
+	}
+
+	.drop-zone-text {
+		font-size: 18px;
+		color: #666;
+		margin-bottom: 10px;
+	}
+
+	.drop-zone-hint {
+		font-size: 14px;
+		color: #999;
+	}
+
+	.drop-zone-button {
+		display: inline-block;
+		margin-top: 15px;
+		padding: 12px 24px;
+		background: #2271b1;
+		color: #fff;
+		border: none;
+		border-radius: 4px;
+		font-size: 16px;
+		cursor: pointer;
+		transition: background 0.3s ease;
+
+		&:hover {
+			background: #135e96;
+		}
+	}
+}
+
+// Hidden file input
+#batch-file-input {
+	display: none;
+}
+
+// Preview grid
+.photo-comp-preview-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 20px;
+	margin-bottom: 30px;
+	display: none; // Hidden until files are added
+
+	@media (max-width: 768px) {
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 15px;
+	}
+
+	@media (max-width: 480px) {
+		grid-template-columns: 1fr;
+	}
+}
+
+// Preview item
+.photo-comp-preview-item {
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	transition: box-shadow 0.3s ease;
+
+	&:hover {
+		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+	}
+
+	img {
+		width: 100%;
+		height: 200px;
+		object-fit: cover;
+		display: block;
+	}
+}
+
+// Preview controls
+.photo-comp-preview-controls {
+	padding: 15px;
+}
+
+.photo-comp-category-select-container {
+	margin-bottom: 10px;
+
+	select {
+		width: 100%;
+		padding: 8px;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		font-size: 14px;
+
+		&:focus {
+			outline: none;
+			border-color: #2271b1;
+		}
+
+		option:disabled {
+			color: #999;
+		}
+	}
+}
+
+.photo-comp-category-label {
+	padding: 8px;
+	background: #f0f0f0;
+	border-radius: 4px;
+	font-size: 14px;
+
+	strong {
+		color: #333;
+	}
+
+	small {
+		color: #666;
+		font-size: 12px;
+	}
+}
+
+.photo-comp-file-info {
+	font-size: 12px;
+	color: #666;
+	margin-bottom: 10px;
+}
+
+.photo-comp-remove-btn {
+	width: 100%;
+	padding: 8px;
+	background: #dc3232;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	font-size: 14px;
+	cursor: pointer;
+	transition: background 0.3s ease;
+
+	&:hover {
+		background: #a00;
+	}
+}
+
+// Upload all button
+.photo-comp-upload-all-btn {
+	display: none; // Hidden until files are ready
+	padding: 15px 30px;
+	background: #2271b1;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	font-size: 18px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.3s ease;
+	margin-bottom: 20px;
+
+	&:hover:not(:disabled) {
+		background: #135e96;
+	}
+
+	&:disabled {
+		background: #ccc;
+		cursor: not-allowed;
+	}
+}
+
+// Upload progress
+.photo-comp-upload-progress {
+	display: none;
+	padding: 20px;
+	background: #f0f0f0;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	margin-bottom: 20px;
+
+	p {
+		margin: 0 0 10px 0;
+
+		&.success {
+			color: #008a00;
+			font-weight: 600;
+		}
+	}
+}
+
+.photo-comp-error-message {
+	padding: 15px;
+	background: #fef2f2;
+	border: 1px solid #dc3232;
+	border-radius: 4px;
+	color: #dc3232;
+	margin-bottom: 20px;
+}
+
+.photo-comp-quota-warning {
+	padding: 15px;
+	background: #fff8e5;
+	border: 1px solid #f0b849;
+	border-radius: 4px;
+	color: #8a6d3b;
+	margin-bottom: 20px;
+	font-weight: 600;
+}
+
+.photo-comp-error-list {
+	list-style: disc;
+	padding-left: 20px;
+	margin: 10px 0 0 0;
+	color: #dc3232;
+
+	li {
+		margin-bottom: 5px;
+	}
+}
+
+// Fallback section (traditional single upload)
+.photo-comp-fallback-upload {
+	margin-top: 40px;
+	padding-top: 40px;
+	border-top: 2px solid #ddd;
+
+	h3 {
+		margin-bottom: 15px;
+		font-size: 20px;
+	}
+
+	p {
+		color: #666;
+		margin-bottom: 20px;
+	}
+}
+
+// Loading state
+.photo-comp-loading {
+	text-align: center;
+	padding: 40px 20px;
+
+	&::before {
+		content: '';
+		display: inline-block;
+		width: 40px;
+		height: 40px;
+		border: 4px solid #f3f3f3;
+		border-top: 4px solid #2271b1;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+	.photo-comp-drag-drop-zone {
+		padding: 40px 15px;
+
+		&.has-files {
+			padding: 20px 15px;
+		}
+
+		.drop-zone-icon {
+			font-size: 36px;
+		}
+
+		.drop-zone-text {
+			font-size: 16px;
+		}
+	}
+
+	.photo-comp-upload-all-btn {
+		width: 100%;
+		padding: 12px 20px;
+		font-size: 16px;
+	}
+}
