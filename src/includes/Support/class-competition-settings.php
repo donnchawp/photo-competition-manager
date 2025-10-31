@@ -86,6 +86,7 @@ class Competition_Settings {
 				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
+				'ui_type'             => 'default',
 			),
 			'slideshow'       => array(
 				'duration_seconds' => 10,
@@ -253,6 +254,13 @@ class Competition_Settings {
 			}
 		}
 
+		if ( isset( $settings['voting']['ui_type'] ) ) {
+			$valid_ui_types = array( 'default', 'buttons', 'dropdown' );
+			if ( ! in_array( $settings['voting']['ui_type'], $valid_ui_types, true ) ) {
+				return new WP_Error( 'invalid_voting_ui_type', __( 'Voting UI type must be "default", "buttons", or "dropdown".', 'photo-competition-manager' ) );
+			}
+		}
+
 		return true;
 	}
 
@@ -320,6 +328,25 @@ class Competition_Settings {
 	 */
 	public static function get_voting_config( array $settings ): array {
 		return $settings['voting'] ?? self::defaults()['voting'];
+	}
+
+	/**
+	 * Get resolved voting UI type.
+	 *
+	 * @param array<string, mixed> $settings Competition settings array.
+	 * @return string 'buttons' or 'dropdown'.
+	 */
+	public static function get_voting_ui_type( array $settings ): string {
+		$voting_config = self::get_voting_config( $settings );
+		$ui_type       = $voting_config['ui_type'] ?? 'default';
+
+		if ( in_array( $ui_type, array( 'buttons', 'dropdown' ), true ) ) {
+			return $ui_type;
+		}
+
+		$global_ui_type = get_option( 'photo_comp_voting_ui_type', 'buttons' );
+
+		return in_array( $global_ui_type, array( 'buttons', 'dropdown' ), true ) ? $global_ui_type : 'buttons';
 	}
 
 	/**

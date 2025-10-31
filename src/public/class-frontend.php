@@ -89,7 +89,7 @@ class Frontend {
 			'photo-competition-manager-frontend',
 			plugins_url( 'assets/css/frontend.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
-			'1.0.0'
+			PHOTO_COMPETITION_MANAGER_VERSION
 		);
 	}
 }

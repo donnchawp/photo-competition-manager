@@ -495,9 +495,10 @@ class Voting_Shortcode {
 			}
 		);
 
-		// Get score matrix and image click setting.
+		// Get score matrix, UI type, and image click setting.
 		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
+		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
 
 		?>
 		<div class="photo-comp-voting">
@@ -625,8 +626,8 @@ class Voting_Shortcode {
 								sprintf(
 									/* translators: %d: number of scoring options */
 									_n(
-										'Assign points to each image using the dropdown. You have %d score option available.',
-										'Assign points to each image using the dropdown. You have %d score options available.',
+										'Assign points to each image using the controls below. You have %d score option available.',
+										'Assign points to each image using the controls below. You have %d score options available.',
 										count( $score_matrix ),
 										'photo-competition-manager'
 									),
@@ -681,31 +682,18 @@ class Voting_Shortcode {
 									<?php endif; ?>
 									<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 								</div>
-								<div class="vote-selector">
-									<label for="vote_<?php echo esc_attr( $image->id ); ?>">
-										<?php esc_html_e( 'Score:', 'photo-competition-manager' ); ?>
-									</label>
 							<?php
-							$selected_score = $submitted_votes[ $image->id ] ?? '';
+							$selected_score = (string) ( $submitted_votes[ $image->id ] ?? '' );
+							$field_name     = 'votes[' . $image->id . ']';
+							$control_id     = 'vote_' . $image->id;
+							$this->render_vote_selector_control(
+								$field_name,
+								$control_id,
+								$score_matrix,
+								$voting_ui_type,
+								$selected_score
+							);
 							?>
-				<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-					<option value="" <?php selected( '', (string) $selected_score ); ?>>-</option>
-							<?php foreach ( $score_matrix as $score_value ) : ?>
-								<?php $score_label = number_format_i18n( $score_value ); ?>
-						<option value="<?php echo esc_attr( (string) $score_value ); ?>" <?php selected( (string) $selected_score, (string) $score_value ); ?>>
-								<?php
-								echo esc_html(
-									sprintf(
-										/* translators: %s: score value */
-										__( '%s pts', 'photo-competition-manager' ),
-										$score_label
-									)
-								);
-								?>
-						</option>
-					<?php endforeach; ?>
-				</select>
-								</div>
 							</div>
 						<?php endforeach; ?>
 					</div>
@@ -760,6 +748,63 @@ class Voting_Shortcode {
 	}
 
 	/**
+	 * Render the vote selector control for a single image.
+	 *
+	 * @param string                $field_name       Name attribute for the input.
+	 * @param string                $control_id_base  Base ID used for the control.
+	 * @param array<int, int|float> $score_matrix     Allowed score values.
+	 * @param string                $voting_ui_type   Resolved voting UI type.
+	 * @param string                $selected_score   Currently selected score value.
+	 * @return void
+	 */
+	private function render_vote_selector_control( string $field_name, string $control_id_base, array $score_matrix, string $voting_ui_type, string $selected_score ): void {
+		$ui_type       = in_array( $voting_ui_type, array( 'buttons', 'dropdown' ), true ) ? $voting_ui_type : 'buttons';
+		$wrapper_class = 'vote-selector-' . ( 'buttons' === $ui_type ? 'buttons' : 'dropdown' );
+		$label_text    = __( 'Score:', 'photo-competition-manager' );
+
+		echo '<div class="vote-selector ' . esc_attr( $wrapper_class ) . '">';
+
+		if ( 'buttons' === $ui_type ) {
+			$group_label_id = $control_id_base . '_legend';
+			echo '<span class="vote-label" id="' . esc_attr( $group_label_id ) . '">' . esc_html( $label_text ) . '</span>';
+			echo '<div class="vote-options" role="radiogroup" aria-labelledby="' . esc_attr( $group_label_id ) . '">';
+
+			foreach ( $score_matrix as $index => $score_value ) {
+				$score_label = number_format_i18n( $score_value );
+				$input_id    = $control_id_base . '_' . $index;
+
+				echo '<div class="vote-option">';
+				echo '<input type="radio" name="' . esc_attr( $field_name ) . '" id="' . esc_attr( $input_id ) . '" value="' . esc_attr( (string) $score_value ) . '"' . checked( $selected_score, (string) $score_value, false ) . ' />';
+				echo '<label for="' . esc_attr( $input_id ) . '"><span class="vote-value">' . esc_html( $score_label ) . '</span></label>';
+				echo '</div>';
+			}
+
+			echo '</div>';
+		} else {
+			echo '<label for="' . esc_attr( $control_id_base ) . '" class="vote-label">' . esc_html( $label_text ) . '</label>';
+			echo '<select name="' . esc_attr( $field_name ) . '" id="' . esc_attr( $control_id_base ) . '" class="vote-select">';
+			echo '<option value=""' . selected( $selected_score, '', false ) . '>-</option>';
+
+			foreach ( $score_matrix as $score_value ) {
+				$score_label = number_format_i18n( $score_value );
+				echo '<option value="' . esc_attr( (string) $score_value ) . '"' . selected( $selected_score, (string) $score_value, false ) . '>';
+				echo esc_html(
+					sprintf(
+						/* translators: %s: score value */
+						__( '%s pts', 'photo-competition-manager' ),
+						$score_label
+					)
+				);
+				echo '</option>';
+			}
+
+			echo '</select>';
+		}
+
+		echo '</div>';
+	}
+
+	/**
 	 * Render voting interface for password-based voting.
 	 *
 	 * @param object $competition    Competition object.
@@ -786,6 +831,7 @@ class Voting_Shortcode {
 		$voting_password     = $voting_config['password'] ?? '';
 		$password_enabled    = '' !== $voting_password;
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
+		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
 		$cookie_payload      = $this->get_voter_cookie();
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended
@@ -874,8 +920,8 @@ class Voting_Shortcode {
 							sprintf(
 								/* translators: %d: number of scoring options */
 								_n(
-									'Assign points to each image using the dropdown. You have %d score option available.',
-									'Assign points to each image using the dropdown. You have %d score options available.',
+									'Assign points to each image using the controls below. You have %d score option available.',
+									'Assign points to each image using the controls below. You have %d score options available.',
 									count( $score_matrix ),
 									'photo-competition-manager'
 								),
@@ -961,31 +1007,18 @@ class Voting_Shortcode {
 											<?php endif; ?>
 											<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 										</div>
-								<div class="vote-selector">
-									<label for="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>">
-										<?php esc_html_e( 'Score:', 'photo-competition-manager' ); ?>
-									</label>
 									<?php
-									$selected_score = $category_votes[ $image->id ] ?? '';
+									$selected_score = (string) ( $category_votes[ $image->id ] ?? '' );
+									$field_name     = 'votes[' . $image->id . ']';
+									$control_id     = 'vote_' . $category_slug . '_' . $image->id;
+									$this->render_vote_selector_control(
+										$field_name,
+										$control_id,
+										$score_matrix,
+										$voting_ui_type,
+										$selected_score
+									);
 									?>
-		<select name="votes[<?php echo esc_attr( $image->id ); ?>]" id="vote_<?php echo esc_attr( $category_slug ); ?>_<?php echo esc_attr( $image->id ); ?>" class="vote-select">
-			<option value="" <?php selected( '', (string) $selected_score ); ?>>-</option>
-									<?php foreach ( $score_matrix as $score_value ) : ?>
-										<?php $score_label = number_format_i18n( $score_value ); ?>
-				<option value="<?php echo esc_attr( (string) $score_value ); ?>" <?php selected( (string) $selected_score, (string) $score_value ); ?>>
-										<?php
-										echo esc_html(
-											sprintf(
-											/* translators: %s: score value */
-												__( '%s pts', 'photo-competition-manager' ),
-												$score_label
-											)
-										);
-										?>
-				</option>
-			<?php endforeach; ?>
-		</select>
-								</div>
 							</div>
 						<?php endforeach; ?>
 					</div>

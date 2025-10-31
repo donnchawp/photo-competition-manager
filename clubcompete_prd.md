@@ -93,6 +93,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - Optional voting password per competition; when set, voters must provide it before submitting ballots.
 - Admin may restrict to one vote per device/session.
 - Default scoring matrix: 9, 8, 7, 6, 5 (configurable).
+- Voting UI configurable between horizontal score buttons (default) or classic dropdown, with per-competition overrides.
 - Voters prompted for **Name** before voting; recorded with results.
 - Voting page:
   - Accessible via shortcode (e.g. `[competition_voting]`).

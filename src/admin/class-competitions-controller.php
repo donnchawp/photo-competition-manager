@@ -314,6 +314,10 @@ class Competitions_Controller {
 			$voting_password       = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 			$voting_password_clear = isset( $_POST['voting_password_clear'] ) && '1' === $_POST['voting_password_clear'];
 			$click_image_to_zoom   = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
+			$voting_ui_type        = sanitize_text_field( $this->get_post_string( 'voting_ui_type', 'buttons' ) );
+			if ( ! in_array( $voting_ui_type, array( 'buttons', 'dropdown' ), true ) ) {
+				$voting_ui_type = 'buttons';
+			}
 
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
@@ -346,6 +350,7 @@ class Competitions_Controller {
 					'auth_mode'           => $auth_mode_input,
 					'password'            => $hashed_password,
 					'click_image_to_zoom' => $click_image_to_zoom,
+					'ui_type'             => $voting_ui_type,
 				),
 				'slideshow'       => array(
 					'duration_seconds' => 10,
@@ -609,11 +614,15 @@ class Competitions_Controller {
 	 * @return void
 	 */
 	private function render_competition_settings_form( object $competition ): void {
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-		$grades     = Competition_Settings::get_grades( $settings );
-		$upload     = Competition_Settings::get_upload_constraints( $settings );
-		$voting     = Competition_Settings::get_voting_config( $settings );
+		$settings       = Competition_Settings::parse( $competition->settings );
+		$categories     = Competition_Settings::get_categories( $settings );
+		$grades         = Competition_Settings::get_grades( $settings );
+		$upload         = Competition_Settings::get_upload_constraints( $settings );
+		$voting         = Competition_Settings::get_voting_config( $settings );
+		$voting_ui_type = $voting['ui_type'] ?? '';
+		if ( ! in_array( $voting_ui_type, array( 'buttons', 'dropdown' ), true ) ) {
+			$voting_ui_type = Competition_Settings::get_voting_ui_type( $settings );
+		}
 
 		echo '<form method="post" class="card" style="max-width: 720px; padding: 16px;">';
 		wp_nonce_field( 'photo_competition_update_settings_' . (int) $competition->id, 'photo_competition_nonce' );
@@ -701,6 +710,15 @@ class Competitions_Controller {
 		echo ' ' . esc_html__( 'Click image to zoom on voting form', 'photo-competition-manager' );
 		echo '</label><br />';
 		echo '<span class="description">' . esc_html__( 'When enabled, images in the voting form can be clicked to open full-size in a new tab. When disabled, images are not clickable to prevent accidental navigation. Recommended: off for touch devices.', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_ui_type">' . esc_html__( 'Voting UI Type', 'photo-competition-manager' ) . '</label><br />';
+		echo '<select id="voting_ui_type" name="voting_ui_type">';
+		echo '<option value="buttons"' . selected( $voting_ui_type, 'buttons', false ) . '>' . esc_html__( 'Horizontal Score Buttons', 'photo-competition-manager' ) . '</option>';
+		echo '<option value="dropdown"' . selected( $voting_ui_type, 'dropdown', false ) . '>' . esc_html__( 'Dropdown', 'photo-competition-manager' ) . '</option>';
+		echo '</select><br />';
+		echo '<span class="description">' . esc_html__( 'Pick the layout voters use in this competition. Leave set to buttons for the quickest scoring experience.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';

@@ -24,6 +24,8 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'email_reminders', $defaults );
 		$this->assertArrayHasKey( 'password', $defaults['voting'] );
 		$this->assertSame( '', $defaults['voting']['password'] );
+		$this->assertArrayHasKey( 'ui_type', $defaults['voting'] );
+		$this->assertSame( 'default', $defaults['voting']['ui_type'] );
 
 		$this->assertCount( 2, $defaults['categories'] );
 		$this->assertCount( 3, $defaults['grades'] );
@@ -195,6 +197,16 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'invalid_score_matrix', $result->get_error_code() );
 	}
 
+	public function test_validate_rejects_invalid_voting_ui_type(): void {
+		$settings = Competition_Settings::defaults();
+		$settings['voting']['ui_type'] = 'slider';
+
+		$result = Competition_Settings::validate( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'invalid_voting_ui_type', $result->get_error_code() );
+	}
+
 	public function test_validate_rejects_non_string_voting_password(): void {
 		$settings                       = Competition_Settings::defaults();
 		$settings['voting']['password'] = array( 'not-a-string' );
@@ -253,6 +265,35 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'password', $result );
 		$this->assertArrayHasKey( 'score_matrix', $result );
 		$this->assertEquals( array( 9, 8, 7, 6, 5 ), $result['score_matrix'] );
+	}
+
+	public function test_get_voting_ui_type_respects_competition_override(): void {
+		$settings = Competition_Settings::defaults();
+		$settings['voting']['ui_type'] = 'dropdown';
+
+		$this->assertSame( 'dropdown', Competition_Settings::get_voting_ui_type( $settings ) );
+	}
+
+	public function test_get_voting_ui_type_falls_back_to_global_option(): void {
+		$settings = Competition_Settings::defaults();
+		$settings['voting']['ui_type'] = 'default';
+
+		update_option( 'photo_comp_voting_ui_type', 'dropdown' );
+
+		$this->assertSame( 'dropdown', Competition_Settings::get_voting_ui_type( $settings ) );
+
+		delete_option( 'photo_comp_voting_ui_type' );
+	}
+
+	public function test_get_voting_ui_type_defaults_to_buttons_when_global_invalid(): void {
+		$settings = Competition_Settings::defaults();
+		$settings['voting']['ui_type'] = 'default';
+
+		update_option( 'photo_comp_voting_ui_type', 'slider' );
+
+		$this->assertSame( 'buttons', Competition_Settings::get_voting_ui_type( $settings ) );
+
+		delete_option( 'photo_comp_voting_ui_type' );
 	}
 
 	public function test_custom_categories_persist_through_parse(): void {

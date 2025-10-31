@@ -98,6 +98,11 @@ class Settings_Controller {
 			$auth_mode_input = 'password';
 		}
 
+		$voting_ui_type_input = sanitize_text_field( $this->get_post_string( 'voting_ui_type', 'buttons' ) );
+		if ( ! in_array( $voting_ui_type_input, array( 'buttons', 'dropdown' ), true ) ) {
+			$voting_ui_type_input = 'buttons';
+		}
+
 		$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 		$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
@@ -119,6 +124,7 @@ class Settings_Controller {
 				'auth_mode'           => $auth_mode_input,
 				'password'            => $voting_password,
 				'click_image_to_zoom' => $click_image_to_zoom,
+				'ui_type'             => 'default',
 			),
 			'slideshow'       => array(
 				'duration_seconds' => 10,
@@ -145,6 +151,7 @@ class Settings_Controller {
 			);
 		} else {
 			$this->save_global_settings( $settings );
+			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -177,12 +184,13 @@ class Settings_Controller {
 
 		settings_errors( 'photo_competition_settings' );
 
-		$settings   = $this->get_global_settings();
-		$categories = Competition_Settings::get_categories( $settings );
-		$grades     = Competition_Settings::get_grades( $settings );
-		$upload     = Competition_Settings::get_upload_constraints( $settings );
-		$voting     = Competition_Settings::get_voting_config( $settings );
-		$urls       = $settings['urls'] ?? array(
+		$settings       = $this->get_global_settings();
+		$categories     = Competition_Settings::get_categories( $settings );
+		$grades         = Competition_Settings::get_grades( $settings );
+		$upload         = Competition_Settings::get_upload_constraints( $settings );
+		$voting         = Competition_Settings::get_voting_config( $settings );
+		$voting_ui_type = get_option( 'photo_comp_voting_ui_type', 'buttons' );
+		$urls           = $settings['urls'] ?? array(
 			'upload_page' => '',
 			'voting_page' => '',
 		);
@@ -250,6 +258,15 @@ class Settings_Controller {
 		echo '<option value="token"' . selected( $auth_mode, 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'photo-competition-manager' ) . '</option>';
 		echo '</select><br />';
 		echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="voting_ui_type">' . esc_html__( 'Voting UI Type', 'photo-competition-manager' ) . '</label><br />';
+		echo '<select id="voting_ui_type" name="voting_ui_type">';
+		echo '<option value="buttons"' . selected( $voting_ui_type, 'buttons', false ) . '>' . esc_html__( 'Horizontal Score Buttons', 'photo-competition-manager' ) . '</option>';
+		echo '<option value="dropdown"' . selected( $voting_ui_type, 'dropdown', false ) . '>' . esc_html__( 'Dropdown', 'photo-competition-manager' ) . '</option>';
+		echo '</select><br />';
+		echo '<span class="description">' . esc_html__( 'Choose how voters select scores. Buttons offer a quick, one-click experience, while dropdowns conserve vertical space.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';
