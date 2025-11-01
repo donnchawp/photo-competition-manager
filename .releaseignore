@@ -9,7 +9,6 @@ phpcs.xml
 # Build artifacts and dependencies (will be added separately)
 vendor/
 node_modules/
-assets/
 
 # Source files (built assets will be copied separately)
 *.map
