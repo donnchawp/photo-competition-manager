@@ -105,9 +105,18 @@ class Upload_Shortcode {
 	 * Enqueue assets for upload shortcode.
 	 */
 	private function enqueue_assets(): void {
-		// This file is in src/public/, main plugin file is in src/.
-		// Assets are in src/assets/build/.
-		$plugin_dir = dirname( __DIR__ ); // Gets src/ directory.
+		// Determine plugin root directory.
+		// Development: src/public/ -> need dirname(dirname(__DIR__)) to get to club-competitions/.
+		// Production: public/ -> need dirname(__DIR__) to get to photo-competition-manager/.
+		$parent_dir = dirname( __DIR__ );
+		if ( basename( $parent_dir ) === 'src' ) {
+			// Development mode - go up one more level.
+			$plugin_dir = dirname( $parent_dir );
+		} else {
+			// Production mode - parent is already plugin root.
+			$plugin_dir = $parent_dir;
+		}
+
 		$asset_file = $plugin_dir . '/assets/build/drag-drop-upload.asset.php';
 
 		if ( ! file_exists( $asset_file ) ) {
@@ -116,7 +125,7 @@ class Upload_Shortcode {
 
 		$asset = require $asset_file;
 
-		// Get the plugin URL (WordPress sees src/ as the plugin root).
+		// Get the plugin URL.
 		$plugin_url = plugin_dir_url( $plugin_dir . '/photo-competition-manager.php' );
 
 		wp_enqueue_script(
