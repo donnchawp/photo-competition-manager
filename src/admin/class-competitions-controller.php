@@ -688,7 +688,7 @@ class Competitions_Controller {
 		echo '<p>';
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
 
-		// Show placeholder if password is set, empty if not
+		// Show placeholder if password is set, empty if not.
 		$password_placeholder = ! empty( $voting['password'] ) ? __( 'Password is set', 'photo-competition-manager' ) : '';
 		echo '<input type="text" id="voting_password" name="voting_password" value="" placeholder="' . esc_attr( $password_placeholder ) . '" class="regular-text" />';
 

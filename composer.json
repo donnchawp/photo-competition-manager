@@ -27,7 +27,7 @@
         }
     },
     "scripts": {
-        "lint": "phpcs --standard=WordPress --extensions=php src",
+        "lint": "phpcs",
         "test": "phpunit"
     },
     "config": {

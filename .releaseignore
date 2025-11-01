@@ -3,7 +3,8 @@
 bin/
 tests/
 phpunit.xml.dist
-.phpcs.xml.dist
+.phpunit.result.cache
+phpcs.xml
 
 # Build artifacts and dependencies (will be added separately)
 vendor/
