@@ -92,13 +92,27 @@ class DragDropUpload {
 			return;
 		}
 
-		// Check total count (max 20 images).
-		if (this.selectedFiles.length + validFiles.length > 20) {
-			this.showError('Maximum 20 images can be uploaded at once.');
+		// Calculate total available quota across all categories.
+		const totalAvailableQuota = this.getTotalAvailableQuota();
+		const currentFileCount = this.selectedFiles.length;
+		const availableSlots = totalAvailableQuota - currentFileCount;
+
+		if (availableSlots <= 0) {
+			this.showError('All category quotas are full. Cannot add more files.');
 			return;
 		}
 
-		validFiles.forEach((file) => {
+		// Limit files to available quota slots.
+		const filesToAdd = validFiles.slice(0, availableSlots);
+		const rejectedCount = validFiles.length - filesToAdd.length;
+
+		if (rejectedCount > 0) {
+			this.showError(
+				`Only ${filesToAdd.length} file(s) added. ${rejectedCount} file(s) rejected due to quota limits.`
+			);
+		}
+
+		filesToAdd.forEach((file) => {
 			const fileId = this.generateFileId();
 			const fileData = {
 				id: fileId,
@@ -112,6 +126,64 @@ class DragDropUpload {
 		});
 
 		this.updateUI();
+	}
+
+	getTotalAvailableQuota() {
+		// Calculate remaining quota across all categories, accounting for already-assigned files.
+		const assignedCount = {};
+		this.selectedFiles.forEach((fileData) => {
+			if (fileData.category) {
+				assignedCount[fileData.category] = (assignedCount[fileData.category] || 0) + 1;
+			}
+		});
+
+		let total = 0;
+		Object.keys(this.quotas).forEach((categorySlug) => {
+			const quota = this.quotas[categorySlug];
+			const assigned = assignedCount[categorySlug] || 0;
+			const remaining = quota.remaining - assigned;
+			total += Math.max(0, remaining);
+		});
+
+		return total;
+	}
+
+	getEffectiveRemainingQuota(categorySlug) {
+		// Get remaining quota for a category, accounting for already-assigned files.
+		const quota = this.quotas[categorySlug];
+		if (!quota) {
+			return 0;
+		}
+
+		const assignedCount = this.selectedFiles.filter((f) => f.category === categorySlug).length;
+		return Math.max(0, quota.remaining - assignedCount);
+	}
+
+	getAvailableCategories() {
+		// Get categories that still have quota available (accounting for assigned files).
+		return this.categories.filter((cat) => {
+			return this.getEffectiveRemainingQuota(cat.slug) > 0;
+		});
+	}
+
+	getAvailableCategoriesForFile(fileData) {
+		// Get categories available for a specific file.
+		// Always include the file's current category (if assigned) even if exhausted,
+		// so users can change their selection.
+		const availableCategories = this.getAvailableCategories();
+
+		// If this file has a category assigned, make sure it's included.
+		if (fileData.category) {
+			const hasCurrentCategory = availableCategories.some((cat) => cat.slug === fileData.category);
+			if (!hasCurrentCategory) {
+				const currentCategory = this.categories.find((cat) => cat.slug === fileData.category);
+				if (currentCategory) {
+					availableCategories.push(currentCategory);
+				}
+			}
+		}
+
+		return availableCategories;
 	}
 
 	validateFile(file) {
@@ -180,16 +252,13 @@ class DragDropUpload {
 		const container = document.createElement('div');
 		container.className = 'photo-comp-category-select-container';
 
-		// Get available categories (with remaining quota).
-		const availableCategories = this.categories.filter((cat) => {
-			const quota = this.quotas[cat.slug];
-			return quota && quota.remaining > 0;
-		});
+		// Get available categories for this specific file (includes its current category even if exhausted).
+		const availableCategories = this.getAvailableCategoriesForFile(fileData);
 
 		// If only one category is available, auto-select it and show as text.
 		if (availableCategories.length === 1) {
 			const cat = availableCategories[0];
-			const quota = this.quotas[cat.slug];
+			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
 
 			// Auto-assign the category.
 			fileData.category = cat.slug;
@@ -199,7 +268,8 @@ class DragDropUpload {
 			categoryLabel.className = 'photo-comp-category-label';
 
 			// Only show remaining count if quota is more than 1.
-			const remainingText = quota.quota > 1 ? ` <small>(${quota.remaining} remaining)</small>` : '';
+			const quota = this.quotas[cat.slug];
+			const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
 			categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
 			container.appendChild(categoryLabel);
 
@@ -220,32 +290,113 @@ class DragDropUpload {
 		defaultOption.textContent = '-- Select Category --';
 		select.appendChild(defaultOption);
 
-		this.categories.forEach((cat) => {
+		availableCategories.forEach((cat) => {
+			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
+			const option = document.createElement('option');
+			option.value = cat.slug;
+			// Only show remaining count if quota is more than 1.
 			const quota = this.quotas[cat.slug];
-			if (quota && quota.remaining > 0) {
-				const option = document.createElement('option');
-				option.value = cat.slug;
-				// Only show remaining count if quota is more than 1.
-				const remainingText = quota.quota > 1 ? ` (${quota.remaining} remaining)` : '';
-				option.textContent = `${cat.label}${remainingText}`;
-				select.appendChild(option);
-			} else if (quota) {
-				const option = document.createElement('option');
-				option.value = cat.slug;
-				option.textContent = `${cat.label} (full)`;
-				option.disabled = true;
-				select.appendChild(option);
-			}
+			const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
+			option.textContent = `${cat.label}${remainingText}`;
+			select.appendChild(option);
 		});
 
 		select.addEventListener('change', (e) => {
 			fileData.category = e.target.value;
 			this.updateUploadButton();
 			this.updateQuotaWarning();
+			this.refreshCategorySelects();
 		});
 
 		container.appendChild(select);
 		return container;
+	}
+
+	refreshCategorySelects() {
+		// Refresh all category selects/labels to reflect current quota availability.
+		this.selectedFiles.forEach((fileData) => {
+			const item = this.previewGrid.querySelector(`[data-file-id="${fileData.id}"]`);
+			if (!item) {
+				return;
+			}
+
+			const controlsDiv = item.querySelector('.photo-comp-preview-controls');
+			if (!controlsDiv) {
+				return;
+			}
+
+			// Get the current category select container.
+			const existingContainer = controlsDiv.querySelector('.photo-comp-category-select-container');
+			if (!existingContainer) {
+				return;
+			}
+
+			// Get available categories for this specific file (includes current category even if exhausted).
+			const availableCategories = this.getAvailableCategoriesForFile(fileData);
+
+			// If only one category available now, switch to label.
+			if (availableCategories.length === 1) {
+				const cat = availableCategories[0];
+				const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
+
+				// Auto-assign if not already assigned.
+				if (fileData.category === '') {
+					fileData.category = cat.slug;
+				}
+
+				// Replace with label.
+				const categoryLabel = document.createElement('div');
+				categoryLabel.className = 'photo-comp-category-label';
+				const quota = this.quotas[cat.slug];
+				const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
+				categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
+
+				const newContainer = document.createElement('div');
+				newContainer.className = 'photo-comp-category-select-container';
+				newContainer.appendChild(categoryLabel);
+
+				existingContainer.replaceWith(newContainer);
+			} else if (availableCategories.length > 1) {
+				// Multiple categories - ensure dropdown is up to date.
+				const existingSelect = existingContainer.querySelector('select');
+
+				// If it's currently a label, recreate as dropdown.
+				if (!existingSelect) {
+					const newContainer = this.createCategorySelect(fileData);
+					existingContainer.replaceWith(newContainer);
+					// Set the value if there was a previous assignment.
+					if (fileData.category) {
+						const newSelect = newContainer.querySelector('select');
+						if (newSelect) {
+							newSelect.value = fileData.category;
+						}
+					}
+				} else {
+					// Update existing dropdown options.
+					const currentValue = fileData.category;
+					existingSelect.innerHTML = '';
+
+					const defaultOption = document.createElement('option');
+					defaultOption.value = '';
+					defaultOption.textContent = '-- Select Category --';
+					existingSelect.appendChild(defaultOption);
+
+					availableCategories.forEach((cat) => {
+						const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
+						const option = document.createElement('option');
+						option.value = cat.slug;
+						const quota = this.quotas[cat.slug];
+						const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
+						option.textContent = `${cat.label}${remainingText}`;
+						existingSelect.appendChild(option);
+					});
+
+					existingSelect.value = currentValue;
+				}
+			}
+		});
+
+		this.updateUploadButton();
 	}
 
 	updateQuotaWarning() {
@@ -286,6 +437,7 @@ class DragDropUpload {
 		}
 
 		this.updateUI();
+		this.refreshCategorySelects();
 	}
 
 	updateUI() {
