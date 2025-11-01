@@ -320,4 +320,103 @@ class Upload_Handler {
 			'remaining' => $remaining,
 		);
 	}
+
+	/**
+	 * Update submission category.
+	 *
+	 * @param int    $submission_id   Submission ID.
+	 * @param int    $member_id       Member ID (for ownership verification).
+	 * @param int    $competition_id  Competition ID.
+	 * @param string $new_category    New category slug.
+	 * @return true|WP_Error True on success, WP_Error on failure.
+	 */
+	public function update_submission_category( int $submission_id, int $member_id, int $competition_id, string $new_category ) {
+		// Verify submission exists and belongs to the member.
+		$submission = $this->images_repo->find( $submission_id );
+		if ( ! $submission ) {
+			return new WP_Error( 'submission_not_found', __( 'Submission not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( (int) $submission->member_id !== $member_id ) {
+			return new WP_Error( 'permission_denied', __( 'You do not have permission to modify this submission.', 'photo-competition-manager' ) );
+		}
+
+		if ( (int) $submission->competition_id !== $competition_id ) {
+			return new WP_Error( 'invalid_competition', __( 'Submission does not belong to this competition.', 'photo-competition-manager' ) );
+		}
+
+		// If category hasn't changed, nothing to do.
+		if ( $submission->category === $new_category ) {
+			return true;
+		}
+
+		// Validate new category exists in competition settings.
+		$competition = $this->competitions_repo->find( $competition_id );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
+
+		$category_config = null;
+		foreach ( $categories as $cat ) {
+			if ( $cat['slug'] === $new_category ) {
+				$category_config = $cat;
+				break;
+			}
+		}
+
+		if ( ! $category_config ) {
+			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
+		}
+
+		// Check quota for the new category.
+		// For category updates (moving existing images), allow moving into a category at quota
+		// to support swaps. Only block if it would exceed quota.
+		$current_count = $this->images_repo->count_by_member_category( $competition_id, $member_id, $new_category );
+		$quota         = $category_config['quota'] ?? 1;
+
+		if ( $current_count > $quota ) {
+			return new WP_Error(
+				'quota_exceeded',
+				sprintf(
+					/* translators: 1: category label, 2: current count, 3: quota limit */
+					__( 'Category "%1$s" has too many images (%2$d/%3$d). Please remove images from this category first.', 'photo-competition-manager' ),
+					$category_config['label'],
+					$current_count,
+					$quota
+				)
+			);
+		}
+
+		// Move the image files to the new category folder.
+		$old_category = $submission->category;
+		$move_result  = $this->image_processor->move_image_between_categories(
+			$competition->slug,
+			$old_category,
+			$new_category,
+			$submission->filename
+		);
+
+		if ( is_wp_error( $move_result ) ) {
+			return $move_result;
+		}
+
+		// Update the category in the database.
+		$result = $this->images_repo->update_category( $submission_id, $new_category );
+
+		if ( is_wp_error( $result ) ) {
+			// Rollback: Move files back to original category.
+			$this->image_processor->move_image_between_categories(
+				$competition->slug,
+				$new_category,
+				$old_category,
+				$submission->filename
+			);
+			return $result;
+		}
+
+		return true;
+	}
 }

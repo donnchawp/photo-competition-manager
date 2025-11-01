@@ -491,4 +491,62 @@ class Image_Processor {
 
 		return $url;
 	}
+
+	/**
+	 * Move image files between categories.
+	 *
+	 * Moves both the main image and thumbnail from one category folder to another.
+	 *
+	 * @param string $competition_slug Competition slug.
+	 * @param string $old_category     Old category slug.
+	 * @param string $new_category     New category slug.
+	 * @param string $filename         Image filename.
+	 * @return true|WP_Error True on success, WP_Error on failure.
+	 */
+	public function move_image_between_categories( string $competition_slug, string $old_category, string $new_category, string $filename ) {
+		// Get source directory.
+		$source_dir = $this->get_upload_directory( $competition_slug, $old_category );
+		if ( is_wp_error( $source_dir ) ) {
+			return $source_dir;
+		}
+
+		// Get destination directory.
+		$dest_dir = $this->get_upload_directory( $competition_slug, $new_category );
+		if ( is_wp_error( $dest_dir ) ) {
+			return $dest_dir;
+		}
+
+		$source_path = trailingslashit( $source_dir['path'] );
+		$dest_path   = trailingslashit( $dest_dir['path'] );
+
+		// Move main image.
+		$source_file = $source_path . $filename;
+		$dest_file   = $dest_path . $filename;
+
+		if ( file_exists( $source_file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+			if ( ! rename( $source_file, $dest_file ) ) {
+				return new WP_Error( 'move_failed', __( 'Failed to move image file.', 'photo-competition-manager' ) );
+			}
+		}
+
+		// Move thumbnail.
+		$thumb_filename = str_replace( '.jpg', '-thumb.jpg', $filename );
+		$source_thumb   = $source_path . $thumb_filename;
+		$dest_thumb     = $dest_path . $thumb_filename;
+
+		if ( file_exists( $source_thumb ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+			if ( ! rename( $source_thumb, $dest_thumb ) ) {
+				// Rollback: Move main image back if thumbnail move fails.
+				if ( file_exists( $dest_file ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+					rename( $dest_file, $source_file );
+				}
+				return new WP_Error( 'move_thumb_failed', __( 'Failed to move thumbnail file.', 'photo-competition-manager' ) );
+			}
+		}
+
+		return true;
+	}
 }

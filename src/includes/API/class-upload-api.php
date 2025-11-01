@@ -117,6 +117,20 @@ class Upload_API extends WP_REST_Controller {
 				),
 			)
 		);
+
+		// Update submission category endpoint.
+		register_rest_route(
+			$this->namespace,
+			'/' . $this->rest_base . '/(?P<submission_id>\d+)/category',
+			array(
+				array(
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => array( $this, 'update_category' ),
+					'permission_callback' => array( $this, 'validate_token_permission' ),
+					'args'                => $this->get_update_category_params(),
+				),
+			)
+		);
 	}
 
 	/**
@@ -350,6 +364,71 @@ class Upload_API extends WP_REST_Controller {
 				'description' => __( 'Array mapping file keys to category slugs.', 'photo-competition-manager' ),
 				'type'        => 'object',
 				'required'    => true,
+			),
+		);
+	}
+
+	/**
+	 * Update submission category.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function update_category( WP_REST_Request $request ) {
+		$submission_id = $request->get_param( 'submission_id' );
+		$category      = $request->get_param( 'category' );
+		$token_record  = $request->get_param( '_token_record' );
+
+		if ( ! $token_record ) {
+			return new WP_Error(
+				'invalid_token',
+				__( 'Invalid or expired upload token.', 'photo-competition-manager' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		$member_id      = (int) $token_record->member_id;
+		$competition_id = (int) $token_record->competition_id;
+
+		// Update the submission category.
+		$result = $this->upload_handler->update_submission_category(
+			$submission_id,
+			$member_id,
+			$competition_id,
+			$category
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'message' => __( 'Category updated successfully.', 'photo-competition-manager' ),
+			),
+			200
+		);
+	}
+
+	/**
+	 * Get parameters for update category endpoint.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function get_update_category_params(): array {
+		return array(
+			'token'    => array(
+				'description'       => __( 'Upload token string.', 'photo-competition-manager' ),
+				'type'              => 'string',
+				'required'          => true,
+				'sanitize_callback' => 'sanitize_text_field',
+			),
+			'category' => array(
+				'description'       => __( 'New category slug.', 'photo-competition-manager' ),
+				'type'              => 'string',
+				'required'          => true,
+				'sanitize_callback' => 'sanitize_text_field',
 			),
 		);
 	}

@@ -12,5 +12,6 @@ module.exports = {
 	entry: {
 		index: path.resolve(process.cwd(), 'src', 'index.js'),
 		'drag-drop-upload': path.resolve(process.cwd(), 'src', 'drag-drop-upload.js'),
+		'submission-category': path.resolve(process.cwd(), 'src', 'submission-category.js'),
 	},
 };

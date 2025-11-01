@@ -342,6 +342,42 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Update image category.
+	 *
+	 * @param int    $id       Image ID.
+	 * @param string $category Category slug.
+	 * @return bool|WP_Error
+	 */
+	public function update_category( int $id, string $category ) {
+		if ( ! $this->table_exists() || $id <= 0 ) {
+			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		}
+
+		// Check if image exists.
+		$image = $this->find( $id );
+		if ( ! $image ) {
+			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		}
+
+		$updated = $this->wpdb->update(
+			$this->table(),
+			array(
+				'category'   => $category,
+				'updated_at' => current_time( 'mysql' ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update image category.', 'photo-competition-manager' ), $this->wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Delete an image record.
 	 *
 	 * @param int $id Image ID.

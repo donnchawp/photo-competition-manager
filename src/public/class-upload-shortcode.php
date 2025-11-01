@@ -133,6 +133,27 @@ class Upload_Shortcode {
 			array(),
 			$asset['version']
 		);
+
+		// Enqueue submission category update assets.
+		$category_asset_file = $plugin_dir . '/assets/build/submission-category.asset.php';
+		if ( file_exists( $category_asset_file ) ) {
+			$category_asset = require $category_asset_file;
+
+			wp_enqueue_script(
+				'photo-comp-submission-category',
+				$plugin_url . 'assets/build/submission-category.js',
+				$category_asset['dependencies'],
+				$category_asset['version'],
+				true
+			);
+
+			wp_enqueue_style(
+				'photo-comp-submission-category',
+				$plugin_url . 'assets/build/submission-category.css',
+				array(),
+				$category_asset['version']
+			);
+		}
 	}
 
 	/**
@@ -452,6 +473,31 @@ class Upload_Shortcode {
 				</div>
 			<?php else : ?>
 				<!-- Member is authenticated with valid token, show submissions and upload form -->
+				<?php
+				// Pass configuration to JavaScript for category update functionality.
+				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
+				$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+
+				// Build category quota data for validation.
+				$categories_data = array();
+				foreach ( $categories as $cat ) {
+					$categories_data[ $cat['slug'] ] = array(
+						'label' => $cat['label'],
+						'quota' => $cat['quota'],
+					);
+				}
+
+				$category_update_data = array(
+					'token'      => $token_param,
+					'apiUrl'     => esc_url_raw( rest_url() ),
+					'nonce'      => wp_create_nonce( 'wp_rest' ),
+					'categories' => $categories_data,
+				);
+
+				// Localize for submission category updates.
+				wp_localize_script( 'photo-comp-submission-category', 'photoCompCategoryUpdate', $category_update_data );
+				?>
+
 				<p class="member-info">
 					<?php
 					echo esc_html(
@@ -465,28 +511,38 @@ class Upload_Shortcode {
 				</p>
 
 				<?php
-				// Show existing submissions with individual delete forms.
+				// Show existing submissions with category dropdowns and delete buttons.
 				if ( ! empty( $submissions ) ) :
 					?>
 					<div class="member-submissions">
 						<h3><?php esc_html_e( 'Your Submissions', 'photo-competition-manager' ); ?></h3>
+
+						<div id="category-change-status" class="category-change-status" style="display: none;"></div>
+
 						<div class="submissions-grid">
 							<?php foreach ( $submissions as $image ) : ?>
-								<div class="submission-item">
+								<div class="submission-item" data-submission-id="<?php echo esc_attr( $image->id ); ?>">
 									<img src="<?php echo esc_url( $image->thumbnail_url ); ?>" alt="" />
-									<p class="category-label">
-										<?php
-										// Find category label.
-										$category_label = $image->category;
-										foreach ( $categories as $cat ) {
-											if ( $cat['slug'] === $image->category ) {
-												$category_label = $cat['label'];
-												break;
-											}
-										}
-										echo esc_html( $category_label );
-										?>
-									</p>
+									<div class="submission-category">
+										<label for="category-<?php echo esc_attr( $image->id ); ?>">
+											<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
+										</label>
+										<select
+											id="category-<?php echo esc_attr( $image->id ); ?>"
+											class="submission-category-select"
+											data-submission-id="<?php echo esc_attr( $image->id ); ?>"
+											data-original-category="<?php echo esc_attr( $image->category ); ?>"
+										>
+											<?php foreach ( $categories as $cat ) : ?>
+												<option
+													value="<?php echo esc_attr( $cat['slug'] ); ?>"
+													<?php selected( $image->category, $cat['slug'] ); ?>
+												>
+													<?php echo esc_html( $cat['label'] ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+									</div>
 									<?php
 									// Build form action URL with token to preserve it across submissions.
 									// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
@@ -508,6 +564,10 @@ class Upload_Shortcode {
 								</div>
 							<?php endforeach; ?>
 						</div>
+
+						<button type="button" id="save-category-changes" class="button button-primary" style="display: none; margin-top: 20px;">
+							<?php esc_html_e( 'Save Category Changes', 'photo-competition-manager' ); ?>
+						</button>
 					</div>
 				<?php endif; ?>
 
@@ -548,10 +608,7 @@ class Upload_Shortcode {
 					<div class="photo-comp-upload-progress"></div>
 
 					<?php
-					// Pass configuration to JavaScript.
-					// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
-					$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-
+					// Pass configuration to JavaScript for drag-drop upload.
 					$categories_js = array();
 					foreach ( $categories as $cat ) {
 						$categories_js[] = array(
@@ -570,6 +627,7 @@ class Upload_Shortcode {
 						);
 					}
 
+					// Localize upload data.
 					wp_localize_script(
 						'photo-comp-drag-drop-upload',
 						'photoCompUpload',
