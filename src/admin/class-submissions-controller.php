@@ -88,58 +88,6 @@ class Submissions_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
-	}
-
-	/**
-	 * Enqueue admin assets for submissions page.
-	 *
-	 * @param string $hook The current admin page hook.
-	 * @return void
-	 */
-	public function enqueue_assets( string $hook ): void {
-		// Only enqueue on submissions page.
-		if ( 'competitions_page_photo-competition-manager-submissions' !== $hook ) {
-			return;
-		}
-
-		// Determine plugin root directory.
-		// Development: src/admin/ -> need dirname(dirname(__DIR__)) to get to club-competitions/.
-		// Production: admin/ -> need dirname(__DIR__) to get to photo-competition-manager/.
-		$parent_dir = dirname( __DIR__ );
-		if ( basename( $parent_dir ) === 'src' ) {
-			// Development mode - go up one more level.
-			$plugin_dir = dirname( $parent_dir );
-		} else {
-			// Production mode - parent is already plugin root.
-			$plugin_dir = $parent_dir;
-		}
-
-		$asset_file = $plugin_dir . '/assets/build/admin-submission-category.asset.php';
-
-		if ( ! file_exists( $asset_file ) ) {
-			return;
-		}
-
-		$asset = require $asset_file;
-
-		// Get the plugin URL.
-		$plugin_url = plugin_dir_url( $plugin_dir . '/photo-competition-manager.php' );
-
-		wp_enqueue_script(
-			'photo-comp-admin-submission-category',
-			$plugin_url . 'assets/build/admin-submission-category.js',
-			$asset['dependencies'],
-			$asset['version'],
-			true
-		);
-
-		wp_enqueue_style(
-			'photo-comp-admin-submission-category',
-			$plugin_url . 'assets/build/admin-submission-category.css',
-			array(),
-			$asset['version']
-		);
 	}
 
 	/**
@@ -385,89 +333,6 @@ class Submissions_Controller {
 			exit;
 		}
 
-		if ( 'update_categories' === $action ) {
-			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-
-			check_admin_referer( 'photo_competition_update_categories_' . $competition_id );
-
-			if ( ! $competition_id ) {
-				wp_send_json_error( array( 'message' => __( 'Invalid competition.', 'photo-competition-manager' ) ) );
-			}
-
-			$changes = isset( $_POST['changes'] ) && is_array( $_POST['changes'] )
-				? array_map( 'sanitize_text_field', wp_unslash( $_POST['changes'] ) )
-				: array();
-
-			if ( empty( $changes ) ) {
-				wp_send_json_error( array( 'message' => __( 'No changes submitted.', 'photo-competition-manager' ) ) );
-			}
-
-			$success_count = 0;
-			$failed_count  = 0;
-			$errors        = array();
-
-			foreach ( $changes as $submission_id => $new_category ) {
-				$submission_id = absint( $submission_id );
-				$image         = $this->images->find( $submission_id );
-
-				if ( ! $image || (int) $image->competition_id !== $competition_id ) {
-					++$failed_count;
-					$errors[] = sprintf(
-						/* translators: %d: submission ID */
-						__( 'Submission #%d: Not found or invalid competition.', 'photo-competition-manager' ),
-						$submission_id
-					);
-					continue;
-				}
-
-				// Admin updates don't need member_id verification, just pass the member from the image.
-				$result = $this->upload_handler->update_submission_category(
-					$submission_id,
-					(int) $image->member_id,
-					$competition_id,
-					$new_category
-				);
-
-				if ( is_wp_error( $result ) ) {
-					++$failed_count;
-					$errors[] = sprintf(
-						/* translators: 1: submission ID, 2: error message */
-						__( 'Submission #%1$d: %2$s', 'photo-competition-manager' ),
-						$submission_id,
-						$result->get_error_message()
-					);
-				} else {
-					++$success_count;
-				}
-			}
-
-			if ( 0 === $failed_count ) {
-				wp_send_json_success(
-					array(
-						'message' => sprintf(
-							/* translators: %d: number of updated submissions */
-							_n( '%d category updated successfully.', '%d categories updated successfully.', $success_count, 'photo-competition-manager' ),
-							$success_count
-						),
-					)
-				);
-			} else {
-				wp_send_json_error(
-					array(
-						'message'       => sprintf(
-							/* translators: 1: succeeded count, 2: failed count */
-							__( '%1$d succeeded, %2$d failed.', 'photo-competition-manager' ),
-							$success_count,
-							$failed_count
-						),
-						'errors'        => $errors,
-						'success_count' => $success_count,
-						'failed_count'  => $failed_count,
-					)
-				);
-			}
-		}
-
 		if ( 'admin_upload' === $action ) {
 			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
@@ -610,6 +475,16 @@ class Submissions_Controller {
 		if ( $competition_id ) {
 			$member_filter = $member_id > 0 ? $member_id : null;
 			$submissions   = $this->images->find_by_competition( $competition_id, null, $member_filter );
+
+			// Sort submissions by member name.
+			usort(
+				$submissions,
+				function ( $a, $b ) use ( $member_map ) {
+					$name_a = isset( $member_map[ $a->member_id ] ) ? $member_map[ $a->member_id ]->name : '';
+					$name_b = isset( $member_map[ $b->member_id ] ) ? $member_map[ $b->member_id ]->name : '';
+					return strcasecmp( $name_a, $name_b );
+				}
+			);
 
 			// Get average scores and vote counts for all submissions.
 			$scores_data = $this->votes->calculate_averages( $competition_id );
@@ -845,16 +720,6 @@ class Submissions_Controller {
 			return;
 		}
 
-		// Add status message area and save button for category changes.
-		echo '<div id="category-change-status" class="notice" style="display: none; margin-bottom: 15px;"></div>';
-		echo '<button type="button" id="save-category-changes" class="button button-primary" style="display: none; margin-bottom: 15px;">';
-		echo esc_html__( 'Save Category Changes', 'photo-competition-manager' );
-		echo '</button>';
-
-		// Hidden field for nonce (used by JS for AJAX).
-		echo '<input type="hidden" id="category-update-nonce" value="' . esc_attr( wp_create_nonce( 'photo_competition_update_categories_' . $competition_id ) ) . '" />';
-		echo '<input type="hidden" id="category-update-competition-id" value="' . esc_attr( $competition_id ) . '" />';
-
 		echo '<form method="post" id="bulk-delete-form">';
 		wp_nonce_field( 'photo_competition_bulk_delete_' . $competition_id, '_wpnonce' );
 		echo '<input type="hidden" name="action" value="bulk_delete_submissions" />';
@@ -882,14 +747,24 @@ class Submissions_Controller {
 		echo '</tr></thead>';
 		echo '<tbody>';
 
-		// Get categories for dropdowns.
-		$categories = array();
-		if ( $selected_competition && ! empty( $selected_competition->settings ) ) {
-			$settings = json_decode( $selected_competition->settings, true );
-			if ( is_array( $settings ) ) {
-				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		// Generate upload URLs for each member.
+		$upload_token_repo  = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
+		$member_upload_urls = array();
+
+		// Get upload page URL - assume it's at /photo-upload/.
+		$upload_page_url = home_url( '/photo-upload/' );
+
+		foreach ( $submissions as $submission ) {
+			$member_id = (int) $submission->member_id;
+			if ( ! isset( $member_upload_urls[ $member_id ] ) ) {
+				$upload_url = $upload_token_repo->generate_upload_url( $competition_id, $member_id, $upload_page_url );
+				if ( ! is_wp_error( $upload_url ) ) {
+					$member_upload_urls[ $member_id ] = $upload_url;
+				}
 			}
 		}
+
+		$current_member_id = null;
 
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
@@ -899,6 +774,9 @@ class Submissions_Controller {
 				__( 'Member #%d', 'photo-competition-manager' ),
 				(int) $submission->member_id
 			);
+
+			$is_first_for_member = ( $current_member_id !== (int) $submission->member_id );
+			$current_member_id   = (int) $submission->member_id;
 
 			$current_competition = $selected_competition ?? ( $competition_lookup[ $submission->competition_id ] ?? null );
 			$urls                = $this->get_submission_urls( $current_competition, $submission );
@@ -917,28 +795,18 @@ class Submissions_Controller {
 
 			echo '<tr>';
 			echo '<th scope="row" class="check-column"><input type="checkbox" name="image_ids[]" value="' . esc_attr( $image_id ) . '" /></th>';
-			echo '<td>' . esc_html( $member_name ) . '</td>';
-
-			// Category dropdown.
 			echo '<td>';
-			if ( ! empty( $categories ) ) {
-				echo '<select class="admin-category-select"
-					data-submission-id="' . esc_attr( $image_id ) . '"
-					data-member-id="' . esc_attr( $submission->member_id ) . '"
-					data-original-category="' . esc_attr( $submission->category ) . '">';
-				foreach ( $categories as $cat ) {
-					printf(
-						'<option value="%1$s" %3$s>%2$s</option>',
-						esc_attr( $cat['slug'] ),
-						esc_html( $cat['label'] ),
-						selected( $submission->category, $cat['slug'], false )
-					);
-				}
-				echo '</select>';
-			} else {
-				echo esc_html( $submission->category );
+			echo esc_html( $member_name );
+			// Add upload link for first submission of each member.
+			if ( $is_first_for_member && isset( $member_upload_urls[ $current_member_id ] ) ) {
+				echo '<br><a href="' . esc_url( $member_upload_urls[ $current_member_id ] ) . '" target="_blank" rel="noopener">';
+				echo esc_html__( 'View/Edit Uploads', 'photo-competition-manager' );
+				echo '</a>';
 			}
 			echo '</td>';
+
+			// Category as plain text.
+			echo '<td>' . esc_html( $submission->category ) . '</td>';
 			if ( $urls['full'] ) {
 				echo '<td class="photo-comp-thumbnail"><a href="' . esc_url( $urls['full'] ) . '" target="_blank" rel="noopener noreferrer">';
 				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $submission->filename ) . '" width="120" height="120" loading="lazy" />';
@@ -957,21 +825,6 @@ class Submissions_Controller {
 		echo '</tbody>';
 		echo '</table>';
 		echo '</form>';
-
-		// Output category quota data for JavaScript validation.
-		if ( ! empty( $categories ) ) {
-			$categories_data = array();
-			foreach ( $categories as $cat ) {
-				$categories_data[ $cat['slug'] ] = array(
-					'label' => $cat['label'],
-					'quota' => $cat['quota'],
-				);
-			}
-
-			echo '<script type="text/javascript">';
-			echo 'window.photoCompAdminCategories = ' . wp_json_encode( $categories_data ) . ';';
-			echo '</script>';
-		}
 
 		// Add JavaScript for "select all" functionality.
 		echo '<script>';
