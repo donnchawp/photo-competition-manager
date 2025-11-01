@@ -247,7 +247,7 @@ class Admin_Screen {
 
 		wp_enqueue_script(
 			'photo-competition-manager-qrcode',
-			plugins_url( 'assets/js/vendor/qrcode.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			plugins_url( 'assets/js/qrcode.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
 			array(),
 			PHOTO_COMPETITION_MANAGER_VERSION,
 			true
