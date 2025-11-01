@@ -22,6 +22,21 @@ use PhotoCompetitionManager\Support\Competition_Settings;
 class Upload_Shortcode {
 
 	/**
+	 * Allowed message keys and their corresponding text.
+	 *
+	 * @var array<string, string>
+	 */
+	private const ALLOWED_MESSAGES = array(
+		'upload_success'   => 'Image uploaded successfully!',
+		'delete_success'   => 'Image deleted successfully.',
+		'category_missing' => 'Please select a category.',
+		'image_missing'    => 'Please select an image to upload.',
+		'invalid_deletion' => 'Invalid deletion request.',
+		'upload_failed'    => 'Upload failed. Please try again.',
+		'delete_failed'    => 'Failed to delete image. Please try again.',
+	);
+
+	/**
 	 * Upload handler.
 	 *
 	 * @var Upload_Handler
@@ -90,9 +105,9 @@ class Upload_Shortcode {
 	 * Enqueue assets for upload shortcode.
 	 */
 	private function enqueue_assets(): void {
-		// This file is in src/public/, main plugin file is in src/
-		// Assets are in src/assets/build/
-		$plugin_dir = dirname( dirname( __FILE__ ) ); // Gets src/ directory.
+		// This file is in src/public/, main plugin file is in src/.
+		// Assets are in src/assets/build/.
+		$plugin_dir = dirname( __DIR__ ); // Gets src/ directory.
 		$asset_file = $plugin_dir . '/assets/build/drag-drop-upload.asset.php';
 
 		if ( ! file_exists( $asset_file ) ) {
@@ -159,14 +174,19 @@ class Upload_Shortcode {
 		// Handle messages from redirects.
 		$message = '';
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Message display only, no actions.
-		if ( isset( $_GET['msg_type'], $_GET['msg_text'], $_GET['msg_time'] ) ) {
+		if ( isset( $_GET['msg_type'], $_GET['msg_key'], $_GET['msg_time'] ) ) {
 			// Only show messages that are less than 30 seconds old to prevent stale messages.
 			$msg_time = absint( $_GET['msg_time'] );
 			if ( ( time() - $msg_time ) < 30 ) {
 				$msg_type = sanitize_text_field( wp_unslash( $_GET['msg_type'] ) );
-				$msg_text = sanitize_text_field( wp_unslash( $_GET['msg_text'] ) );
-				$class    = 'success' === $msg_type ? 'success' : 'error';
-				$message  = '<p class="' . esc_attr( $class ) . '">' . esc_html( $msg_text ) . '</p>';
+				$msg_key  = sanitize_text_field( wp_unslash( $_GET['msg_key'] ) );
+
+				// Only display message if the key is in the allowed list.
+				if ( isset( self::ALLOWED_MESSAGES[ $msg_key ] ) ) {
+					$msg_text = self::ALLOWED_MESSAGES[ $msg_key ];
+					$class    = 'success' === $msg_type ? 'success' : 'error';
+					$message  = '<p class="' . esc_attr( $class ) . '">' . esc_html( $msg_text ) . '</p>';
+				}
 			}
 		}
 
@@ -251,13 +271,13 @@ class Upload_Shortcode {
 	 */
 	private function handle_token_upload( int $competition_id, int $member_id, $token_record, string $category, $image_file ): void {
 		if ( empty( $category ) ) {
-			$this->redirect_with_message( 'error', __( 'Please select a category.', 'photo-competition-manager' ) );
+			$this->redirect_with_message( 'error', 'category_missing' );
 			return;
 		}
 
 		// Check file upload.
 		if ( empty( $image_file ) || ! is_array( $image_file ) || ( isset( $image_file['error'] ) && UPLOAD_ERR_NO_FILE === $image_file['error'] ) ) {
-			$this->redirect_with_message( 'error', __( 'Please select an image to upload.', 'photo-competition-manager' ) );
+			$this->redirect_with_message( 'error', 'image_missing' );
 			return;
 		}
 
@@ -265,11 +285,11 @@ class Upload_Shortcode {
 		$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', $result->get_error_message() );
+			$this->redirect_with_message( 'error', 'upload_failed' );
 			return;
 		}
 
-		$this->redirect_with_message( 'success', __( 'Image uploaded successfully!', 'photo-competition-manager' ) );
+		$this->redirect_with_message( 'success', 'upload_success' );
 	}
 
 	/**
@@ -283,37 +303,37 @@ class Upload_Shortcode {
 	 */
 	private function handle_token_deletion( int $competition_id, int $member_id, $token_record, int $image_id ): void {
 		if ( ! $image_id ) {
-			$this->redirect_with_message( 'error', __( 'Invalid deletion request.', 'photo-competition-manager' ) );
+			$this->redirect_with_message( 'error', 'invalid_deletion' );
 			return;
 		}
 
 		$result = $this->upload_handler->delete_submission( $image_id, $member_id, $competition_id );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', $result->get_error_message() );
+			$this->redirect_with_message( 'error', 'delete_failed' );
 			return;
 		}
 
-		$this->redirect_with_message( 'success', __( 'Image deleted successfully.', 'photo-competition-manager' ) );
+		$this->redirect_with_message( 'success', 'delete_success' );
 	}
 
 	/**
 	 * Redirect with a message using query parameters (Post/Redirect/Get pattern).
 	 *
-	 * @param string $type    Message type (success or error).
-	 * @param string $message Message text.
+	 * @param string $type        Message type (success or error).
+	 * @param string $message_key Message key from ALLOWED_MESSAGES.
 	 * @return void
 	 */
-	private function redirect_with_message( string $type, string $message ): void {
+	private function redirect_with_message( string $type, string $message_key ): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
 		$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 
 		$redirect_url = add_query_arg(
 			array(
-				'token'        => rawurlencode( $token_param ),
-				'msg_type'     => $type,
-				'msg_text'     => rawurlencode( $message ),
-				'msg_time'     => time(),
+				'token'    => rawurlencode( $token_param ),
+				'msg_type' => $type,
+				'msg_key'  => $message_key,
+				'msg_time' => time(),
 			),
 			get_permalink()
 		);
