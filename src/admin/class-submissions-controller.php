@@ -538,7 +538,7 @@ class Submissions_Controller {
 			wp_nonce_field( 'photo_competition_regenerate_numbers_' . $competition_id, '_wpnonce' );
 			echo '<input type="hidden" name="action" value="regenerate_numbers" />';
 			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
-			echo '<button type="submit" class="button" onclick="return confirm(\'' . esc_js( __( 'Are you sure you want to regenerate random numbers? Each member will still have the same number across all their images, but the numbers will be reassigned.', 'photo-competition-manager' ) ) . '\');">';
+			echo '<button type="submit" class="button photo-comp-regenerate" data-confirm="' . esc_attr( __( 'Are you sure you want to regenerate random numbers? Each member will still have the same number across all their images, but the numbers will be reassigned.', 'photo-competition-manager' ) ) . '">';
 			echo esc_html__( 'Regenerate Random Numbers', 'photo-competition-manager' );
 			echo '</button>';
 			echo ' <span class="description">' . esc_html__( 'Reassign random numbers to members in this competition (each member keeps one consistent number).', 'photo-competition-manager' ) . '</span>';
@@ -549,7 +549,7 @@ class Submissions_Controller {
 			wp_nonce_field( 'photo_competition_delete_originals_' . $competition_id, '_wpnonce' );
 			echo '<input type="hidden" name="action" value="delete_original_images" />';
 			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
-			echo '<button type="submit" class="button" onclick="return confirm(\'' . esc_js( __( 'Are you sure you want to delete all original images from the media library for this competition? This will keep thumbnails and slideshow images, but remove the high-resolution originals to save space. This action cannot be undone.', 'photo-competition-manager' ) ) . '\');">';
+			echo '<button type="submit" class="button photo-comp-delete-originals" data-confirm="' . esc_attr( __( 'Are you sure you want to delete all original images from the media library for this competition? This will keep thumbnails and slideshow images, but remove the high-resolution originals to save space. This action cannot be undone.', 'photo-competition-manager' ) ) . '">';
 			echo esc_html__( 'Delete Original Images', 'photo-competition-manager' );
 			echo '</button>';
 			echo ' <span class="description">' . esc_html__( 'Remove high-resolution originals from media library (keeps thumbnails and slideshow images).', 'photo-competition-manager' ) . '</span>';
@@ -727,7 +727,7 @@ class Submissions_Controller {
 
 		echo '<div class="tablenav top">';
 		echo '<div class="alignleft actions">';
-		echo '<button type="submit" class="button" onclick="return confirm(\'' . esc_js( __( 'Are you sure you want to delete the selected submissions? This will permanently delete the database records, all associated votes, and all associated files (slideshow images, thumbnails, and originals). This action cannot be undone.', 'photo-competition-manager' ) ) . '\') && this.form.querySelectorAll(\'input[name=\\\'image_ids[]\\\']\').length > 0 && Array.from(this.form.querySelectorAll(\'input[name=\\\'image_ids[]\\\']\')).some(cb => cb.checked) ? true : (alert(\'' . esc_js( __( 'Please select at least one submission to delete.', 'photo-competition-manager' ) ) . '\'), false);">';
+		echo '<button type="submit" class="button photo-comp-bulk-delete" data-confirm="' . esc_attr( __( 'Are you sure you want to delete the selected submissions? This will permanently delete the database records, all associated votes, and all associated files (slideshow images, thumbnails, and originals). This action cannot be undone.', 'photo-competition-manager' ) ) . '" data-no-selection="' . esc_attr( __( 'Please select at least one submission to delete.', 'photo-competition-manager' ) ) . '">';
 		echo esc_html__( 'Delete Selected', 'photo-competition-manager' );
 		echo '</button>';
 		echo '</div>';
@@ -826,7 +826,7 @@ class Submissions_Controller {
 		echo '</table>';
 		echo '</form>';
 
-		// Add JavaScript for "select all" functionality.
+		// Add JavaScript for "select all" functionality and confirmations.
 		echo '<script>';
 		echo 'document.addEventListener("DOMContentLoaded", function() {';
 		echo '  const selectAll = document.getElementById("cb-select-all");';
@@ -838,6 +838,30 @@ class Submissions_Controller {
 		echo '      });';
 		echo '    });';
 		echo '  }';
+		echo '  const bulkDeleteBtn = document.querySelector(".photo-comp-bulk-delete");';
+		echo '  if (bulkDeleteBtn) {';
+		echo '    bulkDeleteBtn.addEventListener("click", function(e) {';
+		echo '      const checkboxes = document.querySelectorAll(\'input[name="image_ids[]"]:checked\');';
+		echo '      if (checkboxes.length === 0) {';
+		echo '        e.preventDefault();';
+		echo '        alert(this.getAttribute("data-no-selection"));';
+		echo '        return false;';
+		echo '      }';
+		echo '      if (!confirm(this.getAttribute("data-confirm"))) {';
+		echo '        e.preventDefault();';
+		echo '        return false;';
+		echo '      }';
+		echo '    });';
+		echo '  }';
+		echo '  document.addEventListener("click", function(e) {';
+		echo '    if (e.target.classList.contains("photo-comp-regenerate") || e.target.classList.contains("photo-comp-delete-originals")) {';
+		echo '      var confirmMessage = e.target.getAttribute("data-confirm");';
+		echo '      if (confirmMessage && !confirm(confirmMessage)) {';
+		echo '        e.preventDefault();';
+		echo '        return false;';
+		echo '      }';
+		echo '    }';
+		echo '  });';
 		echo '});';
 		echo '</script>';
 
