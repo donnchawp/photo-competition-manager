@@ -493,7 +493,7 @@ class DragDropUpload {
 		return true;
 	}
 
-	async uploadAll() {
+	uploadAll() {
 		if (this.selectedFiles.length === 0) {
 			return;
 		}
@@ -502,49 +502,97 @@ class DragDropUpload {
 		this.uploadButton.disabled = true;
 		this.uploadButton.textContent = 'Uploading...';
 
-		// Show progress section.
+		// Show progress section with progress bar.
 		this.progressSection.style.display = 'block';
-		this.progressSection.innerHTML = '<p>Uploading images...</p>';
+		this.progressSection.innerHTML = `
+			<p>Uploading ${this.selectedFiles.length} image(s)...</p>
+			<div class="photo-comp-progress-bar-container">
+				<div class="photo-comp-progress-bar" id="upload-progress-bar"></div>
+				<div class="photo-comp-progress-text" id="upload-progress-text">0%</div>
+			</div>
+		`;
 
-		try {
-			const formData = new FormData();
-			const assignments = {};
+		const formData = new FormData();
+		const assignments = {};
 
-			this.selectedFiles.forEach((fileData, index) => {
-				const fileKey = `file_${index}`;
-				formData.append(fileKey, fileData.file);
-				assignments[fileKey] = fileData.category;
-			});
+		this.selectedFiles.forEach((fileData, index) => {
+			const fileKey = `file_${index}`;
+			formData.append(fileKey, fileData.file);
+			assignments[fileKey] = fileData.category;
+		});
 
-			// Send assignments as individual form fields instead of JSON.
-			Object.keys(assignments).forEach((key) => {
-				formData.append(`assignments[${key}]`, assignments[key]);
-			});
+		// Send assignments as individual form fields instead of JSON.
+		Object.keys(assignments).forEach((key) => {
+			formData.append(`assignments[${key}]`, assignments[key]);
+		});
 
-			const response = await fetch(
-				`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`,
-				{
-					method: 'POST',
-					body: formData,
-					headers: {
-						'X-WP-Nonce': window.photoCompUpload?.nonce || '',
-					},
-				}
-			);
+		// Use XMLHttpRequest for progress tracking.
+		const xhr = new XMLHttpRequest();
 
-			const data = await response.json();
-
-			if (response.ok) {
-				this.handleUploadSuccess(data);
-			} else {
-				this.handleUploadError(data);
+		// Track upload progress.
+		xhr.upload.addEventListener('progress', (e) => {
+			if (e.lengthComputable) {
+				const percentComplete = Math.round((e.loaded / e.total) * 100);
+				this.updateProgressBar(percentComplete);
 			}
-		} catch (error) {
-			this.showError('Upload failed. Please try again.');
-			console.error('Upload error:', error);
-		} finally {
+		});
+
+		// Handle completion.
+		xhr.addEventListener('load', () => {
+			if (xhr.status >= 200 && xhr.status < 300) {
+				try {
+					const data = JSON.parse(xhr.responseText);
+					this.handleUploadSuccess(data);
+				} catch (error) {
+					this.showError('Failed to parse server response.');
+					console.error('Parse error:', error);
+				}
+			} else {
+				try {
+					const data = JSON.parse(xhr.responseText);
+					this.handleUploadError(data);
+				} catch (error) {
+					this.showError('Upload failed. Please try again.');
+					console.error('Upload error:', error);
+				}
+			}
 			this.uploadButton.disabled = false;
 			this.uploadButton.textContent = 'Upload All';
+		});
+
+		// Handle errors.
+		xhr.addEventListener('error', () => {
+			this.showError('Network error. Please check your connection and try again.');
+			this.uploadButton.disabled = false;
+			this.uploadButton.textContent = 'Upload All';
+		});
+
+		// Handle abort.
+		xhr.addEventListener('abort', () => {
+			this.showError('Upload cancelled.');
+			this.uploadButton.disabled = false;
+			this.uploadButton.textContent = 'Upload All';
+		});
+
+		// Send request.
+		xhr.open(
+			'POST',
+			`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
+		);
+		xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
+		xhr.send(formData);
+	}
+
+	updateProgressBar(percent) {
+		const progressBar = document.getElementById('upload-progress-bar');
+		const progressText = document.getElementById('upload-progress-text');
+
+		if (progressBar) {
+			progressBar.style.width = `${percent}%`;
+		}
+
+		if (progressText) {
+			progressText.textContent = `${percent}%`;
 		}
 	}
 
