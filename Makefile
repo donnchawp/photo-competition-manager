@@ -85,9 +85,8 @@ release: clean-release build ## Build production release zip file
 	@echo "Copying plugin files to release directory..."
 	@rsync -a --exclude-from=.releaseignore src/ $(RELEASE_DIR)/$(PLUGIN_NAME)/
 	@echo "Copying built assets..."
-	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
-	@cp -r $(ASSETS_DIR)/build/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
-	@cp -r src/$(ASSETS_DIR)/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/
+	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/build/
+	@cp -r $(ASSETS_DIR)/build/* $(RELEASE_DIR)/$(PLUGIN_NAME)/assets/build/
 	@echo "Creating zip file..."
 	@cd $(RELEASE_DIR) && zip -qr $(PLUGIN_NAME).zip $(PLUGIN_NAME)
 	@mv $(RELEASE_DIR)/$(PLUGIN_NAME).zip ./$(PLUGIN_NAME).zip
