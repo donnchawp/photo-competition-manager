@@ -168,22 +168,17 @@ class DragDropUpload {
 
 	getAvailableCategoriesForFile(fileData) {
 		// Get categories available for a specific file.
-		// Always include the file's current category (if assigned) even if exhausted,
-		// so users can change their selection.
-		const availableCategories = this.getAvailableCategories();
+		// Rules:
+		// 1. If file is already assigned: show ALL categories (allow swapping)
+		// 2. If file is unassigned: only show categories with remaining quota
 
-		// If this file has a category assigned, make sure it's included.
 		if (fileData.category) {
-			const hasCurrentCategory = availableCategories.some((cat) => cat.slug === fileData.category);
-			if (!hasCurrentCategory) {
-				const currentCategory = this.categories.find((cat) => cat.slug === fileData.category);
-				if (currentCategory) {
-					availableCategories.push(currentCategory);
-				}
-			}
+			// File is assigned - allow swapping to ANY category
+			return this.categories.slice(); // Return copy of all categories
+		} else {
+			// File is unassigned - only show categories with quota
+			return this.getAvailableCategories();
 		}
-
-		return availableCategories;
 	}
 
 	validateFile(file) {
