@@ -302,6 +302,26 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete all upload tokens for a competition.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return bool
+	 */
+	public function delete_by_competition( int $competition_id ): bool {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return false;
+		}
+
+		$deleted = $this->wpdb->delete(
+			$this->table(),
+			array( 'competition_id' => $competition_id ),
+			array( '%d' )
+		);
+
+		return false !== $deleted;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	protected function table_suffix(): string {

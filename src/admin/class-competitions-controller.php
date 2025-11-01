@@ -182,16 +182,65 @@ class Competitions_Controller {
 			exit;
 		}
 
-		if ( in_array( $action, array( 'archive', 'restore', 'send_emails' ), true ) && isset( $_GET['competition'] ) ) {
+		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
 			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
 			$nonces         = array(
 				'send_emails' => 'photo_competition_send_emails_',
 				'archive'     => 'photo_competition_archive_',
 				'restore'     => 'photo_competition_restore_',
+				'delete'      => 'photo_competition_delete_',
+				'reset_votes' => 'photo_competition_reset_votes_',
 			);
 			$nonce_action   = $nonces[ $action ];
 
 			check_admin_referer( $nonce_action . $competition_id );
+
+			if ( 'delete' === $action ) {
+				$result = $this->competitions->delete( $competition_id );
+
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'photo_competition',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition',
+						'deleted',
+						__( 'Competition permanently deleted.', 'photo-competition-manager' ),
+						'updated'
+					);
+				}
+
+				wp_safe_redirect( $this->dashboard_url() );
+				exit;
+			}
+
+			if ( 'reset_votes' === $action ) {
+				$votes_repo = new \PhotoCompetitionManager\Repository\Votes_Repository();
+				$result     = $votes_repo->delete_by_competition( $competition_id );
+
+				if ( false === $result ) {
+					add_settings_error(
+						'photo_competition',
+						'reset_votes_failed',
+						__( 'Could not reset votes.', 'photo-competition-manager' ),
+						'error'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition',
+						'votes_reset',
+						__( 'All votes for this competition have been deleted.', 'photo-competition-manager' ),
+						'updated'
+					);
+				}
+
+				wp_safe_redirect( $this->dashboard_url() );
+				exit;
+			}
 
 			if ( 'send_emails' === $action ) {
 				$result = $this->competitions->send_submission_reminder_emails( $competition_id );
@@ -999,12 +1048,91 @@ class Competitions_Controller {
 				$actions[] = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $archive_url ), esc_html__( 'Archive', 'photo-competition-manager' ) );
 			}
 
-			echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
+			// Reset votes action.
+			$reset_votes_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager',
+						'action'      => 'reset_votes',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_reset_votes_' . (int) $competition->id
+			);
+
+			$actions[] = sprintf(
+				'<a href="%s" class="photo-comp-reset-votes" data-confirm="%s">%s</a>',
+				esc_url( $reset_votes_url ),
+				esc_attr( __( 'Are you sure you want to delete all votes for this competition? This cannot be undone.', 'photo-competition-manager' ) ),
+				esc_html__( 'Reset Votes', 'photo-competition-manager' )
+			);
+
+			// Delete competition action.
+			$delete_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager',
+						'action'      => 'delete',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_delete_' . (int) $competition->id
+			);
+
+			$actions[] = sprintf(
+				'<a href="%s" class="submitdelete photo-comp-delete" data-confirm="%s">%s</a>',
+				esc_url( $delete_url ),
+				esc_attr( __( 'Are you sure you want to permanently delete this competition? This will delete all images, votes, and tokens. This cannot be undone.', 'photo-competition-manager' ) ),
+				esc_html__( 'Delete', 'photo-competition-manager' )
+			);
+
+			$allowed_html = array(
+				'a'    => array(
+					'href'         => array(),
+					'class'        => array(),
+					'data-confirm' => array(),
+				),
+				'span' => array(
+					'title' => array(),
+					'style' => array(),
+					'class' => array(),
+				),
+			);
+
+			echo '<td>' . wp_kses( implode( ' | ', $actions ), $allowed_html ) . '</td>';
 			echo '</tr>';
 		}
 
 		echo '</tbody>';
 		echo '</table>';
+
+		$this->render_confirmation_javascript();
+	}
+
+	/**
+	 * Render JavaScript for confirmation dialogs.
+	 *
+	 * @return void
+	 */
+	private function render_confirmation_javascript(): void {
+		?>
+		<script>
+		(function() {
+			document.addEventListener('click', function(e) {
+				if (e.target.classList.contains('photo-comp-delete') ||
+					e.target.classList.contains('photo-comp-reset-votes')) {
+					var confirmMessage = e.target.getAttribute('data-confirm');
+					if (confirmMessage && !confirm(confirmMessage)) {
+						e.preventDefault();
+						return false;
+					}
+				}
+			});
+		})();
+		</script>
+		<?php
 	}
 
 	/**

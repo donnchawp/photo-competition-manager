@@ -346,6 +346,60 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Permanently delete a competition and all associated data.
+	 *
+	 * This will delete:
+	 * - All images for the competition
+	 * - All votes for the competition
+	 * - All upload tokens for the competition
+	 * - All voting tokens for the competition
+	 * - The competition record itself
+	 *
+	 * @param int $id Competition ID.
+	 * @return bool|WP_Error
+	 */
+	public function delete( int $id ) {
+		if ( ! $this->table_exists() || $id <= 0 ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		// Verify competition exists.
+		$competition = $this->find( $id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		// Delete all related data in proper order.
+		$votes_repo        = new Votes_Repository();
+		$images_repo       = new Images_Repository();
+		$upload_token_repo = new Upload_Token_Repository();
+		$voting_token_repo = new Voting_Token_Repository();
+
+		// Delete votes first (they reference images).
+		$votes_repo->delete_by_competition( $id );
+
+		// Delete images.
+		$images_repo->delete_by_competition( $id );
+
+		// Delete tokens.
+		$upload_token_repo->delete_by_competition( $id );
+		$voting_token_repo->delete_by_competition( $id );
+
+		// Finally, delete the competition itself.
+		$deleted = $this->wpdb->delete(
+			$this->table(),
+			array( 'id' => $id ),
+			array( '%d' )
+		);
+
+		if ( false === $deleted ) {
+			return new WP_Error( 'db_delete_failed', __( 'Could not delete competition.', 'photo-competition-manager' ), $this->wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Check whether a slug already exists.
 	 *
 	 * @param string   $slug        Competition slug.
