@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				if (response.ok) {
 					successCount++;
 					// Update original category
-					const select = document.querySelector(`[data-submission-id="${submissionId}"]`);
+					const select = document.querySelector(`.submission-category-select[data-submission-id="${submissionId}"]`);
 					if (select) {
 						select.dataset.originalCategory = newCategory;
 					}
@@ -248,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		// Reset button
 		saveButton.textContent = 'Save Category Changes';
+		saveButton.disabled = false;
 		saveButton.style.display = 'none';
 	});
 

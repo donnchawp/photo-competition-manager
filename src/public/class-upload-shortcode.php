@@ -532,6 +532,24 @@ class Upload_Shortcode {
 							<?php foreach ( $submissions as $image ) : ?>
 								<div class="submission-item" data-submission-id="<?php echo esc_attr( $image->id ); ?>">
 									<img src="<?php echo esc_url( $image->thumbnail_url ); ?>" alt="" />
+									<?php
+									// Build form action URL with token to preserve it across submissions.
+									// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
+									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
+									?>
+									<form method="post" class="delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
+										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
+										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
+										<button
+											type="submit"
+											name="photo_competition_delete"
+											class="button button-small button-link-delete"
+											onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) ); ?>');"
+										>
+											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
+										</button>
+									</form>
 									<div class="submission-category">
 										<label for="category-<?php echo esc_attr( $image->id ); ?>">
 											<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
@@ -552,24 +570,6 @@ class Upload_Shortcode {
 											<?php endforeach; ?>
 										</select>
 									</div>
-									<?php
-									// Build form action URL with token to preserve it across submissions.
-									// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
-									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
-									?>
-									<form method="post" class="delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
-										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
-										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
-										<button
-											type="submit"
-											name="photo_competition_delete"
-											class="button button-small button-link-delete"
-											onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) ); ?>');"
-										>
-											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
-										</button>
-									</form>
 								</div>
 							<?php endforeach; ?>
 						</div>
