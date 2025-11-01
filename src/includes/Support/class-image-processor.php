@@ -63,19 +63,6 @@ class Image_Processor {
 			return new WP_Error( 'invalid_file', __( 'Invalid file type.', 'photo-competition-manager' ) );
 		}
 
-		// Verify MIME type is an allowed image type.
-		$allowed_mimes = array( 'image/jpeg', 'image/jpg' );
-		if ( ! in_array( $wp_filetype['type'], $allowed_mimes, true ) ) {
-			return new WP_Error(
-				'invalid_mime',
-				sprintf(
-					/* translators: %s: detected MIME type */
-					__( 'Only JPEG images are allowed. Detected type: %s', 'photo-competition-manager' ),
-					$wp_filetype['type']
-				)
-			);
-		}
-
 		// Check file extension matches allowed formats.
 		$allowed_formats = $constraints['allowed_formats'] ?? array( 'jpg', 'jpeg' );
 		$extension       = strtolower( $wp_filetype['ext'] );
@@ -91,6 +78,21 @@ class Image_Processor {
 			);
 		}
 
+		// Build allowed MIME types from allowed formats.
+		$allowed_mimes = $this->get_allowed_mimes( $allowed_formats );
+
+		// Verify MIME type matches one of the allowed types.
+		if ( ! in_array( $wp_filetype['type'], $allowed_mimes, true ) ) {
+			return new WP_Error(
+				'invalid_mime',
+				sprintf(
+					/* translators: %s: detected MIME type */
+					__( 'Invalid image type. Detected type: %s', 'photo-competition-manager' ),
+					$wp_filetype['type']
+				)
+			);
+		}
+
 		// Verify actual image content.
 		$image_info = @getimagesize( $file['tmp_name'] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( false === $image_info ) {
@@ -100,6 +102,33 @@ class Image_Processor {
 		// Note: Dimension validation removed - images will be automatically resized to max dimensions during processing.
 
 		return true;
+	}
+
+	/**
+	 * Get allowed MIME types from file extensions.
+	 *
+	 * @param array<string> $formats Array of file extensions (e.g., ['jpg', 'jpeg', 'png']).
+	 * @return array<string> Array of MIME types.
+	 */
+	private function get_allowed_mimes( array $formats ): array {
+		$mime_map = array(
+			'jpg'  => 'image/jpeg',
+			'jpeg' => 'image/jpeg',
+			'png'  => 'image/png',
+			'gif'  => 'image/gif',
+			'webp' => 'image/webp',
+		);
+
+		$allowed_mimes = array();
+		foreach ( $formats as $format ) {
+			$format = strtolower( $format );
+			if ( isset( $mime_map[ $format ] ) ) {
+				$allowed_mimes[] = $mime_map[ $format ];
+			}
+		}
+
+		// Remove duplicates (e.g., jpg and jpeg both map to image/jpeg).
+		return array_unique( $allowed_mimes );
 	}
 
 	/**

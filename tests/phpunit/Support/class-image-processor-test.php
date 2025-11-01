@@ -104,7 +104,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_format(): void {
-		$tmp_file = $this->create_test_image();
+		$tmp_file = $this->create_test_image( 800, 600, 'png' );
 
 		$file = array(
 			'name'     => 'test.png',
@@ -239,21 +239,37 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create a test JPEG image.
+	 * Create a test image file.
 	 *
-	 * @param int $width  Image width.
-	 * @param int $height Image height.
+	 * @param int    $width  Image width.
+	 * @param int    $height Image height.
+	 * @param string $format Image format (jpg, png, gif).
 	 * @return string Path to created file.
 	 */
-	private function create_test_image( int $width = 800, int $height = 600 ): string {
+	private function create_test_image( int $width = 800, int $height = 600, string $format = 'jpg' ): string {
 		$image = imagecreatetruecolor( $width, $height );
 
 		// Fill with a color.
 		$bg_color = imagecolorallocate( $image, 100, 150, 200 );
 		imagefill( $image, 0, 0, $bg_color );
 
-		$tmp_file = tempnam( sys_get_temp_dir(), 'test_image_' ) . '.jpg';
-		imagejpeg( $image, $tmp_file, 90 );
+		$extension = strtolower( $format );
+		$tmp_file  = tempnam( sys_get_temp_dir(), 'test_image_' ) . '.' . $extension;
+
+		switch ( $extension ) {
+			case 'png':
+				imagepng( $image, $tmp_file );
+				break;
+			case 'gif':
+				imagegif( $image, $tmp_file );
+				break;
+			case 'jpg':
+			case 'jpeg':
+			default:
+				imagejpeg( $image, $tmp_file, 90 );
+				break;
+		}
+
 		imagedestroy( $image );
 
 		return $tmp_file;
