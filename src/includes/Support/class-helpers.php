@@ -4,6 +4,10 @@
  *
  * @package PhotoCompetitionManager\Support
  */
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
 
 namespace PhotoCompetitionManager\Support;
 

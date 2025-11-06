@@ -4,6 +4,10 @@
  *
  * @package PhotoCompetitionManager\Install
  */
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
 
 namespace PhotoCompetitionManager\Install;
 
