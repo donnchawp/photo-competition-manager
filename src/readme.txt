@@ -67,6 +67,21 @@ If you prefer manual control, create pages with these shortcodes:
 * `competition="slug"` – Target a specific competition (all shortcodes)
 * `category="slug"` – Filter by category (voting and slideshow only)
 
+**Building From Source**
+
+This plugin includes compiled JavaScript and CSS assets. The complete source code is available on GitHub:
+
+https://github.com/donnchawp/photo-competition-manager
+
+Source files are located in the `assets/src/` directory. To build the assets:
+
+1. Navigate to the assets directory: `cd assets`
+2. Install dependencies: `npm install`
+3. For development (watch mode): `npm run dev`
+4. For production build: `npm run build`
+
+The plugin uses `@wordpress/scripts` for building and bundling assets. All source code can be reviewed, modified, and rebuilt from the repository.
+
 **Local Development**
 
 Run `make up` to launch the WordPress environment with Mailpit email capture at <http://localhost:8025>.
