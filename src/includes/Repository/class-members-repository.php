@@ -250,6 +250,112 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete a member and all associated data (images and votes).
+	 *
+	 * @param int $id Member ID.
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public function delete( int $id ) {
+		if ( ! $this->table_exists() || $id <= 0 ) {
+			return new WP_Error( 'invalid_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
+		$member = $this->find( $id );
+
+		if ( ! $member ) {
+			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
+		// Get images repository to find and delete member's images.
+		$images_repo       = new Images_Repository();
+		$competitions_repo = new Competitions_Repository();
+		$images            = $images_repo->find_by_member( $id );
+
+		// Delete votes for each image, physical files, and the image record itself.
+		$votes_repo = new Votes_Repository();
+		foreach ( $images as $image ) {
+			// Delete votes on this image.
+			$votes_repo->delete_by_image( (int) $image->id );
+
+			// Delete original attachment if it exists.
+			if ( ! empty( $image->original_attachment_id ) ) {
+				wp_delete_attachment( (int) $image->original_attachment_id, true );
+			}
+
+			// Delete physical files (slideshow and thumbnail).
+			$this->delete_image_files( $image, $competitions_repo );
+
+			// Delete the image record.
+			$images_repo->delete( (int) $image->id );
+		}
+
+		// Delete the member record.
+		$deleted = $this->wpdb->delete(
+			$this->table(),
+			array( 'id' => $id ),
+			array( '%d' )
+		);
+
+		if ( false === $deleted ) {
+			return new WP_Error( 'db_delete_failed', __( 'Could not delete member.', 'photo-competition-manager' ), $this->wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Delete physical image files for an image record.
+	 *
+	 * @param object                  $image              Image object.
+	 * @param Competitions_Repository $competitions_repo  Competitions repository.
+	 * @return void
+	 */
+	private function delete_image_files( object $image, Competitions_Repository $competitions_repo ): void {
+		// Get competition to determine slug.
+		$competition = $competitions_repo->find( (int) $image->competition_id, true );
+		if ( ! $competition || empty( $competition->slug ) ) {
+			return;
+		}
+
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return;
+		}
+
+		$slug = sanitize_file_name( (string) $competition->slug );
+		$cat  = sanitize_file_name( (string) $image->category );
+
+		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
+
+		$filename   = $image->filename;
+		$thumb_name = $this->get_thumbnail_filename( $filename );
+
+		$full_path  = $folder_path . $filename;
+		$thumb_path = $folder_path . $thumb_name;
+
+		// Delete slideshow image.
+		if ( file_exists( $full_path ) ) {
+			wp_delete_file( $full_path );
+		}
+
+		// Delete thumbnail.
+		if ( file_exists( $thumb_path ) ) {
+			wp_delete_file( $thumb_path );
+		}
+	}
+
+	/**
+	 * Generate thumbnail filename from original filename.
+	 *
+	 * @param string $filename Original filename.
+	 * @return string Thumbnail filename.
+	 */
+	private function get_thumbnail_filename( string $filename ): string {
+		$parts = pathinfo( $filename );
+		return $parts['filename'] . '-thumb.' . ( $parts['extension'] ?? 'jpg' );
+	}
+
+	/**
 	 * Determine whether an email already exists.
 	 *
 	 * @param string   $email      Member email.

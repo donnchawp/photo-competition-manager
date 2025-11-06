@@ -276,6 +276,62 @@ class Members_Controller {
 			exit;
 		}
 
+		if ( 'delete_member' === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+
+			if ( ! $member_id ) {
+				add_settings_error(
+					'photo_competition_members',
+					'invalid_member',
+					__( 'Invalid member ID.', 'photo-competition-manager' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
+
+			check_admin_referer( 'photo_competition_delete_member_' . $member_id );
+
+			$member = $this->members->find( $member_id );
+
+			if ( ! $member ) {
+				add_settings_error(
+					'photo_competition_members',
+					'member_not_found',
+					__( 'Member not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				wp_safe_redirect( $this->members_url() );
+				exit;
+			}
+
+			$result = $this->members->delete( $member_id );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_members',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_members',
+					'member_deleted',
+					sprintf(
+						/* translators: %s: member name */
+						__( 'Member "%s" and all their photos and votes have been deleted successfully.', 'photo-competition-manager' ),
+						esc_html( $member->name )
+					),
+					'updated'
+				);
+			}
+
+			wp_safe_redirect( $this->members_url() );
+			exit;
+		}
+
 		// Handle CSV import.
 		if ( 'import_members_csv' === $action ) {
 			check_admin_referer( 'photo_competition_import_members', 'photo_competition_import_nonce' );
@@ -671,8 +727,26 @@ class Members_Controller {
 					echo '<td>' . esc_html( $status_label ) . '</td>';
 					echo '<td>' . esc_html( $member->created_at ) . '</td>';
 
+					$delete_url = wp_nonce_url(
+						add_query_arg(
+							array(
+								'page'   => 'photo-competition-manager-members',
+								'action' => 'delete_member',
+								'member' => (int) $member->id,
+							),
+							admin_url( 'admin.php' )
+						),
+						'photo_competition_delete_member_' . (int) $member->id
+					);
+
 					$actions = array(
 						sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
+						sprintf(
+							'<a href="%s" class="delete-member-link" data-member-name="%s">%s</a>',
+							esc_url( $delete_url ),
+							esc_attr( $member->name ),
+							esc_html__( 'Delete', 'photo-competition-manager' )
+						),
 					);
 
 					// Add "Send Upload Email" if we have an active competition and active member with email.
@@ -769,6 +843,18 @@ class Members_Controller {
 				echo '      }';
 				echo '    });';
 				echo '  }';
+				// Delete member confirmation.
+				echo '  const deleteLinks = document.querySelectorAll(".delete-member-link");';
+				echo '  deleteLinks.forEach(function(link) {';
+				echo '    link.addEventListener("click", function(e) {';
+				echo '      const memberName = link.getAttribute("data-member-name");';
+				echo '      const message = "' . esc_js( __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ) ) . '\\n\\n" + "' . esc_js( __( 'Member:', 'photo-competition-manager' ) ) . ' " + memberName + "\\n\\n" + "' . esc_js( __( 'This action cannot be undone.', 'photo-competition-manager' ) ) . '";';
+				echo '      if (!confirm(message)) {';
+				echo '        e.preventDefault();';
+				echo '        return false;';
+				echo '      }';
+				echo '    });';
+				echo '  });';
 				echo '});';
 				echo '</script>';
 			}
