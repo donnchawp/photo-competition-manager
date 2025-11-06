@@ -1,5 +1,5 @@
 === Photo Competition Manager ===
-Contributors: donncha, automattic
+Contributors: donncha
 Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.0
 Tested up to: 6.8
