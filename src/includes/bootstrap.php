@@ -5,12 +5,16 @@
  * @package PhotoCompetitionManager
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
 // Define plugin version.
 if ( ! defined( 'PHOTO_COMPETITION_MANAGER_VERSION' ) ) {
 	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.1.0' );
 }
 
-$autoload = dirname( __DIR__, 2 ) . '/vendor/autoload.php';
+$autoload = dirname( PHOTO_COMPETITION_MANAGER_PLUGIN_DIR ) . '/vendor/autoload.php';
 
 if ( file_exists( $autoload ) ) {
 	require_once $autoload;

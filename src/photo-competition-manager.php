@@ -14,6 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Define plugin directory path.
+if ( ! defined( 'PHOTO_COMPETITION_MANAGER_PLUGIN_DIR' ) ) {
+	define( 'PHOTO_COMPETITION_MANAGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+}
+
 require_once __DIR__ . '/includes/bootstrap.php';
 
 register_activation_hook(
