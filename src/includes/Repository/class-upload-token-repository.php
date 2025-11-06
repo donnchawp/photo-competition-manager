@@ -56,6 +56,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Find a valid token by hash.
 	 *
+	 * Records the first access timestamp if this is the first time the token is used.
+	 *
 	 * @param string $token_hash Hashed token.
 	 * @return object|null Token record or null if not found/invalid.
 	 */
@@ -65,7 +67,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		return $this->wpdb->get_row(
+		$token = $this->wpdb->get_row(
 			$this->wpdb->prepare(
 				"SELECT * FROM {$this->table()}
 				WHERE token_hash = %s
@@ -77,6 +79,22 @@ class Upload_Token_Repository extends Abstract_Repository {
 			)
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
+
+		// Track first access if token is found and hasn't been accessed before.
+		if ( $token && null === $token->first_accessed_at ) {
+			$this->wpdb->update(
+				$this->table(),
+				array( 'first_accessed_at' => current_time( 'mysql' ) ),
+				array( 'id' => $token->id ),
+				array( '%s' ),
+				array( '%d' )
+			);
+
+			// Update the token object to reflect the change.
+			$token->first_accessed_at = current_time( 'mysql' );
+		}
+
+		return $token;
 	}
 
 	/**
@@ -299,6 +317,44 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		return (bool) $result;
+	}
+
+	/**
+	 * Get tracking data for all members in a competition.
+	 *
+	 * Returns array indexed by member_id with link sent/opened status.
+	 *
+	 * @since 1.1.0
+	 * @param int $competition_id Competition ID.
+	 * @return array<int, object> Array of tracking data indexed by member_id.
+	 */
+	public function get_tracking_by_competition( int $competition_id ): array {
+		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+			return array();
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$results = $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				"SELECT
+					member_id,
+					MIN(created_at) as first_sent_at,
+					MIN(first_accessed_at) as first_opened_at,
+					COUNT(*) as token_count
+				FROM {$this->table()}
+				WHERE competition_id = %d
+				GROUP BY member_id",
+				$competition_id
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		$tracking = array();
+		foreach ( $results as $row ) {
+			$tracking[ (int) $row->member_id ] = $row;
+		}
+
+		return $tracking;
 	}
 
 	/**

@@ -648,6 +648,12 @@ class Submissions_Controller {
 						++$member_counts[ $mid ][ $cat ];
 					}
 
+					// Get link tracking data.
+					$upload_token_repo = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
+					$voting_token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
+					$upload_tracking   = $upload_token_repo->get_tracking_by_competition( $competition_id );
+					$voting_tracking   = $voting_token_repo->get_tracking_by_competition( $competition_id );
+
 					// Build quota map.
 					$quota_map = array();
 					foreach ( $categories as $cat_config ) {
@@ -668,6 +674,8 @@ class Submissions_Controller {
 						echo '<th>' . esc_html( $cat_config['label'] ) . '</th>';
 					}
 					echo '<th>' . esc_html__( 'Total', 'photo-competition-manager' ) . '</th>';
+					echo '<th>' . esc_html__( 'Upload Link Opened', 'photo-competition-manager' ) . '</th>';
+					echo '<th>' . esc_html__( 'Voting Link Opened', 'photo-competition-manager' ) . '</th>';
 					echo '</tr></thead>';
 					echo '<tbody>';
 
@@ -704,6 +712,27 @@ class Submissions_Controller {
 						}
 
 						echo '<td><strong>' . esc_html( (string) $total_count ) . '</strong></td>';
+
+						// Upload link tracking.
+						$upload_opened = isset( $upload_tracking[ $mid ] ) && ! empty( $upload_tracking[ $mid ]->first_opened_at );
+						echo '<td style="text-align: center;">';
+						if ( $upload_opened ) {
+							echo '<span style="color: #46b450; font-size: 18px;" title="' . esc_attr__( 'Link opened', 'photo-competition-manager' ) . '">&#10003;</span>';
+						} else {
+							echo '<span style="color: #999; font-size: 18px;" title="' . esc_attr__( 'Not opened', 'photo-competition-manager' ) . '">&#10005;</span>';
+						}
+						echo '</td>';
+
+						// Voting link tracking.
+						$voting_opened = isset( $voting_tracking[ $mid ] ) && ! empty( $voting_tracking[ $mid ]->first_opened_at );
+						echo '<td style="text-align: center;">';
+						if ( $voting_opened ) {
+							echo '<span style="color: #46b450; font-size: 18px;" title="' . esc_attr__( 'Link opened', 'photo-competition-manager' ) . '">&#10003;</span>';
+						} else {
+							echo '<span style="color: #999; font-size: 18px;" title="' . esc_attr__( 'Not opened', 'photo-competition-manager' ) . '">&#10005;</span>';
+						}
+						echo '</td>';
+
 						echo '</tr>';
 					}
 

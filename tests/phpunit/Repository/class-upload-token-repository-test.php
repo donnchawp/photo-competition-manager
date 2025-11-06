@@ -255,4 +255,123 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		// Check for competition 3.
 		$this->assertFalse( $this->repo->has_recent_token( $member_id, 3 ) );
 	}
+
+	/**
+	 * Test first_accessed_at is set on first find_valid_token call.
+	 */
+	public function test_first_accessed_at_set_on_first_access() {
+		$token_hash = hash( 'sha256', 'tracking_test_token' );
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+
+		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
+		$this->assertIsInt( $token_id );
+
+		// First access should set first_accessed_at.
+		$found = $this->repo->find_valid_token( $token_hash );
+		$this->assertNotNull( $found );
+		$this->assertNotNull( $found->first_accessed_at );
+
+		// Store the timestamp.
+		$first_timestamp = $found->first_accessed_at;
+
+		// Wait a moment to ensure time difference.
+		sleep( 1 );
+
+		// Second access should NOT update first_accessed_at.
+		$found_again = $this->repo->find_valid_token( $token_hash );
+		$this->assertNotNull( $found_again );
+		$this->assertEquals( $first_timestamp, $found_again->first_accessed_at );
+	}
+
+	/**
+	 * Test first_accessed_at is NOT updated on subsequent accesses.
+	 */
+	public function test_first_accessed_at_not_updated_on_subsequent_access() {
+		$token_hash = hash( 'sha256', 'tracking_update_test' );
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+
+		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
+
+		// Access token multiple times.
+		$first_find  = $this->repo->find_valid_token( $token_hash );
+		$first_time  = $first_find->first_accessed_at;
+
+		sleep( 1 );
+
+		$second_find = $this->repo->find_valid_token( $token_hash );
+		$third_find  = $this->repo->find_valid_token( $token_hash );
+
+		// All should have the same first_accessed_at.
+		$this->assertEquals( $first_time, $second_find->first_accessed_at );
+		$this->assertEquals( $first_time, $third_find->first_accessed_at );
+	}
+
+	/**
+	 * Test get_tracking_by_competition returns correct data.
+	 */
+	public function test_get_tracking_by_competition() {
+		$competition_id = 5;
+
+		// Create tokens for different members.
+		$token1 = hash( 'sha256', 'tracking_member_1' );
+		$token2 = hash( 'sha256', 'tracking_member_2' );
+		$token3 = hash( 'sha256', 'tracking_member_3' );
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+
+		$this->repo->create( 1, $competition_id, $token1, $expires_at );
+		$this->repo->create( 2, $competition_id, $token2, $expires_at );
+		$this->repo->create( 3, $competition_id, $token3, $expires_at );
+
+		// Access only some tokens.
+		$this->repo->find_valid_token( $token1 );
+		$this->repo->find_valid_token( $token3 );
+
+		// Get tracking data.
+		$tracking = $this->repo->get_tracking_by_competition( $competition_id );
+
+		// Should have 3 members.
+		$this->assertCount( 3, $tracking );
+
+		// Member 1 should have opened link.
+		$this->assertArrayHasKey( 1, $tracking );
+		$this->assertNotNull( $tracking[1]->first_opened_at );
+
+		// Member 2 should NOT have opened link.
+		$this->assertArrayHasKey( 2, $tracking );
+		$this->assertNull( $tracking[2]->first_opened_at );
+
+		// Member 3 should have opened link.
+		$this->assertArrayHasKey( 3, $tracking );
+		$this->assertNotNull( $tracking[3]->first_opened_at );
+	}
+
+	/**
+	 * Test get_tracking_by_competition with no tokens returns empty array.
+	 */
+	public function test_get_tracking_by_competition_empty() {
+		$tracking = $this->repo->get_tracking_by_competition( 999 );
+		$this->assertIsArray( $tracking );
+		$this->assertEmpty( $tracking );
+	}
+
+	/**
+	 * Test get_tracking_by_competition only returns data for specified competition.
+	 */
+	public function test_get_tracking_by_competition_filters_correctly() {
+		$token1 = hash( 'sha256', 'filter_comp_1' );
+		$token2 = hash( 'sha256', 'filter_comp_2' );
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+
+		// Create tokens for different competitions.
+		$this->repo->create( 1, 10, $token1, $expires_at );
+		$this->repo->create( 2, 20, $token2, $expires_at );
+
+		// Get tracking for competition 10.
+		$tracking = $this->repo->get_tracking_by_competition( 10 );
+
+		// Should only have member 1.
+		$this->assertCount( 1, $tracking );
+		$this->assertArrayHasKey( 1, $tracking );
+		$this->assertArrayNotHasKey( 2, $tracking );
+	}
 }
