@@ -104,11 +104,11 @@ class Members_Controller {
 			$competition = $this->competitions->find( $competition_id );
 			$member      = $this->members->find( $member_id );
 
-			if ( ! $competition || 'active' !== $competition->status ) {
+			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
 				add_settings_error(
 					'photo_competition_members',
 					'invalid_competition',
-					__( 'Competition must be active to send upload emails.', 'photo-competition-manager' ),
+					__( 'Competition must be open to send upload emails.', 'photo-competition-manager' ),
 					'error'
 				);
 				wp_safe_redirect( $this->members_url() );
@@ -749,8 +749,8 @@ class Members_Controller {
 						),
 					);
 
-					// Add "Send Upload Email" if we have an active competition and active member with email.
-					if ( $active_competition && 'active' === $active_competition->status && $member->active && ! empty( $member->email ) ) {
+					// Add "Send Upload Email" if we have an open competition and active member with email.
+					if ( $active_competition && $this->competitions->is_open( $active_competition ) && $member->active && ! empty( $member->email ) ) {
 						$send_url = wp_nonce_url(
 							add_query_arg(
 								array(

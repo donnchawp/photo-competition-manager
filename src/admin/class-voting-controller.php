@@ -473,23 +473,23 @@ class Voting_Controller {
 		// Competition Night Workflow Guide.
 		$this->render_workflow_guide();
 
-		// Get all active competitions.
-		$all_competitions    = $this->competitions->all( 100, false, false );
-		$active_competitions = array_filter(
+		// Get all open competitions.
+		$all_competitions  = $this->competitions->all( 100, false, false );
+		$open_competitions = array_filter(
 			$all_competitions,
 			function ( $comp ) {
-				return 'active' === $comp->status;
+				return $this->competitions->is_open( $comp );
 			}
 		);
 
-		if ( empty( $active_competitions ) ) {
-			echo '<p>' . esc_html__( 'No active competitions found. Set a competition status to "Active" to enable voting controls.', 'photo-competition-manager' ) . '</p>';
+		if ( empty( $open_competitions ) ) {
+			echo '<p>' . esc_html__( 'No open competitions found. Create a competition with open and close dates to enable voting controls.', 'photo-competition-manager' ) . '</p>';
 			echo '</div>';
 			return;
 		}
 
 		// Check for members with submissions but no grades.
-		$members_without_grades = $this->check_members_without_grades( $active_competitions );
+		$members_without_grades = $this->check_members_without_grades( $open_competitions );
 		if ( ! empty( $members_without_grades ) ) {
 			echo '<div class="notice notice-error">';
 			echo '<p><strong>' . esc_html__( 'ERROR: Some members have submitted images but do not have grades assigned!', 'photo-competition-manager' ) . '</strong></p>';
@@ -520,7 +520,7 @@ class Voting_Controller {
 		$open_category_slug   = null;
 		$open_competition     = null;
 
-		foreach ( $active_competitions as $competition ) {
+		foreach ( $open_competitions as $competition ) {
 			$settings        = Competition_Settings::parse( $competition->settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 
@@ -612,7 +612,7 @@ class Voting_Controller {
 		echo '</tr></thead>';
 		echo '<tbody>';
 
-		foreach ( $active_competitions as $competition ) {
+		foreach ( $open_competitions as $competition ) {
 			$settings        = Competition_Settings::parse( $competition->settings );
 			$categories      = Competition_Settings::get_categories( $settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );

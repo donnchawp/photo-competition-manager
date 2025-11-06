@@ -93,7 +93,6 @@ class Activator {
 			slug VARCHAR(191) NOT NULL,
 			open_date DATETIME NULL,
 			close_date DATETIME NULL,
-			status VARCHAR(50) NOT NULL DEFAULT 'draft',
 			settings LONGTEXT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,

@@ -128,8 +128,8 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Find the current active competition.
 	 *
-	 * Prefers competitions with status "active" whose open date has started and
-	 * that have not been archived.
+	 * Returns a competition whose open date has started, close date has not passed,
+	 * and that has not been archived.
 	 *
 	 * @return object|null
 	 */
@@ -143,8 +143,7 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()}\n\t\t\t\tWHERE status = %s\n\t\t\t\tAND deleted_at IS NULL\n\t\t\t\tAND (open_date IS NULL OR open_date <= %s)\n\t\t\t\tAND (close_date IS NULL OR close_date >= %s)\n\t\t\t\tORDER BY open_date DESC, created_at DESC\n\t\t\t\tLIMIT 1",
-				'active',
+				"SELECT * FROM {$this->table()}\n\t\t\t\tWHERE deleted_at IS NULL\n\t\t\t\tAND (open_date IS NULL OR open_date <= %s)\n\t\t\t\tAND (close_date IS NULL OR close_date >= %s)\n\t\t\t\tORDER BY open_date DESC, created_at DESC\n\t\t\t\tLIMIT 1",
 				$current,
 				$current
 			)
@@ -177,7 +176,6 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_slug', __( 'A competition with this slug already exists.', 'photo-competition-manager' ) );
 		}
 
-		$status     = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : 'draft';
 		$open_date  = $this->normalize_date( $data['open_date'] ?? null );
 		$close_date = $this->normalize_date( $data['close_date'] ?? null );
 		$now        = current_time( 'mysql' );
@@ -185,7 +183,6 @@ class Competitions_Repository extends Abstract_Repository {
 		$payload = array(
 			'title'      => $title,
 			'slug'       => $slug,
-			'status'     => $status ? $status : 'draft',
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
@@ -194,7 +191,6 @@ class Competitions_Repository extends Abstract_Repository {
 		);
 
 		$format = array(
-			'%s',
 			'%s',
 			'%s',
 			'%s',
@@ -247,14 +243,12 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_slug', __( 'A competition with this slug already exists.', 'photo-competition-manager' ) );
 		}
 
-		$status     = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : $current->status;
 		$open_date  = array_key_exists( 'open_date', $data ) ? $this->normalize_date( $data['open_date'] ) : $current->open_date;
 		$close_date = array_key_exists( 'close_date', $data ) ? $this->normalize_date( $data['close_date'] ) : $current->close_date;
 
 		$payload = array(
 			'title'      => $title,
 			'slug'       => $slug,
-			'status'     => $status ? $status : 'draft',
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
@@ -262,7 +256,6 @@ class Competitions_Repository extends Abstract_Repository {
 		);
 
 		$format = array(
-			'%s',
 			'%s',
 			'%s',
 			'%s',
@@ -300,12 +293,11 @@ class Competitions_Repository extends Abstract_Repository {
 		$updated = $this->wpdb->update(
 			$this->table(),
 			array(
-				'status'     => 'archived',
 				'deleted_at' => current_time( 'mysql' ),
 				'updated_at' => current_time( 'mysql' ),
 			),
 			array( 'id' => $id ),
-			array( '%s', '%s', '%s' ),
+			array( '%s', '%s' ),
 			array( '%d' )
 		);
 
@@ -478,10 +470,10 @@ class Competitions_Repository extends Abstract_Repository {
 			);
 		}
 
-		if ( 'active' !== $competition->status ) {
+		if ( ! $this->is_open( $competition ) ) {
 			return new WP_Error(
-				'invalid_status',
-				__( 'Competition must be active to send reminder emails.', 'photo-competition-manager' )
+				'competition_not_open',
+				__( 'Competition must be open to send reminder emails.', 'photo-competition-manager' )
 			);
 		}
 
@@ -547,5 +539,77 @@ class Competitions_Repository extends Abstract_Repository {
 				$total_count
 			),
 		);
+	}
+
+	/**
+	 * Check if a competition is open (within date range and not deleted).
+	 *
+	 * @param object $competition Competition object.
+	 * @return bool
+	 */
+	public function is_open( object $competition ): bool {
+		if ( ! empty( $competition->deleted_at ) ) {
+			return false;
+		}
+
+		$current = current_time( 'mysql' );
+
+		// Check if open_date has passed (or is null).
+		if ( ! empty( $competition->open_date ) && $competition->open_date > $current ) {
+			return false;
+		}
+
+		// Check if close_date has not passed (or is null).
+		if ( ! empty( $competition->close_date ) && $competition->close_date < $current ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check if a competition is accepting uploads.
+	 *
+	 * @param object $competition Competition object.
+	 * @return bool
+	 */
+	public function is_accepting_uploads( object $competition ): bool {
+		if ( ! $this->is_open( $competition ) ) {
+			return false;
+		}
+
+		// Check uploads_closed setting.
+		$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
+		if ( ! empty( $settings['uploads_closed'] ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check if a competition is accepting votes for a specific category.
+	 *
+	 * @param object      $competition Competition object.
+	 * @param string|null $category    Category slug (optional).
+	 * @return bool
+	 */
+	public function is_accepting_votes( object $competition, ?string $category = null ): bool {
+		if ( ! $this->is_open( $competition ) ) {
+			return false;
+		}
+
+		// Check open_categories setting.
+		if ( null !== $category ) {
+			$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
+			$open_categories = $settings['open_categories'] ?? array();
+
+			// If open_categories is set and category is not in it, voting is closed for this category.
+			if ( ! empty( $open_categories ) && ! in_array( $category, $open_categories, true ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

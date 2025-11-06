@@ -92,25 +92,8 @@ class Upload_Handler {
 
 		if ( ! $skip_time_gate ) {
 			// Regular validation for public uploads.
-			if ( 'active' !== $competition->status ) {
+			if ( ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
 				return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
-			}
-
-			// Check if uploads have been manually closed.
-			$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-			$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
-			if ( $uploads_closed ) {
-				return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed for this competition.', 'photo-competition-manager' ) );
-			}
-
-			// Check if competition is within submission period.
-			$now = current_time( 'mysql' );
-			if ( $competition->open_date && $now < $competition->open_date ) {
-				return new WP_Error( 'not_open_yet', __( 'Competition submissions have not opened yet.', 'photo-competition-manager' ) );
-			}
-
-			if ( $competition->close_date && $now > $competition->close_date ) {
-				return new WP_Error( 'closed', __( 'Competition submissions have closed.', 'photo-competition-manager' ) );
 			}
 		}
 
@@ -260,15 +243,8 @@ class Upload_Handler {
 
 		// Check if competition is still open.
 		$competition = $this->competitions_repo->find( $competition_id );
-		if ( ! $competition || 'active' !== $competition->status ) {
+		if ( ! $competition || ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
 			return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'photo-competition-manager' ) );
-		}
-
-		// Check if uploads have been manually closed.
-		$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
-		if ( $uploads_closed ) {
-			return new WP_Error( 'uploads_closed', __( 'Image uploads have been closed. You can no longer delete images.', 'photo-competition-manager' ) );
 		}
 
 		// Delete files and original attachment.

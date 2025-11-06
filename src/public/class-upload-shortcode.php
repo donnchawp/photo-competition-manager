@@ -436,18 +436,8 @@ class Upload_Shortcode {
 				<?php echo wp_kses_post( $message ); ?>
 			<?php endif; ?>
 
-			<?php if ( 'active' !== $competition->status ) : ?>
+			<?php if ( ! $this->competitions_repo->is_accepting_uploads( $competition ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
-				<?php return; ?>
-			<?php endif; ?>
-
-			<?php
-			// Check if uploads have been manually closed.
-			$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-			$uploads_closed = $settings['upload']['uploads_closed'] ?? false;
-			if ( $uploads_closed ) :
-				?>
-				<p class="notice"><?php esc_html_e( 'Image uploads have been closed for this competition.', 'photo-competition-manager' ); ?></p>
 				<?php return; ?>
 			<?php endif; ?>
 

@@ -76,23 +76,15 @@ class Competitions_Controller {
 
 			$title_raw      = $this->get_post_string( 'competition_title' );
 			$slug_raw       = $this->get_post_string( 'competition_slug' );
-			$status_raw     = $this->get_post_string( 'competition_status', 'draft' );
 			$open_date_raw  = $this->get_post_string( 'competition_open_date' );
 			$close_date_raw = $this->get_post_string( 'competition_close_date' );
 
-			$title  = sanitize_text_field( $title_raw );
-			$slug   = sanitize_title( $slug_raw );
-			$status = sanitize_key( $status_raw );
-
-			$allowed_statuses = array( 'draft', 'scheduled', 'active', 'closed' );
-			if ( ! in_array( $status, $allowed_statuses, true ) ) {
-				$status = 'draft';
-			}
+			$title = sanitize_text_field( $title_raw );
+			$slug  = sanitize_title( $slug_raw );
 
 			$data = array(
 				'title'      => $title,
 				'slug'       => $slug,
-				'status'     => $status,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
 				'settings'   => $this->get_global_settings(),
@@ -127,23 +119,15 @@ class Competitions_Controller {
 
 			$title_raw      = $this->get_post_string( 'competition_title' );
 			$slug_raw       = $this->get_post_string( 'competition_slug' );
-			$status_raw     = $this->get_post_string( 'competition_status', 'draft' );
 			$open_date_raw  = $this->get_post_string( 'competition_open_date' );
 			$close_date_raw = $this->get_post_string( 'competition_close_date' );
 
-			$title  = sanitize_text_field( $title_raw );
-			$slug   = sanitize_title( $slug_raw );
-			$status = sanitize_key( $status_raw );
-
-			$allowed_statuses = array( 'draft', 'scheduled', 'active', 'closed' );
-			if ( ! in_array( $status, $allowed_statuses, true ) ) {
-				$status = 'draft';
-			}
+			$title = sanitize_text_field( $title_raw );
+			$slug  = sanitize_title( $slug_raw );
 
 			$data = array(
 				'title'      => $title,
 				'slug'       => $slug,
-				'status'     => $status,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
 			);
@@ -617,29 +601,6 @@ class Competitions_Controller {
 		echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" value="' . esc_attr( $competition->slug ) . '" />';
 		echo '</p>';
 
-		echo '<p>';
-		echo '<label for="competition_status">' . esc_html__( 'Status', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="competition_status" name="competition_status">';
-
-		$statuses = array(
-			'draft'     => __( 'Draft', 'photo-competition-manager' ),
-			'scheduled' => __( 'Scheduled', 'photo-competition-manager' ),
-			'active'    => __( 'Active', 'photo-competition-manager' ),
-			'closed'    => __( 'Closed', 'photo-competition-manager' ),
-		);
-
-		foreach ( $statuses as $value => $label ) {
-			printf(
-				'<option value="%s"%s>%s</option>',
-				esc_attr( $value ),
-				selected( $competition->status, $value, false ),
-				esc_html( $label )
-			);
-		}
-
-		echo '</select>';
-		echo '</p>';
-
 		$label_format = $this->get_ui_date_label();
 		echo '<p>';
 		echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'photo-competition-manager' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
@@ -968,7 +929,6 @@ class Competitions_Controller {
 		echo '<table class="widefat striped">';
 		echo '<thead><tr>';
 		echo '<th>' . esc_html__( 'Title', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Opens', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Closes', 'photo-competition-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Last Updated', 'photo-competition-manager' ) . '</th>';
@@ -990,7 +950,6 @@ class Competitions_Controller {
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $competition->title ) . '</td>';
-			echo '<td>' . esc_html( $competition->status ) . '</td>';
 			echo '<td>' . esc_html( $this->format_datetime( $competition->open_date ) ) . '</td>';
 			echo '<td>' . esc_html( $this->format_datetime( $competition->close_date ) ) . '</td>';
 			$last_updated = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
@@ -1000,7 +959,7 @@ class Competitions_Controller {
 				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
 			);
 
-			if ( 'active' === $competition->status && ! $is_archived ) {
+			if ( $this->competitions->is_open( $competition ) && ! $is_archived ) {
 				$send_email_link = wp_nonce_url(
 					add_query_arg(
 						array(
@@ -1015,7 +974,7 @@ class Competitions_Controller {
 
 				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $send_email_link ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 			} else {
-				$actions[] = sprintf( '<span title="Send only on active competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+				$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 			}
 
 			if ( $is_archived ) {
@@ -1157,16 +1116,6 @@ class Competitions_Controller {
 		echo '<p>';
 		echo '<label for="competition_slug">' . esc_html__( 'Slug (optional)', 'photo-competition-manager' ) . '</label><br />';
 		echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_status">' . esc_html__( 'Status', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="competition_status" name="competition_status">';
-		echo '<option value="draft">' . esc_html__( 'Draft', 'photo-competition-manager' ) . '</option>';
-		echo '<option value="scheduled">' . esc_html__( 'Scheduled', 'photo-competition-manager' ) . '</option>';
-		echo '<option value="active">' . esc_html__( 'Active', 'photo-competition-manager' ) . '</option>';
-		echo '<option value="closed">' . esc_html__( 'Closed', 'photo-competition-manager' ) . '</option>';
-		echo '</select>';
 		echo '</p>';
 
 		echo '<p>';
