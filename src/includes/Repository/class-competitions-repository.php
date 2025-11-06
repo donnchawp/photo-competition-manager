@@ -601,7 +601,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		// Check open_categories setting.
 		if ( null !== $category ) {
-			$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
+			$settings        = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
 			$open_categories = $settings['open_categories'] ?? array();
 
 			// If open_categories is set and category is not in it, voting is closed for this category.
