@@ -46,7 +46,7 @@ class Competitions_Repository extends Abstract_Repository {
 		$sql .= " $conditions ";
 		$sql .= $wpdb->prepare( ' ORDER BY created_at DESC LIMIT %d', (int) $limit );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql is prepared.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
 		return $wpdb->get_results( $sql );
 	}
 
