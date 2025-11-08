@@ -29,12 +29,14 @@ class Members_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where = $only_active ? 'WHERE active = 1' : '';
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = sprintf( 'SELECT * FROM %s %s ORDER BY name ASC', $this->table(), $where );
+		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $sql );
+		$where = $only_active ? 'WHERE active = 1' : '';
+		$sql   = $wpdb->prepare( 'SELECT * FROM %i ', $this->table() );
+		$sql  .= "$where ORDER BY name ASC";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
@@ -100,13 +102,16 @@ class Members_Repository extends Abstract_Repository {
 			return array();
 		}
 
+		global $wpdb;
+
 		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		$table        = $this->table();
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = sprintf( 'SELECT * FROM %s WHERE id IN (%s)', $this->table(), $placeholders );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = $wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", array( $table, $ids ) );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_results( $this->wpdb->prepare( $sql, ...$ids ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
+		$results = $wpdb->get_results( $sql );
 
 		$map = array();
 		foreach ( $results as $member ) {
