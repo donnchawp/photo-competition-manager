@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Service
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Service;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_Error;

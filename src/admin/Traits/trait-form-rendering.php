@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Admin\Traits
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Admin\Traits;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 /**
  * Provides form input helper methods for admin controllers.

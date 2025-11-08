@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Admin
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Admin;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 

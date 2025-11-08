@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;

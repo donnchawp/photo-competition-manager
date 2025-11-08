@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Admin\Traits
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Admin\Traits;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 /**
  * Provides date formatting and parsing methods with locale support.

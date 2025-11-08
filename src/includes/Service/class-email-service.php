@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Service
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Service;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 /**
  * Class Email_Service

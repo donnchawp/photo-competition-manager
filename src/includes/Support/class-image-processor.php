@@ -4,12 +4,10 @@
  *
  * @package PhotoCompetitionManager\Support
  */
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
-}
-
 
 namespace PhotoCompetitionManager\Support;
+
+defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
 
