@@ -27,34 +27,24 @@ class Images_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return array();
 		}
 
-		$conditions = array( 'competition_id = %d' );
-		$params     = array( $competition_id );
-
+		$sql  = $wpdb->prepare( 'SELECT * FROM %i WHERE ', $this->table() );
+		$sql .= $wpdb->prepare( 'competition_id = %d', $competition_id );
 		if ( null !== $category ) {
-			$conditions[] = 'category = %s';
-			$params[]     = $category;
+			$sql .= $wpdb->prepare( ' AND category = %s', $category );
 		}
-
 		if ( null !== $member_id ) {
-			$conditions[] = 'member_id = %d';
-			$params[]     = $member_id;
+			$sql .= $wpdb->prepare( ' AND member_id = %d', $member_id );
 		}
+		$sql .= ' ORDER BY category, random_number';
 
-		$where = implode( ' AND ', $conditions );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = sprintf(
-			' SELECT * FROM %s WHERE %s ORDER BY category, random_number',
-			$this->table(),
-			$where
-		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, ...$params ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
