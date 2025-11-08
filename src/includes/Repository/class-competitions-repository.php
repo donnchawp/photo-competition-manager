@@ -29,6 +29,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function all( int $limit = 20, bool $include_archived = false, bool $only_archived = false ): array {
+		global $wpdb;
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -41,15 +42,12 @@ class Competitions_Repository extends Abstract_Repository {
 			$conditions = 'deleted_at IS NULL';
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- LIMIT is prepared separately.
-		$sql = sprintf(
-			'SELECT * FROM %s WHERE %s ORDER BY created_at DESC LIMIT %%d',
-			$this->table(),
-			$conditions
-		);
+		$sql  = $wpdb->prepare( 'SELECT * FROM %i WHERE ', $this->table() );
+		$sql .= " $conditions ";
+		$sql .= $wpdb->prepare( ' ORDER BY created_at DESC LIMIT %d', (int) $limit );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, $limit ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql is prepared.
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
