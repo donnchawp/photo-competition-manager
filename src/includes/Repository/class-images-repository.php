@@ -58,14 +58,16 @@ class Images_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = sprintf(
-			'SELECT * FROM %s WHERE member_id = %%d ORDER BY created_at DESC',
-			$this->table()
+		global $wpdb;
+
+		$sql = $wpdb->prepare(
+			'SELECT * FROM %i WHERE member_id = %d ORDER BY created_at DESC',
+			$this->table(),
+			$member_id
 		);
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, $member_id ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
