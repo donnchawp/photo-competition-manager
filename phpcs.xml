@@ -18,6 +18,16 @@
 		</properties>
 	</rule>
 
+	<!-- Configure plugin prefix for namespace validation -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="PhotoCompetitionManager"/>
+				<element value="photo_competition_manager"/>
+			</property>
+		</properties>
+	</rule>
+
 	<!-- Show progress and colors -->
 	<arg value="ps"/>
 	<arg name="colors"/>
