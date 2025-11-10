@@ -57,11 +57,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$condition = $only_archived ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = "SELECT COUNT(*) FROM {$this->table()} WHERE {$condition}";
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return (int) $this->wpdb->get_var( $sql );
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $condition", $this->table() ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -85,7 +81,8 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE id = %d{$conditions}",
+				"SELECT * FROM %i WHERE id = %d{$conditions}",
+				$this->table(),
 				$id
 			)
 		);
@@ -112,7 +109,8 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()} WHERE slug = %s{$conditions}",
+				"SELECT * FROM %i WHERE slug = %s{$conditions}",
+				$this->table(),
 				$slug
 			)
 		);
@@ -137,7 +135,8 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()}\n\t\t\t\tWHERE deleted_at IS NULL\n\t\t\t\tAND (open_date IS NULL OR open_date <= %s)\n\t\t\t\tAND (close_date IS NULL OR close_date >= %s)\n\t\t\t\tORDER BY open_date DESC, created_at DESC\n\t\t\t\tLIMIT 1",
+				'SELECT * FROM %i WHERE deleted_at IS NULL AND (open_date IS NULL OR open_date <= %s) AND (close_date IS NULL OR close_date >= %s) ORDER BY open_date DESC, created_at DESC LIMIT 1',
+				$this->table(),
 				$current,
 				$current
 			)
@@ -404,7 +403,8 @@ class Competitions_Repository extends Abstract_Repository {
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$this->table()} WHERE slug = %s{$conditions}",
+			'SELECT COUNT(*) FROM %i WHERE slug = %s' . $conditions,
+			$this->table(),
 			...$params
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -499,7 +499,7 @@ class Competitions_Repository extends Abstract_Repository {
 				}
 			}
 		}
-		$upload_page_url = apply_filters( 'photo_comp_upload_page_url', $upload_page_url, $competition );
+		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 		// Use token repository to generate tokens and send emails.
 		$token_repo  = new Upload_Token_Repository();
