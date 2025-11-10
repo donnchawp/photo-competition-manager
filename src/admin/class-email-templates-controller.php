@@ -53,6 +53,7 @@ class Email_Templates_Controller {
 
 		$action = '';
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Safe read of action for routing; actual data processing requires nonce check below.
 		if ( isset( $_POST['photo_competition_action'] ) ) {
 			$action = sanitize_key( wp_unslash( $_POST['photo_competition_action'] ) );
 		}
