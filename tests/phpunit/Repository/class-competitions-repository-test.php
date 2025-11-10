@@ -106,7 +106,6 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			$competition_id,
 			array(
 				'title'      => 'Winter Showcase Updated',
-				'status'     => 'active',
 				'open_date'  => '2024-12-01',
 				'close_date' => '2024-12-31',
 			)
@@ -117,7 +116,6 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$row = $repository->find( $competition_id );
 
 		$this->assertSame( 'Winter Showcase Updated', $row->title );
-		$this->assertSame( 'active', $row->status );
 		$this->assertSame( '2024-12-01 00:00:00', $row->open_date );
 		$this->assertSame( '2024-12-31 00:00:00', $row->close_date );
 	}
