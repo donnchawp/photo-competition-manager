@@ -390,7 +390,9 @@ class Export_Screen {
 		// Use WP_Filesystem to read the file.
 		global $wp_filesystem;
 		if ( ! $wp_filesystem ) {
-			require_once ABSPATH . 'wp-admin/includes/file.php';
+			if ( ! function_exists( 'WP_Filesystem' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/file.php';
+			}
 			WP_Filesystem();
 		}
 

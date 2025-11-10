@@ -57,7 +57,9 @@ class Activator {
 	private static function create_tables(): void {
 		global $wpdb;
 
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		if ( ! function_exists( 'dbDelta' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		}
 
 		foreach ( self::get_schema( $wpdb ) as $sql ) {
 			dbDelta( $sql );
