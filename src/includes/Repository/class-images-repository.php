@@ -27,24 +27,33 @@ class Images_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
-		global $wpdb;
-
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return array();
 		}
 
-		$sql  = $wpdb->prepare( 'SELECT * FROM %i WHERE ', $this->table() );
-		$sql .= $wpdb->prepare( 'competition_id = %d', $competition_id );
-		if ( null !== $category ) {
-			$sql .= $wpdb->prepare( ' AND category = %s', $category );
-		}
-		if ( null !== $member_id ) {
-			$sql .= $wpdb->prepare( ' AND member_id = %d', $member_id );
-		}
-		$sql .= ' ORDER BY category, random_number';
+		$conditions = array( 'competition_id = %d' );
+		$params     = array( $this->table(), $competition_id );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		return $wpdb->get_results( $sql );
+		if ( null !== $category ) {
+			$conditions[] = 'category = %s';
+			$params[]     = $category;
+		}
+
+		if ( null !== $member_id ) {
+			$conditions[] = 'member_id = %d';
+			$params[]     = $member_id;
+		}
+
+		$where = implode( ' AND ', $conditions );
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY category, random_number',
+				...$params
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -118,11 +127,14 @@ class Images_Repository extends Abstract_Repository {
 
 		$where = implode( ' AND ', $conditions );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = $wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $where", $params );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		return (int) $wpdb->get_var( $sql );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		return (int) $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE ' . $where,
+				...$params
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**

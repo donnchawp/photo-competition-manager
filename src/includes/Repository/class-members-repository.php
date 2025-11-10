@@ -29,14 +29,16 @@ class Members_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where = $only_active ? 'WHERE active = 1' : '';
+		$where = $only_active ? 'WHERE active = 1 ' : '';
 
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
 		return $this->wpdb->get_results(
-			$this->wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				'SELECT * FROM %i ' . $where . 'ORDER BY name ASC', // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				$this->table() // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$this->wpdb->prepare(
+				'SELECT * FROM %i ' . $where . 'ORDER BY name ASC',
+				$this->table()
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -103,12 +105,20 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-		$table        = $this->table();
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Placeholders built dynamically for IN clause; count matches at runtime.
-		$sql = $this->wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $table, ...$ids );
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		return $this->wpdb->get_results( $sql );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Placeholders built dynamically for IN clause; count matches at runtime.
+			$this->wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $this->table(), ...$ids )
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+
+		$map = array();
+		foreach ( $results as $member ) {
+			$map[ (int) $member->id ] = $member;
+		}
+
+		return $map;
 	}
 
 	/**
