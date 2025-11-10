@@ -14,10 +14,11 @@ if ( ! defined( 'PHOTO_COMPETITION_MANAGER_VERSION' ) ) {
 	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.1.0' );
 }
 
-$autoload = dirname( PHOTO_COMPETITION_MANAGER_PLUGIN_DIR ) . '/vendor/autoload.php';
+// Load Composer autoloader if it exists.
+$photo_competition_manager_autoload = dirname( __DIR__ ) . '/vendor/autoload.php';
 
-if ( file_exists( $autoload ) ) {
-	require_once $autoload;
+if ( file_exists( $photo_competition_manager_autoload ) ) {
+	require_once $photo_competition_manager_autoload;
 }
 
 require_once __DIR__ . '/Support/class-helpers.php';

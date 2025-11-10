@@ -231,7 +231,7 @@ class Members_Controller {
 				$upload_page_url = home_url( '/' );
 			}
 
-			$upload_page_url = apply_filters( 'photo_comp_upload_page_url', $upload_page_url, $competition );
+			$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 			$token_repo = new Upload_Token_Repository();
 			$result     = $token_repo->send_upload_link_for_member(
@@ -1043,7 +1043,7 @@ class Members_Controller {
 			return '';
 		}
 
-		$upload_page_url = apply_filters( 'photo_comp_upload_page_url', $upload_page_url, $competition );
+		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 		// Use the repository to generate the upload URL with a fresh token.
 		$token_repo = new Upload_Token_Repository();
