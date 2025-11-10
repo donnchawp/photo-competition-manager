@@ -125,21 +125,23 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where = $this->wpdb->prepare( 'competition_id = %d', $competition_id );
+		$conditions = array( 'competition_id = %d' );
+		$params     = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
-			$where .= $this->wpdb->prepare( ' AND category = %s', $category );
+			$conditions[] = 'category = %s';
+			$params[]     = $category;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = sprintf(
-			'SELECT * FROM %s WHERE %s ORDER BY created_at DESC',
-			$this->table(),
-			$where
+		$where = implode( ' AND ', $conditions );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY created_at DESC',
+				...$params
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $sql );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -350,21 +352,25 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where = $this->wpdb->prepare( 'competition_id = %d', $competition_id );
+		$conditions = array( 'competition_id = %d' );
+		$params     = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
-			$where .= $this->wpdb->prepare( ' AND category = %s', $category );
+			$conditions[] = 'category = %s';
+			$params[]     = $category;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = sprintf(
-			'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %s WHERE %s GROUP BY image_id ORDER BY average_score DESC',
-			$this->table(),
-			$where
-		);
+		$where = implode( ' AND ', $conditions );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_results( $sql, ARRAY_A );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE ' . $where . ' GROUP BY image_id ORDER BY average_score DESC',
+				...$params
+			),
+			ARRAY_A
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
 		if ( ! is_array( $results ) ) {
 			return array();
