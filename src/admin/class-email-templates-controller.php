@@ -23,6 +23,22 @@ class Email_Templates_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Enqueue inline styles for email templates page.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( 'competitions_page_photo-competition-manager-email-templates' !== $hook ) {
+			return;
+		}
+
+		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;}';
+		wp_add_inline_style( 'wp-admin', $inline_css );
 	}
 
 	/**
@@ -100,22 +116,6 @@ class Email_Templates_Controller {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Email Templates', 'photo-competition-manager' ) . '</h1>';
 		echo '<p class="description">' . esc_html__( 'Customize the email templates sent to members. Use merge tags to personalize messages.', 'photo-competition-manager' ) . '</p>';
-
-		// Add custom CSS to widen the form.
-		echo '<style>
-			.photo-comp-email-templates .card {
-				max-width: none;
-			}
-			.photo-comp-email-templates .form-table {
-				max-width: none;
-			}
-			.photo-comp-email-templates .form-table th {
-				width: 180px;
-			}
-			.photo-comp-email-templates .form-table td {
-				padding-right: 0;
-			}
-		</style>';
 
 		echo '<form method="post" class="photo-comp-email-templates">';
 		wp_nonce_field( 'photo_competition_email_templates' );

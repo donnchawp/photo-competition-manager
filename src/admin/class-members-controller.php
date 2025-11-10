@@ -61,6 +61,88 @@ class Members_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Enqueue inline scripts for members page.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( 'competitions_page_photo-competition-manager-members' !== $hook ) {
+			return;
+		}
+
+		$inline_js = "
+		document.addEventListener('DOMContentLoaded', function() {
+			// Select all functionality
+			const selectAll = document.getElementById('cb-select-all-1');
+			if (selectAll) {
+				selectAll.addEventListener('change', function() {
+					const checkboxes = document.querySelectorAll('input[name=\"member_ids[]\"]');
+					checkboxes.forEach(function(checkbox) {
+						checkbox.checked = selectAll.checked;
+					});
+				});
+			}
+
+			// Show/hide grade selector based on bulk action
+			const bulkAction = document.getElementById('bulk-action-selector-top');
+			const gradeSelector = document.getElementById('bulk-grade-selector');
+			if (bulkAction && gradeSelector) {
+				bulkAction.addEventListener('change', function() {
+					if (bulkAction.value === 'bulk_update_grade') {
+						gradeSelector.style.display = 'inline-block';
+					} else {
+						gradeSelector.style.display = 'none';
+					}
+				});
+			}
+
+			// Form validation
+			const bulkForm = document.getElementById('bulk-members-form');
+			if (bulkForm) {
+				bulkForm.addEventListener('submit', function(e) {
+					const action = document.getElementById('bulk-action-selector-top').value;
+					if (action === '-1') {
+						e.preventDefault();
+						alert('" . esc_js( __( 'Please select a bulk action.', 'photo-competition-manager' ) ) . "');
+						return false;
+					}
+					const checked = document.querySelectorAll('input[name=\"member_ids[]\"]:checked');
+					if (checked.length === 0) {
+						e.preventDefault();
+						alert('" . esc_js( __( 'Please select at least one member.', 'photo-competition-manager' ) ) . "');
+						return false;
+					}
+					if (action === 'bulk_update_grade') {
+						const grade = document.getElementById('bulk-grade-selector').value;
+						if (!grade) {
+							e.preventDefault();
+							alert('" . esc_js( __( 'Please select a grade.', 'photo-competition-manager' ) ) . "');
+							return false;
+						}
+					}
+				});
+			}
+
+			// Delete member confirmation
+			const deleteLinks = document.querySelectorAll('.delete-member-link');
+			deleteLinks.forEach(function(link) {
+				link.addEventListener('click', function(e) {
+					const memberName = link.getAttribute('data-member-name');
+					const message = '" . esc_js( __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ) ) . "\\n\\n' + '" . esc_js( __( 'Member:', 'photo-competition-manager' ) ) . " ' + memberName + '\\n\\n' + '" . esc_js( __( 'This action cannot be undone.', 'photo-competition-manager' ) ) . "';
+					if (!confirm(message)) {
+						e.preventDefault();
+						return false;
+					}
+				});
+			});
+		});
+		";
+		wp_add_inline_script( 'wp-admin', $inline_js );
 	}
 
 	/**
@@ -793,72 +875,6 @@ class Members_Controller {
 				echo '</tbody>';
 				echo '</table>';
 				echo '</form>';
-
-				// Add JavaScript for bulk actions and select all.
-				echo '<script>';
-				echo 'document.addEventListener("DOMContentLoaded", function() {';
-				// Select all functionality.
-				echo '  const selectAll = document.getElementById("cb-select-all-1");';
-				echo '  if (selectAll) {';
-				echo '    selectAll.addEventListener("change", function() {';
-				echo '      const checkboxes = document.querySelectorAll(\'input[name="member_ids[]"]\');';
-				echo '      checkboxes.forEach(function(checkbox) {';
-				echo '        checkbox.checked = selectAll.checked;';
-				echo '      });';
-				echo '    });';
-				echo '  }';
-				// Show/hide grade selector based on bulk action.
-				echo '  const bulkAction = document.getElementById("bulk-action-selector-top");';
-				echo '  const gradeSelector = document.getElementById("bulk-grade-selector");';
-				echo '  if (bulkAction && gradeSelector) {';
-				echo '    bulkAction.addEventListener("change", function() {';
-				echo '      if (bulkAction.value === "bulk_update_grade") {';
-				echo '        gradeSelector.style.display = "inline-block";';
-				echo '      } else {';
-				echo '        gradeSelector.style.display = "none";';
-				echo '      }';
-				echo '    });';
-				echo '  }';
-				// Form validation.
-				echo '  const bulkForm = document.getElementById("bulk-members-form");';
-				echo '  if (bulkForm) {';
-				echo '    bulkForm.addEventListener("submit", function(e) {';
-				echo '      const action = document.getElementById("bulk-action-selector-top").value;';
-				echo '      if (action === "-1") {';
-				echo '        e.preventDefault();';
-				echo '        alert("' . esc_js( __( 'Please select a bulk action.', 'photo-competition-manager' ) ) . '");';
-				echo '        return false;';
-				echo '      }';
-				echo '      const checked = document.querySelectorAll(\'input[name="member_ids[]"]:checked\');';
-				echo '      if (checked.length === 0) {';
-				echo '        e.preventDefault();';
-				echo '        alert("' . esc_js( __( 'Please select at least one member.', 'photo-competition-manager' ) ) . '");';
-				echo '        return false;';
-				echo '      }';
-				echo '      if (action === "bulk_update_grade") {';
-				echo '        const grade = document.getElementById("bulk-grade-selector").value;';
-				echo '        if (!grade) {';
-				echo '          e.preventDefault();';
-				echo '          alert("' . esc_js( __( 'Please select a grade.', 'photo-competition-manager' ) ) . '");';
-				echo '          return false;';
-				echo '        }';
-				echo '      }';
-				echo '    });';
-				echo '  }';
-				// Delete member confirmation.
-				echo '  const deleteLinks = document.querySelectorAll(".delete-member-link");';
-				echo '  deleteLinks.forEach(function(link) {';
-				echo '    link.addEventListener("click", function(e) {';
-				echo '      const memberName = link.getAttribute("data-member-name");';
-				echo '      const message = "' . esc_js( __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ) ) . '\\n\\n" + "' . esc_js( __( 'Member:', 'photo-competition-manager' ) ) . ' " + memberName + "\\n\\n" + "' . esc_js( __( 'This action cannot be undone.', 'photo-competition-manager' ) ) . '";';
-				echo '      if (!confirm(message)) {';
-				echo '        e.preventDefault();';
-				echo '        return false;';
-				echo '      }';
-				echo '    });';
-				echo '  });';
-				echo '});';
-				echo '</script>';
 			}
 
 			// Show create and import forms after the list.

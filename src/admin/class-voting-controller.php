@@ -71,6 +71,47 @@ class Voting_Controller {
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
 		add_action( 'wp_ajax_photo_comp_toggle_workflow', array( $this, 'ajax_toggle_workflow' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Enqueue inline scripts for voting page.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( 'competitions_page_photo-competition-manager-voting' !== $hook ) {
+			return;
+		}
+
+		$inline_js = "
+		jQuery(document).ready(function($) {
+			$('#photo-comp-workflow-toggle').on('click', function() {
+				var \$content = $('#photo-comp-workflow-content');
+				var \$icon = $(this).find('.dashicons');
+				var isExpanded = \$content.is(':visible');
+
+				// Toggle display.
+				\$content.slideToggle(200);
+
+				// Update icon.
+				if (isExpanded) {
+					\$icon.removeClass('dashicons-arrow-down').addClass('dashicons-arrow-right');
+				} else {
+					\$icon.removeClass('dashicons-arrow-right').addClass('dashicons-arrow-down');
+				}
+
+				// Save preference via AJAX.
+				$.post(ajaxurl, {
+					action: 'photo_comp_toggle_workflow',
+					expanded: isExpanded ? '0' : '1',
+					nonce: '" . esc_js( wp_create_nonce( 'photo_comp_workflow_toggle' ) ) . "'
+				});
+			});
+		});
+		";
+		wp_add_inline_script( 'jquery', $inline_js );
 	}
 
 	/**
@@ -977,32 +1018,6 @@ class Voting_Controller {
 				</p>
 			</div>
 		</div>
-		<script>
-		jQuery(document).ready(function($) {
-			$('#photo-comp-workflow-toggle').on('click', function() {
-				var $content = $('#photo-comp-workflow-content');
-				var $icon = $(this).find('.dashicons');
-				var isExpanded = $content.is(':visible');
-
-				// Toggle display.
-				$content.slideToggle(200);
-
-				// Update icon.
-				if (isExpanded) {
-					$icon.removeClass('dashicons-arrow-down').addClass('dashicons-arrow-right');
-				} else {
-					$icon.removeClass('dashicons-arrow-right').addClass('dashicons-arrow-down');
-				}
-
-				// Save preference via AJAX.
-				$.post(ajaxurl, {
-					action: 'photo_comp_toggle_workflow',
-					expanded: isExpanded ? '0' : '1',
-					nonce: '<?php echo esc_js( wp_create_nonce( 'photo_comp_workflow_toggle' ) ); ?>'
-				});
-			});
-		});
-		</script>
 		<?php
 	}
 

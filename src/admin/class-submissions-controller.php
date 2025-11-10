@@ -90,6 +90,64 @@ class Submissions_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Enqueue admin assets.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		// Only load on submissions page.
+		if ( 'competitions_page_photo-competition-manager-submissions' !== $hook ) {
+			return;
+		}
+
+		// Add inline CSS for thumbnails.
+		$inline_css = '.photo-comp-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .photo-comp-thumbnail{width:140px;}';
+		wp_add_inline_style( 'wp-admin', $inline_css );
+
+		// Add inline JavaScript for bulk actions.
+		$inline_js = "
+		document.addEventListener('DOMContentLoaded', function() {
+			const selectAll = document.getElementById('cb-select-all');
+			if (selectAll) {
+				selectAll.addEventListener('change', function() {
+					const checkboxes = document.querySelectorAll('input[name=\"image_ids[]\"]');
+					checkboxes.forEach(function(checkbox) {
+						checkbox.checked = selectAll.checked;
+					});
+				});
+			}
+			const bulkDeleteBtn = document.querySelector('.photo-comp-bulk-delete');
+			if (bulkDeleteBtn) {
+				bulkDeleteBtn.addEventListener('click', function(e) {
+					const checkboxes = document.querySelectorAll('input[name=\"image_ids[]\"]:checked');
+					if (checkboxes.length === 0) {
+						e.preventDefault();
+						alert(this.getAttribute('data-no-selection'));
+						return false;
+					}
+					if (!confirm(this.getAttribute('data-confirm'))) {
+						e.preventDefault();
+						return false;
+					}
+				});
+			}
+			document.addEventListener('click', function(e) {
+				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals')) {
+					var confirmMessage = e.target.getAttribute('data-confirm');
+					if (confirmMessage && !confirm(confirmMessage)) {
+						e.preventDefault();
+						return false;
+					}
+				}
+			});
+		});
+		";
+		wp_add_inline_script( 'wp-admin', $inline_js );
 	}
 
 	/**
@@ -438,12 +496,6 @@ class Submissions_Controller {
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Submissions', 'photo-competition-manager' ) . '</h1>';
-
-		static $styles_output = false;
-		if ( ! $styles_output ) {
-			echo '<style id="photo-comp-submissions-css">.photo-comp-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .photo-comp-thumbnail{width:140px;}</style>';
-			$styles_output = true;
-		}
 
 		if ( empty( $competitions ) ) {
 			echo '<p>' . esc_html__( 'No competitions available yet. Create a competition first.', 'photo-competition-manager' ) . '</p>';
@@ -856,45 +908,6 @@ class Submissions_Controller {
 		echo '</tbody>';
 		echo '</table>';
 		echo '</form>';
-
-		// Add JavaScript for "select all" functionality and confirmations.
-		echo '<script>';
-		echo 'document.addEventListener("DOMContentLoaded", function() {';
-		echo '  const selectAll = document.getElementById("cb-select-all");';
-		echo '  if (selectAll) {';
-		echo '    selectAll.addEventListener("change", function() {';
-		echo '      const checkboxes = document.querySelectorAll(\'input[name="image_ids[]"]\');';
-		echo '      checkboxes.forEach(function(checkbox) {';
-		echo '        checkbox.checked = selectAll.checked;';
-		echo '      });';
-		echo '    });';
-		echo '  }';
-		echo '  const bulkDeleteBtn = document.querySelector(".photo-comp-bulk-delete");';
-		echo '  if (bulkDeleteBtn) {';
-		echo '    bulkDeleteBtn.addEventListener("click", function(e) {';
-		echo '      const checkboxes = document.querySelectorAll(\'input[name="image_ids[]"]:checked\');';
-		echo '      if (checkboxes.length === 0) {';
-		echo '        e.preventDefault();';
-		echo '        alert(this.getAttribute("data-no-selection"));';
-		echo '        return false;';
-		echo '      }';
-		echo '      if (!confirm(this.getAttribute("data-confirm"))) {';
-		echo '        e.preventDefault();';
-		echo '        return false;';
-		echo '      }';
-		echo '    });';
-		echo '  }';
-		echo '  document.addEventListener("click", function(e) {';
-		echo '    if (e.target.classList.contains("photo-comp-regenerate") || e.target.classList.contains("photo-comp-delete-originals")) {';
-		echo '      var confirmMessage = e.target.getAttribute("data-confirm");';
-		echo '      if (confirmMessage && !confirm(confirmMessage)) {';
-		echo '        e.preventDefault();';
-		echo '        return false;';
-		echo '      }';
-		echo '    }';
-		echo '  });';
-		echo '});';
-		echo '</script>';
 
 		echo '</div>';
 	}

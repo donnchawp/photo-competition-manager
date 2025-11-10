@@ -47,6 +47,88 @@ class Competitions_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Enqueue inline scripts for competitions page.
+	 *
+	 * @param string $hook Current admin page hook.
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( 'toplevel_page_photo-competition-manager' !== $hook ) {
+			return;
+		}
+
+		$inline_js = "
+		(function() {
+			let categoryIndex = document.querySelectorAll('.category-row').length;
+			let gradeIndex = document.querySelectorAll('.grade-row').length;
+
+			document.getElementById('add-category')?.addEventListener('click', function() {
+				const container = document.getElementById('categories-container');
+				const row = document.createElement('div');
+				row.className = 'category-row';
+				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
+				row.innerHTML = \`
+					<p style=\"margin: 5px 0;\">
+						<label>" . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
+						<input type="text" name="categories[${categoryIndex}][label]" class="regular-text" required />
+					</p>
+					<p style="margin: 5px 0;">
+						<label>' . esc_js( __( 'Slug', 'photo-competition-manager' ) ) . '</label><br />
+						<input type="text" name="categories[${categoryIndex}][slug]" class="regular-text" required />
+					</p>
+					<p style="margin: 5px 0;">
+						<label>' . esc_js( __( 'Upload Quota', 'photo-competition-manager' ) ) . '</label><br />
+						<input type="number" name="categories[${categoryIndex}][quota]" value="1" min="1" max="10" class="small-text" required />
+					</p>
+					<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . "</button>
+				\`;
+				container.appendChild(row);
+				categoryIndex++;
+			});
+
+			document.getElementById('add-grade')?.addEventListener('click', function() {
+				const container = document.getElementById('grades-container');
+				const row = document.createElement('div');
+				row.className = 'grade-row';
+				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
+				row.innerHTML = \`
+					<p style=\"margin: 5px 0;\">
+						<label>" . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
+						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
+					</p>
+					<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . "</button>
+				\`;
+				container.appendChild(row);
+				gradeIndex++;
+			});
+
+			document.addEventListener('click', function(e) {
+				if (e.target.classList.contains('remove-category')) {
+					e.target.closest('.category-row').remove();
+				}
+				if (e.target.classList.contains('remove-grade')) {
+					e.target.closest('.grade-row').remove();
+				}
+			});
+
+			// Delete and reset votes confirmation
+			document.addEventListener('click', function(e) {
+				if (e.target.classList.contains('photo-comp-delete') ||
+						e.target.classList.contains('photo-comp-reset-votes')) {
+							var confirmMessage = e.target.getAttribute('data-confirm');
+							if (confirmMessage && !confirm(confirmMessage)) {
+								e.preventDefault();
+								return false;
+							}
+						}
+				});
+			})();
+		";
+		wp_add_inline_script( 'wp-admin', $inline_js );
 	}
 
 	/**
@@ -761,8 +843,6 @@ class Competitions_Controller {
 		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );
 
 		echo '</form>';
-
-		$this->render_settings_javascript();
 	}
 
 	/**
@@ -815,70 +895,6 @@ class Competitions_Controller {
 		echo '</div>';
 	}
 
-	/**
-	 * Render JavaScript for dynamic settings fields.
-	 *
-	 * @return void
-	 */
-	private function render_settings_javascript(): void {
-		?>
-		<script>
-		(function() {
-			let categoryIndex = document.querySelectorAll('.category-row').length;
-			let gradeIndex = document.querySelectorAll('.grade-row').length;
-
-			document.getElementById('add-category')?.addEventListener('click', function() {
-				const container = document.getElementById('categories-container');
-				const row = document.createElement('div');
-				row.className = 'category-row';
-				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label><?php echo esc_js( __( 'Label', 'photo-competition-manager' ) ); ?></label><br />
-						<input type="text" name="categories[${categoryIndex}][label]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label><?php echo esc_js( __( 'Slug', 'photo-competition-manager' ) ); ?></label><br />
-						<input type="text" name="categories[${categoryIndex}][slug]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label><?php echo esc_js( __( 'Upload Quota', 'photo-competition-manager' ) ); ?></label><br />
-						<input type="number" name="categories[${categoryIndex}][quota]" value="1" min="1" max="10" class="small-text" required />
-					</p>
-					<button type="button" class="button remove-category" style="color: #b32d2e;"><?php echo esc_js( __( 'Remove', 'photo-competition-manager' ) ); ?></button>
-				`;
-				container.appendChild(row);
-				categoryIndex++;
-			});
-
-			document.getElementById('add-grade')?.addEventListener('click', function() {
-				const container = document.getElementById('grades-container');
-				const row = document.createElement('div');
-				row.className = 'grade-row';
-				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label><?php echo esc_js( __( 'Label', 'photo-competition-manager' ) ); ?></label><br />
-						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
-					</p>
-					<button type="button" class="button remove-grade" style="color: #b32d2e;"><?php echo esc_js( __( 'Remove', 'photo-competition-manager' ) ); ?></button>
-				`;
-				container.appendChild(row);
-				gradeIndex++;
-			});
-
-			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('remove-category')) {
-					e.target.closest('.category-row').remove();
-				}
-				if (e.target.classList.contains('remove-grade')) {
-					e.target.closest('.grade-row').remove();
-				}
-			});
-		})();
-		</script>
-		<?php
-	}
 
 	/**
 	 * Render competitions list table.
@@ -1068,32 +1084,6 @@ class Competitions_Controller {
 
 		echo '</tbody>';
 		echo '</table>';
-
-		$this->render_confirmation_javascript();
-	}
-
-	/**
-	 * Render JavaScript for confirmation dialogs.
-	 *
-	 * @return void
-	 */
-	private function render_confirmation_javascript(): void {
-		?>
-		<script>
-		(function() {
-			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('photo-comp-delete') ||
-					e.target.classList.contains('photo-comp-reset-votes')) {
-					var confirmMessage = e.target.getAttribute('data-confirm');
-					if (confirmMessage && !confirm(confirmMessage)) {
-						e.preventDefault();
-						return false;
-					}
-				}
-			});
-		})();
-		</script>
-		<?php
 	}
 
 	/**

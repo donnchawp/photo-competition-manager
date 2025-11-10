@@ -101,23 +101,18 @@ class Upload_Shortcode {
 	 */
 	public function register(): void {
 		add_shortcode( 'competition_upload', array( $this, 'render' ) );
+		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 	}
 
 	/**
 	 * Enqueue assets for upload shortcode.
 	 */
-	private function enqueue_assets(): void {
+	public function enqueue_assets(): void {
 		// Determine plugin root directory.
-		// Development: src/public/ -> need dirname(dirname(__DIR__)) to get to club-competitions/.
-		// Production: public/ -> need dirname(__DIR__) to get to photo-competition-manager/.
-		$parent_dir = dirname( __DIR__ );
-		if ( basename( $parent_dir ) === 'src' ) {
-			// Development mode - go up one more level.
-			$plugin_dir = dirname( $parent_dir );
-		} else {
-			// Production mode - parent is already plugin root.
-			$plugin_dir = $parent_dir;
-		}
+		// The plugin file is at src/photo-competition-manager.php.
+		// From src/public/, go up one level to get to src/.
+		$plugin_dir  = dirname( __DIR__ );
+		$plugin_file = $plugin_dir . '/photo-competition-manager.php';
 
 		$asset_file = $plugin_dir . '/assets/build/drag-drop-upload.asset.php';
 
@@ -128,7 +123,7 @@ class Upload_Shortcode {
 		$asset = require $asset_file;
 
 		// Get the plugin URL.
-		$plugin_url = plugin_dir_url( $plugin_dir . '/photo-competition-manager.php' );
+		$plugin_url = plugin_dir_url( $plugin_file );
 
 		wp_enqueue_script(
 			'photo-comp-drag-drop-upload',
@@ -178,9 +173,6 @@ class Upload_Shortcode {
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
 			define( 'DONOTCACHEPAGE', true );
 		}
-
-		// Enqueue assets when shortcode is rendered.
-		$this->enqueue_assets();
 
 		$competition = $this->competitions_repo->find_current_active();
 		if ( ! $competition ) {
