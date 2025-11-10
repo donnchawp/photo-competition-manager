@@ -185,7 +185,7 @@ class Email_Templates_Controller {
 			},
 			$template['merge_tags']
 		);
-		echo implode( ', ', $merge_tags_html ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above in array_map.
+		echo wp_kses_post( implode( ', ', $merge_tags_html ) );
 		echo '</p>';
 		echo '</td>';
 		echo '</tr>';
