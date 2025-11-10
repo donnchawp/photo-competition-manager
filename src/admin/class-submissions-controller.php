@@ -511,8 +511,15 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0;
 		if ( ! $competition_id || ! isset( $competition_lookup[ $competition_id ] ) ) {
-			$first          = reset( $competitions );
-			$competition_id = $first ? (int) $first->id : 0;
+			// Try to find the current active competition first.
+			$active_competition = $this->competitions->find_current_active();
+			if ( $active_competition && isset( $competition_lookup[ (int) $active_competition->id ] ) ) {
+				$competition_id = (int) $active_competition->id;
+			} else {
+				// Fall back to the first competition in the list if no active competition.
+				$first          = reset( $competitions );
+				$competition_id = $first ? (int) $first->id : 0;
+			}
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
@@ -552,7 +559,7 @@ class Submissions_Controller {
 		echo '<select name="competition_id" id="competition_id">';
 		foreach ( $competitions as $competition ) {
 			$label = $competition->title;
-			if ( ! empty( $competition->deleted_at ) || 'archived' === $competition->status ) {
+			if ( ! empty( $competition->deleted_at ) ) {
 				$label .= ' ' . esc_html__( '(Archived)', 'photo-competition-manager' );
 			}
 
