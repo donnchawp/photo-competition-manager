@@ -121,9 +121,11 @@ class Voting_Shortcode {
 	 */
 	public function render(): string {
 
+		// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- DONOTCACHEPAGE is a WP Super Cache constant.
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
 			define( 'DONOTCACHEPAGE', true );
 		}
+		// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 		// Enforce HTTPS requirement for voting.
 		if ( ! $this->is_https_connection() ) {
