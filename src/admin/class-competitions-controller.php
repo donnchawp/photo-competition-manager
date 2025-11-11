@@ -61,19 +61,20 @@ class Competitions_Controller {
 			return;
 		}
 
-		$inline_js = "
+		$inline_js = '
+		document.addEventListener(\'DOMContentLoaded\', function() {
 		(function() {
-			let categoryIndex = document.querySelectorAll('.category-row').length;
-			let gradeIndex = document.querySelectorAll('.grade-row').length;
+			let categoryIndex = document.querySelectorAll(\'.category-row\').length;
+			let gradeIndex = document.querySelectorAll(\'.grade-row\').length;
 
-			document.getElementById('add-category')?.addEventListener('click', function() {
-				const container = document.getElementById('categories-container');
-				const row = document.createElement('div');
-				row.className = 'category-row';
-				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
-				row.innerHTML = \`
-					<p style=\"margin: 5px 0;\">
-						<label>" . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
+			document.getElementById(\'add-category\')?.addEventListener(\'click\', function() {
+				const container = document.getElementById(\'categories-container\');
+				const row = document.createElement(\'div\');
+				row.className = \'category-row\';
+				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
+				row.innerHTML = `
+					<p style="margin: 5px 0;">
+						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
 						<input type="text" name="categories[${categoryIndex}][label]" class="regular-text" required />
 					</p>
 					<p style="margin: 5px 0;">
@@ -84,42 +85,42 @@ class Competitions_Controller {
 						<label>' . esc_js( __( 'Upload Quota', 'photo-competition-manager' ) ) . '</label><br />
 						<input type="number" name="categories[${categoryIndex}][quota]" value="1" min="1" max="10" class="small-text" required />
 					</p>
-					<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . "</button>
-				\`;
+					<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
+				`;
 				container.appendChild(row);
 				categoryIndex++;
 			});
 
-			document.getElementById('add-grade')?.addEventListener('click', function() {
-				const container = document.getElementById('grades-container');
-				const row = document.createElement('div');
-				row.className = 'grade-row';
-				row.style.cssText = 'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;';
-				row.innerHTML = \`
-					<p style=\"margin: 5px 0;\">
-						<label>" . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
+			document.getElementById(\'add-grade\')?.addEventListener(\'click\', function() {
+				const container = document.getElementById(\'grades-container\');
+				const row = document.createElement(\'div\');
+				row.className = \'grade-row\';
+				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
+				row.innerHTML = `
+					<p style="margin: 5px 0;">
+						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
 						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
 					</p>
-					<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . "</button>
-				\`;
+					<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
+				`;
 				container.appendChild(row);
 				gradeIndex++;
 			});
 
-			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('remove-category')) {
-					e.target.closest('.category-row').remove();
+			document.addEventListener(\'click\', function(e) {
+				if (e.target.classList.contains(\'remove-category\')) {
+					e.target.closest(\'.category-row\').remove();
 				}
-				if (e.target.classList.contains('remove-grade')) {
-					e.target.closest('.grade-row').remove();
+				if (e.target.classList.contains(\'remove-grade\')) {
+					e.target.closest(\'.grade-row\').remove();
 				}
 			});
 
 			// Delete and reset votes confirmation
-			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('photo-comp-delete') ||
-						e.target.classList.contains('photo-comp-reset-votes')) {
-							var confirmMessage = e.target.getAttribute('data-confirm');
+			document.addEventListener(\'click\', function(e) {
+				if (e.target.classList.contains(\'photo-comp-delete\') ||
+						e.target.classList.contains(\'photo-comp-reset-votes\')) {
+							var confirmMessage = e.target.getAttribute(\'data-confirm\');
 							if (confirmMessage && !confirm(confirmMessage)) {
 								e.preventDefault();
 								return false;
@@ -127,8 +128,12 @@ class Competitions_Controller {
 						}
 				});
 			})();
-		";
-		wp_add_inline_script( 'wp-admin', $inline_js );
+		});
+		';
+
+		wp_register_script( 'photo-competition-manager-competitions-js', false, array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-competition-manager-competitions-js' );
+		wp_add_inline_script( 'photo-competition-manager-competitions-js', $inline_js );
 	}
 
 	/**
