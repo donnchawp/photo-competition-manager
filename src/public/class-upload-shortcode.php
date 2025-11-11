@@ -101,11 +101,13 @@ class Upload_Shortcode {
 	 */
 	public function register(): void {
 		add_shortcode( 'competition_upload', array( $this, 'render' ) );
-		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 	}
 
 	/**
 	 * Enqueue assets for upload shortcode.
+	 *
+	 * Enqueues assets unconditionally. The wp_localize_script will be called
+	 * during shortcode render to pass configuration to JavaScript.
 	 */
 	public function enqueue_assets(): void {
 		// Determine plugin root directory.
@@ -169,6 +171,9 @@ class Upload_Shortcode {
 	 * @return string
 	 */
 	public function render( $atts ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Shortcode signature requires $atts.
+
+		// Enqueue assets when shortcode is actually rendered.
+		$this->enqueue_assets();
 
 		// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- DONOTCACHEPAGE is a WP Super Cache constant.
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
