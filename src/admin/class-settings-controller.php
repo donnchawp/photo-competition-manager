@@ -31,12 +31,21 @@ class Settings_Controller {
 	private $competitions_repository;
 
 	/**
+	 * Members repository.
+	 *
+	 * @var \PhotoCompetitionManager\Repository\Members_Repository
+	 */
+	private $members_repository;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param \PhotoCompetitionManager\Repository\Competitions_Repository $competitions_repository Competitions repository.
+	 * @param \PhotoCompetitionManager\Repository\Members_Repository      $members_repository Members repository.
 	 */
-	public function __construct( $competitions_repository = null ) {
+	public function __construct( $competitions_repository = null, $members_repository = null ) {
 		$this->competitions_repository = $competitions_repository;
+		$this->members_repository      = $members_repository;
 	}
 
 	/**
@@ -244,11 +253,17 @@ class Settings_Controller {
 				'error'
 			);
 		} else {
+			// Get old grades before saving for mapping purposes.
+			$old_grades = Competition_Settings::get_grades( $existing_settings );
+
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 
 			// Sync grades to all existing competitions.
 			$this->sync_grades_to_competitions( $sanitized_grades );
+
+			// Sync grades to all members.
+			$this->sync_grades_to_members( $old_grades, $sanitized_grades );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -507,6 +522,56 @@ class Settings_Controller {
 					'settings' => $settings,
 				)
 			);
+		}
+	}
+
+	/**
+	 * Sync member grades when global grades change.
+	 *
+	 * Maps old grade slugs to new grade slugs based on position/order.
+	 * If a member's grade no longer exists, it's updated to the first available grade.
+	 *
+	 * @param  array<int, array{label: string, slug: string}> $old_grades Old grades array.
+	 * @param  array<int, array{label: string, slug: string}> $new_grades New grades array.
+	 * @return void
+	 */
+	private function sync_grades_to_members( array $old_grades, array $new_grades ): void {
+		if ( ! $this->members_repository ) {
+			return;
+		}
+
+		// Build a mapping from old grade slugs to new grade slugs based on position.
+		$grade_mapping = array();
+		foreach ( $old_grades as $index => $old_grade ) {
+			$old_slug = $old_grade['slug'] ?? '';
+			// Map to new grade at same position, or first grade if position doesn't exist.
+			$new_slug = isset( $new_grades[ $index ]['slug'] ) ? $new_grades[ $index ]['slug'] : ( $new_grades[0]['slug'] ?? '' );
+			if ( $old_slug && $new_slug ) {
+				$grade_mapping[ $old_slug ] = $new_slug;
+			}
+		}
+
+		// If no mapping exists (e.g., no old grades), default to first new grade.
+		$default_grade = $new_grades[0]['slug'] ?? '';
+
+		// Get all members (including inactive).
+		$members = $this->members_repository->all( false );
+
+		foreach ( $members as $member ) {
+			$current_grade = $member->grade ?? '';
+
+			// Determine new grade based on mapping or default.
+			$new_grade = $grade_mapping[ $current_grade ] ?? $default_grade;
+
+			// Only update if grade has changed.
+			if ( $new_grade && $new_grade !== $current_grade ) {
+				$this->members_repository->update(
+					$member->id,
+					array(
+						'grade' => $new_grade,
+					)
+				);
+			}
 		}
 	}
 }
