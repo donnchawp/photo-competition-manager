@@ -24,6 +24,22 @@ class Settings_Controller {
 	use Form_Rendering;
 
 	/**
+	 * Competitions repository.
+	 *
+	 * @var \PhotoCompetitionManager\Repository\Competitions_Repository
+	 */
+	private $competitions_repository;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param \PhotoCompetitionManager\Repository\Competitions_Repository $competitions_repository Competitions repository.
+	 */
+	public function __construct( $competitions_repository = null ) {
+		$this->competitions_repository = $competitions_repository;
+	}
+
+	/**
 	 * Register hooks for this controller.
 	 *
 	 * @return void
@@ -230,6 +246,9 @@ class Settings_Controller {
 		} else {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
+
+			// Sync grades to all existing competitions.
+			$this->sync_grades_to_competitions( $sanitized_grades );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -458,5 +477,36 @@ class Settings_Controller {
 	 */
 	private function save_global_settings( array $settings ): void {
 		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $settings ) );
+	}
+
+	/**
+	 * Sync grades from global settings to all existing competitions.
+	 *
+	 * @param  array<int, array{label: string, slug: string}> $new_grades New grades array.
+	 * @return void
+	 */
+	private function sync_grades_to_competitions( array $new_grades ): void {
+		if ( ! $this->competitions_repository ) {
+			return;
+		}
+
+		// Get all competitions (including archived).
+		$competitions = $this->competitions_repository->all( 1000, true, false );
+
+		foreach ( $competitions as $competition ) {
+			// Parse existing settings.
+			$settings = Competition_Settings::parse( $competition->settings );
+
+			// Update grades.
+			$settings['grades'] = $new_grades;
+
+			// Save updated settings.
+			$this->competitions_repository->update(
+				$competition->id,
+				array(
+					'settings' => $settings,
+				)
+			);
+		}
 	}
 }
