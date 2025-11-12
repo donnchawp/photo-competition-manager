@@ -33,7 +33,7 @@ docker run -d \
 echo ""
 echo "✅ Mailpit started successfully!"
 echo ""
-echo "Web UI:    http://localhost:8025"
+echo "Web UI:    http://localhost:8026"
 echo "SMTP:      localhost:1025"
 echo "Container: photo-competition-manager-mailpit"
 echo "Network:   $WPENV_NETWORK"
