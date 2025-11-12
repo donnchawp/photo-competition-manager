@@ -7,17 +7,35 @@ Mailpit is now configured for email testing in development. Here's how to use it
 ### 1. Start the Environment
 
 ```bash
-npx @wordpress/env start
+make up
 ```
 
-This automatically starts:
+or
+
+**First time setup:**
+```bash
+# Start WordPress
+npx @wordpress/env start
+
+# Start Mailpit (connects to wp-env network)
+./start-mailpit.sh
+```
+
+This starts:
 - ✅ WordPress (http://localhost:8888)
-- ✅ Mailpit Web UI (http://localhost:8025)
+- ✅ Mailpit Web UI (http://localhost:8026)
 - ✅ Mailpit SMTP Server (localhost:1025)
+
+**Subsequent starts:**
+After the first setup, just run:
+```bash
+npx @wordpress/env start
+```
+(Mailpit container will auto-start if it was previously created)
 
 ### 2. View Captured Emails
 
-Open http://localhost:8025 in your browser to see all emails sent by WordPress.
+Open http://localhost:8026 in your browser to see all emails sent by WordPress.
 
 ### 3. Test It Works
 
@@ -33,7 +51,7 @@ exit;
 ```
 
 **Check result:**
-- Open http://localhost:8025
+- Open http://localhost:8026
 - You should see the test email
 
 ---
@@ -48,7 +66,7 @@ exit;
    - Go to the upload page
    - Enter member email
    - Click "Send Upload Link"
-4. **Check Mailpit** at http://localhost:8025
+4. **Check Mailpit** at http://localhost:8026
 5. **Copy the magic link** from the email
 6. **Test authentication** by clicking the link
 
@@ -129,6 +147,6 @@ The Mailpit_SMTP configuration only runs when `WP_DEBUG=true`, so it's automatic
 ---
 
 **Quick Links:**
-- Mailpit Web UI: http://localhost:8025
+- Mailpit Web UI: http://localhost:8026
 - WordPress: http://localhost:8888
 - Full Guide: [MAILPIT_TESTING.md](MAILPIT_TESTING.md)

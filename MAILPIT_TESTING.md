@@ -29,7 +29,7 @@ npx @wordpress/env start
 
 This starts:
 - WordPress at http://localhost:8888
-- Mailpit Web UI at http://localhost:8025
+- Mailpit Web UI at http://localhost:8026
 - Mailpit SMTP server at localhost:1025
 
 ### 2. Verify Mailpit is Running
@@ -40,12 +40,12 @@ docker ps | grep mailpit
 
 You should see:
 ```
-club-competitions-mailpit   axllent/mailpit:latest   ...   0.0.0.0:8025->8025/tcp, 0.0.0.0:1025->1025/tcp
+club-competitions-mailpit   axllent/mailpit:latest   ...   0.0.0.0:8026->8026/tcp, 0.0.0.0:1025->1025/tcp
 ```
 
 ### 3. Access the Mailpit Web Interface
 
-Open http://localhost:8025 in your browser. You should see the Mailpit inbox (empty initially).
+Open http://localhost:8026 in your browser. You should see the Mailpit inbox (empty initially).
 
 ---
 
@@ -67,7 +67,7 @@ exit;
 ```
 
 **Expected Result:**
-- Check http://localhost:8025
+- Check http://localhost:8026
 - You should see the test email in the inbox
 - Click to view full email details
 
@@ -81,7 +81,7 @@ exit;
    - Click "Send Upload Link"
 
 3. **Check Mailpit**:
-   - Open http://localhost:8025
+   - Open http://localhost:8026
    - You should see an email with subject: "Upload your images for [Competition Name]"
    - Click to view the email
 
@@ -215,9 +215,9 @@ add_action('phpmailer_init', function($phpmailer) {
 
 ### Mailpit Container Not Starting
 
-**Check if port 8025 or 1025 are in use**:
+**Check if port 8026 or 1025 are in use**:
 ```bash
-lsof -i :8025
+lsof -i :8026
 lsof -i :1025
 ```
 
@@ -304,7 +304,7 @@ public function test_upload_token_email_sent() {
  * Clear Mailpit inbox.
  */
 private function clear_mailpit_inbox() {
-    wp_remote_request('http://mailpit:8025/api/v1/messages', [
+    wp_remote_request('http://mailpit:8026/api/v1/messages', [
         'method' => 'DELETE'
     ]);
 }
@@ -313,7 +313,7 @@ private function clear_mailpit_inbox() {
  * Get messages from Mailpit.
  */
 private function get_mailpit_messages() {
-    $response = wp_remote_get('http://mailpit:8025/api/v1/messages');
+    $response = wp_remote_get('http://mailpit:8026/api/v1/messages');
     $body = json_decode(wp_remote_retrieve_body($response), true);
     return $body['messages'] ?? [];
 }
@@ -332,13 +332,13 @@ Mailpit provides a REST API for automated testing:
 Example with curl:
 ```bash
 # List all messages
-curl http://localhost:8025/api/v1/messages
+curl http://localhost:8026/api/v1/messages
 
 # Delete all messages
-curl -X DELETE http://localhost:8025/api/v1/messages
+curl -X DELETE http://localhost:8026/api/v1/messages
 
 # Search for messages
-curl "http://localhost:8025/api/v1/search?query=upload"
+curl "http://localhost:8026/api/v1/search?query=upload"
 ```
 
 ---
@@ -348,7 +348,7 @@ curl "http://localhost:8025/api/v1/search?query=upload"
 ### 1. Clear Inbox Regularly
 During development, clear the Mailpit inbox to avoid confusion:
 - Click "Delete all" in Mailpit UI, OR
-- Use API: `curl -X DELETE http://localhost:8025/api/v1/messages`
+- Use API: `curl -X DELETE http://localhost:8026/api/v1/messages`
 
 ### 2. Test Different Scenarios
 - Valid member emails
@@ -411,7 +411,7 @@ Use Mailpit's HTML preview to verify emails look good on mobile devices.
 | Service | URL | Purpose |
 |---------|-----|---------|
 | WordPress | http://localhost:8888 | Main application |
-| Mailpit Web UI | http://localhost:8025 | View captured emails |
+| Mailpit Web UI | http://localhost:8026 | View captured emails |
 | Mailpit SMTP | localhost:1025 | SMTP server endpoint |
 | WordPress Admin | http://localhost:8888/wp-admin | Admin dashboard |
 
@@ -434,7 +434,7 @@ docker restart club-competitions-mailpit
 npx @wordpress/env run cli wp shell
 
 # Clear Mailpit inbox
-curl -X DELETE http://localhost:8025/api/v1/messages
+curl -X DELETE http://localhost:8026/api/v1/messages
 ```
 
 ---
