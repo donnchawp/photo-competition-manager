@@ -84,7 +84,7 @@ The plugin uses `@wordpress/scripts` for building and bundling assets. All sourc
 
 **Local Development**
 
-Run `make up` to launch the WordPress environment with Mailpit email capture at <http://localhost:8025>.
+Run `make up` to launch the WordPress environment with Mailpit email capture at <http://localhost:8026>.
 
 == Frequently Asked Questions ==
 
