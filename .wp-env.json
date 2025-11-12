@@ -2,7 +2,11 @@
   "plugins": [
     "./src"
   ],
+  "mappings": {
+    "wp-content/mu-plugins": "./mu-plugins"
+  },
   "config": {
-    "WP_DEBUG": true
+    "WP_DEBUG": true,
+    "WP_DEBUG_LOG": true
   }
 }
