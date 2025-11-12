@@ -183,20 +183,21 @@ class Competitions_Controller {
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					$result->get_error_code(),
 					$result->get_error_message(),
 					'error'
 				);
 			} else {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					'created',
 					__( 'Competition created successfully.', 'photo-competition-manager' ),
 					'updated'
 				);
 			}
 
+			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 			wp_safe_redirect( $this->dashboard_url() );
 			exit;
 		}
@@ -225,12 +226,13 @@ class Competitions_Controller {
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					$result->get_error_code(),
 					$result->get_error_message(),
 					'error'
 				);
 
+				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 				wp_safe_redirect(
 					add_query_arg(
 						array(
@@ -251,6 +253,7 @@ class Competitions_Controller {
 				'updated'
 			);
 
+			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 			wp_safe_redirect( $this->dashboard_url() );
 			exit;
 		}
@@ -287,6 +290,7 @@ class Competitions_Controller {
 					);
 				}
 
+				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 				wp_safe_redirect( $this->dashboard_url() );
 				exit;
 			}
@@ -311,6 +315,7 @@ class Competitions_Controller {
 					);
 				}
 
+				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 				wp_safe_redirect( $this->dashboard_url() );
 				exit;
 			}
@@ -326,12 +331,37 @@ class Competitions_Controller {
 						'error'
 					);
 				} else {
-					$emails_sent = is_int( $result ) ? $result : 0;
-					$message     = sprintf(
-					/* translators: %d: Number of emails sent */
-						_n( '%d reminder email sent to members.', '%d reminder emails sent to members.', $emails_sent, 'photo-competition-manager' ),
-						$emails_sent
+					$sent_count    = is_array( $result ) ? $result['sent_count'] : ( is_int( $result ) ? $result : 0 );
+					$skipped_count = is_array( $result ) && isset( $result['skipped_count'] ) ? $result['skipped_count'] : 0;
+					$total_count   = is_array( $result ) ? $result['total_count'] : $sent_count;
+
+					$message = sprintf(
+						/* translators: 1: Number of emails sent, 2: Total number of members */
+						_n(
+							'%1$d of %2$d reminder email sent to members.',
+							'%1$d of %2$d reminder emails sent to members.',
+							$sent_count,
+							'photo-competition-manager'
+						),
+						$sent_count,
+						$total_count
 					);
+
+					// Add rate limit notice if some emails were skipped.
+					if ( $skipped_count > 0 ) {
+						$message .= ' ' . sprintf(
+							/* translators: %d: Number of members skipped */
+							_n(
+								'%d member was skipped due to rate limiting (emails are not resent within 5 minutes).',
+								'%d members were skipped due to rate limiting (emails are not resent within 5 minutes).',
+								$skipped_count,
+								'photo-competition-manager'
+							),
+							$skipped_count
+						);
+					} else {
+						$message .= ' ' . __( 'Note: Emails will not be resent to the same members within 5 minutes.', 'photo-competition-manager' );
+					}
 
 					add_settings_error(
 						'photo_competition_manager',
@@ -341,6 +371,7 @@ class Competitions_Controller {
 					);
 				}
 
+				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 				wp_safe_redirect( $this->dashboard_url() );
 				exit;
 			}
@@ -351,7 +382,7 @@ class Competitions_Controller {
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					$result->get_error_code(),
 					$result->get_error_message(),
 					'error'
@@ -362,7 +393,7 @@ class Competitions_Controller {
 				: __( 'Competition restored.', 'photo-competition-manager' );
 
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					'archive' === $action ? 'archived' : 'restored',
 					$message,
 					'updated'
@@ -379,6 +410,7 @@ class Competitions_Controller {
 			)
 			: $this->dashboard_url();
 
+			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 			wp_safe_redirect( $redirect );
 			exit;
 		}
@@ -494,12 +526,13 @@ class Competitions_Controller {
 
 			if ( is_wp_error( $validation ) ) {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					$validation->get_error_code(),
 					$validation->get_error_message(),
 					'error'
 				);
 
+				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 				wp_safe_redirect(
 					add_query_arg(
 						array(
@@ -523,20 +556,21 @@ class Competitions_Controller {
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					$result->get_error_code(),
 					$result->get_error_message(),
 					'error'
 				);
 			} else {
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					'settings_updated',
 					__( 'Competition settings updated successfully.', 'photo-competition-manager' ),
 					'updated'
 				);
 			}
 
+			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
 			wp_safe_redirect(
 				add_query_arg(
 					array(
@@ -568,7 +602,16 @@ class Competitions_Controller {
 			return;
 		}
 
-		settings_errors( 'photo_competition' );
+		// Restore settings_errors from transient after redirect.
+		$transient_errors = get_transient( 'photo_competition_manager_settings_errors' );
+		if ( false !== $transient_errors ) {
+			foreach ( $transient_errors as $error ) {
+				add_settings_error( $error['setting'], $error['code'], $error['message'], $error['type'] );
+			}
+			delete_transient( 'photo_competition_manager_settings_errors' );
+		}
+
+		settings_errors( 'photo_competition_manager' );
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars for filtering only; no data mutation.
 		$view         = isset( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : 'active';
@@ -591,7 +634,16 @@ class Competitions_Controller {
 	 * @return void
 	 */
 	private function render_edit_screen( int $competition_id ): void {
-		settings_errors( 'photo_competition' );
+		// Restore settings_errors from transient after redirect.
+		$transient_errors = get_transient( 'photo_competition_manager_settings_errors' );
+		if ( false !== $transient_errors ) {
+			foreach ( $transient_errors as $error ) {
+				add_settings_error( $error['setting'], $error['code'], $error['message'], $error['type'] );
+			}
+			delete_transient( 'photo_competition_manager_settings_errors' );
+		}
+
+		settings_errors( 'photo_competition_manager' );
 
 		$competition = $this->competitions->find( $competition_id );
 
