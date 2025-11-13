@@ -41,7 +41,7 @@ class Competitions_Repository extends Abstract_Repository {
 			$conditions = 'deleted_at IS NULL';
 		}
 
-		return $this->wpdb->get_results( $this->wpdb->prepare( 'SELECT * FROM %i WHERE ' . $conditions . ' ORDER BY created_at DESC LIMIT %d', $this->table(), (int) $limit ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results( $this->wpdb->prepare( 'SELECT * FROM %i WHERE ' . $conditions . ' ORDER BY created_at DESC LIMIT %d', $this->table(), (int) $limit ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is a hardcoded string.
 	}
 
 	/**
@@ -57,7 +57,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$condition = $only_archived ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL';
 
-		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $condition", $this->table() ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $condition", $this->table() ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $condition is a hardcoded string.
 	}
 
 	/**
@@ -78,7 +78,7 @@ class Competitions_Repository extends Abstract_Repository {
 			$conditions .= ' AND deleted_at IS NULL';
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
+		// phpcs:disable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is a hardcoded string.
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
 				"SELECT * FROM %i WHERE id = %d{$conditions}",
@@ -86,7 +86,7 @@ class Competitions_Repository extends Abstract_Repository {
 				$id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
+		// phpcs:enable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
@@ -106,7 +106,7 @@ class Competitions_Repository extends Abstract_Repository {
 			$conditions .= ' AND deleted_at IS NULL';
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
+		// phpcs:disable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is a hardcoded string.
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
 				"SELECT * FROM %i WHERE slug = %s{$conditions}",
@@ -114,7 +114,7 @@ class Competitions_Repository extends Abstract_Repository {
 				$slug
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
+		// phpcs:enable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
@@ -410,7 +410,7 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return (int) $this->wpdb->get_var( $sql ) > 0;
+		return (int) $this->wpdb->get_var( $sql ) > 0; // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql is a prepared SQL string.
 	}
 
 	/**

@@ -46,14 +46,14 @@ class Images_Repository extends Abstract_Repository {
 
 		$where = implode( ' AND ', $conditions );
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is a "table, field = %d/%s" placeholder string.
 		return $this->wpdb->get_results(
 			$this->wpdb->prepare(
 				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY category, random_number',
 				...$params
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
@@ -127,7 +127,7 @@ class Images_Repository extends Abstract_Repository {
 
 		$where = implode( ' AND ', $conditions );
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is a "table, field = %d/%s" placeholder string.
 		return (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
 				'SELECT COUNT(*) FROM %i WHERE ' . $where,
@@ -458,11 +458,7 @@ class Images_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$images_table  = $this->table();
-		$members_table = $this->wpdb->prefix . 'photocomp_members';
-
-		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = "
+		$sql = '
 			SELECT
 				i.id,
 				i.competition_id,
@@ -474,14 +470,13 @@ class Images_Repository extends Abstract_Repository {
 				i.created_at,
 				m.name AS member_name,
 				m.email AS member_email
-			FROM {$images_table} AS i
-			LEFT JOIN {$members_table} AS m ON i.member_id = m.id
+			FROM %i AS i
+			LEFT JOIN %i AS m ON i.member_id = m.id
 			ORDER BY i.member_id ASC
-		";
-		// phpcs:enable WordPress.DB.PreparedSQL
+		';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql only has table names as placeholders.
+		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, $this->table(), $this->wpdb->prefix . 'photocomp_members' ) );
 	}
 
 	/**
