@@ -136,9 +136,14 @@ class Voting_Controller {
 
 			check_admin_referer( 'photo_competition_open_voting_' . $competition_id . '_' . $category_slug );
 
-			// Global constraint validation: ensure no other category has voting open.
+			// Global constraint validation: ensure no other category has voting open in ACTIVE competitions only.
 			$all_competitions = $this->competitions->all( 100, false, false );
 			foreach ( $all_competitions as $comp ) {
+				// Skip closed/inactive competitions.
+				if ( ! $this->competitions->is_open( $comp ) ) {
+					continue;
+				}
+
 				$comp_settings  = Competition_Settings::parse( $comp->settings );
 				$comp_open_cats = Competition_Settings::get_open_voting_categories( $comp_settings );
 
@@ -150,9 +155,14 @@ class Voting_Controller {
 						'error'
 					);
 
+					set_transient( 'settings_errors', get_settings_errors(), 30 );
+
 					wp_safe_redirect(
 						add_query_arg(
-							array( 'page' => 'photo-competition-manager-voting' ),
+							array(
+								'page'             => 'photo-competition-manager-voting',
+								'settings-updated' => '1',
+							),
 							admin_url( 'admin.php' )
 						)
 					);
@@ -170,9 +180,14 @@ class Voting_Controller {
 					'error'
 				);
 
+				set_transient( 'settings_errors', get_settings_errors(), 30 );
+
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
+						array(
+							'page'             => 'photo-competition-manager-voting',
+							'settings-updated' => '1',
+						),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -206,9 +221,14 @@ class Voting_Controller {
 				$this->send_voting_opened_notifications( $competition );
 			}
 
+			set_transient( 'settings_errors', get_settings_errors(), 30 );
+
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
+					array(
+						'page'             => 'photo-competition-manager-voting',
+						'settings-updated' => '1',
+					),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -230,9 +250,14 @@ class Voting_Controller {
 					'error'
 				);
 
+				set_transient( 'settings_errors', get_settings_errors(), 30 );
+
 				wp_safe_redirect(
 					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
+						array(
+							'page'             => 'photo-competition-manager-voting',
+							'settings-updated' => '1',
+						),
 						admin_url( 'admin.php' )
 					)
 				);
@@ -263,9 +288,14 @@ class Voting_Controller {
 				);
 			}
 
+			set_transient( 'settings_errors', get_settings_errors(), 30 );
+
 			wp_safe_redirect(
 				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
+					array(
+						'page'             => 'photo-competition-manager-voting',
+						'settings-updated' => '1',
+					),
 					admin_url( 'admin.php' )
 				)
 			);
@@ -780,7 +810,7 @@ class Voting_Controller {
 								'page'        => 'photo-competition-manager-voting',
 								'action'      => 'close_category_voting',
 								'competition' => (int) $competition->id,
-								'category'    => rawurlencode( $category_slug ),
+								'category'    => $category_slug,
 							),
 							admin_url( 'admin.php' )
 						),
@@ -797,7 +827,7 @@ class Voting_Controller {
 								'page'        => 'photo-competition-manager-voting',
 								'action'      => 'open_category_voting',
 								'competition' => (int) $competition->id,
-								'category'    => rawurlencode( $category_slug ),
+								'category'    => $category_slug,
 							),
 							admin_url( 'admin.php' )
 						),
