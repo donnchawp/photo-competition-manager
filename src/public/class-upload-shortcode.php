@@ -110,13 +110,7 @@ class Upload_Shortcode {
 	 * during shortcode render to pass configuration to JavaScript.
 	 */
 	public function enqueue_assets(): void {
-		// Determine plugin root directory.
-		// The plugin file is at src/photo-competition-manager.php.
-		// From src/public/, go up one level to get to src/.
-		$plugin_dir  = dirname( __DIR__ );
-		$plugin_file = $plugin_dir . '/photo-competition-manager.php';
-
-		$asset_file = $plugin_dir . '/assets/build/drag-drop-upload.asset.php';
+		$asset_file = PHOTO_COMPETITION_MANAGER_DIR . '/assets/build/drag-drop-upload.asset.php';
 
 		if ( ! file_exists( $asset_file ) ) {
 			return;
@@ -124,12 +118,9 @@ class Upload_Shortcode {
 
 		$asset = require $asset_file;
 
-		// Get the plugin URL.
-		$plugin_url = plugin_dir_url( $plugin_file );
-
 		wp_enqueue_script(
 			'photo-comp-drag-drop-upload',
-			$plugin_url . 'assets/build/drag-drop-upload.js',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/build/drag-drop-upload.js',
 			$asset['dependencies'],
 			$asset['version'],
 			true
@@ -137,19 +128,19 @@ class Upload_Shortcode {
 
 		wp_enqueue_style(
 			'photo-comp-drag-drop-upload',
-			$plugin_url . 'assets/build/drag-drop-upload.css',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/build/drag-drop-upload.css',
 			array(),
 			$asset['version']
 		);
 
 		// Enqueue submission category update assets.
-		$category_asset_file = $plugin_dir . '/assets/build/submission-category.asset.php';
+		$category_asset_file = PHOTO_COMPETITION_MANAGER_DIR . '/assets/build/submission-category.asset.php';
 		if ( file_exists( $category_asset_file ) ) {
 			$category_asset = require $category_asset_file;
 
 			wp_enqueue_script(
 				'photo-comp-submission-category',
-				$plugin_url . 'assets/build/submission-category.js',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/submission-category.js',
 				$category_asset['dependencies'],
 				$category_asset['version'],
 				true
@@ -157,7 +148,7 @@ class Upload_Shortcode {
 
 			wp_enqueue_style(
 				'photo-comp-submission-category',
-				$plugin_url . 'assets/build/submission-category.css',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/submission-category.css',
 				array(),
 				$category_asset['version']
 			);

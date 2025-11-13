@@ -65,7 +65,7 @@ class Members_Controller {
 	}
 
 	/**
-	 * Enqueue inline scripts for members page.
+	 * Enqueue scripts for members page.
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
@@ -75,74 +75,26 @@ class Members_Controller {
 			return;
 		}
 
-		$inline_js = "
-		document.addEventListener('DOMContentLoaded', function() {
-			// Select all functionality
-			const selectAll = document.getElementById('cb-select-all-1');
-			if (selectAll) {
-				selectAll.addEventListener('change', function() {
-					const checkboxes = document.querySelectorAll('input[name=\"member_ids[]\"]');
-					checkboxes.forEach(function(checkbox) {
-						checkbox.checked = selectAll.checked;
-					});
-				});
-			}
+		wp_enqueue_script(
+			'photo-comp-members-admin',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/build/admin/members-admin.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 
-			// Show/hide grade selector based on bulk action
-			const bulkAction = document.getElementById('bulk-action-selector-top');
-			const gradeSelector = document.getElementById('bulk-grade-selector');
-			if (bulkAction && gradeSelector) {
-				bulkAction.addEventListener('change', function() {
-					if (bulkAction.value === 'bulk_update_grade') {
-						gradeSelector.style.display = 'inline-block';
-					} else {
-						gradeSelector.style.display = 'none';
-					}
-				});
-			}
-
-			// Form validation
-			const bulkForm = document.getElementById('bulk-members-form');
-			if (bulkForm) {
-				bulkForm.addEventListener('submit', function(e) {
-					const action = document.getElementById('bulk-action-selector-top').value;
-					if (action === '-1') {
-						e.preventDefault();
-						alert('" . esc_js( __( 'Please select a bulk action.', 'photo-competition-manager' ) ) . "');
-						return false;
-					}
-					const checked = document.querySelectorAll('input[name=\"member_ids[]\"]:checked');
-					if (checked.length === 0) {
-						e.preventDefault();
-						alert('" . esc_js( __( 'Please select at least one member.', 'photo-competition-manager' ) ) . "');
-						return false;
-					}
-					if (action === 'bulk_update_grade') {
-						const grade = document.getElementById('bulk-grade-selector').value;
-						if (!grade) {
-							e.preventDefault();
-							alert('" . esc_js( __( 'Please select a grade.', 'photo-competition-manager' ) ) . "');
-							return false;
-						}
-					}
-				});
-			}
-
-			// Delete member confirmation
-			const deleteLinks = document.querySelectorAll('.delete-member-link');
-			deleteLinks.forEach(function(link) {
-				link.addEventListener('click', function(e) {
-					const memberName = link.getAttribute('data-member-name');
-					const message = '" . esc_js( __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ) ) . "\\n\\n' + '" . esc_js( __( 'Member:', 'photo-competition-manager' ) ) . " ' + memberName + '\\n\\n' + '" . esc_js( __( 'This action cannot be undone.', 'photo-competition-manager' ) ) . "';
-					if (!confirm(message)) {
-						e.preventDefault();
-						return false;
-					}
-				});
-			});
-		});
-		";
-		wp_add_inline_script( 'wp-admin', $inline_js );
+		wp_localize_script(
+			'photo-comp-members-admin',
+			'photoCompMembersAdmin',
+			array(
+				'selectBulkAction' => __( 'Please select a bulk action.', 'photo-competition-manager' ),
+				'selectOneMember'  => __( 'Please select at least one member.', 'photo-competition-manager' ),
+				'selectGrade'      => __( 'Please select a grade.', 'photo-competition-manager' ),
+				'confirmDelete'    => __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ),
+				'memberLabel'      => __( 'Member:', 'photo-competition-manager' ),
+				'cannotUndo'       => __( 'This action cannot be undone.', 'photo-competition-manager' ),
+			)
+		);
 	}
 
 	/**

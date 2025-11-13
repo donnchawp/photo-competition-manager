@@ -14,6 +14,15 @@ if ( ! defined( 'PHOTO_COMPETITION_MANAGER_VERSION' ) ) {
 	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.1.0' );
 }
 
+// Define plugin directory and URL.
+if ( ! defined( 'PHOTO_COMPETITION_MANAGER_DIR' ) ) {
+	define( 'PHOTO_COMPETITION_MANAGER_DIR', dirname( __DIR__ ) );
+}
+
+if ( ! defined( 'PHOTO_COMPETITION_MANAGER_URL' ) ) {
+	define( 'PHOTO_COMPETITION_MANAGER_URL', plugin_dir_url( dirname( __DIR__ ) . '/photo-competition-manager.php' ) );
+}
+
 // Load Composer autoloader if it exists.
 $photo_competition_manager_autoload = dirname( __DIR__ ) . '/vendor/autoload.php';
 

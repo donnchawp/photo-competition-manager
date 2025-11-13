@@ -285,14 +285,14 @@ class Slideshow_Shortcode {
 	private function enqueue_assets(): void {
 		wp_enqueue_style(
 			'photo-competition-manager-slideshow',
-			plugins_url( 'assets/css/slideshow.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/css/slideshow.css',
 			array(),
 			PHOTO_COMPETITION_MANAGER_VERSION
 		);
 
 		wp_enqueue_script(
 			'photo-competition-manager-slideshow',
-			plugins_url( 'assets/js/slideshow.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/slideshow.js',
 			array( 'jquery' ),
 			PHOTO_COMPETITION_MANAGER_VERSION,
 			true

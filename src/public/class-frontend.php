@@ -89,7 +89,7 @@ class Frontend {
 	public function enqueue_styles(): void {
 		wp_enqueue_style(
 			'photo-competition-manager-frontend',
-			plugins_url( 'assets/css/frontend.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/css/frontend.css',
 			array(),
 			PHOTO_COMPETITION_MANAGER_VERSION
 		);

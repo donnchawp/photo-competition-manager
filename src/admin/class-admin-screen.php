@@ -254,14 +254,14 @@ class Admin_Screen {
 
 		wp_enqueue_style(
 			'photo-competition-manager-admin-slideshow',
-			plugins_url( 'assets/css/admin-slideshow.css', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/css/admin-slideshow.css',
 			array(),
 			PHOTO_COMPETITION_MANAGER_VERSION
 		);
 
 		wp_enqueue_script(
 			'photo-competition-manager-admin-slideshow',
-			plugins_url( 'assets/js/admin-slideshow.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-slideshow.js',
 			array( 'jquery' ),
 			PHOTO_COMPETITION_MANAGER_VERSION,
 			true
@@ -269,7 +269,7 @@ class Admin_Screen {
 
 		wp_enqueue_script(
 			'photo-competition-manager-qrcode',
-			plugins_url( 'assets/js/qrcode.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/qrcode.js',
 			array(),
 			PHOTO_COMPETITION_MANAGER_VERSION,
 			true
@@ -277,9 +277,9 @@ class Admin_Screen {
 
 		wp_enqueue_script(
 			'photo-competition-manager-admin-qr',
-			plugins_url( 'assets/js/admin-qr.js', dirname( __DIR__ ) . '/photo-competition-manager.php' ),
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-qr.js',
 			array( 'photo-competition-manager-qrcode' ),
-			'1.0.0',
+			PHOTO_COMPETITION_MANAGER_VERSION,
 			true
 		);
 
