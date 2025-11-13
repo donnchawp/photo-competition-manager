@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
  * Manage logs dashboard page.
@@ -543,15 +544,17 @@ class Logs_Controller {
 		// Write header row.
 		fputcsv(
 			$output,
-			array(
-				__( 'Date/Time', 'photo-competition-manager' ),
-				__( 'Category', 'photo-competition-manager' ),
-				__( 'Event Type', 'photo-competition-manager' ),
-				__( 'Description', 'photo-competition-manager' ),
-				__( 'Actor Type', 'photo-competition-manager' ),
-				__( 'Actor Name', 'photo-competition-manager' ),
-				__( 'Competition', 'photo-competition-manager' ),
-				__( 'Metadata', 'photo-competition-manager' ),
+			sanitize_csv_row(
+				array(
+					__( 'Date/Time', 'photo-competition-manager' ),
+					__( 'Category', 'photo-competition-manager' ),
+					__( 'Event Type', 'photo-competition-manager' ),
+					__( 'Description', 'photo-competition-manager' ),
+					__( 'Actor Type', 'photo-competition-manager' ),
+					__( 'Actor Name', 'photo-competition-manager' ),
+					__( 'Competition', 'photo-competition-manager' ),
+					__( 'Metadata', 'photo-competition-manager' ),
+				)
 			)
 		);
 
@@ -561,15 +564,17 @@ class Logs_Controller {
 
 			fputcsv(
 				$output,
-				array(
-					$log->created_at,
-					$this->get_category_label( $log->event_category ),
-					$log->event_type,
-					$log->description,
-					$log->actor_type,
-					$log->actor_name,
-					$competition_title,
-					$log->metadata ?? '',
+				sanitize_csv_row(
+					array(
+						$log->created_at,
+						$this->get_category_label( $log->event_category ),
+						$log->event_type,
+						$log->description,
+						$log->actor_type,
+						$log->actor_name,
+						$competition_title,
+						$log->metadata ?? '',
+					)
 				)
 			);
 		}

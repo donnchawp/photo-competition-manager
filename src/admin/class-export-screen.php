@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
  * Export screen.
@@ -247,7 +248,7 @@ class Export_Screen {
 		for ( $i = 1; $i <= $max_votes; $i++ ) {
 			$header[] = 'Vote ' . $i;
 		}
-		fputcsv( $output, $header );
+		fputcsv( $output, sanitize_csv_row( $header ) );
 
 		// Write rows.
 		foreach ( $votes_by_voter as $voter => $voter_votes ) {
@@ -255,7 +256,7 @@ class Export_Screen {
 			foreach ( $voter_votes as $vote ) {
 				$row[] = (int) $vote;
 			}
-			fputcsv( $output, $row );
+			fputcsv( $output, sanitize_csv_row( $row ) );
 		}
 
 		// phpcs:ignore
@@ -288,7 +289,7 @@ class Export_Screen {
 
 		$output = fopen( 'php://output', 'w' );
 
-		fputcsv( $output, array( 'ID', 'Name', 'Email' ) );
+		fputcsv( $output, sanitize_csv_row( array( 'ID', 'Name', 'Email' ) ) );
 
 		// Group images by member.
 		$users = array();
@@ -314,10 +315,12 @@ class Export_Screen {
 		foreach ( $users as $user ) {
 			fputcsv(
 				$output,
-				array(
-					$user['random_number'],
-					$user['name'],
-					$user['email'],
+				sanitize_csv_row(
+					array(
+						$user['random_number'],
+						$user['name'],
+						$user['email'],
+					)
 				)
 			);
 		}

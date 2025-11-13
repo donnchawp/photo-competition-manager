@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
  * Manage results dashboard page.
@@ -715,17 +716,19 @@ class Results_Controller {
 		// CSV header.
 		fputcsv(
 			$output,
-			array(
-				'Competition',
-				'Category',
-				'Rank',
-				'Image Number',
-				'Member Name',
-				'Member Email',
-				'Grade',
-				'Score',
-				'Vote Count',
-				'Filename',
+			sanitize_csv_row(
+				array(
+					'Competition',
+					'Category',
+					'Rank',
+					'Image Number',
+					'Member Name',
+					'Member Email',
+					'Grade',
+					'Score',
+					'Vote Count',
+					'Filename',
+				)
 			)
 		);
 
@@ -747,17 +750,19 @@ class Results_Controller {
 
 				fputcsv(
 					$output,
-					array(
-						$competition->title,
-						$category_label,
-						$rank,
-						$result->random_number,
-						$member ? $member->name : '',
-						$member ? $member->email : '',
-						$member ? $member->grade : '',
-						number_format( (float) $result->average_score * (int) $result->vote_count, 0 ),
-						$result->vote_count,
-						$result->filename,
+					sanitize_csv_row(
+						array(
+							$competition->title,
+							$category_label,
+							$rank,
+							$result->random_number,
+							$member ? $member->name : '',
+							$member ? $member->email : '',
+							$member ? $member->grade : '',
+							number_format( (float) $result->average_score * (int) $result->vote_count, 0 ),
+							$result->vote_count,
+							$result->filename,
+						)
 					)
 				);
 
