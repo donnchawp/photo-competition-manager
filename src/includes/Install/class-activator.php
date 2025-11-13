@@ -74,7 +74,7 @@ class Activator {
 	 * @param wpdb|null $wpdb WordPress database instance.
 	 * @return array<string>
 	 */
-	public static function get_schema( wpdb $wpdb = null ): array {
+	public static function get_schema( ?wpdb $wpdb = null ): array {
 		$wpdb = $wpdb ? $wpdb : $GLOBALS['wpdb'];
 
 		$charset_collate = $wpdb->get_charset_collate();
@@ -169,6 +169,24 @@ class Activator {
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 
+		$logs = "CREATE TABLE {$wpdb->prefix}photocomp_logs (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NULL,
+			event_type VARCHAR(100) NOT NULL,
+			event_category VARCHAR(50) NOT NULL,
+			actor_type VARCHAR(50) NOT NULL,
+			actor_id BIGINT UNSIGNED NULL,
+			actor_name VARCHAR(191) NULL,
+			description TEXT NOT NULL,
+			metadata LONGTEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY competition_id (competition_id),
+			KEY event_type (event_type),
+			KEY event_category (event_category),
+			KEY created_at (created_at)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -176,6 +194,7 @@ class Activator {
 			$votes,
 			$upload_tokens,
 			$voting_tokens,
+			$logs,
 		);
 	}
 }

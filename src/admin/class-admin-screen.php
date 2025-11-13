@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 
@@ -85,6 +86,13 @@ class Admin_Screen {
 	private $email_templates_controller;
 
 	/**
+	 * Logs controller.
+	 *
+	 * @var Logs_Controller
+	 */
+	private $logs_controller;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -93,6 +101,7 @@ class Admin_Screen {
 		$members      = new Members_Repository();
 		$images       = new Images_Repository();
 		$votes        = new Votes_Repository();
+		$logs         = new Logs_Repository();
 
 		// Initialize services.
 		$analytics        = new \PhotoCompetitionManager\Service\Results_Analytics( $competitions, $images, $members, $votes );
@@ -110,6 +119,7 @@ class Admin_Screen {
 		$this->results_controller         = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
 		$this->email_templates_controller = new Email_Templates_Controller();
+		$this->logs_controller            = new Logs_Controller( $logs, $competitions );
 	}
 
 	/**
@@ -130,6 +140,7 @@ class Admin_Screen {
 		$this->results_controller->register();
 		$this->setup_wizard_controller->register();
 		$this->email_templates_controller->register();
+		$this->logs_controller->register();
 	}
 
 	/**
@@ -190,6 +201,15 @@ class Admin_Screen {
 			'manage_photo_competitions',
 			'photo-competition-manager-results',
 			array( $this->results_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Logs', 'photo-competition-manager' ),
+			__( 'Logs', 'photo-competition-manager' ),
+			'manage_photo_competitions',
+			'photo-competition-manager-logs',
+			array( $this->logs_controller, 'render' )
 		);
 
 		add_submenu_page(

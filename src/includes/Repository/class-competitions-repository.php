@@ -502,14 +502,18 @@ class Competitions_Repository extends Abstract_Repository {
 		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 		// Use token repository to generate tokens and send emails.
-		$token_repo  = new Upload_Token_Repository();
-		$sent_count  = 0;
-		$total_count = count( $members );
+		$token_repo    = new Upload_Token_Repository();
+		$sent_count    = 0;
+		$skipped_count = 0;
+		$total_count   = count( $members );
 
 		foreach ( $members as $member ) {
 			if ( empty( $member->email ) ) {
 				continue;
 			}
+
+			// Check if member has a recent token (rate-limited).
+			$has_recent = $token_repo->has_recent_token( (int) $member->id, (int) $competition_id );
 
 			$result = $token_repo->send_upload_link_for_member(
 				(int) $competition_id,
@@ -518,15 +522,20 @@ class Competitions_Repository extends Abstract_Repository {
 			);
 
 			if ( true === $result ) {
-				++$sent_count;
+				if ( $has_recent ) {
+					++$skipped_count;
+				} else {
+					++$sent_count;
+				}
 			}
 		}
 
 		return array(
-			'success'     => true,
-			'sent_count'  => $sent_count,
-			'total_count' => $total_count,
-			'message'     => sprintf(
+			'success'       => true,
+			'sent_count'    => $sent_count,
+			'skipped_count' => $skipped_count,
+			'total_count'   => $total_count,
+			'message'       => sprintf(
 				/* translators: 1: Number of emails sent, 2: Total number of members */
 				__( 'Sent %1$d of %2$d submission reminder emails.', 'photo-competition-manager' ),
 				$sent_count,

@@ -17,15 +17,32 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 class Email_Service {
 
 	/**
+	 * Event logger.
+	 *
+	 * @var Event_Logger|null
+	 */
+	private $event_logger;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Event_Logger|null $event_logger Optional event logger instance.
+	 */
+	public function __construct( ?Event_Logger $event_logger = null ) {
+		$this->event_logger = $event_logger ?? new Event_Logger();
+	}
+
+	/**
 	 * Send upload magic link email.
 	 *
-	 * @param string $to_email        Recipient email address.
-	 * @param string $member_name     Member name.
-	 * @param string $competition_title Competition title.
-	 * @param string $magic_link      Magic link URL.
+	 * @param string   $to_email        Recipient email address.
+	 * @param string   $member_name     Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $magic_link      Magic link URL.
+	 * @param int|null $competition_id  Optional competition ID for logging.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link ): bool {
+	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link, ?int $competition_id = null ): bool {
 		// Check if template is enabled and customized.
 		$template = $this->get_template( 'upload_reminder' );
 
@@ -54,18 +71,30 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'upload_reminder',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
 	 * Send voting magic link email.
 	 *
-	 * @param string $to_email        Recipient email address.
-	 * @param string $competition_title Competition title.
-	 * @param string $magic_link      Magic link URL.
+	 * @param string   $to_email        Recipient email address.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $magic_link      Magic link URL.
+	 * @param int|null $competition_id  Optional competition ID for logging.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_voting_link( string $to_email, string $competition_title, string $magic_link ): bool {
+	public function send_voting_link( string $to_email, string $competition_title, string $magic_link, ?int $competition_id = null ): bool {
 		// Check if template is enabled and customized.
 		$template = $this->get_template( 'voting_opened' );
 
@@ -93,7 +122,19 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'voting_opened',
+				$to_email,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -225,9 +266,10 @@ class Email_Service {
 	 * @param string               $member_name       Member name.
 	 * @param string               $competition_title Competition title.
 	 * @param array<string, mixed> $member_results    Member's results data.
+	 * @param int|null             $competition_id    Optional competition ID for logging.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_results_email( string $to_email, string $member_name, string $competition_title, array $member_results ): bool {
+	public function send_results_email( string $to_email, string $member_name, string $competition_title, array $member_results, ?int $competition_id = null ): bool {
 		// Note: This method sends detailed results data.
 		// For a simple notification without detailed results, use send_results_published_notification() instead.
 		$subject = sprintf(
@@ -242,18 +284,31 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'results_email',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
 	 * Send submission confirmed notification.
 	 *
-	 * @param string $to_email          Recipient email.
-	 * @param string $member_name       Member name.
-	 * @param string $competition_title Competition title.
-	 * @param string $category_name     Category name.
-	 * @param int    $current_count     Current submission count.
-	 * @param int    $quota             Maximum allowed submissions.
+	 * @param string   $to_email          Recipient email.
+	 * @param string   $member_name       Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $category_name     Category name.
+	 * @param int      $current_count     Current submission count.
+	 * @param int      $quota             Maximum allowed submissions.
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether email was sent successfully.
 	 */
 	public function send_submission_confirmed_notification(
@@ -262,7 +317,8 @@ class Email_Service {
 		string $competition_title,
 		string $category_name,
 		int $current_count,
-		int $quota
+		int $quota,
+		?int $competition_id = null
 	): bool {
 		$template = $this->get_template( 'submission_confirmed' );
 
@@ -285,17 +341,33 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'submission_confirmed',
+				$member_name,
+				array(
+					'email'    => $to_email,
+					'category' => $category_name,
+				)
+			);
+		}
+
+		return $result;
 	}
 
 	/**
 	 * Send voting opened notification.
 	 *
-	 * @param string $to_email          Recipient email.
-	 * @param string $member_name       Member name.
-	 * @param string $competition_title Competition title.
-	 * @param string $voting_page_url   Voting page URL.
-	 * @param string $close_date        Competition close date (formatted).
+	 * @param string   $to_email          Recipient email.
+	 * @param string   $member_name       Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $voting_page_url   Voting page URL.
+	 * @param string   $close_date        Competition close date (formatted).
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether email was sent successfully.
 	 */
 	public function send_voting_opened_notification(
@@ -303,7 +375,8 @@ class Email_Service {
 		string $member_name,
 		string $competition_title,
 		string $voting_page_url,
-		string $close_date
+		string $close_date,
+		?int $competition_id = null
 	): bool {
 		$template = $this->get_template( 'voting_opened' );
 
@@ -325,21 +398,35 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'voting_opened_notification',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
 	 * Send competition closed notification.
 	 *
-	 * @param string $to_email          Recipient email.
-	 * @param string $member_name       Member name.
-	 * @param string $competition_title Competition title.
+	 * @param string   $to_email          Recipient email.
+	 * @param string   $member_name       Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether email was sent successfully.
 	 */
 	public function send_competition_closed_notification(
 		string $to_email,
 		string $member_name,
-		string $competition_title
+		string $competition_title,
+		?int $competition_id = null
 	): bool {
 		$template = $this->get_template( 'competition_closed' );
 
@@ -359,23 +446,37 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'competition_closed',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
 	 * Send results published notification.
 	 *
-	 * @param string $to_email          Recipient email.
-	 * @param string $member_name       Member name.
-	 * @param string $competition_title Competition title.
-	 * @param string $results_page_url  Results page URL.
+	 * @param string   $to_email          Recipient email.
+	 * @param string   $member_name       Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $results_page_url  Results page URL.
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether email was sent successfully.
 	 */
 	public function send_results_published_notification(
 		string $to_email,
 		string $member_name,
 		string $competition_title,
-		string $results_page_url
+		string $results_page_url,
+		?int $competition_id = null
 	): bool {
 		$template = $this->get_template( 'results_published' );
 
@@ -396,7 +497,19 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		return wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $subject, $message, $headers );
+
+		// Log the email.
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'results_published',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
 	}
 
 	/**
