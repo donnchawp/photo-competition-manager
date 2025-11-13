@@ -155,11 +155,10 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT * FROM {$table} WHERE image_id = %d ORDER BY created_at DESC",
+			'SELECT * FROM %i WHERE image_id = %d ORDER BY created_at DESC',
+			$this->table(),
 			$image_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -179,11 +178,10 @@ class Votes_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table} WHERE voting_token_id = %d",
+			'SELECT COUNT(*) FROM %i WHERE voting_token_id = %d',
+			$this->table(),
 			$voting_token_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -247,11 +245,10 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT image_id, score FROM {$table} WHERE voting_token_id = %d",
+			'SELECT image_id, score FROM %i WHERE voting_token_id = %d',
+			$this->table(),
 			$voting_token_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -284,11 +281,10 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT image_id, score FROM {$table} WHERE competition_id = %d AND category = %s AND voter_name = %s",
+			'SELECT image_id, score FROM %i WHERE competition_id = %d AND category = %s AND voter_name = %s',
+			$this->table(),
 			$competition_id,
 			$category,
 			$voter_name
@@ -323,11 +319,10 @@ class Votes_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table} WHERE competition_id = %d AND category = %s AND voter_name = %s",
+			'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s AND voter_name = %s',
+			$this->table(),
 			$competition_id,
 			$category,
 			$voter_name
@@ -420,11 +415,10 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT DISTINCT voter_name FROM {$table} WHERE competition_id = %d ORDER BY voter_name",
+			'SELECT DISTINCT voter_name FROM %i WHERE competition_id = %d ORDER BY voter_name',
+			$this->table(),
 			$competition_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -446,11 +440,10 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT * FROM {$table} WHERE competition_id = %d ORDER BY voter_name, created_at",
+			'SELECT * FROM %i WHERE competition_id = %d ORDER BY voter_name, created_at',
+			$this->table(),
 			$competition_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL

@@ -52,12 +52,11 @@ class Members_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$table} WHERE id = %d",
+				'SELECT * FROM %i WHERE id = %d',
+				$this->table(),
 				$id
 			)
 		);
@@ -75,12 +74,11 @@ class Members_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$table} WHERE email = %s",
+				'SELECT * FROM %i WHERE email = %s',
+				$this->table(),
 				$email
 			)
 		);
@@ -378,11 +376,10 @@ class Members_Repository extends Abstract_Repository {
 			$params[]    = $exclude_id;
 		}
 
-		$table = $this->table();
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table} WHERE email=%s{$conditions}",
+			"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
+			$this->table(),
 			...$params
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
