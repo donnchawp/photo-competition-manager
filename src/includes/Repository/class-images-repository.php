@@ -149,18 +149,16 @@ class Images_Repository extends Abstract_Repository {
 			return 1;
 		}
 
-		global $wpdb;
-
-		$sql = $wpdb->prepare(
-			'SELECT MAX(random_number) FROM %i WHERE competition_id = %d AND category = %s',
-			$this->table(),
-			$competition_id,
-			$category
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$max = $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				'SELECT MAX(random_number) FROM %i WHERE competition_id = %d AND category = %s',
+				$this->table(),
+				$competition_id,
+				$category
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		$max = $wpdb->get_var( $sql );
-
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 		return $max ? (int) $max + 1 : 1;
 	}
 
@@ -179,32 +177,31 @@ class Images_Repository extends Abstract_Repository {
 			return 1;
 		}
 
-		global $wpdb;
-
-		// Check if member already has images in this competition.
-		$existing_sql = $wpdb->prepare(
-			'SELECT random_number FROM %i WHERE competition_id = %d AND member_id = %d LIMIT 1',
-			$this->table(),
-			$competition_id,
-			$member_id
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$existing = $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				'SELECT random_number FROM %i WHERE competition_id = %d AND member_id = %d LIMIT 1',
+				$this->table(),
+				$competition_id,
+				$member_id
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		$existing = $wpdb->get_var( $existing_sql );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
 		if ( $existing ) {
 			return (int) $existing;
 		}
 
 		// Member doesn't have images yet, assign next sequential number.
-		$max_sql = $wpdb->prepare(
-			'SELECT MAX(random_number) FROM %i WHERE competition_id = %d',
-			$this->table(),
-			$competition_id
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$max = $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				'SELECT MAX(random_number) FROM %i WHERE competition_id = %d',
+				$this->table(),
+				$competition_id
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		$max = $wpdb->get_var( $max_sql );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
 		return $max ? (int) $max + 1 : 1;
 	}
@@ -223,17 +220,15 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 
-		global $wpdb;
-
-		// Get all unique member IDs who have submitted images to this competition.
-		$sql = $wpdb->prepare(
-			'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
-			$this->table(),
-			$competition_id
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$member_ids = $this->wpdb->get_col(
+			$this->wpdb->prepare(
+				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
+				$this->table(),
+				$competition_id
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		$member_ids = $wpdb->get_col( $sql );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
 		if ( empty( $member_ids ) ) {
 			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'photo-competition-manager' ) );
@@ -458,25 +453,15 @@ class Images_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$sql = '
-			SELECT
-				i.id,
-				i.competition_id,
-				i.member_id,
-				i.category,
-				i.filename,
-				i.random_number,
-				i.score,
-				i.created_at,
-				m.name AS member_name,
-				m.email AS member_email
-			FROM %i AS i
-			LEFT JOIN %i AS m ON i.member_id = m.id
-			ORDER BY i.member_id ASC
-		';
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql only has table names as placeholders.
-		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, $this->table(), $this->wpdb->prefix . 'photocomp_members' ) );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		return $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				'SELECT i.id, i.competition_id, i.member_id, i.category, i.filename, i.random_number, i.score, i.created_at, m.name AS member_name, m.email AS member_email FROM %i AS i LEFT JOIN %i AS m ON i.member_id = m.id ORDER BY i.member_id ASC',
+				$this->table(),
+				$this->wpdb->prefix . 'photocomp_members'
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -490,16 +475,15 @@ class Images_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		global $wpdb;
-
-		$sql = $wpdb->prepare(
-			'SELECT original_attachment_id FROM %i WHERE competition_id = %d AND original_attachment_id IS NOT NULL',
-			$this->table(),
-			$competition_id
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$results = $this->wpdb->get_col(
+			$this->wpdb->prepare(
+				'SELECT original_attachment_id FROM %i WHERE competition_id = %d AND original_attachment_id IS NOT NULL',
+				$this->table(),
+				$competition_id
+			)
 		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is prepared.
-		$results = $wpdb->get_col( $sql );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
 		return array_map( 'intval', $results );
 	}
