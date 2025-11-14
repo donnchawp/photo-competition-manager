@@ -217,67 +217,6 @@ class Members_Controller {
 			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
-		// Generate upload link action.
-		if ( 'generate_upload_link' === $action ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
-			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			if ( ! $member_id || ! $competition_id ) {
-				add_settings_error(
-					'photo_competition_members',
-					'invalid_params',
-					__( 'Invalid member or competition.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
-			}
-
-			check_admin_referer( 'photo_competition_generate_link_' . $member_id . '_' . $competition_id );
-
-			$competition = $this->competitions->find( $competition_id );
-			$member      = $this->members->find( $member_id );
-
-			if ( ! $competition || ! $member || empty( $member->email ) ) {
-				add_settings_error(
-					'photo_competition_members',
-					'invalid_data',
-					__( 'Invalid member or competition.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
-			}
-
-			// Generate the upload URL with a fresh token.
-			$upload_url = $this->get_member_upload_url( $member_id, $competition );
-
-			if ( empty( $upload_url ) ) {
-				add_settings_error(
-					'photo_competition_members',
-					'link_generation_failed',
-					__( 'Could not generate upload link. Make sure an upload page is configured.', 'photo-competition-manager' ),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_members',
-					'link_generated',
-					sprintf(
-						/* translators: 1: member name, 2: upload URL */
-						__( 'Upload link generated for %1$s: %2$s', 'photo-competition-manager' ),
-						esc_html( $member->name ),
-						'<br><input type="text" value="' . esc_attr( $upload_url ) . '" readonly style="width: 100%; margin-top: 8px;" onclick="this.select();" />'
-					),
-					'updated'
-				);
-			}
-
-			$this->redirect_with_settings_errors( $this->members_url() );
-		}
-
 		if ( 'create_member' === $action ) {
 			check_admin_referer( 'photo_competition_member_create', 'photo_competition_member_nonce' );
 
@@ -860,26 +799,16 @@ class Members_Controller {
 							esc_html__( 'Send Upload Email', 'photo-competition-manager' )
 						);
 
-						// Add action to generate and copy upload link (generates token on-demand).
-						$generate_link_url = wp_nonce_url(
-							add_query_arg(
-								array(
-									'page'        => 'photo-competition-manager-members',
-									'action'      => 'generate_upload_link',
-									'member'      => (int) $member->id,
-									'competition' => (int) $active_competition->id,
-								),
-								admin_url( 'admin.php' )
-							),
-							'photo_competition_generate_link_' . (int) $member->id . '_' . (int) $active_competition->id
-						);
-
-						$actions[] = sprintf(
-							'<a href="%s" title="%s">%s</a>',
-							esc_url( $generate_link_url ),
-							esc_attr__( 'Generate a fresh upload link for this member', 'photo-competition-manager' ),
-							esc_html__( 'Generate Upload Link', 'photo-competition-manager' )
-						);
+						// Add upload page link for copying/sharing.
+						$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+						if ( ! empty( $upload_url ) ) {
+							$actions[] = sprintf(
+								'<a href="%s" target="_blank" title="%s">%s</a>',
+								esc_url( $upload_url ),
+								esc_attr__( 'Copy this link to share with the member', 'photo-competition-manager' ),
+								esc_html__( 'Upload Link', 'photo-competition-manager' )
+							);
+						}
 					} else {
 						$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'photo-competition-manager' ) . '">' . esc_html__( 'Send Upload Email', 'photo-competition-manager' ) . '</span>';
 					}
