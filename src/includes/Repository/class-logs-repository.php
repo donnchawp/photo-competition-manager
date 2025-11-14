@@ -121,7 +121,7 @@ class Logs_Repository extends Abstract_Repository {
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
 	}
 
 	/**
@@ -171,7 +171,7 @@ class Logs_Repository extends Abstract_Repository {
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
 	}
 
 	/**
@@ -216,7 +216,7 @@ class Logs_Repository extends Abstract_Repository {
 
 		$where = implode( ' AND ', $where_clauses );
 
-		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $where", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $where", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
 	}
 
 	/**
