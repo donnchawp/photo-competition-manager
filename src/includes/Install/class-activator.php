@@ -146,10 +146,11 @@ class Activator {
 			expires_at DATETIME NOT NULL,
 			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
+			sent_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
+			UNIQUE KEY member_competition (member_id, competition_id),
 			KEY token_hash (token_hash),
-			KEY member_competition (member_id, competition_id),
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 
@@ -162,10 +163,11 @@ class Activator {
 			expires_at DATETIME NOT NULL,
 			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
+			sent_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
+			UNIQUE KEY member_competition_category (member_id, competition_id, category),
 			KEY token_hash (token_hash),
-			KEY member_competition_category (member_id, competition_id, category),
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 

@@ -323,7 +323,9 @@ class Competitions_Controller {
 				} else {
 					$sent_count    = is_array( $result ) ? $result['sent_count'] : ( is_int( $result ) ? $result : 0 );
 					$skipped_count = is_array( $result ) && isset( $result['skipped_count'] ) ? $result['skipped_count'] : 0;
+					$failed_count  = is_array( $result ) && isset( $result['failed_count'] ) ? $result['failed_count'] : 0;
 					$total_count   = is_array( $result ) ? $result['total_count'] : $sent_count;
+					$errors        = is_array( $result ) && isset( $result['errors'] ) ? $result['errors'] : array();
 
 					$message = sprintf(
 						/* translators: 1: Number of emails sent, 2: Total number of members */
@@ -353,11 +355,30 @@ class Competitions_Controller {
 						$message .= ' ' . __( 'Note: Emails will not be resent to the same members within 5 minutes.', 'photo-competition-manager' );
 					}
 
+					// Add failed count notice if some emails failed.
+					if ( $failed_count > 0 ) {
+						$message .= ' ' . sprintf(
+							/* translators: %d: Number of members that failed */
+							_n(
+								'%d email failed to send.',
+								'%d emails failed to send.',
+								$failed_count,
+								'photo-competition-manager'
+							),
+							$failed_count
+						);
+
+						// Show detailed errors.
+						if ( ! empty( $errors ) ) {
+							$message .= ' ' . __( 'Errors:', 'photo-competition-manager' ) . ' ' . implode( '; ', $errors );
+						}
+					}
+
 					add_settings_error(
 						'photo_competition_manager',
 						'emails_sent',
 						$message,
-						'updated'
+						$failed_count > 0 ? 'error' : 'updated'
 					);
 				}
 

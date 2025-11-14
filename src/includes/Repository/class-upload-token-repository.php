@@ -19,22 +19,76 @@ use WP_Error;
 class Upload_Token_Repository extends Abstract_Repository {
 
 	/**
-	 * Create a new upload token.
+	 * Find or create an upload token for a member and competition.
 	 *
-	 * @param int    $member_id      Member ID.
-	 * @param int    $competition_id Competition ID.
-	 * @param string $token_hash     Hashed token.
-	 * @param string $expires_at     Expiration datetime.
-	 * @return int|WP_Error Token ID or error.
+	 * Returns existing token if one exists, otherwise creates a new one.
+	 * This ensures only one token per member per competition.
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return object|WP_Error Token object or error.
 	 */
-	public function create( int $member_id, int $competition_id, string $token_hash, string $expires_at ) {
+	public function find_or_create( int $member_id, int $competition_id ) {
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'missing_table', __( 'Upload token table is not available.', 'photo-competition-manager' ) );
 		}
 
-		if ( $member_id <= 0 || $competition_id <= 0 || empty( $token_hash ) || empty( $expires_at ) ) {
-			return new WP_Error( 'invalid_data', __( 'Invalid token data provided.', 'photo-competition-manager' ) );
+		if ( $member_id <= 0 || $competition_id <= 0 ) {
+			return new WP_Error( 'invalid_data', __( 'Invalid member or competition ID.', 'photo-competition-manager' ) );
 		}
+
+		// Try to find existing token.
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$existing = $this->wpdb->get_row(
+			$this->wpdb->prepare(
+				'SELECT * FROM %i
+				WHERE member_id = %d
+				AND competition_id = %d
+				LIMIT 1',
+				$this->table(),
+				$member_id,
+				$competition_id
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		if ( $existing ) {
+			// Refresh token if expired.
+			if ( $existing->expires_at < current_time( 'mysql' ) ) {
+				$new_token      = bin2hex( random_bytes( 32 ) );
+				$token_hash     = hash( 'sha256', $new_token );
+				$new_expires_at = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
+
+				$updated = $this->wpdb->update(
+					$this->table(),
+					array(
+						'token_hash' => $token_hash,
+						'expires_at' => $new_expires_at,
+						'used_at'    => null,
+					),
+					array( 'id' => $existing->id ),
+					array( '%s', '%s', '%s' ),
+					array( '%d' )
+				);
+
+				if ( false === $updated ) {
+					return new WP_Error( 'db_update_failed', __( 'Could not refresh token.', 'photo-competition-manager' ) );
+				}
+
+				// Return updated token object.
+				$existing->token_hash = $token_hash;
+				$existing->expires_at = $new_expires_at;
+				$existing->used_at    = null;
+				$existing->token      = $new_token; // Add plain token for immediate use.
+			}
+
+			return $existing;
+		}
+
+		// Create new token.
+		$token_string = bin2hex( random_bytes( 32 ) );
+		$token_hash   = hash( 'sha256', $token_string );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
 
 		$payload = array(
 			'member_id'      => $member_id,
@@ -52,7 +106,24 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new WP_Error( 'db_insert_failed', __( 'Could not create upload token.', 'photo-competition-manager' ), $this->wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		// Return the newly created token.
+		$token_id = (int) $this->wpdb->insert_id;
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		$token = $this->wpdb->get_row(
+			$this->wpdb->prepare(
+				'SELECT * FROM %i WHERE id = %d',
+				$this->table(),
+				$token_id
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+
+		if ( $token ) {
+			$token->token = $token_string; // Add plain token for immediate use.
+		}
+
+		return $token ? $token : new WP_Error( 'token_not_found', __( 'Token was created but could not be retrieved.', 'photo-competition-manager' ) );
 	}
 
 	/**
@@ -152,13 +223,20 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @param int $competition_id Competition ID.
 	 * @return bool
 	 */
-	public function has_recent_token( int $member_id, int $competition_id ): bool {
+	/**
+	 * Check if a member has been sent an email within the rate limit window.
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return bool True if an email was sent within the last 5 minutes.
+	 */
+	public function has_recent_email_send( int $member_id, int $competition_id ): bool {
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
 
-		// Check for tokens created in the last 5 minutes that are still valid.
-		$recent_threshold = gmdate( 'Y-m-d H:i:s', time() - ( 5 * MINUTE_IN_SECONDS ) );
+		// Check if sent_at is within the last 5 minutes.
+		$current_time = current_time( 'mysql' );
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$count = (int) $this->wpdb->get_var(
@@ -166,13 +244,11 @@ class Upload_Token_Repository extends Abstract_Repository {
 				"SELECT COUNT(*) FROM {$this->table()}
 				WHERE member_id = %d
 				AND competition_id = %d
-				AND used_at IS NULL
-				AND expires_at > %s
-				AND created_at > %s",
+				AND sent_at IS NOT NULL
+				AND sent_at > DATE_SUB(%s, INTERVAL 5 MINUTE)",
 				$member_id,
 				$competition_id,
-				current_time( 'mysql' ),
-				$recent_threshold
+				$current_time
 			)
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -181,9 +257,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Generate an upload URL with a fresh token for a member.
+	 * Generate an upload URL for a member using their existing or new token.
 	 *
-	 * Creates a new upload token and returns the complete URL that can be shared with the member.
+	 * Finds existing token or creates one if needed. Does not update sent_at.
 	 *
 	 * @since 1.0.0
 	 * @param int    $competition_id  Competition ID.
@@ -206,14 +282,25 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new \WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
-		// Create secure token.
-		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
+		// Get or create token.
+		$token_obj = $this->find_or_create( $member_id, $competition_id );
+		if ( is_wp_error( $token_obj ) ) {
+			return $token_obj;
+		}
 
-		$token_id = $this->create( $member_id, $competition_id, $token_hash, $expires_at );
-		if ( is_wp_error( $token_id ) ) {
-			return $token_id;
+		// Get the plain token (either from token property if just created, or need to generate new one).
+		$token_string = isset( $token_obj->token ) ? $token_obj->token : bin2hex( random_bytes( 32 ) );
+
+		// If we generated a new token string, update the hash.
+		if ( ! isset( $token_obj->token ) ) {
+			$token_hash = hash( 'sha256', $token_string );
+			$this->wpdb->update(
+				$this->table(),
+				array( 'token_hash' => $token_hash ),
+				array( 'id' => $token_obj->id ),
+				array( '%s' ),
+				array( '%d' )
+			);
 		}
 
 		// Build magic link.
@@ -259,12 +346,18 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new \WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
 		}
 
-		// Rate-limit: if a recent token exists, do not create/send a new one.
-		if ( $this->has_recent_token( $member_id, $competition_id ) && ! $force_send ) {
+		// Rate-limit: if an email was sent recently, skip unless forced.
+		if ( $this->has_recent_email_send( $member_id, $competition_id ) && ! $force_send ) {
 			return true;
 		}
 
-		// Generate upload URL with token.
+		// Get or create token for this member/competition.
+		$token_obj = $this->find_or_create( $member_id, $competition_id );
+		if ( is_wp_error( $token_obj ) ) {
+			return $token_obj;
+		}
+
+		// Generate upload URL.
 		$upload_url = $this->generate_upload_url( $competition_id, $member_id, $upload_page_url );
 		if ( is_wp_error( $upload_url ) ) {
 			return $upload_url;
@@ -282,6 +375,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 		if ( ! $sent ) {
 			return new \WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
 		}
+
+		// Update sent_at timestamp to track when email was sent.
+		$this->wpdb->update(
+			$this->table(),
+			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'id' => $token_obj->id ),
+			array( '%s' ),
+			array( '%d' )
+		);
 
 		return true;
 	}

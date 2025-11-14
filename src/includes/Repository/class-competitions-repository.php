@@ -505,15 +505,17 @@ class Competitions_Repository extends Abstract_Repository {
 		$token_repo    = new Upload_Token_Repository();
 		$sent_count    = 0;
 		$skipped_count = 0;
+		$failed_count  = 0;
 		$total_count   = count( $members );
+		$errors        = array();
 
 		foreach ( $members as $member ) {
 			if ( empty( $member->email ) ) {
 				continue;
 			}
 
-			// Check if member has a recent token (rate-limited).
-			$has_recent = $token_repo->has_recent_token( (int) $member->id, (int) $competition_id );
+			// Check if member was recently sent an email (rate-limited).
+			$has_recent = $token_repo->has_recent_email_send( (int) $member->id, (int) $competition_id );
 
 			$result = $token_repo->send_upload_link_for_member(
 				(int) $competition_id,
@@ -521,7 +523,14 @@ class Competitions_Repository extends Abstract_Repository {
 				$upload_page_url
 			);
 
-			if ( true === $result ) {
+			if ( is_wp_error( $result ) ) {
+				++$failed_count;
+				$errors[] = sprintf(
+					'%s: %s',
+					$member->name ?? $member->email,
+					$result->get_error_message()
+				);
+			} elseif ( true === $result ) {
 				if ( $has_recent ) {
 					++$skipped_count;
 				} else {
@@ -534,7 +543,9 @@ class Competitions_Repository extends Abstract_Repository {
 			'success'       => true,
 			'sent_count'    => $sent_count,
 			'skipped_count' => $skipped_count,
+			'failed_count'  => $failed_count,
 			'total_count'   => $total_count,
+			'errors'        => $errors,
 			'message'       => sprintf(
 				/* translators: 1: Number of emails sent, 2: Total number of members */
 				__( 'Sent %1$d of %2$d submission reminder emails.', 'photo-competition-manager' ),
