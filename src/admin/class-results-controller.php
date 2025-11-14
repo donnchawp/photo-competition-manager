@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -29,6 +30,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 class Results_Controller {
 
 	use Date_Formatting;
+	use Form_Rendering;
 
 	/**
 	 * Competitions repository.
@@ -170,7 +172,7 @@ class Results_Controller {
 				);
 			}
 
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
@@ -179,7 +181,6 @@ class Results_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 
 		if ( 'email_results' === $action ) {
@@ -198,7 +199,7 @@ class Results_Controller {
 					'error'
 				);
 
-				wp_safe_redirect(
+				$this->redirect_with_settings_errors(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager-results',
@@ -207,7 +208,6 @@ class Results_Controller {
 						admin_url( 'admin.php' )
 					)
 				);
-				exit;
 			}
 
 			// Schedule first batch immediately.

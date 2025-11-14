@@ -64,14 +64,38 @@ trait Form_Rendering {
 	/**
 	 * Members page URL.
 	 *
+	 * @param bool $with_settings_updated Whether to add the settings-updated parameter to the URL.
+	 *                                    Default is false.
 	 * @return string
 	 */
-	private function members_url(): string {
-		return add_query_arg(
-			array(
-				'page' => 'photo-competition-manager-members',
-			),
-			admin_url( 'admin.php' )
+	private function members_url( bool $with_settings_updated = false ): string { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh -- This is a helper method.
+		$args = array(
+			'page' => 'photo-competition-manager-members',
 		);
+
+		if ( $with_settings_updated ) {
+			$args['settings-updated'] = '1';
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
+	 * Redirect with settings errors preserved across the redirect.
+	 *
+	 * This helper saves any settings errors to a transient before redirecting,
+	 * ensuring they display on the destination page after the redirect completes.
+	 *
+	 * @param string $url Destination URL.
+	 * @return void
+	 */
+	private function redirect_with_settings_errors( string $url ): void {
+		set_transient( 'settings_errors', get_settings_errors(), 30 );
+
+		// Ensure the URL includes the settings-updated parameter.
+		$url = add_query_arg( 'settings-updated', '1', $url );
+
+		wp_safe_redirect( $url );
+		exit;
 	}
 }

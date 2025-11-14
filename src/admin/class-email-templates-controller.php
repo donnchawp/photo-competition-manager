@@ -9,12 +9,16 @@ namespace PhotoCompetitionManager\Admin;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+
 /**
  * Manage email template settings.
  *
  * @package PhotoCompetitionManager\Admin
  */
 class Email_Templates_Controller {
+
+	use Form_Rendering;
 
 	/**
 	 * Register hooks for this controller.
@@ -85,8 +89,7 @@ class Email_Templates_Controller {
 				'updated'
 			);
 
-			wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-email-templates' ) );
-			exit;
+			$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-email-templates' ) );
 		}
 	}
 

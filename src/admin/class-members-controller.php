@@ -131,7 +131,7 @@ class Members_Controller {
 					__( 'Invalid member or competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -147,7 +147,7 @@ class Members_Controller {
 					__( 'Competition must be open to send upload emails.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -158,7 +158,7 @@ class Members_Controller {
 					__( 'Member must be active and have an email address.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -214,8 +214,7 @@ class Members_Controller {
 				);
 			}
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		if ( 'create_member' === $action ) {
@@ -254,8 +253,7 @@ class Members_Controller {
 				);
 			}
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		if ( 'update_member' === $action ) {
@@ -288,7 +286,7 @@ class Members_Controller {
 					'error'
 				);
 
-				wp_safe_redirect(
+				$this->redirect_with_settings_errors(
 					add_query_arg(
 						array(
 							'page'          => 'photo-competition-manager-members',
@@ -298,7 +296,6 @@ class Members_Controller {
 						admin_url( 'admin.php' )
 					)
 				);
-				exit;
 			}
 
 			add_settings_error(
@@ -308,8 +305,7 @@ class Members_Controller {
 				'updated'
 			);
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		if ( 'delete_member' === $action ) {
@@ -323,7 +319,7 @@ class Members_Controller {
 					__( 'Invalid member ID.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -338,7 +334,7 @@ class Members_Controller {
 					__( 'Member not found.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -364,8 +360,7 @@ class Members_Controller {
 				);
 			}
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		// Handle CSV import.
@@ -379,7 +374,7 @@ class Members_Controller {
 					__( 'Please select a CSV file to import.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( $this->members_url() );
+				$this->redirect_with_settings_errors( $this->members_url() );
 				exit;
 			}
 
@@ -422,8 +417,7 @@ class Members_Controller {
 				);
 			}
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		// Handle sample CSV download.
@@ -574,8 +568,7 @@ class Members_Controller {
 				}
 			}
 
-			wp_safe_redirect( $this->members_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 	}
 

@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -24,6 +25,7 @@ use PhotoCompetitionManager\Service\Upload_Handler;
 class Submissions_Controller {
 
 	use Date_Formatting;
+	use Form_Rendering;
 
 	/**
 	 * Competitions repository.
@@ -178,8 +180,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
-				exit;
+				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
 			$result = $this->images->regenerate_member_numbers( $competition_id );
@@ -200,7 +201,7 @@ class Submissions_Controller {
 				);
 			}
 
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'           => 'photo-competition-manager-submissions',
@@ -209,7 +210,6 @@ class Submissions_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 
 		if ( 'delete_original_images' === $action ) {
@@ -224,8 +224,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
-				exit;
+				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
 			// Get all original attachment IDs.
@@ -271,7 +270,7 @@ class Submissions_Controller {
 				}
 			}
 
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'           => 'photo-competition-manager-submissions',
@@ -280,7 +279,6 @@ class Submissions_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 
 		if ( 'bulk_delete_submissions' === $action ) {
@@ -295,8 +293,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
-				exit;
+				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
 			$image_ids = isset( $_POST['image_ids'] ) && is_array( $_POST['image_ids'] )
@@ -381,7 +378,7 @@ class Submissions_Controller {
 				}
 			}
 
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'           => 'photo-competition-manager-submissions',
@@ -390,7 +387,6 @@ class Submissions_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 
 		if ( 'admin_upload' === $action ) {
@@ -405,8 +401,7 @@ class Submissions_Controller {
 					__( 'Invalid competition.', 'photo-competition-manager' ),
 					'error'
 				);
-				wp_safe_redirect( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
-				exit;
+				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
 			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
@@ -467,7 +462,7 @@ class Submissions_Controller {
 				}
 			}
 
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'           => 'photo-competition-manager-submissions',
@@ -476,7 +471,6 @@ class Submissions_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 	}
 

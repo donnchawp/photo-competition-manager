@@ -197,9 +197,7 @@ class Competitions_Controller {
 				);
 			}
 
-			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-			wp_safe_redirect( $this->dashboard_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
 		}
 
 		if ( 'update_competition' === $action ) {
@@ -232,8 +230,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-				wp_safe_redirect(
+				$this->redirect_with_settings_errors(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
@@ -243,7 +240,6 @@ class Competitions_Controller {
 						admin_url( 'admin.php' )
 					)
 				);
-				exit;
 			}
 
 			add_settings_error(
@@ -253,9 +249,7 @@ class Competitions_Controller {
 				'updated'
 			);
 
-			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-			wp_safe_redirect( $this->dashboard_url() );
-			exit;
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
 		}
 
 		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
@@ -290,9 +284,7 @@ class Competitions_Controller {
 					);
 				}
 
-				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-				wp_safe_redirect( $this->dashboard_url() );
-				exit;
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
 
 			if ( 'reset_votes' === $action ) {
@@ -315,9 +307,7 @@ class Competitions_Controller {
 					);
 				}
 
-				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-				wp_safe_redirect( $this->dashboard_url() );
-				exit;
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
 
 			if ( 'send_emails' === $action ) {
@@ -371,9 +361,7 @@ class Competitions_Controller {
 					);
 				}
 
-				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-				wp_safe_redirect( $this->dashboard_url() );
-				exit;
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
 
 			$result = 'archive' === $action
@@ -410,9 +398,7 @@ class Competitions_Controller {
 			)
 			: $this->dashboard_url();
 
-			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-			wp_safe_redirect( $redirect );
-			exit;
+			$this->redirect_with_settings_errors( $redirect );
 		}
 
 		if ( 'update_competition_settings' === $action ) {
@@ -532,8 +518,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-				wp_safe_redirect(
+				$this->redirect_with_settings_errors(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
@@ -544,7 +529,6 @@ class Competitions_Controller {
 						admin_url( 'admin.php' )
 					)
 				);
-				exit;
 			}
 
 			$result = $this->competitions->update(
@@ -570,8 +554,7 @@ class Competitions_Controller {
 				);
 			}
 
-			set_transient( 'photo_competition_manager_settings_errors', get_settings_errors(), 30 );
-			wp_safe_redirect(
+			$this->redirect_with_settings_errors(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager',
@@ -582,7 +565,6 @@ class Competitions_Controller {
 					admin_url( 'admin.php' )
 				)
 			);
-			exit;
 		}
 	}
 

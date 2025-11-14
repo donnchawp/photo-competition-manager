@@ -273,7 +273,7 @@ class Settings_Controller {
 			);
 		}
 
-		wp_safe_redirect(
+		$this->redirect_with_settings_errors(
 			add_query_arg(
 				array(
 					'page' => 'photo-competition-manager-settings',
@@ -281,7 +281,6 @@ class Settings_Controller {
 				admin_url( 'admin.php' )
 			)
 		);
-		exit;
 	}
 
 	/**
