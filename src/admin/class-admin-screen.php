@@ -137,6 +137,7 @@ class Admin_Screen {
 		$this->submissions_controller->register();
 		$this->voting_controller->register();
 		$this->settings_controller->register();
+		$this->export_screen->register();
 		$this->results_controller->register();
 		$this->setup_wizard_controller->register();
 		$this->email_templates_controller->register();

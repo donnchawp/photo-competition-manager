@@ -61,6 +61,15 @@ class Export_Screen {
 	}
 
 	/**
+	 * Register hooks.
+	 *
+	 * @return void
+	 */
+	public function register(): void {
+		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+	}
+
+	/**
 	 * Render the export page.
 	 *
 	 * @return void
