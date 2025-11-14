@@ -371,7 +371,7 @@ class Members_Repository extends Abstract_Repository {
 			$params[]    = $exclude_id;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
+		// phpcs:disable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is "field != %d" string.
 		return (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
 				"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
@@ -379,6 +379,6 @@ class Members_Repository extends Abstract_Repository {
 				...$params
 			)
 		) > 0;
-		// phpcs:enable WordPress.DB.PreparedSQL
+		// phpcs:enable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 }

@@ -134,14 +134,14 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		$where = implode( ' AND ', $conditions );
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field = %s/%d" string.
 		return $this->wpdb->get_results(
 			$this->wpdb->prepare(
 				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY created_at DESC',
 				...$params
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
@@ -357,7 +357,7 @@ class Votes_Repository extends Abstract_Repository {
 
 		$where = implode( ' AND ', $conditions );
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field = %s/%d" string.
 		$results = $this->wpdb->get_results(
 			$this->wpdb->prepare(
 				'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE ' . $where . ' GROUP BY image_id ORDER BY average_score DESC',
@@ -365,7 +365,7 @@ class Votes_Repository extends Abstract_Repository {
 			),
 			ARRAY_A
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		if ( ! is_array( $results ) ) {
 			return array();
