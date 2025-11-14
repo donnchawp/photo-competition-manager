@@ -115,6 +115,38 @@ class Voting_Shortcode {
 	}
 
 	/**
+	 * Enqueue voting assets (CSS and JS).
+	 *
+	 * @return void
+	 */
+	private function enqueue_voting_assets(): void {
+		// Enqueue main voting styles.
+		$style_asset = PHOTO_COMPETITION_MANAGER_DIR . '/assets/build/index.asset.php';
+		if ( file_exists( $style_asset ) ) {
+			$asset_data = require $style_asset;
+			wp_enqueue_style(
+				'photo-competition-manager-voting',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/index.css',
+				array(),
+				$asset_data['version'] ?? PHOTO_COMPETITION_MANAGER_VERSION
+			);
+		}
+
+		// Enqueue voting validation script.
+		$script_asset = PHOTO_COMPETITION_MANAGER_DIR . '/assets/build/voting-validation.asset.php';
+		if ( file_exists( $script_asset ) ) {
+			$asset_data = require $script_asset;
+			wp_enqueue_script(
+				'photo-competition-manager-voting-validation',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/voting-validation.js',
+				$asset_data['dependencies'] ?? array(),
+				$asset_data['version'] ?? PHOTO_COMPETITION_MANAGER_VERSION,
+				true
+			);
+		}
+	}
+
+	/**
 	 * Render voting shortcode.
 	 *
 	 * @return string
@@ -126,6 +158,9 @@ class Voting_Shortcode {
 			define( 'DONOTCACHEPAGE', true );
 		}
 		// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
+
+		// Enqueue voting validation assets.
+		$this->enqueue_voting_assets();
 
 		// Enforce HTTPS requirement for voting.
 		if ( ! $this->is_https_connection() ) {
@@ -328,8 +363,29 @@ class Voting_Shortcode {
 	 * @return string Message to display.
 	 */
 	private function handle_vote_submission_token( object $competition, object $token_record, array $settings, array $submitted_votes ): string {
+		// Get all images for this category to validate all have been voted for.
+		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
+		$image_count = count( $images );
+
 		if ( empty( $submitted_votes ) ) {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>';
+		}
+
+		// Validate that all images have received a vote.
+		if ( count( $submitted_votes ) < $image_count ) {
+			return '<p class="error">' . esc_html(
+				sprintf(
+					/* translators: %1$d: number of images voted for, %2$d: total number of images */
+					_n(
+						'You must vote for all images. You have voted for %1$d of %2$d image.',
+						'You must vote for all images. You have voted for %1$d of %2$d images.',
+						$image_count,
+						'photo-competition-manager'
+					),
+					count( $submitted_votes ),
+					$image_count
+				)
+			) . '</p>';
 		}
 
 		// Get score matrix from settings.
@@ -436,10 +492,35 @@ class Voting_Shortcode {
 			);
 		}
 
+		// Get all images for this category to validate all have been voted for.
+		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$image_count = count( $images );
+
 		if ( empty( $votes ) ) {
 			return array(
 				'status'   => 'error',
 				'message'  => '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>',
+				'category' => $category,
+			);
+		}
+
+		// Validate that all images have received a vote.
+		if ( count( $votes ) < $image_count ) {
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html(
+					sprintf(
+						/* translators: %1$d: number of images voted for, %2$d: total number of images */
+						_n(
+							'You must vote for all images. You have voted for %1$d of %2$d image.',
+							'You must vote for all images. You have voted for %1$d of %2$d images.',
+							$image_count,
+							'photo-competition-manager'
+						),
+						count( $votes ),
+						$image_count
+					)
+				) . '</p>',
 				'category' => $category,
 			);
 		}
@@ -657,6 +738,7 @@ class Voting_Shortcode {
 					);
 				?>
 					</p>
+					<p><strong><?php esc_html_e( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ); ?></strong></p>
 					<p class="anonymity-notice" style="color: #666; font-style: italic;">
 						<?php esc_html_e( 'Your votes are completely anonymous. Your name will not be associated with your votes.', 'photo-competition-manager' ); ?>
 					</p>
@@ -954,6 +1036,7 @@ class Voting_Shortcode {
 				<p>
 					<?php esc_html_e( 'You can assign the same score to multiple images.', 'photo-competition-manager' ); ?>
 				</p>
+				<p><strong><?php esc_html_e( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ); ?></strong></p>
 			</div>
 
 						<!-- Voting form -->
