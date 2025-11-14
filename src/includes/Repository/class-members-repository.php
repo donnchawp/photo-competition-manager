@@ -31,14 +31,14 @@ class Members_Repository extends Abstract_Repository {
 
 		$where = $only_active ? 'WHERE active = 1 ' : '';
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is hard coded string.
 		return $this->wpdb->get_results(
 			$this->wpdb->prepare(
 				'SELECT * FROM %i ' . $where . 'ORDER BY name ASC',
 				$this->table()
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
@@ -104,14 +104,9 @@ class Members_Repository extends Abstract_Repository {
 
 		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_results(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Placeholders built dynamically for IN clause; count matches at runtime.
-			$this->wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $this->table(), ...$ids )
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
-
-		$map = array();
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders built dynamically for IN clause; count matches at runtime.
+		$results = $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $this->table(), ...$ids ) );
+		$map     = array();
 		foreach ( $results as $member ) {
 			$map[ (int) $member->id ] = $member;
 		}
@@ -377,14 +372,13 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
-			"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
-			$this->table(),
-			...$params
-		);
+		return (int) $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
+				$this->table(),
+				...$params
+			)
+		) > 0;
 		// phpcs:enable WordPress.DB.PreparedSQL
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return (int) $this->wpdb->get_var( $sql ) > 0;
 	}
 }
