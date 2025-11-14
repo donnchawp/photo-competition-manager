@@ -5,6 +5,7 @@ tests/
 phpunit.xml.dist
 .phpunit.result.cache
 phpcs.xml
+.phpcs.xml.dist
 
 # Build artifacts and dependencies (will be added separately)
 vendor/
