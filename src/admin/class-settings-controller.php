@@ -383,7 +383,7 @@ class Settings_Controller {
 		echo '<p>';
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
 		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $voting['password'] ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable by default. Only used when auth mode is "Password-based".', 'photo-competition-manager' ) . '</span>';
+		echo '<span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable by default. Only used when auth mode is "Password-based". Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
 		echo '<p>';

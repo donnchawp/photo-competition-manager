@@ -489,8 +489,8 @@ class Competitions_Controller {
 				// Clear the password - leave empty.
 				$hashed_password = '';
 			} elseif ( ! empty( $voting_password ) ) {
-				// New password provided - hash it.
-				$hashed_password = wp_hash_password( $voting_password );
+				// New password provided - lowercase and hash it for case-insensitive comparison.
+				$hashed_password = wp_hash_password( strtolower( $voting_password ) );
 			} elseif ( isset( $existing_settings['voting']['password'] ) ) {
 				// Preserve existing password hash if no new password provided and not clearing.
 				$hashed_password = $existing_settings['voting']['password'];
@@ -851,9 +851,9 @@ class Competitions_Controller {
 			echo '<input type="checkbox" id="voting_password_clear" name="voting_password_clear" value="1" />';
 			echo ' ' . esc_html__( 'Remove password protection', 'photo-competition-manager' );
 			echo '</label>';
-			echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password.', 'photo-competition-manager' ) . '</span>';
+			echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password. Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
 		} else {
-			echo '<br /><span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based".', 'photo-competition-manager' ) . '</span>';
+			echo '<br /><span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based". Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
 		}
 		echo '</p>';
 
