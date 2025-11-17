@@ -325,7 +325,7 @@
 
 @media (max-width: 768px) {
 	.images-grid {
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		grid-template-columns: 1fr;
 		gap: 1.5em;
 	}
 }
@@ -838,9 +838,13 @@
 		margin: 1em auto;
 	}
 
-	.submissions-grid,
-	.images-grid {
+	.submissions-grid {
 		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 1em;
+	}
+
+	.images-grid {
+		grid-template-columns: 1fr;
 		gap: 1em;
 	}
 
