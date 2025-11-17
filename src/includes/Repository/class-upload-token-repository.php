@@ -56,13 +56,12 @@ class Upload_Token_Repository extends Abstract_Repository {
 			// Refresh token if expired.
 			if ( $existing->expires_at < current_time( 'mysql' ) ) {
 				$new_token      = bin2hex( random_bytes( 32 ) );
-				$token_hash     = hash( 'sha256', $new_token );
 				$new_expires_at = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
 
 				$updated = $this->wpdb->update(
 					$this->table(),
 					array(
-						'token_hash' => $token_hash,
+						'token'      => $new_token,
 						'expires_at' => $new_expires_at,
 						'used_at'    => null,
 					),
@@ -76,10 +75,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 				}
 
 				// Return updated token object.
-				$existing->token_hash = $token_hash;
+				$existing->token      = $new_token;
 				$existing->expires_at = $new_expires_at;
 				$existing->used_at    = null;
-				$existing->token      = $new_token; // Add plain token for immediate use.
 			}
 
 			return $existing;
@@ -87,13 +85,12 @@ class Upload_Token_Repository extends Abstract_Repository {
 
 		// Create new token.
 		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
 		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
 
 		$payload = array(
 			'member_id'      => $member_id,
 			'competition_id' => $competition_id,
-			'token_hash'     => $token_hash,
+			'token'          => $token_string,
 			'expires_at'     => $expires_at,
 			'created_at'     => current_time( 'mysql' ),
 		);
@@ -119,23 +116,19 @@ class Upload_Token_Repository extends Abstract_Repository {
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		if ( $token ) {
-			$token->token = $token_string; // Add plain token for immediate use.
-		}
-
 		return $token ? $token : new WP_Error( 'token_not_found', __( 'Token was created but could not be retrieved.', 'photo-competition-manager' ) );
 	}
 
 	/**
-	 * Find a valid token by hash.
+	 * Find a valid token by token string.
 	 *
 	 * Records the first access timestamp if this is the first time the token is used.
 	 *
-	 * @param string $token_hash Hashed token.
+	 * @param string $token_string Token string.
 	 * @return object|null Token record or null if not found/invalid.
 	 */
-	public function find_valid_token( string $token_hash ) {
-		if ( ! $this->table_exists() || empty( $token_hash ) ) {
+	public function find_valid_token( string $token_string ) {
+		if ( ! $this->table_exists() || empty( $token_string ) ) {
 			return null;
 		}
 
@@ -143,11 +136,11 @@ class Upload_Token_Repository extends Abstract_Repository {
 		$token = $this->wpdb->get_row(
 			$this->wpdb->prepare(
 				"SELECT * FROM {$this->table()}
-				WHERE token_hash = %s
+				WHERE token = %s
 				AND used_at IS NULL
 				AND expires_at > %s
 				LIMIT 1",
-				$token_hash,
+				$token_string,
 				current_time( 'mysql' )
 			)
 		);
@@ -288,25 +281,10 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return $token_obj;
 		}
 
-		// Get the plain token (either from token property if just created, or need to generate new one).
-		$token_string = isset( $token_obj->token ) ? $token_obj->token : bin2hex( random_bytes( 32 ) );
-
-		// If we generated a new token string, update the hash.
-		if ( ! isset( $token_obj->token ) ) {
-			$token_hash = hash( 'sha256', $token_string );
-			$this->wpdb->update(
-				$this->table(),
-				array( 'token_hash' => $token_hash ),
-				array( 'id' => $token_obj->id ),
-				array( '%s' ),
-				array( '%d' )
-			);
-		}
-
-		// Build magic link.
+		// Build magic link using the token from the database.
 		$upload_url = add_query_arg(
 			array(
-				'token'       => $token_string,
+				'token'       => $token_obj->token,
 				'competition' => $competition->slug,
 			),
 			$upload_page_url

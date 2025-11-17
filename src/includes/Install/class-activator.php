@@ -142,7 +142,7 @@ class Activator {
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			member_id BIGINT UNSIGNED NOT NULL,
 			competition_id BIGINT UNSIGNED NOT NULL,
-			token_hash VARCHAR(64) NOT NULL,
+			token VARCHAR(64) NOT NULL,
 			expires_at DATETIME NOT NULL,
 			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
@@ -150,7 +150,7 @@ class Activator {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			UNIQUE KEY member_competition (member_id, competition_id),
-			KEY token_hash (token_hash),
+			KEY token (token),
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 

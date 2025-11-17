@@ -182,12 +182,11 @@ class Upload_Shortcode {
 		// Check for upload token in URL.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Magic-link token read only; actions require POST + nonce.
 		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-		$token_hash   = $token_string ? hash( 'sha256', $token_string ) : '';
 		$token_record = null;
 		$member       = null;
 
-		if ( $token_hash ) {
-			$token_record = $this->token_repo->find_valid_token( $token_hash );
+		if ( $token_string ) {
+			$token_record = $this->token_repo->find_valid_token( $token_string );
 			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
 				$member = $this->members_repo->find( (int) $token_record->member_id );
 			}

@@ -152,8 +152,7 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		$token_hash   = hash( 'sha256', $token_string );
-		$token_record = $this->token_repo->find_valid_token( $token_hash );
+		$token_record = $this->token_repo->find_valid_token( $token_string );
 
 		if ( ! $token_record ) {
 			return new WP_Error(
