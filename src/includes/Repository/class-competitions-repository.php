@@ -483,21 +483,9 @@ class Competitions_Repository extends Abstract_Repository {
 		}
 
 		// Determine upload page URL (page containing [competition_upload]); fall back to home URL.
-		$upload_page_url = home_url( '/' );
-		if ( function_exists( 'get_pages' ) ) {
-			$pages = get_pages(
-				array(
-					'number' => 100,
-				)
-			);
-			if ( is_array( $pages ) ) {
-				foreach ( $pages as $page ) {
-					if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
-						$upload_page_url = get_permalink( $page->ID );
-						break;
-					}
-				}
-			}
+		$upload_page_url = \PhotoCompetitionManager\Support\Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
+		if ( empty( $upload_page_url ) ) {
+			$upload_page_url = home_url( '/' );
 		}
 		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 

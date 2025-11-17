@@ -1065,6 +1065,7 @@ class Voting_Controller {
 	 */
 	private function render_results_links(): void {
 		// Get global settings to find results page URLs.
+		// URLs are auto-detected by Competition_Settings::parse() if not explicitly set.
 		$global_settings = $this->get_global_settings();
 		$results_url     = $global_settings['urls']['results_page'] ?? '';
 		$top3_url        = $global_settings['urls']['top3_page'] ?? '';

@@ -167,16 +167,8 @@ class Members_Controller {
 			$urls            = $settings['urls'] ?? array();
 			$upload_page_url = $urls['upload_page'] ?? '';
 
-			if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
-				$pages = get_pages( array( 'number' => 100 ) );
-				if ( is_array( $pages ) ) {
-					foreach ( $pages as $page ) {
-						if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
-							$upload_page_url = get_permalink( $page->ID );
-							break;
-						}
-					}
-				}
+			if ( empty( $upload_page_url ) ) {
+				$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
 			}
 
 			if ( empty( $upload_page_url ) ) {
@@ -972,16 +964,8 @@ class Members_Controller {
 		$urls            = $settings['urls'] ?? array();
 		$upload_page_url = $urls['upload_page'] ?? '';
 
-		if ( empty( $upload_page_url ) && function_exists( 'get_pages' ) ) {
-			$pages = get_pages( array( 'number' => 100 ) );
-			if ( is_array( $pages ) ) {
-				foreach ( $pages as $page ) {
-					if ( ! empty( $page->post_content ) && function_exists( 'has_shortcode' ) && has_shortcode( $page->post_content, 'competition_upload' ) ) {
-						$upload_page_url = get_permalink( $page->ID );
-						break;
-					}
-				}
-			}
+		if ( empty( $upload_page_url ) ) {
+			$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
 		}
 
 		if ( empty( $upload_page_url ) ) {

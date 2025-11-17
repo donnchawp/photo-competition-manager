@@ -126,7 +126,12 @@ class Competition_Settings {
 			return self::defaults();
 		}
 
-		return self::merge_with_defaults( $decoded );
+		$merged = self::merge_with_defaults( $decoded );
+
+		// Auto-detect page URLs if not set.
+		$merged = self::auto_detect_page_urls( $merged );
+
+		return $merged;
 	}
 
 	/**
@@ -432,5 +437,81 @@ class Competition_Settings {
 		$settings['voting']['open_categories'] = $open_categories;
 
 		return true;
+	}
+
+	/**
+	 * Auto-detect page URLs by searching for shortcodes if URLs are not set.
+	 *
+	 * @param array<string, mixed> $settings Settings array.
+	 * @return array<string, mixed> Settings with auto-detected URLs.
+	 */
+	private static function auto_detect_page_urls( array $settings ): array {
+		if ( ! isset( $settings['urls'] ) ) {
+			$settings['urls'] = array();
+		}
+
+		// Auto-detect upload page.
+		if ( empty( $settings['urls']['upload_page'] ) ) {
+			$url = self::find_page_url_with_shortcode( 'competition_upload' );
+			if ( ! empty( $url ) ) {
+				$settings['urls']['upload_page'] = $url;
+			}
+		}
+
+		// Auto-detect voting page.
+		if ( empty( $settings['urls']['voting_page'] ) ) {
+			$url = self::find_page_url_with_shortcode( 'competition_voting' );
+			if ( ! empty( $url ) ) {
+				$settings['urls']['voting_page'] = $url;
+			}
+		}
+
+		// Auto-detect results page.
+		if ( empty( $settings['urls']['results_page'] ) ) {
+			$url = self::find_page_url_with_shortcode( 'competition_results' );
+			if ( ! empty( $url ) ) {
+				$settings['urls']['results_page'] = $url;
+			}
+		}
+
+		// Auto-detect top 3 page.
+		if ( empty( $settings['urls']['top3_page'] ) ) {
+			$url = self::find_page_url_with_shortcode( 'competition_top3' );
+			if ( ! empty( $url ) ) {
+				$settings['urls']['top3_page'] = $url;
+			}
+		}
+
+		return $settings;
+	}
+
+	/**
+	 * Find a page URL that contains a specific shortcode.
+	 *
+	 * @param string $shortcode_tag The shortcode tag to search for (without brackets).
+	 * @return string The page URL if found, empty string otherwise.
+	 */
+	public static function find_page_url_with_shortcode( string $shortcode_tag ): string {
+		if ( empty( $shortcode_tag ) ) {
+			return '';
+		}
+
+		if ( ! function_exists( 'get_pages' ) || ! function_exists( 'has_shortcode' ) ) {
+			return '';
+		}
+
+		$pages = get_pages( array( 'number' => 100 ) );
+		if ( ! is_array( $pages ) ) {
+			return '';
+		}
+
+		foreach ( $pages as $page ) {
+			if ( ! empty( $page->post_content ) && has_shortcode( $page->post_content, $shortcode_tag ) ) {
+				$url = get_permalink( $page->ID );
+				return $url ? $url : '';
+			}
+		}
+
+		return '';
 	}
 }

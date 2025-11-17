@@ -209,8 +209,10 @@ class Settings_Controller {
 		$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 		$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
-		$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
-		$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+		$upload_page_url  = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
+		$voting_page_url  = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
+		$results_page_url = sanitize_url( $this->get_post_string( 'results_page_url', '' ) );
+		$top3_page_url    = sanitize_url( $this->get_post_string( 'top3_page_url', '' ) );
 
 		$settings   = array(
 			'categories'      => $sanitized_categories,
@@ -239,8 +241,10 @@ class Settings_Controller {
 				'include_qr_code_voting' => true,
 			),
 			'urls'            => array(
-				'upload_page' => $upload_page_url,
-				'voting_page' => $voting_page_url,
+				'upload_page'  => $upload_page_url,
+				'voting_page'  => $voting_page_url,
+				'results_page' => $results_page_url,
+				'top3_page'    => $top3_page_url,
 			),
 		);
 		$validation = Competition_Settings::validate( $settings );
@@ -414,6 +418,18 @@ class Settings_Controller {
 		echo '<label for="voting_page_url">' . esc_html__( 'Voting Page URL', 'photo-competition-manager' ) . '</label><br />';
 		echo '<input type="url" id="voting_page_url" name="voting_page_url" value="' . esc_attr( $urls['voting_page'] ?? '' ) . '" class="regular-text" placeholder="https://example.com/vote" />';
 		echo '<br /><span class="description">' . esc_html__( 'Voters receive this link in voting invitation emails.', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="results_page_url">' . esc_html__( 'Results Page URL', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="url" id="results_page_url" name="results_page_url" value="' . esc_attr( $urls['results_page'] ?? '' ) . '" class="regular-text" placeholder="https://example.com/results" />';
+		echo '<br /><span class="description">' . esc_html__( 'Page displaying full competition results with all entries and scores.', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="top3_page_url">' . esc_html__( 'Top 3 Page URL', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="url" id="top3_page_url" name="top3_page_url" value="' . esc_attr( $urls['top3_page'] ?? '' ) . '" class="regular-text" placeholder="https://example.com/top3" />';
+		echo '<br /><span class="description">' . esc_html__( 'Page displaying top 3 winners in a featured format.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
 		submit_button( __( 'Save Default Settings', 'photo-competition-manager' ) );
