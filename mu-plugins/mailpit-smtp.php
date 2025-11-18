@@ -70,8 +70,23 @@ add_action(
 		$phpmailer->Host     = SMTP_HOST;
 		$phpmailer->Port     = SMTP_PORT;
 		$phpmailer->SMTPAuth = false;
-		$phpmailer->From     = SMTP_FROM;
-		$phpmailer->FromName = SMTP_FROM_NAME;
+
+		// Only set From/FromName if they haven't been customized by filters.
+		// WordPress applies wp_mail_from and wp_mail_from_name filters before phpmailer_init,
+		// so if a plugin has customized these values, we should respect them.
+		$default_from_addresses = array(
+			'wordpress@localhost',
+			'wordpress@example.com',
+			'',
+		);
+
+		if ( empty( $phpmailer->From ) || in_array( $phpmailer->From, $default_from_addresses, true ) ) {
+			$phpmailer->From = SMTP_FROM;
+		}
+
+		if ( empty( $phpmailer->FromName ) || 'WordPress' === $phpmailer->FromName ) {
+			$phpmailer->FromName = SMTP_FROM_NAME;
+		}
 
 		// Enable debug output if needed (uncomment for troubleshooting).
 		// $phpmailer->SMTPDebug = 2;

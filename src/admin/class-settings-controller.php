@@ -214,6 +214,9 @@ class Settings_Controller {
 		$results_page_url = sanitize_url( $this->get_post_string( 'results_page_url', '' ) );
 		$top3_page_url    = sanitize_url( $this->get_post_string( 'top3_page_url', '' ) );
 
+		$email_from_name  = sanitize_text_field( $this->get_post_string( 'email_from_name', '' ) );
+		$email_from_email = sanitize_email( $this->get_post_string( 'email_from_email', '' ) );
+
 		$settings   = array(
 			'categories'      => $sanitized_categories,
 			'grades'          => $sanitized_grades,
@@ -239,6 +242,10 @@ class Settings_Controller {
 				'days_before_open'       => 7,
 				'days_before_close'      => 1,
 				'include_qr_code_voting' => true,
+			),
+			'email'           => array(
+				'from_name'  => $email_from_name,
+				'from_email' => $email_from_email,
 			),
 			'urls'            => array(
 				'upload_page'  => $upload_page_url,
@@ -403,6 +410,26 @@ class Settings_Controller {
 		echo '<label for="score_matrix">' . esc_html__( 'Score Matrix (comma-separated)', 'photo-competition-manager' ) . '</label><br />';
 		echo '<input type="text" id="score_matrix" name="score_matrix" value="' . esc_attr( implode( ', ', $voting['score_matrix'] ) ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'E.g., 9, 8, 7, 6, 5', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<h2>' . esc_html__( 'Email Configuration', 'photo-competition-manager' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'Configure the sender name and email address for all competition emails. If left blank, WordPress defaults will be used.', 'photo-competition-manager' ) . '</p>';
+
+		$email_config = $settings['email'] ?? array(
+			'from_name'  => '',
+			'from_email' => '',
+		);
+
+		echo '<p>';
+		echo '<label for="email_from_name">' . esc_html__( 'From Name', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="text" id="email_from_name" name="email_from_name" value="' . esc_attr( $email_config['from_name'] ) . '" class="regular-text" placeholder="' . esc_attr( get_bloginfo( 'name' ) ) . '" />';
+		echo '<br /><span class="description">' . esc_html__( 'The name that appears as the sender in competition emails (e.g., "Photo Club Competitions").', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label for="email_from_email">' . esc_html__( 'From Email Address', 'photo-competition-manager' ) . '</label><br />';
+		echo '<input type="email" id="email_from_email" name="email_from_email" value="' . esc_attr( $email_config['from_email'] ) . '" class="regular-text" placeholder="' . esc_attr( get_option( 'admin_email' ) ) . '" />';
+		echo '<br /><span class="description">' . esc_html__( 'The email address that appears as the sender (e.g., "competitions@yourclub.org"). Leave blank to use WordPress default.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
 		echo '<h2>' . esc_html__( 'URLs', 'photo-competition-manager' ) . '</h2>';

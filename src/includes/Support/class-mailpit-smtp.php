@@ -54,10 +54,32 @@ class Mailpit_SMTP {
 		// phpcs:ignore
 		$phpmailer->SMTPAutoTLS = false;
 
-		// Set From address if defined, or use default.
-		$from_email = defined( 'SMTP_FROM' ) ? SMTP_FROM : 'wordpress@photo-competition-manager.local';
-		$from_name  = defined( 'SMTP_NAME' ) ? SMTP_NAME : 'Photo Competition Manager';
+		// Only set From address if not already customized by plugin email configuration.
+		// WordPress applies wp_mail_from and wp_mail_from_name filters before phpmailer_init.
+		// Check if the From address looks like a default WordPress address.
+		$default_addresses = array(
+			'wordpress@localhost',
+			'wordpress@example.com',
+		);
 
-		$phpmailer->setFrom( $from_email, $from_name );
+		// Add SERVER_NAME variant if available.
+		if ( isset( $_SERVER['SERVER_NAME'] ) ) {
+			$default_addresses[] = 'wordpress@' . sanitize_text_field( wp_unslash( $_SERVER['SERVER_NAME'] ) );
+		}
+
+		// Check if From is empty OR matches a default WordPress address (but NOT the SMTP_FROM constant).
+		// If SMTP_FROM is defined, don't treat its value as "default" since it's already been customized.
+		$smtp_from_constant = defined( 'SMTP_FROM' ) ? SMTP_FROM : '';
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- PHPMailer property.
+		$is_default = empty( $phpmailer->From ) ||
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- PHPMailer property.
+			( in_array( $phpmailer->From, $default_addresses, true ) && $phpmailer->From !== $smtp_from_constant );
+
+		if ( $is_default ) {
+			$from_email = defined( 'SMTP_FROM' ) ? SMTP_FROM : 'wordpress@photo-competition-manager.local';
+			$from_name  = defined( 'SMTP_NAME' ) ? SMTP_NAME : 'Photo Competition Manager';
+
+			$phpmailer->setFrom( $from_email, $from_name );
+		}
 	}
 }

@@ -83,8 +83,12 @@ spl_autoload_register(
 
 use PhotoCompetitionManager\Plugin;
 use PhotoCompetitionManager\Support\Mailpit_SMTP;
+use PhotoCompetitionManager\Support\Email_Configuration;
 
 // Initialize Mailpit SMTP for development.
 Mailpit_SMTP::init();
+
+// Initialize global email configuration.
+Email_Configuration::init();
 
 Plugin::instance()->register();
