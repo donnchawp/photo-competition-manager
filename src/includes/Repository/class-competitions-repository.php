@@ -312,16 +312,14 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
-			"UPDATE {$this->table()} SET deleted_at = NULL, updated_at = %s WHERE id = %d",
-			current_time( 'mysql' ),
-			$id
+		$updated = $this->wpdb->query(
+			$this->wpdb->prepare(
+				'UPDATE %i SET deleted_at = NULL, updated_at = %s WHERE id = %d',
+				$this->table(),
+				current_time( 'mysql' ),
+				$id
+			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$updated = $this->wpdb->query( $sql );
 
 		if ( false === $updated ) {
 			return new WP_Error( 'db_restore_failed', __( 'Could not restore competition.', 'photo-competition-manager' ), $this->wpdb->last_error );

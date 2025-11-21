@@ -70,19 +70,18 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$token = $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()}
+				"SELECT * FROM %i
 				WHERE token_hash = %s
 				AND used_at IS NULL
 				AND expires_at > %s
 				LIMIT 1",
+				$this->table(),
 				$token_hash,
 				current_time( 'mysql' )
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
@@ -141,14 +140,13 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->query(
 			$this->wpdb->prepare(
-				"DELETE FROM {$this->table()} WHERE expires_at < %s",
+				"DELETE FROM %i WHERE expires_at < %s",
+				$this->table(),
 				current_time( 'mysql' )
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -167,16 +165,16 @@ class Voting_Token_Repository extends Abstract_Repository {
 		// Check for tokens created in the last 5 minutes that are still valid.
 		$recent_threshold = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 5 * MINUTE_IN_SECONDS ) );
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$count = (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$this->table()}
+				"SELECT COUNT(*) FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
 				AND category = %s
 				AND used_at IS NULL
 				AND expires_at > %s
 				AND created_at > %s",
+				$this->table(),
 				$member_id,
 				$competition_id,
 				$category,
@@ -184,7 +182,6 @@ class Voting_Token_Repository extends Abstract_Repository {
 				$recent_threshold
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		return $count > 0;
 	}
@@ -203,7 +200,6 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$results = $this->wpdb->get_results(
 			$this->wpdb->prepare(
 				"SELECT
@@ -211,13 +207,13 @@ class Voting_Token_Repository extends Abstract_Repository {
 					MIN(created_at) as first_sent_at,
 					MIN(first_accessed_at) as first_opened_at,
 					COUNT(*) as token_count
-				FROM {$this->table()}
+				FROM %i
 				WHERE competition_id = %d
 				GROUP BY member_id",
+				$this->table(),
 				$competition_id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		$tracking = array();
 		foreach ( $results as $row ) {

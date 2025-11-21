@@ -132,19 +132,18 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$token = $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM {$this->table()}
+				'SELECT * FROM %i
 				WHERE token = %s
 				AND used_at IS NULL
 				AND expires_at > %s
-				LIMIT 1",
+				LIMIT 1',
+				$this->table(),
 				$token_string,
 				current_time( 'mysql' )
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
@@ -199,14 +198,13 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		return $this->wpdb->query(
 			$this->wpdb->prepare(
-				"DELETE FROM {$this->table()} WHERE expires_at < %s",
+				'DELETE FROM %i WHERE expires_at < %s',
+				$this->table(),
 				current_time( 'mysql' )
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -231,20 +229,19 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// Check if sent_at is within the last 5 minutes.
 		$current_time = current_time( 'mysql' );
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$count = (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$this->table()}
+				'SELECT COUNT(*) FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
 				AND sent_at IS NOT NULL
-				AND sent_at > DATE_SUB(%s, INTERVAL 5 MINUTE)",
+				AND sent_at > DATE_SUB(%s, INTERVAL 5 MINUTE)',
+				$this->table(),
 				$member_id,
 				$competition_id,
 				$current_time
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		return $count > 0;
 	}
@@ -415,21 +412,20 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
 		$results = $this->wpdb->get_results(
 			$this->wpdb->prepare(
-				"SELECT
+				'SELECT
 					member_id,
 					MIN(created_at) as first_sent_at,
 					MIN(first_accessed_at) as first_opened_at,
 					COUNT(*) as token_count
-				FROM {$this->table()}
+				FROM %i
 				WHERE competition_id = %d
-				GROUP BY member_id",
+				GROUP BY member_id',
+				$this->table(),
 				$competition_id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		$tracking = array();
 		foreach ( $results as $row ) {
