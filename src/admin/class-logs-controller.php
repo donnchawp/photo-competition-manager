@@ -58,6 +58,47 @@ class Logs_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+	}
+
+	/**
+	 * Enqueue scripts for logs page.
+	 *
+	 * @param string $hook_suffix The current admin page hook suffix.
+	 * @return void
+	 */
+	public function enqueue_scripts( string $hook_suffix ): void {
+		// Only load on logs page.
+		if ( 'competitions_page_photo-competition-manager-logs' !== $hook_suffix ) {
+			return;
+		}
+
+		// Enqueue a dummy script handle to attach inline script to.
+		wp_register_script( 'photo-comp-logs-metadata-toggle', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-comp-logs-metadata-toggle' );
+
+		$inline_script = "
+		document.addEventListener('DOMContentLoaded', function() {
+			var toggles = document.querySelectorAll('.log-metadata-toggle');
+			toggles.forEach(function(toggle) {
+				toggle.addEventListener('click', function() {
+					var logId = this.getAttribute('data-log-id');
+					var metadataRow = document.getElementById('log-metadata-row-' + logId);
+					if (metadataRow) {
+						if (metadataRow.style.display === 'none') {
+							metadataRow.style.display = '';
+							this.textContent = '" . esc_js( __( 'Hide', 'photo-competition-manager' ) ) . "';
+						} else {
+							metadataRow.style.display = 'none';
+							this.textContent = '" . esc_js( __( 'View', 'photo-competition-manager' ) ) . "';
+						}
+					}
+				});
+			});
+		});
+		";
+
+		wp_add_inline_script( 'photo-comp-logs-metadata-toggle', $inline_script );
 	}
 
 	/**
@@ -393,30 +434,6 @@ class Logs_Controller {
 
 		echo '</tbody>';
 		echo '</table>';
-
-		// Add inline JavaScript for metadata toggle.
-		?>
-		<script type="text/javascript">
-		document.addEventListener('DOMContentLoaded', function() {
-			var toggles = document.querySelectorAll('.log-metadata-toggle');
-			toggles.forEach(function(toggle) {
-				toggle.addEventListener('click', function() {
-					var logId = this.getAttribute('data-log-id');
-					var metadataRow = document.getElementById('log-metadata-row-' + logId);
-					if (metadataRow) {
-						if (metadataRow.style.display === 'none') {
-							metadataRow.style.display = '';
-							this.textContent = '<?php echo esc_js( __( 'Hide', 'photo-competition-manager' ) ); ?>';
-						} else {
-							metadataRow.style.display = 'none';
-							this.textContent = '<?php echo esc_js( __( 'View', 'photo-competition-manager' ) ); ?>';
-						}
-					}
-				});
-			});
-		});
-		</script>
-		<?php
 	}
 
 	/**
