@@ -64,7 +64,8 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 		$token = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$this->repo->table()} WHERE id = %d",
+				'SELECT * FROM %i WHERE id = %d',
+				$this->repo->table(),
 				$token_id
 			)
 		);
@@ -152,7 +153,8 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 		$token = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$this->repo->table()} WHERE id = %d",
+				'SELECT * FROM %i WHERE id = %d',
+				$this->repo->table(),
 				$token_id
 			)
 		);

@@ -50,7 +50,8 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$row = $GLOBALS['wpdb']->get_row(
 			$GLOBALS['wpdb']->prepare(
-				"SELECT * FROM {$repository->table()} WHERE id = %d",
+				'SELECT * FROM %i WHERE id = %d',
+				$repository->table(),
 				$result
 			)
 		);

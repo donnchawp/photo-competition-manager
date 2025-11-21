@@ -379,8 +379,9 @@ class Email_Results_Job_Manager {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$job_options = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE %s",
-				$option_name_pattern
+				'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s',
+				$wpdb->options,
+				$wpdb->esc_like( $option_name_pattern )
 			)
 		);
 

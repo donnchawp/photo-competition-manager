@@ -202,11 +202,12 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $result );
 
-		// Verify token is now marked as used
+		// Verify token is now marked as used.
 		global $wpdb;
 		$used_at = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT used_at FROM {$wpdb->prefix}photocomp_voting_tokens WHERE id = %d",
+				'SELECT used_at FROM %i WHERE id = %d',
+				$wpdb->prefix . 'photocomp_voting_tokens',
 				$token_id
 			)
 		);
@@ -233,12 +234,12 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	public function test_cleanup_expired_tokens(): void {
 		$now = time();
 
-		// Create expired token
+		// Create expired token.
 		$expired_hash = hash( 'sha256', 'expired' );
 		$expired_at   = gmdate( 'Y-m-d H:i:s', $now - HOUR_IN_SECONDS );
 		$this->repository->create( 1, 2, 'colour', $expired_hash, $expired_at );
 
-		// Create valid token
+		// Create valid token.
 		$valid_hash = hash( 'sha256', 'valid' );
 		$valid_at   = gmdate( 'Y-m-d H:i:s', $now + HOUR_IN_SECONDS );
 		$this->repository->create( 1, 2, 'black-white', $valid_hash, $valid_at );
@@ -247,11 +248,11 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertEquals( 1, $deleted );
 
-		// Verify expired token is gone
+		// Verify expired token is gone.
 		$expired_token = $this->repository->find_valid_token( $expired_hash );
 		$this->assertNull( $expired_token );
 
-		// Verify valid token still exists
+		// Verify valid token still exists.
 		$valid_token = $this->repository->find_valid_token( $valid_hash );
 		$this->assertNotNull( $valid_token );
 	}
@@ -302,10 +303,10 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
 		$this->assertIsInt( $token_id );
 
-		// Manually backdate the created_at timestamp to 10 minutes ago
+		// Manually backdate the created_at timestamp to 10 minutes ago.
 		$old_time = gmdate( 'Y-m-d H:i:s', time() - ( 10 * MINUTE_IN_SECONDS ) );
 		$wpdb->update(
-			"{$wpdb->prefix}photocomp_voting_tokens",
+			$wpdb->prefix . 'photocomp_voting_tokens',
 			array( 'created_at' => $old_time ),
 			array( 'id' => $token_id ),
 			array( '%s' ),
