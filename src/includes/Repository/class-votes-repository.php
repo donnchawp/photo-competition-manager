@@ -125,23 +125,18 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$conditions = array( 'competition_id = %d' );
-		$params     = array( $this->table(), $competition_id );
+		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
+		$prepare_args = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
-			$conditions[] = 'category = %s';
-			$params[]     = $category;
+			$query         .= ' AND category = %s';
+			$prepare_args[] = $category;
 		}
 
-		$where = implode( ' AND ', $conditions );
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field = %s/%d" string.
-		return $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY created_at DESC',
-				...$params
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$query .= ' ORDER BY created_at DESC';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -347,25 +342,18 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$conditions = array( 'competition_id = %d' );
-		$params     = array( $this->table(), $competition_id );
+		$query        = 'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE competition_id = %d';
+		$prepare_args = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
-			$conditions[] = 'category = %s';
-			$params[]     = $category;
+			$query         .= ' AND category = %s';
+			$prepare_args[] = $category;
 		}
 
-		$where = implode( ' AND ', $conditions );
+		$query .= ' GROUP BY image_id ORDER BY average_score DESC';
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field = %s/%d" string.
-		$results = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE ' . $where . ' GROUP BY image_id ORDER BY average_score DESC',
-				...$params
-			),
-			ARRAY_A
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		$results = $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ), ARRAY_A );
 
 		if ( ! is_array( $results ) ) {
 			return array();
