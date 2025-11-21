@@ -31,29 +31,23 @@ class Images_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$conditions = array( 'competition_id = %d' );
-		$params     = array( $this->table(), $competition_id );
+		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
+		$prepare_args = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
-			$conditions[] = 'category = %s';
-			$params[]     = $category;
+			$query         .= ' AND category = %s';
+			$prepare_args[] = $category;
 		}
 
 		if ( null !== $member_id ) {
-			$conditions[] = 'member_id = %d';
-			$params[]     = $member_id;
+			$query         .= ' AND member_id = %d';
+			$prepare_args[] = $member_id;
 		}
 
-		$where = implode( ' AND ', $conditions );
+		$query .= ' ORDER BY category, random_number';
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is a "table, field = %d/%s" placeholder string.
-		return $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				'SELECT * FROM %i WHERE ' . $where . ' ORDER BY category, random_number',
-				...$params
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -115,26 +109,16 @@ class Images_Repository extends Abstract_Repository {
 			return 0;
 		}
 
-		global $wpdb;
-
-		$conditions = array( 'competition_id = %d', 'member_id = %d' );
-		$params     = array( $this->table(), $competition_id, $member_id );
+		$query        = 'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND member_id = %d';
+		$prepare_args = array( $this->table(), $competition_id, $member_id );
 
 		if ( null !== $category ) {
-			$conditions[] = 'category = %s';
-			$params[]     = $category;
+			$query         .= ' AND category = %s';
+			$prepare_args[] = $category;
 		}
 
-		$where = implode( ' AND ', $conditions );
-
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is a "table, field = %d/%s" placeholder string.
-		return (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				'SELECT COUNT(*) FROM %i WHERE ' . $where,
-				...$params
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
