@@ -362,17 +362,17 @@ class Image_Processor {
 	 *
 	 * @param string $source_path  Full path to source image.
 	 * @param string $target_dir   Directory to save thumbnail.
-	 * @param int    $thumb_width  Thumbnail width (default 300).
-	 * @param int    $thumb_height Thumbnail height (default 300).
+	 * @param int    $thumb_width  Thumbnail width (default 400).
+	 * @param int    $thumb_height Thumbnail height (default 400).
 	 * @return bool|WP_Error
 	 */
-	public function generate_thumbnail( string $source_path, string $target_dir, int $thumb_width = 300, int $thumb_height = 300 ) {
+	public function generate_thumbnail( string $source_path, string $target_dir, int $thumb_width = 400, int $thumb_height = 400 ) {
 		$image = wp_get_image_editor( $source_path );
 		if ( is_wp_error( $image ) ) {
 			return $image;
 		}
 
-		$image->resize( $thumb_width, $thumb_height, true );
+		$image->resize( $thumb_width, $thumb_height, false );
 
 		$filename       = basename( $source_path );
 		$thumb_filename = $this->generate_thumbnail_filename( $filename );
