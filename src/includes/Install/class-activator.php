@@ -61,9 +61,16 @@ class Activator {
 			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		}
 
+		// Temporarily suppress duplicate key errors from dbDelta.
+		// This happens when tables already exist with the correct schema.
+		$suppress_errors = $wpdb->suppress_errors();
+
 		foreach ( self::get_schema( $wpdb ) as $sql ) {
 			dbDelta( $sql );
 		}
+
+		// Restore error reporting.
+		$wpdb->suppress_errors( $suppress_errors );
 	}
 
 	/**

@@ -47,41 +47,30 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test creating a token.
+	 * Test creating a token with find_or_create.
 	 */
 	public function test_create_token() {
 		$member_id      = 1;
 		$competition_id = 2;
-		$token_hash     = hash( 'sha256', 'test_token' );
-		$expires_at     = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repo->create( $member_id, $competition_id, $token_hash, $expires_at );
+		$token = $this->repo->find_or_create( $member_id, $competition_id );
 
-		$this->assertIsInt( $token_id );
-		$this->assertGreaterThan( 0, $token_id );
+		$this->assertIsObject( $token );
+		$this->assertObjectHasProperty( 'id', $token );
+		$this->assertGreaterThan( 0, $token->id );
 
-		// Verify in database.
-		global $wpdb;
-		$token = $wpdb->get_row(
-			$wpdb->prepare(
-				'SELECT * FROM %i WHERE id = %d',
-				$this->repo->table(),
-				$token_id
-			)
-		);
-
-		$this->assertNotNull( $token );
+		// Verify token properties.
 		$this->assertEquals( $member_id, $token->member_id );
 		$this->assertEquals( $competition_id, $token->competition_id );
-		$this->assertEquals( $token_hash, $token->token_hash );
+		$this->assertNotEmpty( $token->token );
 		$this->assertNull( $token->used_at );
 	}
 
 	/**
-	 * Test create with invalid data returns error.
+	 * Test find_or_create with invalid data returns error.
 	 */
 	public function test_create_with_invalid_data() {
-		$result = $this->repo->create( 0, 1, 'hash', gmdate( 'Y-m-d H:i:s' ) );
+		$result = $this->repo->find_or_create( 0, 1 );
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_data', $result->get_error_code() );
 	}
@@ -90,16 +79,13 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test finding a valid token.
 	 */
 	public function test_find_valid_token() {
-		$token_hash = hash( 'sha256', 'find_test_token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
 
-		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
-
-		$found = $this->repo->find_valid_token( $token_hash );
+		$found = $this->repo->find_valid_token( $token_obj->token );
 
 		$this->assertNotNull( $found );
-		$this->assertEquals( $token_id, $found->id );
+		$this->assertEquals( $token_obj->id, $found->id );
 		$this->assertEquals( 1, $found->member_id );
 		$this->assertEquals( 2, $found->competition_id );
 		$this->assertNull( $found->used_at );
@@ -109,12 +95,26 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test finding expired token returns null.
 	 */
 	public function test_find_expired_token_returns_null() {
-		$token_hash = hash( 'sha256', 'expired_token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ); // Already expired.
+		global $wpdb;
 
-		$this->repo->create( 1, 2, $token_hash, $expires_at );
+		// Create an expired token directly in the database.
+		$token_string = bin2hex( random_bytes( 32 ) );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ); // Already expired.
 
-		$found = $this->repo->find_valid_token( $token_hash );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$wpdb->insert(
+			$this->repo->table(),
+			array(
+				'member_id'      => 1,
+				'competition_id' => 2,
+				'token'          => $token_string,
+				'expires_at'     => $expires_at,
+				'created_at'     => current_time( 'mysql' ),
+			),
+			array( '%d', '%d', '%s', '%s', '%s' )
+		);
+
+		$found = $this->repo->find_valid_token( $token_string );
 		$this->assertNull( $found );
 	}
 
@@ -122,17 +122,14 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test finding used token returns null.
 	 */
 	public function test_find_used_token_returns_null() {
-		$token_hash = hash( 'sha256', 'used_token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
 
 		// Mark as used.
-		$this->repo->mark_as_used( $token_id );
+		$this->repo->mark_as_used( $token_obj->id );
 
 		// Try to find it again.
-		$found = $this->repo->find_valid_token( $token_hash );
+		$found = $this->repo->find_valid_token( $token_obj->token );
 		$this->assertNull( $found );
 	}
 
@@ -140,13 +137,10 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test marking token as used.
 	 */
 	public function test_mark_as_used() {
-		$token_hash = hash( 'sha256', 'mark_used_token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
 
-		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
-
-		$result = $this->repo->mark_as_used( $token_id );
+		$result = $this->repo->mark_as_used( $token_obj->id );
 		$this->assertTrue( $result );
 
 		// Verify in database.
@@ -155,7 +149,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 			$wpdb->prepare(
 				'SELECT * FROM %i WHERE id = %d',
 				$this->repo->table(),
-				$token_id
+				$token_obj->id
 			)
 		);
 
@@ -175,13 +169,26 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test cleanup expired tokens.
 	 */
 	public function test_cleanup_expired() {
-		// Create expired token.
-		$expired_token = hash( 'sha256', 'cleanup_expired' );
-		$this->repo->create( 1, 2, $expired_token, gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ) );
+		global $wpdb;
 
-		// Create valid token.
-		$valid_token = hash( 'sha256', 'cleanup_valid' );
-		$this->repo->create( 1, 2, $valid_token, gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) );
+		// Create expired token directly in database.
+		$expired_token = bin2hex( random_bytes( 32 ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$wpdb->insert(
+			$this->repo->table(),
+			array(
+				'member_id'      => 10,
+				'competition_id' => 20,
+				'token'          => $expired_token,
+				'expires_at'     => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
+				'created_at'     => current_time( 'mysql' ),
+			),
+			array( '%d', '%d', '%s', '%s', '%s' )
+		);
+
+		// Create valid token for different member/competition.
+		$valid_token_obj = $this->repo->find_or_create( 11, 21 );
+		$this->assertIsObject( $valid_token_obj );
 
 		$deleted = $this->repo->cleanup_expired();
 		$this->assertGreaterThan( 0, $deleted );
@@ -191,85 +198,102 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $found_expired );
 
 		// Verify valid token still exists.
-		$found_valid = $this->repo->find_valid_token( $valid_token );
+		$found_valid = $this->repo->find_valid_token( $valid_token_obj->token );
 		$this->assertNotNull( $found_valid );
 	}
 
 	/**
-	 * Test has_recent_token for rate limiting.
+	 * Test has_recent_email_send for rate limiting.
 	 */
 	public function test_has_recent_token() {
 		$member_id      = 1;
 		$competition_id = 2;
 
 		// Initially should be false.
-		$this->assertFalse( $this->repo->has_recent_token( $member_id, $competition_id ) );
+		$this->assertFalse( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
 
-		// Create a token.
-		$token_hash = hash( 'sha256', 'rate_limit_test' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-		$this->repo->create( $member_id, $competition_id, $token_hash, $expires_at );
+		// Create a token and set sent_at.
+		$token_obj = $this->repo->find_or_create( $member_id, $competition_id );
+		$this->assertIsObject( $token_obj );
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->repo->table(),
+			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'id' => $token_obj->id ),
+			array( '%s' ),
+			array( '%d' )
+		);
 
 		// Should now be true.
-		$this->assertTrue( $this->repo->has_recent_token( $member_id, $competition_id ) );
+		$this->assertTrue( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
 	}
 
 	/**
-	 * Test has_recent_token returns false for old tokens.
+	 * Test has_recent_email_send returns false for old sent_at.
 	 */
 	public function test_has_recent_token_old_token() {
 		$member_id      = 1;
 		$competition_id = 2;
 
-		// Create an old token (older than 5 minutes).
+		// Create a token with old sent_at (older than 5 minutes).
 		global $wpdb;
-		$old_time   = gmdate( 'Y-m-d H:i:s', time() - ( 10 * MINUTE_IN_SECONDS ) );
-		$token_hash = hash( 'sha256', 'old_rate_limit_test' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$old_time     = gmdate( 'Y-m-d H:i:s', time() - ( 10 * MINUTE_IN_SECONDS ) );
+		$token_string = bin2hex( random_bytes( 32 ) );
+		$expires_at   = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->insert(
 			$this->repo->table(),
 			array(
 				'member_id'      => $member_id,
 				'competition_id' => $competition_id,
-				'token_hash'     => $token_hash,
+				'token'          => $token_string,
 				'expires_at'     => $expires_at,
-				'created_at'     => $old_time,
+				'created_at'     => current_time( 'mysql' ),
+				'sent_at'        => $old_time,
 			),
-			array( '%d', '%d', '%s', '%s', '%s' )
+			array( '%d', '%d', '%s', '%s', '%s', '%s' )
 		);
 
-		// Should be false since token is old.
-		$this->assertFalse( $this->repo->has_recent_token( $member_id, $competition_id ) );
+		// Should be false since sent_at is old.
+		$this->assertFalse( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
 	}
 
 	/**
-	 * Test has_recent_token returns false for different competition.
+	 * Test has_recent_email_send returns false for different competition.
 	 */
 	public function test_has_recent_token_different_competition() {
 		$member_id = 1;
 
-		// Create token for competition 2.
-		$token_hash = hash( 'sha256', 'different_comp_test' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-		$this->repo->create( $member_id, 2, $token_hash, $expires_at );
+		// Create token for competition 2 with recent sent_at.
+		$token_obj = $this->repo->find_or_create( $member_id, 2 );
+		$this->assertIsObject( $token_obj );
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->repo->table(),
+			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'id' => $token_obj->id ),
+			array( '%s' ),
+			array( '%d' )
+		);
 
 		// Check for competition 3.
-		$this->assertFalse( $this->repo->has_recent_token( $member_id, 3 ) );
+		$this->assertFalse( $this->repo->has_recent_email_send( $member_id, 3 ) );
 	}
 
 	/**
 	 * Test first_accessed_at is set on first find_valid_token call.
 	 */
 	public function test_first_accessed_at_set_on_first_access() {
-		$token_hash = hash( 'sha256', 'tracking_test_token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
 
 		// First access should set first_accessed_at.
-		$found = $this->repo->find_valid_token( $token_hash );
+		$found = $this->repo->find_valid_token( $token_obj->token );
 		$this->assertNotNull( $found );
 		$this->assertNotNull( $found->first_accessed_at );
 
@@ -280,7 +304,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		sleep( 1 );
 
 		// Second access should NOT update first_accessed_at.
-		$found_again = $this->repo->find_valid_token( $token_hash );
+		$found_again = $this->repo->find_valid_token( $token_obj->token );
 		$this->assertNotNull( $found_again );
 		$this->assertEquals( $first_timestamp, $found_again->first_accessed_at );
 	}
@@ -289,19 +313,17 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test first_accessed_at is NOT updated on subsequent accesses.
 	 */
 	public function test_first_accessed_at_not_updated_on_subsequent_access() {
-		$token_hash = hash( 'sha256', 'tracking_update_test' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repo->create( 1, 2, $token_hash, $expires_at );
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
 
 		// Access token multiple times.
-		$first_find  = $this->repo->find_valid_token( $token_hash );
-		$first_time  = $first_find->first_accessed_at;
+		$first_find = $this->repo->find_valid_token( $token_obj->token );
+		$first_time = $first_find->first_accessed_at;
 
 		sleep( 1 );
 
-		$second_find = $this->repo->find_valid_token( $token_hash );
-		$third_find  = $this->repo->find_valid_token( $token_hash );
+		$second_find = $this->repo->find_valid_token( $token_obj->token );
+		$third_find  = $this->repo->find_valid_token( $token_obj->token );
 
 		// All should have the same first_accessed_at.
 		$this->assertEquals( $first_time, $second_find->first_accessed_at );
@@ -315,18 +337,17 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$competition_id = 5;
 
 		// Create tokens for different members.
-		$token1 = hash( 'sha256', 'tracking_member_1' );
-		$token2 = hash( 'sha256', 'tracking_member_2' );
-		$token3 = hash( 'sha256', 'tracking_member_3' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$token1 = $this->repo->find_or_create( 1, $competition_id );
+		$token2 = $this->repo->find_or_create( 2, $competition_id );
+		$token3 = $this->repo->find_or_create( 3, $competition_id );
 
-		$this->repo->create( 1, $competition_id, $token1, $expires_at );
-		$this->repo->create( 2, $competition_id, $token2, $expires_at );
-		$this->repo->create( 3, $competition_id, $token3, $expires_at );
+		$this->assertIsObject( $token1 );
+		$this->assertIsObject( $token2 );
+		$this->assertIsObject( $token3 );
 
 		// Access only some tokens.
-		$this->repo->find_valid_token( $token1 );
-		$this->repo->find_valid_token( $token3 );
+		$this->repo->find_valid_token( $token1->token );
+		$this->repo->find_valid_token( $token3->token );
 
 		// Get tracking data.
 		$tracking = $this->repo->get_tracking_by_competition( $competition_id );
@@ -360,13 +381,12 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * Test get_tracking_by_competition only returns data for specified competition.
 	 */
 	public function test_get_tracking_by_competition_filters_correctly() {
-		$token1 = hash( 'sha256', 'filter_comp_1' );
-		$token2 = hash( 'sha256', 'filter_comp_2' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
 		// Create tokens for different competitions.
-		$this->repo->create( 1, 10, $token1, $expires_at );
-		$this->repo->create( 2, 20, $token2, $expires_at );
+		$token1 = $this->repo->find_or_create( 1, 10 );
+		$token2 = $this->repo->find_or_create( 2, 20 );
+
+		$this->assertIsObject( $token1 );
+		$this->assertIsObject( $token2 );
 
 		// Get tracking for competition 10.
 		$tracking = $this->repo->get_tracking_by_competition( 10 );
