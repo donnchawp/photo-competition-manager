@@ -416,7 +416,8 @@ class Setup_Wizard_Controller {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$pages = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT ID, post_title FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s",
+					"SELECT ID, post_title FROM %i WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s",
+					$wpdb->posts,
 					'%[' . $wpdb->esc_like( $shortcode ) . '%'
 				)
 			);
