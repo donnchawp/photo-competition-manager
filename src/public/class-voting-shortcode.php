@@ -144,6 +144,26 @@ class Voting_Shortcode {
 				true
 			);
 		}
+
+		// Enqueue redirect button handler.
+		wp_register_script( 'photo-comp-voting-redirect', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-comp-voting-redirect' );
+
+		$inline_script = "
+		document.addEventListener('DOMContentLoaded', function() {
+			var redirectButtons = document.querySelectorAll('.photo-comp-redirect-btn');
+			redirectButtons.forEach(function(button) {
+				button.addEventListener('click', function() {
+					var url = this.getAttribute('data-redirect-url');
+					if (url) {
+						window.location.href = url;
+					}
+				});
+			});
+		});
+		";
+
+		wp_add_inline_script( 'photo-comp-voting-redirect', $inline_script );
 	}
 
 	/**
@@ -243,7 +263,7 @@ class Voting_Shortcode {
 		$status_param = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';
 		if ( 'success' === $status_param ) {
 			$message  = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
-			$message .= '<p><button type="button" class="button" onclick="window.location.href=\'' . esc_url( get_permalink() ) . '\';">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+			$message .= '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 		}
 
 		$submitted_data = array(
@@ -608,7 +628,7 @@ class Voting_Shortcode {
 			<?php if ( empty( $voting_categories ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
-					<button type="button" class="button" onclick="window.location.href='<?php echo esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ); ?>';">
+					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ); ?>">
 						<?php esc_html_e( 'Check If Voting Is Open', 'photo-competition-manager' ); ?>
 					</button>
 				</p>
@@ -666,7 +686,7 @@ class Voting_Shortcode {
 				// Verify voting is still open for this category.
 				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
-					echo '<p><button type="button" class="button" onclick="window.location.href=\'' . esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ) . '\';">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
 
@@ -678,7 +698,7 @@ class Voting_Shortcode {
 
 				if ( ! empty( $existing_votes ) ) {
 					echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
-					echo '<p><button type="button" class="button" onclick="window.location.href=\'' . esc_url( get_permalink() ) . '\';">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
 
@@ -974,7 +994,7 @@ class Voting_Shortcode {
 			<?php if ( empty( $voting_categories ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
-					<button type="button" class="button" onclick="window.location.href='<?php echo esc_url( get_permalink() ); ?>';">
+					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( get_permalink() ); ?>">
 						<?php esc_html_e( 'Check If Voting Is Open', 'photo-competition-manager' ); ?>
 					</button>
 				</p>
@@ -1001,7 +1021,7 @@ class Voting_Shortcode {
 						echo '<div class="voting-category-section voting-category-complete">';
 						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
 						echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
-						echo '<p><button type="button" class="button" onclick="window.location.href=\'' . esc_url( get_permalink() ) . '\';">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+						echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 						echo '</div>';
 						continue;
 					}
