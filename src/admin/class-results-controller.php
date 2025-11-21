@@ -127,6 +127,37 @@ class Results_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+	}
+
+	/**
+	 * Enqueue scripts for results page.
+	 *
+	 * @param string $hook_suffix The current admin page hook suffix.
+	 * @return void
+	 */
+	public function enqueue_scripts( string $hook_suffix ): void {
+		// Only load on results page.
+		if ( 'competitions_page_photo-competition-manager-results' !== $hook_suffix ) {
+			return;
+		}
+
+		// Enqueue a dummy script handle to attach inline script to.
+		wp_register_script( 'photo-comp-results-select', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-comp-results-select' );
+
+		$inline_script = "
+		document.addEventListener('DOMContentLoaded', function() {
+			var competitionSelect = document.getElementById('competition-select');
+			if (competitionSelect) {
+				competitionSelect.addEventListener('change', function() {
+					window.location.href = this.value;
+				});
+			}
+		});
+		";
+
+		wp_add_inline_script( 'photo-comp-results-select', $inline_script );
 	}
 
 	/**
@@ -318,7 +349,7 @@ class Results_Controller {
 		// Competition selector.
 		echo '<div class="competition-selector" style="margin: 20px 0;">';
 		echo '<label for="competition-select" style="margin-right: 10px;"><strong>' . esc_html__( 'Competition:', 'photo-competition-manager' ) . '</strong></label>';
-		echo '<select id="competition-select" onchange="window.location.href=this.value">';
+		echo '<select id="competition-select">';
 		foreach ( $competitions as $comp ) {
 			$url      = add_query_arg(
 				array(
