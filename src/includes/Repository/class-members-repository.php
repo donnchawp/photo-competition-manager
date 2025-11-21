@@ -31,18 +31,18 @@ class Members_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where = $only_active ? 'WHERE active = 1 ' : '';
+		$query  = 'SELECT * FROM %i';
+		$query .= $only_active ? ' WHERE active = 1 ' : '';
+		$query .= 'ORDER BY name ASC';
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is hard coded string.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter
 		return $wpdb->get_results(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				'SELECT * FROM %i ' . $where . 'ORDER BY name ASC',
+				$query, // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$this->table()
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 
 	/**
