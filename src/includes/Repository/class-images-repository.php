@@ -27,6 +27,8 @@ class Images_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return array();
 		}
@@ -46,8 +48,8 @@ class Images_Repository extends Abstract_Repository {
 
 		$query .= ' ORDER BY category, random_number';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -63,6 +65,7 @@ class Images_Repository extends Abstract_Repository {
 
 		global $wpdb;
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE member_id = %d ORDER BY created_at DESC',
 			$this->table(),
@@ -86,6 +89,7 @@ class Images_Repository extends Abstract_Repository {
 
 		global $wpdb;
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE id = %d',
 			$this->table(),
@@ -105,6 +109,8 @@ class Images_Repository extends Abstract_Repository {
 	 * @return int
 	 */
 	public function count_by_member_category( int $competition_id, int $member_id, ?string $category = null ): int {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return 0;
 		}
@@ -117,8 +123,8 @@ class Images_Repository extends Abstract_Repository {
 			$prepare_args[] = $category;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return (int) $this->wpdb->get_var( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return (int) $wpdb->get_var( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -134,8 +140,10 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$max = $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$max = $wpdb->get_var(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT MAX(random_number) FROM %i WHERE competition_id = %d AND category = %s',
 				$this->table(),
 				$competition_id,
@@ -162,8 +170,10 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$existing = $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$existing = $wpdb->get_var(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT random_number FROM %i WHERE competition_id = %d AND member_id = %d LIMIT 1',
 				$this->table(),
 				$competition_id,
@@ -178,8 +188,10 @@ class Images_Repository extends Abstract_Repository {
 
 		// Member doesn't have images yet, assign next sequential number.
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$max = $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$max = $wpdb->get_var(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT MAX(random_number) FROM %i WHERE competition_id = %d',
 				$this->table(),
 				$competition_id
@@ -205,8 +217,10 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$member_ids = $this->wpdb->get_col(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$member_ids = $wpdb->get_col(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
 				$this->table(),
 				$competition_id
@@ -225,7 +239,8 @@ class Images_Repository extends Abstract_Repository {
 		$next_number = 1;
 		foreach ( $member_ids as $member_id ) {
 			// Update all images for this member in this competition.
-			$updated = $this->wpdb->update(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$updated = $wpdb->update(
 				$this->table(),
 				array(
 					'random_number' => $next_number,
@@ -240,7 +255,7 @@ class Images_Repository extends Abstract_Repository {
 			);
 
 			if ( false === $updated ) {
-				return new WP_Error( 'db_update_failed', __( 'Failed to update random numbers.', 'photo-competition-manager' ), $this->wpdb->last_error );
+				return new WP_Error( 'db_update_failed', __( 'Failed to update random numbers.', 'photo-competition-manager' ), $wpdb->last_error );
 			}
 
 			++$next_number;
@@ -289,13 +304,14 @@ class Images_Repository extends Abstract_Repository {
 
 		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s', '%s' );
 
-		$inserted = $this->wpdb->insert( $this->table(), $payload, $format );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert( $this->table(), $payload, $format );
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'db_insert_failed', __( 'Could not create image record.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_insert_failed', __( 'Could not create image record.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -316,7 +332,8 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			array(
 				'score'      => $score,
@@ -328,7 +345,7 @@ class Images_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not update image score.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not update image score.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -352,7 +369,8 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			array(
 				'category'   => $category,
@@ -364,7 +382,7 @@ class Images_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not update image category.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not update image category.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -387,14 +405,15 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'id' => $id ),
 			array( '%d' )
 		);
 
 		if ( false === $deleted ) {
-			return new WP_Error( 'db_delete_failed', __( 'Could not delete image record.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_delete_failed', __( 'Could not delete image record.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -411,7 +430,8 @@ class Images_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'competition_id' => $competition_id ),
 			array( '%d' )
@@ -438,11 +458,13 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT i.id, i.competition_id, i.member_id, i.category, i.filename, i.random_number, i.score, i.created_at, m.name AS member_name, m.email AS member_email FROM %i AS i LEFT JOIN %i AS m ON i.member_id = m.id ORDER BY i.member_id ASC',
 				$this->table(),
-				$this->wpdb->prefix . 'photocomp_members'
+				$wpdb->prefix . 'photocomp_members'
 			)
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
@@ -460,8 +482,10 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_col(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_col(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT original_attachment_id FROM %i WHERE competition_id = %d AND original_attachment_id IS NOT NULL',
 				$this->table(),
 				$competition_id
@@ -485,7 +509,8 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			array(
 				'original_attachment_id' => null,
@@ -497,7 +522,7 @@ class Images_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not clear original attachment IDs.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not clear original attachment IDs.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;

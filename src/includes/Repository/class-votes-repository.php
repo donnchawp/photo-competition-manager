@@ -50,7 +50,8 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
 		}
 
-		$inserted = $this->wpdb->insert(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert(
 			$this->table(),
 			array(
 				'competition_id'  => $competition_id,
@@ -64,10 +65,10 @@ class Votes_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'insert_failed', $this->wpdb->last_error );
+			return new WP_Error( 'insert_failed', $wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -93,7 +94,8 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
 		}
 
-		$inserted = $this->wpdb->insert(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert(
 			$this->table(),
 			array(
 				'competition_id' => $competition_id,
@@ -107,10 +109,10 @@ class Votes_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'insert_failed', $this->wpdb->last_error );
+			return new WP_Error( 'insert_failed', $wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -135,8 +137,8 @@ class Votes_Repository extends Abstract_Repository {
 
 		$query .= ' ORDER BY created_at DESC';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -151,15 +153,15 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE image_id = %d ORDER BY created_at DESC',
 			$this->table(),
 			$image_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
@@ -174,15 +176,15 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT COUNT(*) FROM %i WHERE voting_token_id = %d',
 			$this->table(),
 			$voting_token_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$count = (int) $this->wpdb->get_var( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = (int) $wpdb->get_var( $sql );
 
 		return $count > 0;
 	}
@@ -198,7 +200,8 @@ class Votes_Repository extends Abstract_Repository {
 			return;
 		}
 
-		$this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
 			$this->table(),
 			array( 'voting_token_id' => $voting_token_id ),
 			array( '%d' )
@@ -218,7 +221,8 @@ class Votes_Repository extends Abstract_Repository {
 			return;
 		}
 
-		$this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
 			$this->table(),
 			array(
 				'competition_id' => $competition_id,
@@ -241,15 +245,15 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT image_id, score FROM %i WHERE voting_token_id = %d',
 			$this->table(),
 			$voting_token_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_results( $sql, ARRAY_A );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_results( $sql, ARRAY_A );
 
 		if ( ! is_array( $results ) ) {
 			return array();
@@ -277,7 +281,7 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT image_id, score FROM %i WHERE competition_id = %d AND category = %s AND voter_name = %s',
 			$this->table(),
 			$competition_id,
@@ -286,8 +290,8 @@ class Votes_Repository extends Abstract_Repository {
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_results( $sql, ARRAY_A );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_results( $sql, ARRAY_A );
 
 		if ( ! is_array( $results ) ) {
 			return array();
@@ -315,7 +319,7 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s AND voter_name = %s',
 			$this->table(),
 			$competition_id,
@@ -324,8 +328,8 @@ class Votes_Repository extends Abstract_Repository {
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$count = (int) $this->wpdb->get_var( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = (int) $wpdb->get_var( $sql );
 
 		return $count > 0;
 	}
@@ -352,8 +356,8 @@ class Votes_Repository extends Abstract_Repository {
 
 		$query .= ' GROUP BY image_id ORDER BY average_score DESC';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		$results = $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ), ARRAY_A );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		$results = $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ), ARRAY_A );
 
 		if ( ! is_array( $results ) ) {
 			return array();
@@ -382,8 +386,8 @@ class Votes_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'competition_id' => $competition_id ),
 			array( '%d' )
@@ -404,15 +408,15 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT DISTINCT voter_name FROM %i WHERE competition_id = %d ORDER BY voter_name',
 			$this->table(),
 			$competition_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_col( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_col( $sql );
 
 		return is_array( $results ) ? $results : array();
 	}
@@ -429,15 +433,15 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $this->wpdb->prepare(
+		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE competition_id = %d ORDER BY voter_name, created_at',
 			$this->table(),
 			$competition_id
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->get_results( $sql );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results( $sql );
 	}
 
 	/**
@@ -451,8 +455,8 @@ class Votes_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'image_id' => $image_id ),
 			array( '%d' )

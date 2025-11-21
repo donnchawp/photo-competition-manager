@@ -29,6 +29,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return object|WP_Error Token object or error.
 	 */
 	public function find_or_create( int $member_id, int $competition_id ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'missing_table', __( 'Upload token table is not available.', 'photo-competition-manager' ) );
 		}
@@ -38,9 +40,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		// Try to find existing token.
-		// phpcs:disable WordPress.DB.PreparedSQL
-		$existing = $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$existing = $wpdb->get_row(
+			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
@@ -50,7 +52,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 				$competition_id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		if ( $existing ) {
 			// Refresh token if expired.
@@ -58,7 +59,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 				$new_token      = bin2hex( random_bytes( 32 ) );
 				$new_expires_at = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
 
-				$updated = $this->wpdb->update(
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$updated = $wpdb->update(
 					$this->table(),
 					array(
 						'token'      => $new_token,
@@ -97,24 +99,24 @@ class Upload_Token_Repository extends Abstract_Repository {
 
 		$format = array( '%d', '%d', '%s', '%s', '%s' );
 
-		$inserted = $this->wpdb->insert( $this->table(), $payload, $format );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$inserted = $wpdb->insert( $this->table(), $payload, $format );
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'db_insert_failed', __( 'Could not create upload token.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_insert_failed', __( 'Could not create upload token.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		// Return the newly created token.
-		$token_id = (int) $this->wpdb->insert_id;
+		$token_id = (int) $wpdb->insert_id;
 
-		// phpcs:disable WordPress.DB.PreparedSQL
-		$token = $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$token = $wpdb->get_row(
+			$wpdb->prepare(
 				'SELECT * FROM %i WHERE id = %d',
 				$this->table(),
 				$token_id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		return $token ? $token : new WP_Error( 'token_not_found', __( 'Token was created but could not be retrieved.', 'photo-competition-manager' ) );
 	}
@@ -128,12 +130,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return object|null Token record or null if not found/invalid.
 	 */
 	public function find_valid_token( string $token_string ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || empty( $token_string ) ) {
 			return null;
 		}
 
-		$token = $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$token = $wpdb->get_row(
+			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE token = %s
 				AND used_at IS NULL
@@ -147,7 +152,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
-			$this->wpdb->update(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update(
 				$this->table(),
 				array( 'first_accessed_at' => current_time( 'mysql' ) ),
 				array( 'id' => $token->id ),
@@ -169,11 +175,14 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return bool|WP_Error
 	 */
 	public function mark_as_used( int $token_id ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $token_id <= 0 ) {
 			return new WP_Error( 'invalid_token', __( 'Token not found.', 'photo-competition-manager' ) );
 		}
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			array( 'used_at' => current_time( 'mysql' ) ),
 			array( 'id' => $token_id ),
@@ -182,7 +191,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not mark token as used.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not mark token as used.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -194,12 +203,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return int|false Number of deleted rows or false on failure.
 	 */
 	public function cleanup_expired() {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
 
-		return $this->wpdb->query(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->query(
+			$wpdb->prepare(
 				'DELETE FROM %i WHERE expires_at < %s',
 				$this->table(),
 				current_time( 'mysql' )
@@ -222,6 +234,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return bool True if an email was sent within the last 5 minutes.
 	 */
 	public function has_recent_email_send( int $member_id, int $competition_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -229,8 +243,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// Check if sent_at is within the last 5 minutes.
 		$current_time = current_time( 'mysql' );
 
-		$count = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = (int) $wpdb->get_var(
+			$wpdb->prepare(
 				'SELECT COUNT(*) FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
@@ -352,7 +367,10 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		// Update sent_at timestamp to track when email was sent.
-		$this->wpdb->update(
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
 			$this->table(),
 			array( 'sent_at' => current_time( 'mysql' ) ),
 			array( 'id' => $token_obj->id ),
@@ -408,12 +426,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return array<int, object> Array of tracking data indexed by member_id.
 	 */
 	public function get_tracking_by_competition( int $competition_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return array();
 		}
 
-		$results = $this->wpdb->get_results(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
 				'SELECT
 					member_id,
 					MIN(created_at) as first_sent_at,
@@ -442,11 +463,14 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function delete_by_competition( int $competition_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return false;
 		}
 
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'competition_id' => $competition_id ),
 			array( '%d' )

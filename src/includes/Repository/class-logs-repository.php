@@ -32,6 +32,8 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int|false The number of rows inserted, or false on error.
 	 */
 	public function create( array $data ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -56,7 +58,7 @@ class Logs_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$result = $this->wpdb->insert(
+		$result = $wpdb->insert(
 			$this->table(),
 			$data,
 			array(
@@ -85,6 +87,8 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_by_competition( int $competition_id, int $limit = 50, int $offset = 0, array $filters = array() ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -119,8 +123,8 @@ class Logs_Repository extends Abstract_Repository {
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -132,6 +136,8 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function paginate( int $limit = 50, int $offset = 0, array $filters = array() ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -171,8 +177,8 @@ class Logs_Repository extends Abstract_Repository {
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -182,6 +188,8 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int
 	 */
 	public function count( array $filters = array() ): int {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return 0;
 		}
@@ -215,8 +223,8 @@ class Logs_Repository extends Abstract_Repository {
 			$prepare_args[] = $filters['date_to'];
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
-		return (int) $this->wpdb->get_var( $this->wpdb->prepare( $query, ...$prepare_args ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
+		return (int) $wpdb->get_var( $wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -226,12 +234,14 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int|false The number of rows deleted, or false on error.
 	 */
 	public function delete_older_than( string $date ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		return $this->wpdb->query( $this->wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s', $this->table(), $date ) );
+		return $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s', $this->table(), $date ) );
 	}
 
 	/**
@@ -240,12 +250,14 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return array<int, string>
 	 */
 	public function get_event_categories(): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_col( $this->wpdb->prepare( 'SELECT DISTINCT event_category FROM %i ORDER BY event_category ASC', $this->table() ) );
+		$results = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT event_category FROM %i ORDER BY event_category ASC', $this->table() ) );
 
 		return $results ? $results : array();
 	}
@@ -256,12 +268,14 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return array<int, string>
 	 */
 	public function get_event_types(): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		$results = $this->wpdb->get_col( $this->wpdb->prepare( 'SELECT DISTINCT event_type FROM %i ORDER BY event_type ASC', $this->table() ) );
+		$results = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT event_type FROM %i ORDER BY event_type ASC', $this->table() ) );
 
 		return $results ? $results : array();
 	}

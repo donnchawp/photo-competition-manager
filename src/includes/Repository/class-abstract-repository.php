@@ -9,9 +9,6 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use RuntimeException;
-use wpdb;
-
 /**
  * Abstract class Abstract_Repository
  *
@@ -20,39 +17,14 @@ use wpdb;
 abstract class Abstract_Repository {
 
 	/**
-	 * Database connection.
-	 *
-	 * @var wpdb
-	 */
-	protected $wpdb;
-
-	/**
-	 * Constructor.
-	 *
-	 * @param wpdb|null $wpdb WordPress database instance.
-	 * @throws RuntimeException If the WordPress database object is not available.
-	 */
-	public function __construct( ?wpdb $wpdb = null ) {
-		if ( $wpdb instanceof wpdb ) {
-			$this->wpdb = $wpdb;
-			return;
-		}
-
-		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof wpdb ) {
-			$this->wpdb = $GLOBALS['wpdb'];
-			return;
-		}
-
-		throw new RuntimeException( 'WordPress database object is not available.' );
-	}
-
-	/**
 	 * Fully qualified table name.
 	 *
 	 * @return string
 	 */
 	public function table(): string {
-		return $this->wpdb->prefix . $this->table_suffix();
+		global $wpdb;
+
+		return $wpdb->prefix . $this->table_suffix();
 	}
 
 	/**
@@ -61,10 +33,12 @@ abstract class Abstract_Repository {
 	 * @return bool
 	 */
 	public function table_exists(): bool {
+		global $wpdb;
+
 		$table = $this->table();
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$found = $this->wpdb->get_var( $this->wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
 		return $found === $table;
 	}

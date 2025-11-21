@@ -48,13 +48,14 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		$format = array( '%d', '%d', '%s', '%s', '%s', '%s' );
 
-		$inserted = $this->wpdb->insert( $this->table(), $payload, $format );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert( $this->table(), $payload, $format );
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'db_insert_failed', __( 'Could not create voting token.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_insert_failed', __( 'Could not create voting token.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -70,8 +71,10 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		$token = $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$token = $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE token_hash = %s
 				AND used_at IS NULL
@@ -85,7 +88,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
-			$this->wpdb->update(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update(
 				$this->table(),
 				array( 'first_accessed_at' => current_time( 'mysql' ) ),
 				array( 'id' => $token->id ),
@@ -111,7 +115,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_token', __( 'Token not found.', 'photo-competition-manager' ) );
 		}
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			array( 'used_at' => current_time( 'mysql' ) ),
 			array( 'id' => $token_id ),
@@ -120,7 +125,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not mark token as used.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not mark token as used.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		if ( 0 === $updated ) {
@@ -140,8 +145,10 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		return $this->wpdb->query(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->query(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'DELETE FROM %i WHERE expires_at < %s',
 				$this->table(),
 				current_time( 'mysql' )
@@ -165,8 +172,10 @@ class Voting_Token_Repository extends Abstract_Repository {
 		// Check for tokens created in the last 5 minutes that are still valid.
 		$recent_threshold = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 5 * MINUTE_IN_SECONDS ) );
 
-		$count = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = (int) $wpdb->get_var(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT COUNT(*) FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
@@ -200,8 +209,10 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$results = $this->wpdb->get_results(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$results = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT
 					member_id,
 					MIN(created_at) as first_sent_at,
@@ -234,7 +245,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'competition_id' => $competition_id ),
 			array( '%d' )

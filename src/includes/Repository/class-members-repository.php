@@ -32,8 +32,10 @@ class Members_Repository extends Abstract_Repository {
 		$where = $only_active ? 'WHERE active = 1 ' : '';
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is hard coded string.
-		return $this->wpdb->get_results(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT * FROM %i ' . $where . 'ORDER BY name ASC',
 				$this->table()
 			)
@@ -53,8 +55,10 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		return $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT * FROM %i WHERE id = %d',
 				$this->table(),
 				$id
@@ -75,8 +79,10 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		return $this->wpdb->get_row(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				'SELECT * FROM %i WHERE email = %s',
 				$this->table(),
 				$email
@@ -105,7 +111,7 @@ class Members_Repository extends Abstract_Repository {
 		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders built dynamically for IN clause; count matches at runtime.
-		$results = $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $this->table(), ...$ids ) );
+		$results = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE id IN ($placeholders)", $this->table(), ...$ids ) );
 		$map     = array();
 		foreach ( $results as $member ) {
 			$map[ (int) $member->id ] = $member;
@@ -155,13 +161,14 @@ class Members_Repository extends Abstract_Repository {
 
 		$format = array( '%s', '%s', '%s', '%d', '%s', '%s' );
 
-		$inserted = $this->wpdb->insert( $this->table(), $payload, $format );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert( $this->table(), $payload, $format );
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'db_insert_failed', __( 'Could not create member.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_insert_failed', __( 'Could not create member.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
-		return (int) $this->wpdb->insert_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -211,7 +218,8 @@ class Members_Repository extends Abstract_Repository {
 
 		$format = array( '%s', '%s', '%s', '%d', '%s' );
 
-		$updated = $this->wpdb->update(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
 			$this->table(),
 			$payload,
 			array( 'id' => $id ),
@@ -220,7 +228,7 @@ class Members_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not update member.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not update member.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -290,14 +298,15 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		// Delete the member record.
-		$deleted = $this->wpdb->delete(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
 			$this->table(),
 			array( 'id' => $id ),
 			array( '%d' )
 		);
 
 		if ( false === $deleted ) {
-			return new WP_Error( 'db_delete_failed', __( 'Could not delete member.', 'photo-competition-manager' ), $this->wpdb->last_error );
+			return new WP_Error( 'db_delete_failed', __( 'Could not delete member.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
@@ -372,8 +381,10 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is "field != %d" string.
-		return (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
 				"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
 				$this->table(),
 				...$params
