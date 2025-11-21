@@ -107,9 +107,17 @@ class Submissions_Controller {
 			return;
 		}
 
+		// Register and enqueue a dummy style handle to attach inline styles to.
+		wp_register_style( 'photo-comp-submissions-style', '', array(), PHOTO_COMPETITION_MANAGER_VERSION );
+		wp_enqueue_style( 'photo-comp-submissions-style' );
+
 		// Add inline CSS for thumbnails.
 		$inline_css = '.photo-comp-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .photo-comp-thumbnail{width:140px;}';
-		wp_add_inline_style( 'wp-admin', $inline_css );
+		wp_add_inline_style( 'photo-comp-submissions-style', $inline_css );
+
+		// Register and enqueue a dummy script handle to attach inline scripts to.
+		wp_register_script( 'photo-comp-submissions-script', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-comp-submissions-script' );
 
 		// Add inline JavaScript for bulk actions.
 		$inline_js = "
@@ -149,7 +157,7 @@ class Submissions_Controller {
 			});
 		});
 		";
-		wp_add_inline_script( 'wp-admin', $inline_js );
+		wp_add_inline_script( 'photo-comp-submissions-script', $inline_js );
 	}
 
 	/**

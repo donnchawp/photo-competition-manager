@@ -41,8 +41,12 @@ class Email_Templates_Controller {
 			return;
 		}
 
+		// Register and enqueue a dummy style handle to attach inline styles to.
+		wp_register_style( 'photo-comp-email-templates-style', '', array(), PHOTO_COMPETITION_MANAGER_VERSION );
+		wp_enqueue_style( 'photo-comp-email-templates-style' );
+
 		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;}';
-		wp_add_inline_style( 'wp-admin', $inline_css );
+		wp_add_inline_style( 'photo-comp-email-templates-style', $inline_css );
 	}
 
 	/**
