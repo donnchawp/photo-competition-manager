@@ -153,6 +153,27 @@ class Upload_Shortcode {
 				$category_asset['version']
 			);
 		}
+
+		// Enqueue delete confirmation handler.
+		wp_register_script( 'photo-comp-delete-confirm', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
+		wp_enqueue_script( 'photo-comp-delete-confirm' );
+
+		$delete_confirm_message = esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) );
+		$inline_script          = "
+		document.addEventListener('DOMContentLoaded', function() {
+			var deleteForms = document.querySelectorAll('.photo-comp-delete-form');
+			deleteForms.forEach(function(form) {
+				form.addEventListener('submit', function(e) {
+					if (!confirm('{$delete_confirm_message}')) {
+						e.preventDefault();
+						return false;
+					}
+				});
+			});
+		});
+		";
+
+		wp_add_inline_script( 'photo-comp-delete-confirm', $inline_script );
 	}
 
 	/**
@@ -519,14 +540,13 @@ class Upload_Shortcode {
 									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
 									?>
-									<form method="post" class="delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
+									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
 										<button
 											type="submit"
 											name="photo_competition_delete"
 											class="button button-small button-link-delete"
-											onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) ); ?>');"
 										>
 											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
 										</button>
