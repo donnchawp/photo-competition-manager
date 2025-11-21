@@ -89,39 +89,38 @@ class Logs_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where_clauses = array();
-		$prepare_args  = array( $this->table() );
-
-		$where_clauses[] = 'competition_id = %d';
-		$prepare_args[]  = $competition_id;
+		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
+		$prepare_args = array( $this->table(), $competition_id );
 
 		// Apply filters.
 		if ( ! empty( $filters['event_category'] ) ) {
-			$where_clauses[] = 'event_category = %s';
-			$prepare_args[]  = $filters['event_category'];
+			$query         .= ' AND event_category = %s';
+			$prepare_args[] = $filters['event_category'];
 		}
 
 		if ( ! empty( $filters['event_type'] ) ) {
-			$where_clauses[] = 'event_type = %s';
-			$prepare_args[]  = $filters['event_type'];
+			$query         .= ' AND event_type = %s';
+			$prepare_args[] = $filters['event_type'];
 		}
 
 		if ( ! empty( $filters['date_from'] ) ) {
-			$where_clauses[] = 'created_at >= %s';
-			$prepare_args[]  = $filters['date_from'];
+			$query         .= ' AND created_at >= %s';
+			$prepare_args[] = $filters['date_from'];
 		}
 
 		if ( ! empty( $filters['date_to'] ) ) {
-			$where_clauses[] = 'created_at <= %s';
-			$prepare_args[]  = $filters['date_to'];
+			$query         .= ' AND created_at <= %s';
+			$prepare_args[] = $filters['date_to'];
 		}
 
-		$where = implode( ' AND ', $where_clauses );
+		$query .= ' ORDER BY created_at DESC LIMIT %d OFFSET %d';
 
+		// Add LIMIT and OFFSET parameters.
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -137,41 +136,43 @@ class Logs_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$where_clauses = array( '1=1' );
-		$prepare_args  = array( $this->table() );
+		$query        = 'SELECT * FROM %i WHERE 1=1';
+		$prepare_args = array( $this->table() );
 
 		// Apply filters.
 		if ( ! empty( $filters['competition_id'] ) ) {
-			$where_clauses[] = 'competition_id = %d';
-			$prepare_args[]  = (int) $filters['competition_id'];
+			$query         .= ' AND competition_id = %d';
+			$prepare_args[] = (int) $filters['competition_id'];
 		}
 
 		if ( ! empty( $filters['event_category'] ) ) {
-			$where_clauses[] = 'event_category = %s';
-			$prepare_args[]  = $filters['event_category'];
+			$query         .= ' AND event_category = %s';
+			$prepare_args[] = $filters['event_category'];
 		}
 
 		if ( ! empty( $filters['event_type'] ) ) {
-			$where_clauses[] = 'event_type = %s';
-			$prepare_args[]  = $filters['event_type'];
+			$query         .= ' AND event_type = %s';
+			$prepare_args[] = $filters['event_type'];
 		}
 
 		if ( ! empty( $filters['date_from'] ) ) {
-			$where_clauses[] = 'created_at >= %s';
-			$prepare_args[]  = $filters['date_from'];
+			$query         .= ' AND created_at >= %s';
+			$prepare_args[] = $filters['date_from'];
 		}
 
 		if ( ! empty( $filters['date_to'] ) ) {
-			$where_clauses[] = 'created_at <= %s';
-			$prepare_args[]  = $filters['date_to'];
+			$query         .= ' AND created_at <= %s';
+			$prepare_args[] = $filters['date_to'];
 		}
 
-		$where = implode( ' AND ', $where_clauses );
+		$query .= ' ORDER BY created_at DESC LIMIT %d OFFSET %d';
 
+		// Add LIMIT and OFFSET parameters.
 		$prepare_args[] = (int) $limit;
 		$prepare_args[] = (int) $offset;
 
-		return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM %i WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return $this->wpdb->get_results( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
@@ -185,38 +186,37 @@ class Logs_Repository extends Abstract_Repository {
 			return 0;
 		}
 
-		$where_clauses = array( '1=1' );
-		$prepare_args  = array( $this->table() );
+		$query        = 'SELECT COUNT(*) FROM %i WHERE 1=1';
+		$prepare_args = array( $this->table() );
 
 		// Apply filters.
 		if ( ! empty( $filters['competition_id'] ) ) {
-			$where_clauses[] = 'competition_id = %d';
-			$prepare_args[]  = (int) $filters['competition_id'];
+			$query         .= ' AND competition_id = %d';
+			$prepare_args[] = (int) $filters['competition_id'];
 		}
 
 		if ( ! empty( $filters['event_category'] ) ) {
-			$where_clauses[] = 'event_category = %s';
-			$prepare_args[]  = $filters['event_category'];
+			$query         .= ' AND event_category = %s';
+			$prepare_args[] = $filters['event_category'];
 		}
 
 		if ( ! empty( $filters['event_type'] ) ) {
-			$where_clauses[] = 'event_type = %s';
-			$prepare_args[]  = $filters['event_type'];
+			$query         .= ' AND event_type = %s';
+			$prepare_args[] = $filters['event_type'];
 		}
 
 		if ( ! empty( $filters['date_from'] ) ) {
-			$where_clauses[] = 'created_at >= %s';
-			$prepare_args[]  = $filters['date_from'];
+			$query         .= ' AND created_at >= %s';
+			$prepare_args[] = $filters['date_from'];
 		}
 
 		if ( ! empty( $filters['date_to'] ) ) {
-			$where_clauses[] = 'created_at <= %s';
-			$prepare_args[]  = $filters['date_to'];
+			$query         .= ' AND created_at <= %s';
+			$prepare_args[] = $filters['date_to'];
 		}
 
-		$where = implode( ' AND ', $where_clauses );
-
-		return (int) $this->wpdb->get_var( $this->wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE $where", ...$prepare_args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is "field [condition] %s/%d" string.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query contains only placeholders (%d, %s), not user input.
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare( $query, ...$prepare_args ) );
 	}
 
 	/**
