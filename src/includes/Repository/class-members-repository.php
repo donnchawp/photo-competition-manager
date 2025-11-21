@@ -25,6 +25,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function all( bool $only_active = true ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -50,6 +52,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return object|null
 	 */
 	public function find( int $id ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $id <= 0 ) {
 			return null;
 		}
@@ -74,6 +78,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return object|null
 	 */
 	public function find_by_email( string $email ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || ! is_email( $email ) ) {
 			return null;
 		}
@@ -98,6 +104,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_many( array $ids ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -127,6 +135,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return int|WP_Error
 	 */
 	public function create( array $data ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'missing_table', __( 'Members table not available. Reactivate the plugin.', 'photo-competition-manager' ) );
 		}
@@ -179,6 +189,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return bool|WP_Error
 	 */
 	public function update( int $id, array $data ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $id <= 0 ) {
 			return new WP_Error( 'invalid_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
@@ -264,6 +276,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return bool|WP_Error True on success, WP_Error on failure.
 	 */
 	public function delete( int $id ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $id <= 0 ) {
 			return new WP_Error( 'invalid_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
@@ -372,6 +386,8 @@ class Members_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	private function email_exists( string $email, ?int $exclude_id = null ): bool {
+		global $wpdb;
+
 		$params     = array( $email );
 		$conditions = '';
 

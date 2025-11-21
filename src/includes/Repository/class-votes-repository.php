@@ -38,6 +38,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return int|WP_Error Vote ID or error.
 	 */
 	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, float $score ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'table_missing', __( 'Votes table does not exist.', 'photo-competition-manager' ) );
 		}
@@ -82,6 +84,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return int|WP_Error Vote ID or error.
 	 */
 	public function create( int $competition_id, string $category, string $voter_name, int $image_id, float $score ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'table_missing', __( 'Votes table does not exist.', 'photo-competition-manager' ) );
 		}
@@ -123,6 +127,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<object>
 	 */
 	public function find_by_competition( int $competition_id, ?string $category = null ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -148,6 +154,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<object>
 	 */
 	public function find_by_image( int $image_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -171,6 +179,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_voted_with_token( int $voting_token_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -196,6 +206,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return void
 	 */
 	public function delete_by_token( int $voting_token_id ): void {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return;
 		}
@@ -217,6 +229,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return void
 	 */
 	public function delete_by_voter( int $competition_id, string $category, string $voter_name ): void {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return;
 		}
@@ -240,6 +254,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<int, float> Map of image ID to score.
 	 */
 	public function get_votes_by_token( int $voting_token_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -276,6 +292,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<int, float> Map of image ID to score.
 	 */
 	public function get_votes_by_voter( int $competition_id, string $category, string $voter_name ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -314,6 +332,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_voted( int $competition_id, string $category, string $voter_name ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -342,6 +362,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<int, array{image_id: int, average_score: float, vote_count: int}>
 	 */
 	public function calculate_averages( int $competition_id, ?string $category = null ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -382,6 +404,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function delete_by_competition( int $competition_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -403,6 +427,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<string>
 	 */
 	public function get_voters( int $competition_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -428,6 +454,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return array<object>
 	 */
 	public function get_votes_by_competition( int $competition_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return array();
 		}
@@ -451,6 +479,8 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function delete_by_image( int $image_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}

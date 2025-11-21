@@ -29,6 +29,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return int|WP_Error Token ID or error.
 	 */
 	public function create( int $member_id, int $competition_id, string $category, string $token_hash, string $expires_at ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return new WP_Error( 'missing_table', __( 'Voting token table is not available.', 'photo-competition-manager' ) );
 		}
@@ -67,6 +69,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return object|null Token record or null if not found/invalid.
 	 */
 	public function find_valid_token( string $token_hash ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || empty( $token_hash ) ) {
 			return null;
 		}
@@ -111,6 +115,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return bool|WP_Error
 	 */
 	public function mark_as_used( int $token_id ) {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $token_id <= 0 ) {
 			return new WP_Error( 'invalid_token', __( 'Token not found.', 'photo-competition-manager' ) );
 		}
@@ -141,6 +147,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return int|false Number of deleted rows or false on failure.
 	 */
 	public function cleanup_expired() {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -165,6 +173,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_recent_token( int $member_id, int $competition_id, string $category ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() ) {
 			return false;
 		}
@@ -205,6 +215,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return array<int, object> Array of tracking data indexed by member_id.
 	 */
 	public function get_tracking_by_competition( int $competition_id ): array {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return array();
 		}
@@ -241,6 +253,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function delete_by_competition( int $competition_id ): bool {
+		global $wpdb;
+
 		if ( ! $this->table_exists() || $competition_id <= 0 ) {
 			return false;
 		}
