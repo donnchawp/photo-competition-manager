@@ -72,11 +72,11 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		$token = $this->wpdb->get_row(
 			$this->wpdb->prepare(
-				"SELECT * FROM %i
+				'SELECT * FROM %i
 				WHERE token_hash = %s
 				AND used_at IS NULL
 				AND expires_at > %s
-				LIMIT 1",
+				LIMIT 1',
 				$this->table(),
 				$token_hash,
 				current_time( 'mysql' )
@@ -142,7 +142,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		return $this->wpdb->query(
 			$this->wpdb->prepare(
-				"DELETE FROM %i WHERE expires_at < %s",
+				'DELETE FROM %i WHERE expires_at < %s',
 				$this->table(),
 				current_time( 'mysql' )
 			)
@@ -167,13 +167,13 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		$count = (int) $this->wpdb->get_var(
 			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM %i
+				'SELECT COUNT(*) FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
 				AND category = %s
 				AND used_at IS NULL
 				AND expires_at > %s
-				AND created_at > %s",
+				AND created_at > %s',
 				$this->table(),
 				$member_id,
 				$competition_id,
@@ -202,14 +202,14 @@ class Voting_Token_Repository extends Abstract_Repository {
 
 		$results = $this->wpdb->get_results(
 			$this->wpdb->prepare(
-				"SELECT
+				'SELECT
 					member_id,
 					MIN(created_at) as first_sent_at,
 					MIN(first_accessed_at) as first_opened_at,
 					COUNT(*) as token_count
 				FROM %i
 				WHERE competition_id = %d
-				GROUP BY member_id",
+				GROUP BY member_id',
 				$this->table(),
 				$competition_id
 			)
