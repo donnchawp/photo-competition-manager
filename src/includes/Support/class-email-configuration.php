@@ -31,13 +31,13 @@ class Email_Configuration {
 	/**
 	 * Set the "From" email address for plugin emails.
 	 *
-	 * @param string $from_email Default from email address.
+	 * @param string|null $from_email Default from email address.
 	 * @return string Modified from email address.
 	 */
-	public static function set_from_email( string $from_email ): string {
+	public static function set_from_email( $from_email ): string {
 		// Only modify email if we're in a plugin context.
 		if ( ! self::is_plugin_email() ) {
-			return $from_email;
+			return $from_email ?? '';
 		}
 
 		$settings     = self::get_email_settings();
@@ -48,19 +48,19 @@ class Email_Configuration {
 			return $custom_email;
 		}
 
-		return $from_email;
+		return $from_email ?? '';
 	}
 
 	/**
 	 * Set the "From" name for plugin emails.
 	 *
-	 * @param string $from_name Default from name.
+	 * @param string|null $from_name Default from name.
 	 * @return string Modified from name.
 	 */
-	public static function set_from_name( string $from_name ): string {
+	public static function set_from_name( $from_name ): string {
 		// Only modify name if we're in a plugin context.
 		if ( ! self::is_plugin_email() ) {
-			return $from_name;
+			return $from_name ?? '';
 		}
 
 		$settings    = self::get_email_settings();
@@ -71,7 +71,7 @@ class Email_Configuration {
 			return $custom_name;
 		}
 
-		return $from_name;
+		return $from_name ?? '';
 	}
 
 	/**
