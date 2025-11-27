@@ -669,4 +669,7 @@ if (typeof window.photoCompUpload !== 'undefined') {
 	document.addEventListener('DOMContentLoaded', () => {
 		new DragDropUpload(window.photoCompUpload);
 	});
+} else {
+	// Log warning if configuration data is missing.
+	console.warn('Photo Competition Manager: Upload configuration data (photoCompUpload) not found. Drag-and-drop upload will not be available.');
 }
