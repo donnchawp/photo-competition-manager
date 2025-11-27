@@ -300,6 +300,18 @@ class Upload_Handler {
 	}
 
 	/**
+	 * Get current upload count for a member in a category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param string $category       Category slug.
+	 * @return int Current count of uploads.
+	 */
+	public function get_category_count( int $competition_id, int $member_id, string $category ): int {
+		return $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
+	}
+
+	/**
 	 * Update submission category.
 	 *
 	 * @param int    $submission_id   Submission ID.
