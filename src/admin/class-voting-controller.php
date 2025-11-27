@@ -871,8 +871,11 @@ class Voting_Controller {
 		echo '<label for="slideshow-duration-setting" style="display: inline-block; min-width: 250px;">';
 		echo esc_html__( 'Display duration per image (seconds):', 'photo-competition-manager' );
 		echo '</label>';
-		echo '<input type="number" id="slideshow-duration-setting" min="3" max="60" value="10" step="1" style="width: 80px;" />';
+		echo '<input type="number" id="slideshow-duration-setting" min="0" max="60" value="10" step="1" style="width: 80px;" />';
 		echo ' <span class="description">' . esc_html__( 'How long each image is shown before advancing to the next.', 'photo-competition-manager' ) . '</span>';
+		echo '</p>';
+		echo '<p class="description" style="margin-top: 5px; color: #666;">';
+		echo esc_html__( 'Set to 0 for manual mode: the slideshow will only advance when you press Space or the right arrow key.', 'photo-competition-manager' );
 		echo '</p>';
 		echo '</div>';
 

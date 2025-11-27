@@ -35,7 +35,11 @@
 
 		getDisplayDuration() {
 			// Read from settings input, default to 10 seconds
-			const seconds = parseInt($('#slideshow-duration-setting').val(), 10) || 10;
+			// Note: 0 means manual mode (no auto-advance)
+			const seconds = parseInt($('#slideshow-duration-setting').val(), 10);
+			if (isNaN(seconds) || seconds < 0) {
+				return 10 * 1000; // Default 10 seconds
+			}
 			return seconds * 1000;
 		}
 
@@ -72,7 +76,10 @@
 					case ' ':
 					case 'Spacebar':
 						e.preventDefault();
-						if (self.isPaused) {
+						// If duration is 0 (manual mode), space advances to next image
+						if (self.getDisplayDuration() === 0) {
+							self.nextImage();
+						} else if (self.isPaused) {
 							self.resume();
 						} else {
 							self.pause();
@@ -262,6 +269,13 @@
 
 			const self = this;
 			const duration = this.getDisplayDuration();
+
+			// If duration is 0, manual mode - no auto-advance
+			if (duration === 0) {
+				// Hide progress bar in manual mode
+				this.$progressBar.css('width', '0%');
+				return;
+			}
 
 			// Auto-advance timer
 			this.interval = setTimeout(function() {

@@ -353,13 +353,19 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return $upload_url;
 		}
 
+		// Get voting page URL from competition settings.
+		$settings        = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+		$voting_page_url = $settings['urls']['voting_page'] ?? null;
+
 		// Send email.
 		$email_service = new \PhotoCompetitionManager\Service\Email_Service();
 		$sent          = $email_service->send_upload_link(
 			$member->email,
 			$member->name ?? $member->email,
 			$competition->title,
-			$upload_url
+			$upload_url,
+			$competition_id,
+			$voting_page_url
 		);
 
 		if ( ! $sent ) {
