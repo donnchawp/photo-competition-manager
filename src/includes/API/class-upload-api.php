@@ -284,6 +284,61 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
+		// Count files per category in this batch to validate quotas upfront.
+		$batch_category_counts = array();
+		foreach ( $assignments as $file_key => $category ) {
+			$category = sanitize_text_field( $category );
+			if ( ! empty( $category ) ) {
+				$batch_category_counts[ $category ] = isset( $batch_category_counts[ $category ] ) ? $batch_category_counts[ $category ] + 1 : 1;
+			}
+		}
+
+		// Validate quotas for all categories in batch before processing any files.
+		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+
+		foreach ( $batch_category_counts as $category => $batch_count ) {
+			// Find category config.
+			$category_config = null;
+			foreach ( $categories as $cat ) {
+				if ( $cat['slug'] === $category ) {
+					$category_config = $cat;
+					break;
+				}
+			}
+
+			if ( ! $category_config ) {
+				return new WP_Error(
+					'invalid_category',
+					sprintf(
+						/* translators: %s: category slug */
+						__( 'Invalid category: %s', 'photo-competition-manager' ),
+						$category
+					),
+					array( 'status' => 400 )
+				);
+			}
+
+			// Check if batch would exceed quota for this category.
+			$current_count = $this->upload_handler->get_category_count( (int) $competition->id, $member_id, $category );
+			$quota         = $category_config['quota'] ?? 1;
+			$available     = $quota - $current_count;
+
+			if ( $batch_count > $available ) {
+				return new WP_Error(
+					'batch_quota_exceeded',
+					sprintf(
+						/* translators: 1: category label, 2: requested count, 3: available slots */
+						__( 'Cannot upload %2$d image(s) to %1$s. You have %3$d slot(s) available.', 'photo-competition-manager' ),
+						$category_config['label'],
+						$batch_count,
+						$available
+					),
+					array( 'status' => 400 )
+				);
+			}
+		}
+
 		// Process each file.
 		foreach ( $files as $file_key => $file ) {
 			// Get category assignment for this file.
