@@ -35,14 +35,15 @@ class Email_Service {
 	/**
 	 * Send upload magic link email.
 	 *
-	 * @param string   $to_email        Recipient email address.
-	 * @param string   $member_name     Member name.
-	 * @param string   $competition_title Competition title.
-	 * @param string   $magic_link      Magic link URL.
-	 * @param int|null $competition_id  Optional competition ID for logging.
+	 * @param string      $to_email        Recipient email address.
+	 * @param string      $member_name     Member name.
+	 * @param string      $competition_title Competition title.
+	 * @param string      $magic_link      Magic link URL.
+	 * @param int|null    $competition_id  Optional competition ID for logging.
+	 * @param string|null $voting_page_url Optional voting page URL.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link, ?int $competition_id = null ): bool {
+	public function send_upload_link( string $to_email, string $member_name, string $competition_title, string $magic_link, ?int $competition_id = null, ?string $voting_page_url = null ): bool {
 		// Check if template is enabled and customized.
 		$template = $this->get_template( 'upload_reminder' );
 
@@ -51,6 +52,7 @@ class Email_Service {
 				'{member_name}'       => $member_name,
 				'{competition_title}' => $competition_title,
 				'{upload_link}'       => $magic_link,
+				'{voting_page}'       => $voting_page_url ?? '',
 				'{site_name}'         => get_bloginfo( 'name' ),
 			);
 
@@ -64,7 +66,7 @@ class Email_Service {
 				__( 'Upload your images for %s', 'photo-competition-manager' ),
 				$competition_title
 			);
-			$message = $this->get_upload_email_body( $member_name, $competition_title, $magic_link );
+			$message = $this->get_upload_email_body( $member_name, $competition_title, $magic_link, $voting_page_url );
 		}
 
 		$headers = array(
@@ -140,12 +142,13 @@ class Email_Service {
 	/**
 	 * Get upload email body.
 	 *
-	 * @param string $member_name     Member name.
-	 * @param string $competition_title Competition title.
-	 * @param string $magic_link      Magic link URL.
+	 * @param string      $member_name     Member name.
+	 * @param string      $competition_title Competition title.
+	 * @param string      $magic_link      Magic link URL.
+	 * @param string|null $voting_page_url Optional voting page URL.
 	 * @return string
 	 */
-	private function get_upload_email_body( string $member_name, string $competition_title, string $magic_link ): string {
+	private function get_upload_email_body( string $member_name, string $competition_title, string $magic_link, ?string $voting_page_url = null ): string {
 		ob_start();
 		?>
 		<!DOCTYPE html>
@@ -179,6 +182,14 @@ class Email_Service {
 				<p style="color: #666; font-size: 14px;">
 					<?php esc_html_e( 'This link will remain active for 14 days so you can return and continue uploading during that window.', 'photo-competition-manager' ); ?>
 				</p>
+
+				<?php if ( ! empty( $voting_page_url ) ) : ?>
+					<p style="color: #666; font-size: 14px;">
+						<?php esc_html_e( 'Once voting opens, you can cast your votes at:', 'photo-competition-manager' ); ?>
+						<br>
+						<a href="<?php echo esc_url( $voting_page_url ); ?>"><?php echo esc_url( $voting_page_url ); ?></a>
+					</p>
+				<?php endif; ?>
 
 				<p style="color: #666; font-size: 14px;">
 					<?php esc_html_e( 'If you did not request this email, it may have been sent to you by your club competitions officer. You can safely ignore this email if you do not want to take part in this competition.', 'photo-competition-manager' ); ?>

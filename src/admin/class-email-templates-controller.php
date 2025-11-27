@@ -214,8 +214,8 @@ class Email_Templates_Controller {
 				'description' => __( 'Sent to members with a link to upload their images.', 'photo-competition-manager' ),
 				'enabled'     => true,
 				'subject'     => __( 'Upload your images for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Here is your link to upload images for {competition_title}.</p>\n\n<p><a href=\"{upload_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Upload Images</a></p>\n\n<p>This link will remain active for 14 days.</p>\n\n<p>If you have any questions, please contact your club competitions officer.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{upload_link}', '{site_name}' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Here is your link to upload images for {competition_title}.</p>\n\n<p><a href=\"{upload_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Upload Images</a></p>\n\n<p>This link will remain active for 14 days.</p>\n\n<p>Once voting opens, you can cast your votes at: {voting_page}</p>\n\n<p>If you have any questions, please contact your club competitions officer.</p>", 'photo-competition-manager' ),
+				'merge_tags'  => array( '{member_name}', '{competition_title}', '{upload_link}', '{voting_page}', '{site_name}' ),
 			),
 			'voting_opened'        => array(
 				'name'        => __( 'Voting Opened', 'photo-competition-manager' ),
