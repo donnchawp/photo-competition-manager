@@ -559,6 +559,12 @@ class Voting_Shortcode {
 		// Process votes.
 		$success_count = 0;
 		foreach ( $votes as $image_id => $score ) {
+			// Verify image belongs to this competition and category.
+			$image = $this->images_repo->find( $image_id );
+			if ( ! $image || (int) $image->competition_id !== (int) $competition->id || $image->category !== $category ) {
+				continue;
+			}
+
 			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (float) $score );
 
 			if ( ! is_wp_error( $result ) ) {
