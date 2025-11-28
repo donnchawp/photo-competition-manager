@@ -618,7 +618,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		// Check uploads_closed setting.
 		$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
-		if ( ! empty( $settings['uploads_closed'] ) ) {
+		if ( ! empty( $settings['upload']['uploads_closed'] ) ) {
 			return false;
 		}
 
