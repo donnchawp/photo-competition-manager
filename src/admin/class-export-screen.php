@@ -218,7 +218,9 @@ class Export_Screen {
 	}
 
 	/**
-	 * Export votes for a competition to a CSV file.
+	 * Export votes for a competition to a CSV file, separated by category.
+	 *
+	 * Columns are ordered by image random_number, with header showing image IDs.
 	 *
 	 * @return void
 	 */
@@ -234,6 +236,13 @@ class Export_Screen {
 			return;
 		}
 
+		// Get all images for this competition to map image_id to random_number.
+		$images    = $this->images_repository->find_by_competition( $competition_id );
+		$image_map = array(); // image_id => random_number.
+		foreach ( $images as $image ) {
+			$image_map[ (int) $image->id ] = (int) $image->random_number;
+		}
+
 		$competition = $this->competitions_repository->find( $competition_id );
 		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
 
@@ -242,30 +251,70 @@ class Export_Screen {
 
 		$output = fopen( 'php://output', 'w' );
 
-		// Group votes by voter.
-		$votes_by_voter = array();
+		// Group votes by category, then by voter, then by image_id.
+		// Skip votes for images that no longer exist.
+		$votes_by_category  = array();
+		$images_by_category = array(); // Track which images have votes in each category.
 		foreach ( $votes as $vote ) {
-			$votes_by_voter[ $vote->voter_name ][] = $vote->score;
-		}
+			$image_id = (int) $vote->image_id;
 
-		// Write header.
-		$max_votes = 0;
-		foreach ( $votes_by_voter as $voter_votes ) {
-			$max_votes = max( $max_votes, count( $voter_votes ) );
-		}
-		$header = array( 'Voter' );
-		for ( $i = 1; $i <= $max_votes; $i++ ) {
-			$header[] = 'Vote ' . $i;
-		}
-		fputcsv( $output, sanitize_csv_row( $header ) );
-
-		// Write rows.
-		foreach ( $votes_by_voter as $voter => $voter_votes ) {
-			$row = array( $voter );
-			foreach ( $voter_votes as $vote ) {
-				$row[] = (int) $vote;
+			// Skip votes for deleted/non-existent images.
+			if ( ! isset( $image_map[ $image_id ] ) ) {
+				continue;
 			}
-			fputcsv( $output, sanitize_csv_row( $row ) );
+
+			$category = $vote->category;
+
+			if ( ! isset( $votes_by_category[ $category ] ) ) {
+				$votes_by_category[ $category ]  = array();
+				$images_by_category[ $category ] = array();
+			}
+			if ( ! isset( $votes_by_category[ $category ][ $vote->voter_name ] ) ) {
+				$votes_by_category[ $category ][ $vote->voter_name ] = array();
+			}
+
+			// Store vote keyed by image_id.
+			$votes_by_category[ $category ][ $vote->voter_name ][ $image_id ] = $vote->score;
+
+			// Track images in this category.
+			if ( ! in_array( $image_id, $images_by_category[ $category ], true ) ) {
+				$images_by_category[ $category ][] = $image_id;
+			}
+		}
+
+		// Write each category as a separate section.
+		foreach ( $votes_by_category as $category => $votes_by_voter ) {
+			// Get images for this category, sorted by random_number.
+			$category_images = $images_by_category[ $category ];
+			usort(
+				$category_images,
+				function ( $a, $b ) use ( $image_map ) {
+					return ( $image_map[ $a ] ?? 0 ) - ( $image_map[ $b ] ?? 0 );
+				}
+			);
+
+			// Write category header.
+			fputcsv( $output, sanitize_csv_row( array( 'Category: ' . $category ) ) );
+
+			// Write column header with image random numbers.
+			$header = array( 'Voter' );
+			foreach ( $category_images as $image_id ) {
+				$header[] = 'Image #' . ( $image_map[ $image_id ] ?? $image_id );
+			}
+			fputcsv( $output, sanitize_csv_row( $header ) );
+
+			// Write rows for this category, with votes in image order.
+			ksort( $votes_by_voter ); // Sort voters alphabetically.
+			foreach ( $votes_by_voter as $voter => $voter_votes ) {
+				$row = array( $voter );
+				foreach ( $category_images as $image_id ) {
+					$row[] = isset( $voter_votes[ $image_id ] ) ? (int) $voter_votes[ $image_id ] : '';
+				}
+				fputcsv( $output, sanitize_csv_row( $row ) );
+			}
+
+			// Add blank line between categories.
+			fputcsv( $output, array( '' ) );
 		}
 
 		// phpcs:ignore
@@ -274,7 +323,7 @@ class Export_Screen {
 	}
 
 	/**
-	 * Export the list of users who uploaded images to a CSV file.
+	 * Export the list of users who uploaded images to a CSV file, separated by category.
 	 *
 	 * @return void
 	 */
@@ -298,40 +347,56 @@ class Export_Screen {
 
 		$output = fopen( 'php://output', 'w' );
 
-		fputcsv( $output, sanitize_csv_row( array( 'ID', 'Name', 'Email' ) ) );
-
-		// Group images by member.
-		$users = array();
+		// Group images by category.
+		$images_by_category = array();
 		foreach ( $images as $image ) {
-			if ( ! isset( $users[ $image->member_id ] ) ) {
-				$member                     = $this->members_repository->find( $image->member_id );
-				$users[ $image->member_id ] = array(
+			$category = $image->category;
+			if ( ! isset( $images_by_category[ $category ] ) ) {
+				$images_by_category[ $category ] = array();
+			}
+			$images_by_category[ $category ][] = $image;
+		}
+
+		// Write each category as a separate section.
+		foreach ( $images_by_category as $category => $category_images ) {
+			// Write category header.
+			fputcsv( $output, sanitize_csv_row( array( 'Category: ' . $category ) ) );
+			fputcsv( $output, sanitize_csv_row( array( 'ID', 'Name', 'Email' ) ) );
+
+			// Build user list for this category.
+			$users = array();
+			foreach ( $category_images as $image ) {
+				$member  = $this->members_repository->find( $image->member_id );
+				$users[] = array(
 					'random_number' => $image->random_number,
 					'name'          => $member ? $member->name : '',
 					'email'         => $member ? $member->email : '',
 				);
 			}
-		}
 
-		// Sort by random number.
-		usort(
-			$users,
-			function ( $a, $b ) {
-				return $a['random_number'] - $b['random_number'];
-			}
-		);
-
-		foreach ( $users as $user ) {
-			fputcsv(
-				$output,
-				sanitize_csv_row(
-					array(
-						$user['random_number'],
-						$user['name'],
-						$user['email'],
-					)
-				)
+			// Sort by random number.
+			usort(
+				$users,
+				function ( $a, $b ) {
+					return $a['random_number'] - $b['random_number'];
+				}
 			);
+
+			foreach ( $users as $user ) {
+				fputcsv(
+					$output,
+					sanitize_csv_row(
+						array(
+							$user['random_number'],
+							$user['name'],
+							$user['email'],
+						)
+					)
+				);
+			}
+
+			// Add blank line between categories.
+			fputcsv( $output, array( '' ) );
 		}
 
 		// phpcs:ignore
