@@ -96,11 +96,13 @@ class Score_Calculator {
 		foreach ( $images as $image ) {
 			$image_id = (int) $image->id;
 
-			// Use calculated average if available, otherwise use stored score.
+			// Use calculated scores if available, otherwise use stored score.
 			if ( isset( $averages[ $image_id ] ) ) {
+				$image->total_score   = $averages[ $image_id ]['total_score'];
 				$image->average_score = $averages[ $image_id ]['average_score'];
 				$image->vote_count    = $averages[ $image_id ]['vote_count'];
 			} else {
+				$image->total_score   = 0;
 				$image->average_score = null !== $image->score ? (float) $image->score : 0.0;
 				$image->vote_count    = 0;
 			}
@@ -108,14 +110,14 @@ class Score_Calculator {
 			$results[] = $image;
 		}
 
-		// Sort by score descending.
+		// Sort by total score descending.
 		usort(
 			$results,
 			function ( $a, $b ) {
-				if ( $a->average_score === $b->average_score ) {
+				if ( $a->total_score === $b->total_score ) {
 					return 0;
 				}
-				return $a->average_score > $b->average_score ? -1 : 1;
+				return $a->total_score > $b->total_score ? -1 : 1;
 			}
 		);
 

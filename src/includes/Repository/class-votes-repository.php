@@ -355,11 +355,11 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Calculate average scores for images in a competition.
+	 * Calculate scores for images in a competition.
 	 *
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
-	 * @return array<int, array{image_id: int, average_score: float, vote_count: int}>
+	 * @return array<int, array{image_id: int, total_score: int, average_score: float, vote_count: int}>
 	 */
 	public function calculate_averages( int $competition_id, ?string $category = null ): array {
 		global $wpdb;
@@ -368,7 +368,7 @@ class Votes_Repository extends Abstract_Repository {
 			return array();
 		}
 
-		$query        = 'SELECT image_id, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE competition_id = %d';
+		$query        = 'SELECT image_id, SUM(score) as total_score, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
 
 		if ( null !== $category ) {
@@ -376,7 +376,7 @@ class Votes_Repository extends Abstract_Repository {
 			$prepare_args[] = $category;
 		}
 
-		$query .= ' GROUP BY image_id ORDER BY average_score DESC';
+		$query .= ' GROUP BY image_id ORDER BY total_score DESC';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
 		$results = $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ), ARRAY_A );
@@ -389,6 +389,7 @@ class Votes_Repository extends Abstract_Repository {
 		foreach ( $results as $row ) {
 			$processed[ (int) $row['image_id'] ] = array(
 				'image_id'      => (int) $row['image_id'],
+				'total_score'   => (int) $row['total_score'],
 				'average_score' => (float) $row['average_score'],
 				'vote_count'    => (int) $row['vote_count'],
 			);

@@ -156,8 +156,14 @@ class Top3_Shortcode {
 		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 		$members    = $this->members_repo->find_many( $member_ids );
 
-		// Calculate scores for each image.
-		$image_scores = $this->votes_repo->calculate_averages( (int) $competition->id );
+		// Get all unique categories from images.
+		$image_categories = array_unique( array_map( fn( $img ) => $img->category, $images ) );
+
+		// Calculate scores for each image, grouped by category.
+		$image_scores_by_category = array();
+		foreach ( $image_categories as $cat ) {
+			$image_scores_by_category[ $cat ] = $this->votes_repo->calculate_averages( (int) $competition->id, $cat );
+		}
 
 		// Group images by category first, then by grade within each category.
 		$results_by_category = array();
@@ -167,10 +173,11 @@ class Top3_Shortcode {
 				continue;
 			}
 
-			$category    = $image->category;
-			$grade       = $member->grade ? $member->grade : 'unknown';
-			$score_data  = $image_scores[ (int) $image->id ] ?? null;
-			$total_score = $score_data ? ( $score_data['average_score'] * $score_data['vote_count'] ) : 0;
+			$category        = $image->category;
+			$grade           = $member->grade ? $member->grade : 'unknown';
+			$category_scores = $image_scores_by_category[ $category ] ?? array();
+			$score_data      = $category_scores[ (int) $image->id ] ?? null;
+			$total_score     = $score_data ? $score_data['total_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();
@@ -188,7 +195,7 @@ class Top3_Shortcode {
 			);
 		}
 
-		// Sort each grade within each category by total score (highest first) and take top 3.
+		// Sort each grade within each category by total score (highest first) and take top 3 positions.
 		foreach ( $results_by_category as $category => $grade_results ) {
 			foreach ( $grade_results as $grade => $results ) {
 				usort(
@@ -197,7 +204,8 @@ class Top3_Shortcode {
 						return $b['total_score'] <=> $a['total_score'];
 					}
 				);
-				$results_by_category[ $category ][ $grade ] = array_slice( $results_by_category[ $category ][ $grade ], 0, 3 );
+				// Assign positions and get entries in top 3 positions (may be more than 3 if ties).
+				$results_by_category[ $category ][ $grade ] = $this->get_top_positions( $results_by_category[ $category ][ $grade ], 3 );
 			}
 		}
 
@@ -226,25 +234,33 @@ class Top3_Shortcode {
 									<h4><?php echo esc_html( $grade_label ); ?></h4>
 									<div class="top3-podium">
 										<?php
-										$positions       = array( 'first', 'second', 'third' );
-										$position_labels = array(
-											'first'  => __( '1st Place', 'photo-competition-manager' ),
-											'second' => __( '2nd Place', 'photo-competition-manager' ),
-											'third'  => __( '3rd Place', 'photo-competition-manager' ),
+										$position_classes = array(
+											1 => 'first',
+											2 => 'second',
+											3 => 'third',
+										);
+										$position_labels  = array(
+											/* translators: Winner placement label. */
+											1 => __( '1st Place', 'photo-competition-manager' ),
+											/* translators: Winner placement label. */
+											2 => __( '2nd Place', 'photo-competition-manager' ),
+											/* translators: Winner placement label. */
+											3 => __( '3rd Place', 'photo-competition-manager' ),
 										);
 										?>
-										<?php foreach ( $grade_results as $index => $result ) : ?>
+										<?php foreach ( $grade_results as $result ) : ?>
 											<?php
 											$image          = $result['image'];
 											$member         = $result['member'];
 											$total_score    = $result['total_score'];
 											$vote_count     = $result['vote_count'];
+											$position_num   = $result['position'];
 											$image_urls     = $this->get_image_urls( $competition, $image );
 											$thumb_url      = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
-											$position       = $positions[ $index ] ?? 'third';
-											$position_label = $position_labels[ $position ] ?? __( '3rd Place', 'photo-competition-manager' );
+											$position_class = $position_classes[ $position_num ] ?? 'third';
+											$position_label = $position_labels[ $position_num ] ?? __( '3rd Place', 'photo-competition-manager' );
 											?>
-											<div class="podium-item <?php echo esc_attr( $position ); ?>">
+											<div class="podium-item <?php echo esc_attr( $position_class ); ?>">
 												<div class="position-badge">
 													<?php echo esc_html( $position_label ); ?>
 												</div>
@@ -342,5 +358,51 @@ class Top3_Shortcode {
 		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
 
 		return $base . '-thumb' . $ext;
+	}
+
+	/**
+	 * Get entries in the top N positions, handling ties.
+	 *
+	 * When scores are tied, entries share the same position. The next different
+	 * score gets the next position. This may return more than N entries if there
+	 * are ties within the top N positions.
+	 *
+	 * For example with scores 100, 100, 90, 80 and top_positions=3:
+	 * - Position 1: 100, 100 (joint 1st)
+	 * - Position 2: 90
+	 * - Position 3: 80
+	 * Returns all 4 entries.
+	 *
+	 * @param array<int, array{image: object, member: object, total_score: float, vote_count: int}> $results       Sorted results array (highest score first).
+	 * @param int                                                                                   $top_positions Number of positions to include (default 3).
+	 * @return array<int, array{image: object, member: object, total_score: float, vote_count: int, position: int}> Results with positions assigned.
+	 */
+	private function get_top_positions( array $results, int $top_positions = 3 ): array {
+		if ( empty( $results ) ) {
+			return array();
+		}
+
+		$top_results    = array();
+		$position       = 0;
+		$previous_score = null;
+
+		foreach ( $results as $result ) {
+			// Determine position for this entry.
+			if ( $result['total_score'] !== $previous_score ) {
+				// New score: advance to next position.
+				++$position;
+			}
+
+			// Stop if we've moved past the top positions.
+			if ( $position > $top_positions ) {
+				break;
+			}
+
+			$result['position'] = $position;
+			$top_results[]      = $result;
+			$previous_score     = $result['total_score'];
+		}
+
+		return $top_results;
 	}
 }

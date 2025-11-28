@@ -181,7 +181,7 @@ class Results_Shortcode {
 			$grade           = ! empty( $member->grade ) ? $member->grade : 'unknown';
 			$category_scores = $image_scores_by_category[ $category ] ?? array();
 			$score_data      = $category_scores[ (int) $image->id ] ?? null;
-			$total_score     = null !== $score_data ? ( $score_data['average_score'] * $score_data['vote_count'] ) : 0;
+			$total_score     = null !== $score_data ? $score_data['total_score'] : 0;
 
 			if ( ! isset( $results_by_category[ $category ] ) ) {
 				$results_by_category[ $category ] = array();
@@ -199,7 +199,7 @@ class Results_Shortcode {
 			);
 		}
 
-		// Sort each grade within each category by total score (highest first).
+		// Sort each grade within each category by total score (highest first) and assign positions with tie handling.
 		foreach ( $results_by_category as $category => $grade_results ) {
 			foreach ( $grade_results as $grade => $results ) {
 				usort(
@@ -208,6 +208,9 @@ class Results_Shortcode {
 						return $b['total_score'] <=> $a['total_score'];
 					}
 				);
+
+				// Assign display positions accounting for ties.
+				$results_by_category[ $category ][ $grade ] = $this->assign_positions( $results_by_category[ $category ][ $grade ] );
 			}
 		}
 
@@ -248,19 +251,20 @@ class Results_Shortcode {
 												</tr>
 											</thead>
 											<tbody>
-												<?php foreach ( $grade_results as $position => $result ) : ?>
+												<?php foreach ( $grade_results as $result ) : ?>
 													<?php
 													$image       = $result['image'];
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
 													$vote_count  = $result['vote_count'];
+													$position    = $result['position'];
 													$image_urls  = $this->get_image_urls( $competition, $image );
 													$thumb_url   = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 													/* translators: %d: Anonymised image identifier. */
 													$alt_text = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
 													?>
 													<tr>
-														<td class="position"><?php echo esc_html( $position + 1 ); ?></td>
+														<td class="position"><?php echo esc_html( $position ); ?></td>
 														<td class="image-cell">
 															<?php if ( $thumb_url ) : ?>
 																<a href="<?php echo esc_url( $image_urls['full'] ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
@@ -354,5 +358,36 @@ class Results_Shortcode {
 		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
 
 		return $base . '-thumb' . $ext;
+	}
+
+	/**
+	 * Assign display positions to sorted results, handling ties.
+	 *
+	 * When scores are tied, entries share the same position. The next different
+	 * score gets the next position (e.g., two 1st places, next is 2nd place).
+	 *
+	 * @param array<int, array{image: object, member: object, total_score: float, vote_count: int}> $results Sorted results array.
+	 * @return array<int, array{image: object, member: object, total_score: float, vote_count: int, position: int}> Results with positions assigned.
+	 */
+	private function assign_positions( array $results ): array {
+		if ( empty( $results ) ) {
+			return $results;
+		}
+
+		$position       = 0;
+		$previous_score = null;
+
+		foreach ( $results as &$result ) {
+			if ( $result['total_score'] !== $previous_score ) {
+				// New score: advance to next position.
+				++$position;
+			}
+			// Tie or new score: assign current position.
+			$result['position'] = $position;
+			$previous_score     = $result['total_score'];
+		}
+		unset( $result );
+
+		return $results;
 	}
 }

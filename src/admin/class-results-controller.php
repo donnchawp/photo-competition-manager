@@ -582,9 +582,8 @@ class Results_Controller {
 				}
 				echo '</td>';
 
-				// Calculate sum of votes (total points).
-				$total_score = (float) $result->average_score * (int) $result->vote_count;
-				echo '<td><strong>' . esc_html( number_format( $total_score, 0 ) ) . '</strong></td>';
+				// Display total score (sum of all votes).
+				echo '<td><strong>' . esc_html( number_format( $result->total_score, 0 ) ) . '</strong></td>';
 				echo '<td>' . absint( $result->vote_count ) . '</td>';
 
 				echo '<td>';
@@ -790,7 +789,7 @@ class Results_Controller {
 							$member ? $member->name : '',
 							$member ? $member->email : '',
 							$member ? $member->grade : '',
-							number_format( (float) $result->average_score * (int) $result->vote_count, 0 ),
+							number_format( $result->total_score, 0 ),
 							$result->vote_count,
 							$result->filename,
 						)
