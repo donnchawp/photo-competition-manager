@@ -220,7 +220,9 @@ class Export_Screen {
 	/**
 	 * Export votes for a competition to a CSV file, separated by category.
 	 *
-	 * Columns are ordered by image random_number, with header showing image IDs.
+	 * Columns are aligned across all categories using the member's random_number.
+	 * If a member didn't upload to a category, their column shows 0 for all voters.
+	 * This ensures consistent column positions for spreadsheet calculations.
 	 *
 	 * @return void
 	 */
@@ -236,12 +238,35 @@ class Export_Screen {
 			return;
 		}
 
-		// Get all images for this competition to map image_id to random_number.
-		$images    = $this->images_repository->find_by_competition( $competition_id );
-		$image_map = array(); // image_id => random_number.
+		// Get all images for this competition.
+		$images = $this->images_repository->find_by_competition( $competition_id );
+
+		// Build mappings for alignment across categories.
+		$image_map              = array(); // image_id => random_number.
+		$all_random_numbers     = array(); // All unique random_numbers in competition.
+		$random_to_image_by_cat = array(); // category => random_number => image_id.
+
 		foreach ( $images as $image ) {
-			$image_map[ (int) $image->id ] = (int) $image->random_number;
+			$image_id      = (int) $image->id;
+			$random_number = (int) $image->random_number;
+			$category      = $image->category;
+
+			$image_map[ $image_id ] = $random_number;
+
+			// Track all unique random_numbers.
+			if ( ! in_array( $random_number, $all_random_numbers, true ) ) {
+				$all_random_numbers[] = $random_number;
+			}
+
+			// Map random_number to image_id per category.
+			if ( ! isset( $random_to_image_by_cat[ $category ] ) ) {
+				$random_to_image_by_cat[ $category ] = array();
+			}
+			$random_to_image_by_cat[ $category ][ $random_number ] = $image_id;
 		}
+
+		// Sort random numbers for consistent column order.
+		sort( $all_random_numbers, SORT_NUMERIC );
 
 		$competition = $this->competitions_repository->find( $competition_id );
 		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
@@ -253,8 +278,7 @@ class Export_Screen {
 
 		// Group votes by category, then by voter, then by image_id.
 		// Skip votes for images that no longer exist.
-		$votes_by_category  = array();
-		$images_by_category = array(); // Track which images have votes in each category.
+		$votes_by_category = array();
 		foreach ( $votes as $vote ) {
 			$image_id = (int) $vote->image_id;
 
@@ -266,8 +290,7 @@ class Export_Screen {
 			$category = $vote->category;
 
 			if ( ! isset( $votes_by_category[ $category ] ) ) {
-				$votes_by_category[ $category ]  = array();
-				$images_by_category[ $category ] = array();
+				$votes_by_category[ $category ] = array();
 			}
 			if ( ! isset( $votes_by_category[ $category ][ $vote->voter_name ] ) ) {
 				$votes_by_category[ $category ][ $vote->voter_name ] = array();
@@ -275,40 +298,38 @@ class Export_Screen {
 
 			// Store vote keyed by image_id.
 			$votes_by_category[ $category ][ $vote->voter_name ][ $image_id ] = $vote->score;
-
-			// Track images in this category.
-			if ( ! in_array( $image_id, $images_by_category[ $category ], true ) ) {
-				$images_by_category[ $category ][] = $image_id;
-			}
 		}
 
 		// Write each category as a separate section.
 		foreach ( $votes_by_category as $category => $votes_by_voter ) {
-			// Get images for this category, sorted by random_number.
-			$category_images = $images_by_category[ $category ];
-			usort(
-				$category_images,
-				function ( $a, $b ) use ( $image_map ) {
-					return ( $image_map[ $a ] ?? 0 ) - ( $image_map[ $b ] ?? 0 );
-				}
-			);
-
 			// Write category header.
 			fputcsv( $output, sanitize_csv_row( array( 'Category: ' . $category ) ) );
 
-			// Write column header with image random numbers.
+			// Write column header with ALL random numbers (aligned across categories).
 			$header = array( 'Voter' );
-			foreach ( $category_images as $image_id ) {
-				$header[] = 'Image #' . ( $image_map[ $image_id ] ?? $image_id );
+			foreach ( $all_random_numbers as $random_number ) {
+				$header[] = 'Image #' . $random_number;
 			}
 			fputcsv( $output, sanitize_csv_row( $header ) );
 
-			// Write rows for this category, with votes in image order.
+			// Write rows for this category, with votes in random_number order.
 			ksort( $votes_by_voter ); // Sort voters alphabetically.
 			foreach ( $votes_by_voter as $voter => $voter_votes ) {
 				$row = array( $voter );
-				foreach ( $category_images as $image_id ) {
-					$row[] = isset( $voter_votes[ $image_id ] ) ? (int) $voter_votes[ $image_id ] : '';
+				foreach ( $all_random_numbers as $random_number ) {
+					// Check if this random_number has an image in this category.
+					$image_id_for_random = $random_to_image_by_cat[ $category ][ $random_number ] ?? null;
+
+					if ( null === $image_id_for_random ) {
+						// Member didn't upload to this category - show 0.
+						$row[] = 0;
+					} elseif ( isset( $voter_votes[ $image_id_for_random ] ) ) {
+						// Voter voted for this image.
+						$row[] = (int) $voter_votes[ $image_id_for_random ];
+					} else {
+						// Image exists but voter didn't vote for it.
+						$row[] = '';
+					}
 				}
 				fputcsv( $output, sanitize_csv_row( $row ) );
 			}
