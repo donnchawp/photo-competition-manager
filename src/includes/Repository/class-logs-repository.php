@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * Repository for competition logs.
  *
@@ -47,7 +49,7 @@ class Logs_Repository extends Abstract_Repository {
 			'actor_name'     => '',
 			'description'    => '',
 			'metadata'       => null,
-			'created_at'     => current_time( 'mysql' ),
+			'created_at'     => utc_time(),
 		);
 
 		$data = wp_parse_args( $data, $defaults );

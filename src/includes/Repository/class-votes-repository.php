@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Repository for votes.
@@ -61,7 +62,7 @@ class Votes_Repository extends Abstract_Repository {
 				'voting_token_id' => $voting_token_id,
 				'image_id'        => $image_id,
 				'score'           => $score,
-				'created_at'      => current_time( 'mysql' ),
+				'created_at'      => utc_time(),
 			),
 			array( '%d', '%s', '%d', '%d', '%f', '%s' )
 		);
@@ -107,7 +108,7 @@ class Votes_Repository extends Abstract_Repository {
 				'voter_name'     => $voter_name,
 				'image_id'       => $image_id,
 				'score'          => $score,
-				'created_at'     => current_time( 'mysql' ),
+				'created_at'     => utc_time(),
 			),
 			array( '%d', '%s', '%s', '%d', '%f', '%s' )
 		);

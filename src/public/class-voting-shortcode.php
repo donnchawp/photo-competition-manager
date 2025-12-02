@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Shortcode renderer for competition voting (token- and password-based).
@@ -342,7 +343,7 @@ class Voting_Shortcode {
 		// Generate secure token.
 		$token_string = bin2hex( random_bytes( 32 ) );
 		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + HOUR_IN_SECONDS );
+		$expires_at   = utc_time( HOUR_IN_SECONDS );
 
 		// Create token record.
 		$token_id = $this->token_repo->create( $member->id, $competition->id, $category, $token_hash, $expires_at );

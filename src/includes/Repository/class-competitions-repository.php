@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use WP_Error;
 
 use function PhotoCompetitionManager\Support\format_slug;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Repository for competitions.
@@ -146,7 +147,7 @@ class Competitions_Repository extends Abstract_Repository {
 			return null;
 		}
 
-		$current = current_time( 'mysql' );
+		$current = utc_time();
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -191,7 +192,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$open_date  = $this->normalize_date( $data['open_date'] ?? null );
 		$close_date = $this->normalize_date( $data['close_date'] ?? null );
-		$now        = current_time( 'mysql' );
+		$now        = utc_time();
 
 		$payload = array(
 			'title'      => $title,
@@ -268,7 +269,7 @@ class Competitions_Repository extends Abstract_Repository {
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
-			'updated_at' => current_time( 'mysql' ),
+			'updated_at' => utc_time(),
 		);
 
 		$format = array(
@@ -313,8 +314,8 @@ class Competitions_Repository extends Abstract_Repository {
 		$updated = $wpdb->update(
 			$this->table(),
 			array(
-				'deleted_at' => current_time( 'mysql' ),
-				'updated_at' => current_time( 'mysql' ),
+				'deleted_at' => utc_time(),
+				'updated_at' => utc_time(),
 			),
 			array( 'id' => $id ),
 			array( '%s', '%s' ),
@@ -348,7 +349,7 @@ class Competitions_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'UPDATE %i SET deleted_at = NULL, updated_at = %s WHERE id = %d',
 				$this->table(),
-				current_time( 'mysql' ),
+				utc_time(),
 				$id
 			)
 		);
@@ -590,7 +591,7 @@ class Competitions_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		$current = current_time( 'mysql' );
+		$current = utc_time();
 
 		// Check if open_date has passed (or is null).
 		if ( ! empty( $competition->open_date ) && $competition->open_date > $current ) {

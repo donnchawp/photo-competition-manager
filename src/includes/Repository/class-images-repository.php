@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Class Images_Repository
@@ -250,7 +251,7 @@ class Images_Repository extends Abstract_Repository {
 				$this->table(),
 				array(
 					'random_number' => $next_number,
-					'updated_at'    => current_time( 'mysql' ),
+					'updated_at'    => utc_time(),
 				),
 				array(
 					'competition_id' => $competition_id,
@@ -306,8 +307,8 @@ class Images_Repository extends Abstract_Repository {
 			'random_number'          => $random_number,
 			'score'                  => null,
 			'original_attachment_id' => $original_attachment_id,
-			'created_at'             => current_time( 'mysql' ),
-			'updated_at'             => current_time( 'mysql' ),
+			'created_at'             => utc_time(),
+			'updated_at'             => utc_time(),
 		);
 
 		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s', '%s' );
@@ -347,7 +348,7 @@ class Images_Repository extends Abstract_Repository {
 			$this->table(),
 			array(
 				'score'      => $score,
-				'updated_at' => current_time( 'mysql' ),
+				'updated_at' => utc_time(),
 			),
 			array( 'id' => $id ),
 			array( '%f', '%s' ),
@@ -386,7 +387,7 @@ class Images_Repository extends Abstract_Repository {
 			$this->table(),
 			array(
 				'category'   => $category,
-				'updated_at' => current_time( 'mysql' ),
+				'updated_at' => utc_time(),
 			),
 			array( 'id' => $id ),
 			array( '%s', '%s' ),
@@ -536,7 +537,7 @@ class Images_Repository extends Abstract_Repository {
 			$this->table(),
 			array(
 				'original_attachment_id' => null,
-				'updated_at'             => current_time( 'mysql' ),
+				'updated_at'             => utc_time(),
 			),
 			array( 'competition_id' => $competition_id ),
 			array( '%d', '%s' ),

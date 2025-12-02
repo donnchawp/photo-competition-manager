@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Repository for members.
@@ -158,7 +159,7 @@ class Members_Repository extends Abstract_Repository {
 
 		$grade  = isset( $data['grade'] ) ? sanitize_text_field( (string) $data['grade'] ) : '';
 		$active = isset( $data['active'] ) ? (int) (bool) $data['active'] : 1;
-		$now    = current_time( 'mysql' );
+		$now    = utc_time();
 
 		$payload = array(
 			'name'       => $name,
@@ -225,7 +226,7 @@ class Members_Repository extends Abstract_Repository {
 			'email'      => $email,
 			'grade'      => $grade,
 			'active'     => $active,
-			'updated_at' => current_time( 'mysql' ),
+			'updated_at' => utc_time(),
 		);
 
 		$format = array( '%s', '%s', '%s', '%d', '%s' );

@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Class Cron_Handler
@@ -64,7 +65,7 @@ class Cron_Handler {
 	public function send_closed_notifications(): void {
 		// Get all non-archived competitions.
 		$competitions = $this->competitions_repo->all( 1000, false );
-		$now          = current_time( 'mysql' );
+		$now          = utc_time();
 
 		foreach ( $competitions as $competition ) {
 			// Check if close date has passed.

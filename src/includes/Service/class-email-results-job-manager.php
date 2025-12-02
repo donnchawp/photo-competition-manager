@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Class Email_Results_Job_Manager
@@ -177,7 +178,7 @@ class Email_Results_Job_Manager {
 			'sent_count'     => 0,
 			'failed_count'   => 0,
 			'error_log'      => array(),
-			'started_at'     => current_time( 'mysql' ),
+			'started_at'     => utc_time(),
 			'completed_at'   => null,
 		);
 
@@ -359,7 +360,7 @@ class Email_Results_Job_Manager {
 		}
 
 		$job['status']       = 'completed';
-		$job['completed_at'] = current_time( 'mysql' );
+		$job['completed_at'] = utc_time();
 
 		$this->update_job( $job_id, $job );
 	}

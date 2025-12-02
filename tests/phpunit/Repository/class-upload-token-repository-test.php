@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_UnitTestCase;
+use function PhotoCompetitionManager\Support\utc_time;
 
 class Upload_Token_Repository_Test extends WP_UnitTestCase {
 
@@ -109,7 +110,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 				'competition_id' => 2,
 				'token'          => $token_string,
 				'expires_at'     => $expires_at,
-				'created_at'     => current_time( 'mysql' ),
+				'created_at'     => utc_time(),
 			),
 			array( '%d', '%d', '%s', '%s', '%s' )
 		);
@@ -181,7 +182,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 				'competition_id' => 20,
 				'token'          => $expired_token,
 				'expires_at'     => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
-				'created_at'     => current_time( 'mysql' ),
+				'created_at'     => utc_time(),
 			),
 			array( '%d', '%d', '%s', '%s', '%s' )
 		);
@@ -220,7 +221,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->update(
 			$this->repo->table(),
-			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'sent_at' => utc_time() ),
 			array( 'id' => $token_obj->id ),
 			array( '%s' ),
 			array( '%d' )
@@ -251,7 +252,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 				'competition_id' => $competition_id,
 				'token'          => $token_string,
 				'expires_at'     => $expires_at,
-				'created_at'     => current_time( 'mysql' ),
+				'created_at'     => utc_time(),
 				'sent_at'        => $old_time,
 			),
 			array( '%d', '%d', '%s', '%s', '%s', '%s' )
@@ -275,7 +276,7 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->update(
 			$this->repo->table(),
-			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'sent_at' => utc_time() ),
 			array( 'id' => $token_obj->id ),
 			array( '%s' ),
 			array( '%d' )

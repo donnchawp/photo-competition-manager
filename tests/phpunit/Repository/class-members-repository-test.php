@@ -8,6 +8,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_UnitTestCase;
+use function PhotoCompetitionManager\Support\utc_time;
 
 class Members_Repository_Test extends WP_UnitTestCase {
 
@@ -45,7 +46,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 				'email'      => 'alice@example.com',
 				'grade'      => 'Beginner',
 				'active'     => 1,
-				'created_at' => current_time( 'mysql' ),
+				'created_at' => utc_time(),
 			)
 		);
 
@@ -56,7 +57,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 				'email'      => 'bob@example.com',
 				'grade'      => 'Advanced',
 				'active'     => 0,
-				'created_at' => current_time( 'mysql' ),
+				'created_at' => utc_time(),
 			)
 		);
 

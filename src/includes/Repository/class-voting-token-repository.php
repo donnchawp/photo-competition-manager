@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Repository for voting authentication tokens.
@@ -45,7 +46,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 			'category'       => $category,
 			'token_hash'     => $token_hash,
 			'expires_at'     => $expires_at,
-			'created_at'     => current_time( 'mysql' ),
+			'created_at'     => utc_time(),
 		);
 
 		$format = array( '%d', '%d', '%s', '%s', '%s', '%s' );
@@ -86,23 +87,24 @@ class Voting_Token_Repository extends Abstract_Repository {
 				LIMIT 1',
 				$this->table(),
 				$token_hash,
-				current_time( 'mysql' )
+				utc_time()
 			)
 		);
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
+			$now = utc_time();
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->update(
 				$this->table(),
-				array( 'first_accessed_at' => current_time( 'mysql' ) ),
+				array( 'first_accessed_at' => $now ),
 				array( 'id' => $token->id ),
 				array( '%s' ),
 				array( '%d' )
 			);
 
 			// Update the token object to reflect the change.
-			$token->first_accessed_at = current_time( 'mysql' );
+			$token->first_accessed_at = $now;
 		}
 
 		return $token;
@@ -124,7 +126,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$updated = $wpdb->update(
 			$this->table(),
-			array( 'used_at' => current_time( 'mysql' ) ),
+			array( 'used_at' => utc_time() ),
 			array( 'id' => $token_id ),
 			array( '%s' ),
 			array( '%d' )
@@ -159,7 +161,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'DELETE FROM %i WHERE expires_at < %s',
 				$this->table(),
-				current_time( 'mysql' )
+				utc_time()
 			)
 		);
 	}
@@ -180,7 +182,8 @@ class Voting_Token_Repository extends Abstract_Repository {
 		}
 
 		// Check for tokens created in the last 5 minutes that are still valid.
-		$recent_threshold = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 5 * MINUTE_IN_SECONDS ) );
+		$now              = utc_time();
+		$recent_threshold = utc_time( -5 * MINUTE_IN_SECONDS );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$count = (int) $wpdb->get_var(
@@ -197,7 +200,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 				$member_id,
 				$competition_id,
 				$category,
-				current_time( 'mysql' ),
+				$now,
 				$recent_threshold
 			)
 		);

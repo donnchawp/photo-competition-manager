@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use WP_Error;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Repository for upload authentication tokens.
@@ -55,9 +56,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 
 		if ( $existing ) {
 			// Refresh token if expired.
-			if ( $existing->expires_at < current_time( 'mysql' ) ) {
+			if ( $existing->expires_at < utc_time() ) {
 				$new_token      = bin2hex( random_bytes( 32 ) );
-				$new_expires_at = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
+				$new_expires_at = utc_time( 2 * WEEK_IN_SECONDS );
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 				$updated = $wpdb->update(
@@ -87,14 +88,14 @@ class Upload_Token_Repository extends Abstract_Repository {
 
 		// Create new token.
 		$token_string = bin2hex( random_bytes( 32 ) );
-		$expires_at   = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + ( 2 * WEEK_IN_SECONDS ) );
+		$expires_at   = utc_time( 2 * WEEK_IN_SECONDS );
 
 		$payload = array(
 			'member_id'      => $member_id,
 			'competition_id' => $competition_id,
 			'token'          => $token_string,
 			'expires_at'     => $expires_at,
-			'created_at'     => current_time( 'mysql' ),
+			'created_at'     => utc_time(),
 		);
 
 		$format = array( '%d', '%d', '%s', '%s', '%s' );
@@ -146,23 +147,24 @@ class Upload_Token_Repository extends Abstract_Repository {
 				LIMIT 1',
 				$this->table(),
 				$token_string,
-				current_time( 'mysql' )
+				utc_time()
 			)
 		);
 
 		// Track first access if token is found and hasn't been accessed before.
 		if ( $token && null === $token->first_accessed_at ) {
+			$now = utc_time();
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->update(
 				$this->table(),
-				array( 'first_accessed_at' => current_time( 'mysql' ) ),
+				array( 'first_accessed_at' => $now ),
 				array( 'id' => $token->id ),
 				array( '%s' ),
 				array( '%d' )
 			);
 
 			// Update the token object to reflect the change.
-			$token->first_accessed_at = current_time( 'mysql' );
+			$token->first_accessed_at = $now;
 		}
 
 		return $token;
@@ -184,7 +186,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$updated = $wpdb->update(
 			$this->table(),
-			array( 'used_at' => current_time( 'mysql' ) ),
+			array( 'used_at' => utc_time() ),
 			array( 'id' => $token_id ),
 			array( '%s' ),
 			array( '%d' )
@@ -214,7 +216,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'DELETE FROM %i WHERE expires_at < %s',
 				$this->table(),
-				current_time( 'mysql' )
+				utc_time()
 			)
 		);
 	}
@@ -241,8 +243,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 		}
 
 		// Check if sent_at is within the last 5 minutes.
-		$current_time = current_time( 'mysql' );
-
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
@@ -254,7 +254,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 				$this->table(),
 				$member_id,
 				$competition_id,
-				$current_time
+				utc_time()
 			)
 		);
 
@@ -378,7 +378,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->update(
 			$this->table(),
-			array( 'sent_at' => current_time( 'mysql' ) ),
+			array( 'sent_at' => utc_time() ),
 			array( 'id' => $token_obj->id ),
 			array( '%s' ),
 			array( '%d' )
