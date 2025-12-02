@@ -1034,7 +1034,7 @@ class Voting_Controller {
 		}
 
 		// Get all active members.
-		$members = $this->members->all( true );
+		$members = $this->members->all( 10000, true );
 
 		if ( empty( $members ) ) {
 			return;

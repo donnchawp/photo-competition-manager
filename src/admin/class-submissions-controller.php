@@ -527,7 +527,7 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$member_id = isset( $_GET['member_id'] ) ? absint( wp_unslash( $_GET['member_id'] ) ) : 0;
 
-		$members    = $this->members->all( false );
+		$members    = $this->members->all( 10000, false );
 		$member_map = array();
 		foreach ( $members as $member ) {
 			$member_map[ (int) $member->id ] = $member;

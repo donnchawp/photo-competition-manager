@@ -97,7 +97,7 @@ class Cron_Handler {
 	 */
 	private function send_competition_closed_notifications( object $competition ): void {
 		// Get all active members.
-		$members = $this->members_repo->all( true );
+		$members = $this->members_repo->all( 10000, true );
 
 		if ( empty( $members ) ) {
 			return;

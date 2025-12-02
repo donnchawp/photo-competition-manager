@@ -597,7 +597,7 @@ class Settings_Controller {
 		$default_grade = $new_grades[0]['slug'] ?? '';
 
 		// Get all members (including inactive).
-		$members = $this->members_repository->all( false );
+		$members = $this->members_repository->all( 10000, false );
 
 		foreach ( $members as $member ) {
 			$current_grade = $member->grade ?? '';

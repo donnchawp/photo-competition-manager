@@ -510,7 +510,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		// Get members repository.
 		$members_repository = new Members_Repository();
-		$members            = $members_repository->all( 9999, false, false );
+		$members            = $members_repository->all( 10000, false );
 
 		if ( empty( $members ) ) {
 			return new WP_Error(

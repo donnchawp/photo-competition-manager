@@ -66,7 +66,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $active_members );
 		$this->assertSame( 'Alice', $active_members[0]->name );
 
-		$all_members = $repository->all( false );
+		$all_members = $repository->all( 1000, false );
 
 		$this->assertCount( 2, $all_members );
 	}

@@ -515,7 +515,7 @@ class Results_Controller {
 		$members_lookup = array();
 
 		// Build members lookup.
-		$all_members = $this->members->all( 9999, false, false );
+		$all_members = $this->members->all( 10000, false );
 		foreach ( $all_members as $member ) {
 			$members_lookup[ $member->id ] = $member;
 		}
@@ -770,7 +770,7 @@ class Results_Controller {
 		);
 
 		$members_lookup = array();
-		$all_members    = $this->members->all( 9999, false, false );
+		$all_members    = $this->members->all( 10000, false );
 		foreach ( $all_members as $member ) {
 			$members_lookup[ $member->id ] = $member;
 		}

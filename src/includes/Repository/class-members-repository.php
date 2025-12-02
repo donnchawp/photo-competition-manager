@@ -20,12 +20,13 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Members_Repository extends Abstract_Repository {
 
 	/**
-	 * Fetch active members.
+	 * Fetch members.
 	 *
+	 * @param int  $limit       Number of records to return.
 	 * @param bool $only_active Whether to restrict to active members.
 	 * @return array<int, object>
 	 */
-	public function all( bool $only_active = true ): array {
+	public function all( int $limit = 1000, bool $only_active = true ): array {
 		global $wpdb;
 
 		if ( ! $this->table_exists() ) {
@@ -33,15 +34,16 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		$query  = 'SELECT * FROM %i';
-		$query .= $only_active ? ' WHERE active = 1 ' : '';
-		$query .= 'ORDER BY name ASC';
+		$query .= $only_active ? ' WHERE active = 1 ' : ' ';
+		$query .= 'ORDER BY name ASC LIMIT %d';
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter
 		return $wpdb->get_results(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
 				$query, // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				$this->table()
+				$this->table(),
+				$limit
 			)
 		);
 	}

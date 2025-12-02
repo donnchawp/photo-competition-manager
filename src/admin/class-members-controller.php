@@ -594,7 +594,7 @@ class Members_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$grade_filter = isset( $_GET['grade'] ) ? sanitize_text_field( wp_unslash( $_GET['grade'] ) ) : '';
 
-		$all_members = $this->members->all( false );
+		$all_members = $this->members->all( 10000, false );
 
 		// Apply filters.
 		$members = array_filter(
