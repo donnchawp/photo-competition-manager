@@ -438,7 +438,7 @@ class Voting_Shortcode {
 				$token_record->category,
 				(int) $token_record->id,
 				$image_id,
-				(float) $score
+				(int) $score
 			);
 
 			if ( ! is_wp_error( $result ) ) {
@@ -566,7 +566,7 @@ class Voting_Shortcode {
 				continue;
 			}
 
-			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (float) $score );
+			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (int) $score );
 
 			if ( ! is_wp_error( $result ) ) {
 				++$success_count;
@@ -1228,8 +1228,8 @@ class Voting_Shortcode {
 	 * Sanitize vote selections by enforcing valid image IDs and allowed score values.
 	 *
 	 * @param array<int|string, mixed> $votes          Raw vote selections.
-	 * @param array<int, int|float>    $allowed_scores Allowed score values.
-	 * @return array<int, float> Sanitized vote selections keyed by image ID.
+	 * @param array<int, int>          $allowed_scores Allowed score values.
+	 * @return array<int, int> Sanitized vote selections keyed by image ID.
 	 */
 	private function sanitize_vote_selections( array $votes, array $allowed_scores ): array {
 		$sanitized = array();
@@ -1238,26 +1238,21 @@ class Voting_Shortcode {
 			return $sanitized;
 		}
 
-		$allowed_lookup = array();
-		foreach ( $allowed_scores as $score_value ) {
-			$normalized = (float) $score_value;
-			$allowed_lookup[ (string) round( $normalized, 4 ) ] = $normalized;
-		}
+		$allowed_lookup = array_flip( array_map( 'intval', $allowed_scores ) );
 
 		foreach ( $votes as $image_id => $raw_score ) {
 			$image_id = absint( $image_id );
-			$score    = (float) $raw_score;
+			$score    = (int) $raw_score;
 
 			if ( $image_id < 1 ) {
 				continue;
 			}
 
-			$key = (string) round( $score, 4 );
-			if ( ! isset( $allowed_lookup[ $key ] ) ) {
+			if ( ! isset( $allowed_lookup[ $score ] ) ) {
 				continue;
 			}
 
-			$sanitized[ $image_id ] = $allowed_lookup[ $key ];
+			$sanitized[ $image_id ] = $score;
 		}
 
 		return $sanitized;

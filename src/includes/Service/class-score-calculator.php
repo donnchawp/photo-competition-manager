@@ -47,6 +47,8 @@ class Score_Calculator {
 	/**
 	 * Calculate and update scores for all images in a competition.
 	 *
+	 * Stores the total score (sum of all votes) for each image.
+	 *
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
 	 * @return array{updated: int, errors: int}
@@ -58,7 +60,7 @@ class Score_Calculator {
 		$errors  = 0;
 
 		foreach ( $averages as $image_id => $data ) {
-			$result = $this->images_repo->update_score( $image_id, $data['average_score'] );
+			$result = $this->images_repo->update_score( $image_id, (int) $data['total_score'] );
 
 			if ( is_wp_error( $result ) ) {
 				++$errors;
@@ -98,12 +100,13 @@ class Score_Calculator {
 
 			// Use calculated scores if available, otherwise use stored score.
 			if ( isset( $averages[ $image_id ] ) ) {
-				$image->total_score   = $averages[ $image_id ]['total_score'];
-				$image->average_score = $averages[ $image_id ]['average_score'];
-				$image->vote_count    = $averages[ $image_id ]['vote_count'];
+				$image->total_score   = (int) $averages[ $image_id ]['total_score'];
+				$image->average_score = (float) $averages[ $image_id ]['average_score'];
+				$image->vote_count    = (int) $averages[ $image_id ]['vote_count'];
 			} else {
-				$image->total_score   = 0;
-				$image->average_score = null !== $image->score ? (float) $image->score : 0.0;
+				// Fallback to cached score if no votes found.
+				$image->total_score   = null !== $image->score ? (int) $image->score : 0;
+				$image->average_score = 0.0;
 				$image->vote_count    = 0;
 			}
 

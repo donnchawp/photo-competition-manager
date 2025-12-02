@@ -35,10 +35,10 @@ class Votes_Repository extends Abstract_Repository {
 	 * @param string $category         Category slug.
 	 * @param int    $voting_token_id  Voting token ID.
 	 * @param int    $image_id         Image ID.
-	 * @param float  $score            Score value.
+	 * @param int    $score            Score value.
 	 * @return int|WP_Error Vote ID or error.
 	 */
-	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, float $score ) {
+	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, int $score ) {
 		global $wpdb;
 
 		if ( ! $this->table_exists() ) {
@@ -64,7 +64,7 @@ class Votes_Repository extends Abstract_Repository {
 				'score'           => $score,
 				'created_at'      => utc_time(),
 			),
-			array( '%d', '%s', '%d', '%d', '%f', '%s' )
+			array( '%d', '%s', '%d', '%d', '%d', '%s' )
 		);
 
 		if ( false === $inserted ) {
@@ -81,10 +81,10 @@ class Votes_Repository extends Abstract_Repository {
 	 * @param string $category       Category slug.
 	 * @param string $voter_name     Voter name.
 	 * @param int    $image_id       Image ID.
-	 * @param float  $score          Score value.
+	 * @param int    $score          Score value.
 	 * @return int|WP_Error Vote ID or error.
 	 */
-	public function create( int $competition_id, string $category, string $voter_name, int $image_id, float $score ) {
+	public function create( int $competition_id, string $category, string $voter_name, int $image_id, int $score ) {
 		global $wpdb;
 
 		if ( ! $this->table_exists() ) {
@@ -110,7 +110,7 @@ class Votes_Repository extends Abstract_Repository {
 				'score'          => $score,
 				'created_at'     => utc_time(),
 			),
-			array( '%d', '%s', '%s', '%d', '%f', '%s' )
+			array( '%d', '%s', '%s', '%d', '%d', '%s' )
 		);
 
 		if ( false === $inserted ) {

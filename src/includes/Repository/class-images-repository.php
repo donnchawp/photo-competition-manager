@@ -326,11 +326,11 @@ class Images_Repository extends Abstract_Repository {
 	/**
 	 * Update image score.
 	 *
-	 * @param int   $id    Image ID.
-	 * @param float $score Score value.
+	 * @param int $id    Image ID.
+	 * @param int $score Score value.
 	 * @return bool|WP_Error
 	 */
-	public function update_score( int $id, float $score ) {
+	public function update_score( int $id, int $score ) {
 		global $wpdb;
 
 		if ( ! $this->table_exists() || $id <= 0 ) {
@@ -351,7 +351,7 @@ class Images_Repository extends Abstract_Repository {
 				'updated_at' => utc_time(),
 			),
 			array( 'id' => $id ),
-			array( '%f', '%s' ),
+			array( '%d', '%s' ),
 			array( '%d' )
 		);
 
