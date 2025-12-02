@@ -503,7 +503,36 @@ class Export_Screen {
 		// Delete originals if requested.
 		if ( $delete_after_export ) {
 			foreach ( $attachment_ids as $attachment_id ) {
-				wp_delete_attachment( $attachment_id, true );
+				// Force delete the attachment post and all its files.
+				// wp_delete_attachment returns the deleted post object on success, false/null on failure.
+				$deleted = wp_delete_attachment( $attachment_id, true );
+
+				// If wp_delete_attachment failed but the post still exists,
+				// manually delete files and the post to prevent orphans.
+				if ( ! $deleted && get_post( $attachment_id ) ) {
+					// Delete the physical files first.
+					$file = get_attached_file( $attachment_id );
+					if ( $file && file_exists( $file ) ) {
+						wp_delete_file( $file );
+					}
+
+					// Delete any generated thumbnails/sizes.
+					$metadata = wp_get_attachment_metadata( $attachment_id );
+					if ( ! empty( $metadata['sizes'] ) && $file ) {
+						$dir = trailingslashit( dirname( $file ) );
+						foreach ( $metadata['sizes'] as $size ) {
+							if ( ! empty( $size['file'] ) ) {
+								$size_file = $dir . $size['file'];
+								if ( file_exists( $size_file ) ) {
+									wp_delete_file( $size_file );
+								}
+							}
+						}
+					}
+
+					// Now delete the orphaned post record.
+					wp_delete_post( $attachment_id, true );
+				}
 			}
 
 			// Clear the attachment IDs from the database.

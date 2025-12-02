@@ -249,7 +249,32 @@ class Submissions_Controller {
 				// Delete all original attachments.
 				$deleted_count = 0;
 				foreach ( $attachment_ids as $attachment_id ) {
-					if ( wp_delete_attachment( $attachment_id, true ) ) {
+					$deleted = wp_delete_attachment( $attachment_id, true );
+					if ( $deleted ) {
+						++$deleted_count;
+					} elseif ( get_post( $attachment_id ) ) {
+						// If wp_delete_attachment failed but the post exists,
+						// manually delete files and post to prevent orphans.
+						$file = get_attached_file( $attachment_id );
+						if ( $file && file_exists( $file ) ) {
+							wp_delete_file( $file );
+						}
+
+						// Delete any generated thumbnails/sizes.
+						$metadata = wp_get_attachment_metadata( $attachment_id );
+						if ( ! empty( $metadata['sizes'] ) && $file ) {
+							$dir = trailingslashit( dirname( $file ) );
+							foreach ( $metadata['sizes'] as $size ) {
+								if ( ! empty( $size['file'] ) ) {
+									$size_file = $dir . $size['file'];
+									if ( file_exists( $size_file ) ) {
+										wp_delete_file( $size_file );
+									}
+								}
+							}
+						}
+
+						wp_delete_post( $attachment_id, true );
 						++$deleted_count;
 					}
 				}
