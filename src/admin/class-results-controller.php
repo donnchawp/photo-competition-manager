@@ -558,8 +558,17 @@ class Results_Controller {
 			echo '</thead>';
 			echo '<tbody>';
 
-			$rank = 1;
+			// Assign ranks with tie handling (dense ranking).
+			$rank           = 0;
+			$previous_score = null;
+
 			foreach ( $grade_results as $result ) {
+				// Advance rank only when score changes.
+				if ( null === $previous_score || (int) $result->total_score !== $previous_score ) {
+					++$rank;
+					$previous_score = (int) $result->total_score;
+				}
+
 				$member    = $members_lookup[ $result->member_id ] ?? null;
 				$image_url = $this->get_image_url( $competition_id, $category, $result->filename );
 
@@ -600,8 +609,6 @@ class Results_Controller {
 				echo '</td>';
 
 				echo '</tr>';
-
-				++$rank;
 			}
 
 			echo '</tbody>';
