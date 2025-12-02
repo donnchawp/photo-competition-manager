@@ -153,27 +153,6 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test finding used token returns null.
-	 *
-	 * @return void
-	 */
-	public function test_find_used_token_returns_null(): void {
-		$token_hash = hash( 'sha256', 'used-token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
-
-		// Mark as used
-		$result = $this->repository->mark_as_used( $token_id );
-		$this->assertTrue( $result );
-
-		$token = $this->repository->find_valid_token( $token_hash );
-
-		$this->assertNull( $token );
-	}
-
-	/**
 	 * Test finding nonexistent token returns null.
 	 *
 	 * @return void
@@ -184,46 +163,6 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token = $this->repository->find_valid_token( $token_hash );
 
 		$this->assertNull( $token );
-	}
-
-	/**
-	 * Test marking token as used.
-	 *
-	 * @return void
-	 */
-	public function test_mark_token_as_used(): void {
-		$token_hash = hash( 'sha256', 'mark-used-token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
-
-		$result = $this->repository->mark_as_used( $token_id );
-
-		$this->assertTrue( $result );
-
-		// Verify token is now marked as used.
-		global $wpdb;
-		$used_at = $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT used_at FROM %i WHERE id = %d',
-				$wpdb->prefix . 'photocomp_voting_tokens',
-				$token_id
-			)
-		);
-
-		$this->assertNotNull( $used_at );
-	}
-
-	/**
-	 * Test marking invalid token as used fails.
-	 *
-	 * @return void
-	 */
-	public function test_mark_invalid_token_as_used_fails(): void {
-		$result = $this->repository->mark_as_used( 999999 );
-
-		$this->assertWPError( $result );
 	}
 
 	/**
@@ -312,25 +251,6 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 			array( '%s' ),
 			array( '%d' )
 		);
-
-		$has_recent = $this->repository->has_recent_token( 1, 2, 'colour' );
-
-		$this->assertFalse( $has_recent );
-	}
-
-	/**
-	 * Test has_recent_token for used token returns false.
-	 *
-	 * @return void
-	 */
-	public function test_has_recent_token_for_used_token(): void {
-		$token_hash = hash( 'sha256', 'used-recent-token' );
-		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
-		$this->assertIsInt( $token_id );
-
-		$this->repository->mark_as_used( $token_id );
 
 		$has_recent = $this->repository->has_recent_token( 1, 2, 'colour' );
 

@@ -171,35 +171,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Mark a token as used.
-	 *
-	 * @param int $token_id Token ID.
-	 * @return bool|WP_Error
-	 */
-	public function mark_as_used( int $token_id ) {
-		global $wpdb;
-
-		if ( ! $this->table_exists() || $token_id <= 0 ) {
-			return new WP_Error( 'invalid_token', __( 'Token not found.', 'photo-competition-manager' ) );
-		}
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$updated = $wpdb->update(
-			$this->table(),
-			array( 'used_at' => utc_time() ),
-			array( 'id' => $token_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
-
-		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not mark token as used.', 'photo-competition-manager' ), $wpdb->last_error );
-		}
-
-		return true;
-	}
-
-	/**
 	 * Clean up expired tokens.
 	 *
 	 * @return int|false Number of deleted rows or false on failure.

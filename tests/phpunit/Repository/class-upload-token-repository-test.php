@@ -120,53 +120,6 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test finding used token returns null.
-	 */
-	public function test_find_used_token_returns_null() {
-		$token_obj = $this->repo->find_or_create( 1, 2 );
-		$this->assertIsObject( $token_obj );
-
-		// Mark as used.
-		$this->repo->mark_as_used( $token_obj->id );
-
-		// Try to find it again.
-		$found = $this->repo->find_valid_token( $token_obj->token );
-		$this->assertNull( $found );
-	}
-
-	/**
-	 * Test marking token as used.
-	 */
-	public function test_mark_as_used() {
-		$token_obj = $this->repo->find_or_create( 1, 2 );
-		$this->assertIsObject( $token_obj );
-
-		$result = $this->repo->mark_as_used( $token_obj->id );
-		$this->assertTrue( $result );
-
-		// Verify in database.
-		global $wpdb;
-		$token = $wpdb->get_row(
-			$wpdb->prepare(
-				'SELECT * FROM %i WHERE id = %d',
-				$this->repo->table(),
-				$token_obj->id
-			)
-		);
-
-		$this->assertNotNull( $token->used_at );
-	}
-
-	/**
-	 * Test mark as used with invalid ID returns error.
-	 */
-	public function test_mark_as_used_invalid_id() {
-		$result = $this->repo->mark_as_used( 0 );
-		$this->assertWPError( $result );
-		$this->assertEquals( 'invalid_token', $result->get_error_code() );
-	}
-
-	/**
 	 * Test cleanup expired tokens.
 	 */
 	public function test_cleanup_expired() {
