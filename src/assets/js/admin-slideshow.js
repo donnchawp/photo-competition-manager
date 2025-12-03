@@ -46,6 +46,19 @@
 		bindEvents() {
 			const self = this;
 
+			// Duration preset buttons
+			$(document).on('click', '.duration-preset', function() {
+				const $btn = $(this);
+				const duration = parseInt($btn.data('duration'), 10);
+
+				// Update the hidden duration setting input
+				$('#slideshow-duration-setting').val(duration);
+
+				// Update active state on preset buttons
+				$('.duration-presets .button').removeClass('active');
+				$btn.addClass('active');
+			});
+
 			// Start slideshow buttons
 			$(document).on('click', '.photo-competition-manager-start-slideshow', function() {
 				const $btn = $(this);
@@ -54,6 +67,25 @@
 				const category = $btn.data('category');
 				const categoryLabel = $btn.data('category-label');
 
+				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
+			});
+
+			// Critique mode button - sets duration to 0 (manual) and starts slideshow
+			$(document).on('click', '.photo-competition-manager-start-critique', function() {
+				const $btn = $(this);
+				const competitionId = $btn.data('competition-id');
+				const competitionSlug = $btn.data('competition-slug');
+				const category = $btn.data('category');
+				const categoryLabel = $btn.data('category-label');
+
+				// Set duration to 0 for manual mode
+				$('#slideshow-duration-setting').val(0);
+
+				// Update active state on preset buttons
+				$('.duration-presets .button').removeClass('active');
+				$('.duration-presets .button[data-duration="0"]').addClass('active');
+
+				// Start the slideshow in manual mode
 				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
 			});
 

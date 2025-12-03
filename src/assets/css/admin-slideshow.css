@@ -189,6 +189,294 @@
 	word-break: break-all;
 }
 
+/* Focus Panel for Competition Night Workflow */
+.photo-comp-focus-panel {
+	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
+	border: 2px solid #2271b1;
+	border-radius: 8px;
+	padding: 24px;
+	margin: 20px 0;
+	max-width: 900px;
+	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
+}
+
+/* Category tabs for switching between categories */
+.focus-panel-category-tabs {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 16px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid #dcdcde;
+	flex-wrap: wrap;
+}
+
+.category-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 14px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	text-decoration: none;
+	color: #50575e;
+	font-size: 13px;
+	font-weight: 500;
+	transition: all 0.15s ease;
+	position: relative;
+}
+
+.category-tab:hover {
+	background: #fff;
+	border-color: #2271b1;
+	color: #2271b1;
+}
+
+.category-tab.active {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+}
+
+.category-tab .tab-count {
+	background: rgba(0, 0, 0, 0.1);
+	padding: 2px 6px;
+	border-radius: 10px;
+	font-size: 11px;
+}
+
+.category-tab.active .tab-count {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.category-tab .tab-voting-indicator {
+	width: 8px;
+	height: 8px;
+	background: #00a32a;
+	border-radius: 50%;
+	animation: pulse 1.5s infinite;
+}
+
+.category-tab.active .tab-voting-indicator {
+	background: #90ee90;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.5; }
+}
+
+.focus-panel-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 20px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.focus-panel-title {
+	flex: 1;
+}
+
+.focus-panel-label {
+	display: inline-block;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: #2271b1;
+	margin-bottom: 4px;
+}
+
+.focus-panel-title h2 {
+	margin: 0 0 4px 0;
+	font-size: 1.5em;
+	color: #1d2327;
+}
+
+.focus-panel-image-count {
+	color: #646970;
+	font-size: 13px;
+}
+
+.focus-panel-status {
+	flex-shrink: 0;
+}
+
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 14px;
+	border-radius: 20px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.status-badge .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.status-badge.status-voting-open {
+	background: #d4edda;
+	color: #155724;
+	border: 1px solid #c3e6cb;
+}
+
+.status-badge.status-ready {
+	background: #fff3cd;
+	color: #856404;
+	border: 1px solid #ffeeba;
+}
+
+.focus-panel-controls {
+	display: flex;
+	gap: 24px;
+	flex-wrap: wrap;
+}
+
+.focus-panel-controls-setup {
+	padding-bottom: 16px;
+	margin-bottom: 16px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.control-group {
+	flex: 1;
+	min-width: 200px;
+}
+
+.control-label {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: #646970;
+	margin-bottom: 8px;
+}
+
+.control-row {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.duration-presets {
+	display: flex;
+	gap: 4px;
+	margin-right: 8px;
+}
+
+.duration-presets .button {
+	padding: 4px 10px;
+	min-width: auto;
+	font-size: 12px;
+}
+
+.duration-presets .button.active {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+}
+
+.focus-panel-slideshow-btn,
+.focus-panel-voting-btn,
+.photo-competition-manager-start-critique {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.focus-panel-slideshow-btn .dashicons,
+.focus-panel-voting-btn .dashicons,
+.photo-competition-manager-start-critique .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+	line-height: 18px;
+	position: relative;
+	top: 5px;
+}
+
+.focus-panel-voting-btn.voting-close {
+	background: #d63638;
+	border-color: #d63638;
+	color: #fff;
+}
+
+.focus-panel-voting-btn.voting-close:hover {
+	background: #b32d2e;
+	border-color: #b32d2e;
+}
+
+/* Status indicators for Uploads/Results */
+.status-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 13px;
+	font-weight: 500;
+	padding: 4px 8px;
+	border-radius: 4px;
+}
+
+.status-indicator .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 16px;
+}
+
+.status-indicator.status-closed,
+.status-indicator.status-hidden {
+	background: #fef1f1;
+	color: #d63638;
+}
+
+.status-indicator.status-open {
+	background: #edfaef;
+	color: #00a32a;
+}
+
+.status-indicator.status-visible {
+	background: #fff8e5;
+	color: #996800;
+}
+
+.focus-panel-hint {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 16px 0 0 0;
+	padding: 12px;
+	background: #f6f7f7;
+	border-radius: 4px;
+	font-size: 13px;
+	color: #646970;
+}
+
+.focus-panel-hint .dashicons {
+	flex-shrink: 0;
+}
+
+.focus-panel-hint .dashicons-info {
+	color: #2271b1;
+}
+
+.focus-panel-hint .dashicons-warning {
+	color: #dba617;
+}
+
+.focus-panel-hint:has(.dashicons-warning) {
+	background: #fff8e5;
+	border: 1px solid #f0c33c;
+}
+
 /* Responsive adjustments */
 @media screen and (max-width: 768px) {
 	.slideshow-image-info {
@@ -226,5 +514,25 @@
 
 	.photo-comp-qr-image {
 		max-width: 440px;
+	}
+
+	.focus-panel-header {
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.focus-panel-controls {
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.control-row {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.duration-presets {
+		margin-right: 0;
+		margin-bottom: 8px;
 	}
 }

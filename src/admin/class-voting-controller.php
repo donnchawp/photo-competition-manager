@@ -132,6 +132,10 @@ class Voting_Controller {
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
 
+		// Preserve focus parameter for redirects.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only for redirect preservation.
+		$focus_param = isset( $_GET['focus'] ) ? sanitize_text_field( wp_unslash( $_GET['focus'] ) ) : '';
+
 		if ( 'open_category_voting' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
@@ -211,11 +215,12 @@ class Voting_Controller {
 				$this->send_voting_opened_notifications( $competition );
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 
@@ -266,11 +271,12 @@ class Voting_Controller {
 				);
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 
@@ -320,11 +326,12 @@ class Voting_Controller {
 				);
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 
@@ -374,11 +381,12 @@ class Voting_Controller {
 				);
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 
@@ -428,11 +436,12 @@ class Voting_Controller {
 				);
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 
@@ -482,11 +491,12 @@ class Voting_Controller {
 				);
 			}
 
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
 			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array( 'page' => 'photo-competition-manager-voting' ),
-					admin_url( 'admin.php' )
-				)
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
 			);
 		}
 	}
@@ -636,6 +646,9 @@ class Voting_Controller {
 			echo '</p>';
 			echo '</div>';
 		}
+
+		// Render the Focus Panel for streamlined competition night workflow.
+		$this->render_focus_panel( $open_competitions, $voting_open_globally, $open_competition_id, $open_category_slug );
 
 		echo '<table class="widefat striped" style="max-width: 1200px; margin-top: 20px;">';
 		echo '<thead><tr>';
@@ -1059,6 +1072,391 @@ class Voting_Controller {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Render the active category focus panel for streamlined competition night workflow.
+	 *
+	 * @param array       $open_competitions    Array of open competition objects.
+	 * @param bool        $voting_open_globally Whether voting is open for any category.
+	 * @param int|null    $open_competition_id  ID of competition with voting open.
+	 * @param string|null $open_category_slug   Slug of category with voting open.
+	 * @return void
+	 */
+	private function render_focus_panel( array $open_competitions, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug ): void {
+		// Build list of all available categories across competitions.
+		$all_categories = array();
+		foreach ( $open_competitions as $comp ) {
+			$settings   = Competition_Settings::parse( $comp->settings );
+			$categories = Competition_Settings::get_categories( $settings );
+
+			foreach ( $categories as $cat ) {
+				$cat_slug    = $cat['slug'] ?? '';
+				$images      = $this->images->find_by_competition( (int) $comp->id, $cat_slug );
+				$image_count = count( $images );
+
+				if ( $image_count > 0 ) {
+					$all_categories[] = array(
+						'competition' => $comp,
+						'settings'    => $settings,
+						'category'    => $cat,
+						'image_count' => $image_count,
+						'key'         => $comp->id . '_' . $cat_slug,
+					);
+				}
+			}
+		}
+
+		if ( empty( $all_categories ) ) {
+			return; // No categories with images found.
+		}
+
+		// Determine which category to show - check URL parameter first, then voting open, then first available.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display parameter.
+		$selected_key = isset( $_GET['focus'] ) ? sanitize_text_field( wp_unslash( $_GET['focus'] ) ) : '';
+
+		$active_competition = null;
+		$active_category    = null;
+		$active_settings    = null;
+		$image_count        = 0;
+
+		// Try to find the selected category from URL parameter.
+		if ( ! empty( $selected_key ) ) {
+			foreach ( $all_categories as $cat_data ) {
+				if ( $cat_data['key'] === $selected_key ) {
+					$active_competition = $cat_data['competition'];
+					$active_settings    = $cat_data['settings'];
+					$active_category    = $cat_data['category'];
+					$image_count        = $cat_data['image_count'];
+					break;
+				}
+			}
+		}
+
+		// If voting is open for a category, use that (unless explicitly overridden by URL).
+		if ( ! $active_competition && $voting_open_globally && $open_competition_id ) {
+			foreach ( $all_categories as $cat_data ) {
+				if ( (int) $cat_data['competition']->id === $open_competition_id && ( $cat_data['category']['slug'] ?? '' ) === $open_category_slug ) {
+					$active_competition = $cat_data['competition'];
+					$active_settings    = $cat_data['settings'];
+					$active_category    = $cat_data['category'];
+					$image_count        = $cat_data['image_count'];
+					break;
+				}
+			}
+		}
+
+		// Fall back to first available category.
+		if ( ! $active_competition ) {
+			$active_competition = $all_categories[0]['competition'];
+			$active_settings    = $all_categories[0]['settings'];
+			$active_category    = $all_categories[0]['category'];
+			$image_count        = $all_categories[0]['image_count'];
+		}
+
+		if ( ! $active_competition || ! $active_category ) {
+			return; // No suitable category found.
+		}
+
+		$category_slug  = $active_category['slug'] ?? '';
+		$category_label = $active_category['label'] ?? '';
+		$current_key    = $active_competition->id . '_' . $category_slug;
+
+		$is_voting_open = $voting_open_globally && $open_competition_id === (int) $active_competition->id && $open_category_slug === $category_slug;
+
+		// Get competition-level settings.
+		$uploads_closed  = $active_settings['upload']['uploads_closed'] ?? false;
+		$results_visible = $active_settings['results']['results_visible'] ?? false;
+
+		// Build action URLs with focus parameter preserved.
+		$focus_args = array(
+			'page'  => 'photo-competition-manager-voting',
+			'focus' => $current_key,
+		);
+
+		$close_uploads_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'close_uploads',
+						'competition' => (int) $active_competition->id,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_close_uploads_' . (int) $active_competition->id
+		);
+
+		$open_uploads_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'open_uploads',
+						'competition' => (int) $active_competition->id,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_open_uploads_' . (int) $active_competition->id
+		);
+
+		$show_results_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'show_results',
+						'competition' => (int) $active_competition->id,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_show_results_' . (int) $active_competition->id
+		);
+
+		$hide_results_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'hide_results',
+						'competition' => (int) $active_competition->id,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_hide_results_' . (int) $active_competition->id
+		);
+
+		$open_voting_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'open_category_voting',
+						'competition' => (int) $active_competition->id,
+						'category'    => $category_slug,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_open_voting_' . (int) $active_competition->id . '_' . $category_slug
+		);
+
+		$close_voting_url = wp_nonce_url(
+			add_query_arg(
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'close_category_voting',
+						'competition' => (int) $active_competition->id,
+						'category'    => $category_slug,
+					)
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_close_voting_' . (int) $active_competition->id . '_' . $category_slug
+		);
+
+		?>
+		<div id="focus-panel" class="photo-comp-focus-panel" data-competition-id="<?php echo esc_attr( $active_competition->id ); ?>" data-category="<?php echo esc_attr( $category_slug ); ?>">
+			<?php if ( count( $all_categories ) > 1 ) : ?>
+			<div class="focus-panel-category-tabs">
+				<?php
+				foreach ( $all_categories as $cat_data ) :
+					$tab_key        = $cat_data['key'];
+					$tab_comp       = $cat_data['competition'];
+					$tab_cat        = $cat_data['category'];
+					$tab_count      = $cat_data['image_count'];
+					$tab_is_active  = ( $tab_key === $current_key );
+					$tab_has_voting = $voting_open_globally && (int) $tab_comp->id === $open_competition_id && ( $tab_cat['slug'] ?? '' ) === $open_category_slug;
+					$tab_url        = add_query_arg(
+						array(
+							'page'  => 'photo-competition-manager-voting',
+							'focus' => $tab_key,
+						),
+						admin_url( 'admin.php' )
+					) . '#focus-panel';
+					?>
+					<a href="<?php echo esc_url( $tab_url ); ?>" class="category-tab <?php echo $tab_is_active ? 'active' : ''; ?> <?php echo $tab_has_voting ? 'has-voting' : ''; ?>">
+						<span class="tab-label"><?php echo esc_html( $tab_cat['label'] ?? '' ); ?></span>
+						<span class="tab-count"><?php echo (int) $tab_count; ?></span>
+						<?php if ( $tab_has_voting ) : ?>
+							<span class="tab-voting-indicator" title="<?php esc_attr_e( 'Voting open', 'photo-competition-manager' ); ?>"></span>
+						<?php endif; ?>
+					</a>
+				<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
+
+			<div class="focus-panel-header">
+				<div class="focus-panel-title">
+					<span class="focus-panel-label"><?php esc_html_e( 'Active Category', 'photo-competition-manager' ); ?></span>
+					<h2><?php echo esc_html( $active_competition->title ); ?> &mdash; <?php echo esc_html( $category_label ); ?></h2>
+					<span class="focus-panel-image-count">
+						<?php
+						printf(
+							/* translators: %d: number of images */
+							esc_html( _n( '%d image', '%d images', $image_count, 'photo-competition-manager' ) ),
+							(int) $image_count
+						);
+						?>
+					</span>
+				</div>
+				<div class="focus-panel-status">
+					<?php if ( $is_voting_open ) : ?>
+						<span class="status-badge status-voting-open">
+							<span class="dashicons dashicons-yes-alt"></span>
+							<?php esc_html_e( 'Voting Open', 'photo-competition-manager' ); ?>
+						</span>
+					<?php else : ?>
+						<span class="status-badge status-ready">
+							<span class="dashicons dashicons-clock"></span>
+							<?php esc_html_e( 'Ready', 'photo-competition-manager' ); ?>
+						</span>
+					<?php endif; ?>
+				</div>
+			</div>
+
+			<!-- Uploads & Results Row -->
+			<div class="focus-panel-controls focus-panel-controls-setup">
+				<!-- Uploads Control -->
+				<div class="control-group uploads-controls">
+					<label class="control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></label>
+					<div class="control-row">
+						<?php if ( $uploads_closed ) : ?>
+							<span class="status-indicator status-closed">
+								<span class="dashicons dashicons-lock"></span>
+								<?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?>
+							</span>
+							<a href="<?php echo esc_url( $open_uploads_url ); ?>" class="button button-small">
+								<?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?>
+							</a>
+						<?php else : ?>
+							<span class="status-indicator status-open">
+								<span class="dashicons dashicons-unlock"></span>
+								<?php esc_html_e( 'Open', 'photo-competition-manager' ); ?>
+							</span>
+							<a href="<?php echo esc_url( $close_uploads_url ); ?>" class="button button-primary button-small">
+								<?php esc_html_e( 'Close', 'photo-competition-manager' ); ?>
+							</a>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<!-- Results Control -->
+				<div class="control-group results-controls">
+					<label class="control-label"><?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></label>
+					<div class="control-row">
+						<?php if ( $results_visible ) : ?>
+							<span class="status-indicator status-visible">
+								<span class="dashicons dashicons-visibility"></span>
+								<?php esc_html_e( 'Visible', 'photo-competition-manager' ); ?>
+							</span>
+							<a href="<?php echo esc_url( $hide_results_url ); ?>" class="button button-small">
+								<?php esc_html_e( 'Hide', 'photo-competition-manager' ); ?>
+							</a>
+						<?php else : ?>
+							<span class="status-indicator status-hidden">
+								<span class="dashicons dashicons-hidden"></span>
+								<?php esc_html_e( 'Hidden', 'photo-competition-manager' ); ?>
+							</span>
+							<a href="<?php echo esc_url( $show_results_url ); ?>" class="button button-small">
+								<?php esc_html_e( 'Show', 'photo-competition-manager' ); ?>
+							</a>
+						<?php endif; ?>
+					</div>
+				</div>
+			</div>
+
+			<!-- Slideshow, Voting & Critique Row -->
+			<div class="focus-panel-controls">
+				<!-- Slideshow Controls -->
+				<div class="control-group slideshow-controls">
+					<label class="control-label"><?php esc_html_e( 'Slideshow', 'photo-competition-manager' ); ?></label>
+					<div class="control-row">
+						<div class="duration-presets">
+							<button type="button" class="button duration-preset" data-duration="5"><?php esc_html_e( '5s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset active" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset" data-duration="15"><?php esc_html_e( '15s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset" data-duration="0" title="<?php esc_attr_e( 'Manual: advance with Space or arrow keys', 'photo-competition-manager' ); ?>"><?php esc_html_e( 'Manual', 'photo-competition-manager' ); ?></button>
+						</div>
+						<?php if ( $image_count > 0 ) : ?>
+							<button type="button" class="button button-primary button-large photo-competition-manager-start-slideshow focus-panel-slideshow-btn"
+								data-competition-id="<?php echo esc_attr( $active_competition->id ); ?>"
+								data-competition-slug="<?php echo esc_attr( $active_competition->slug ); ?>"
+								data-category="<?php echo esc_attr( $category_slug ); ?>"
+								data-category-label="<?php echo esc_attr( $category_label ); ?>">
+								<span class="dashicons dashicons-slides"></span>
+								<?php esc_html_e( 'Start Slideshow', 'photo-competition-manager' ); ?>
+							</button>
+						<?php else : ?>
+							<button type="button" class="button button-large" disabled>
+								<span class="dashicons dashicons-slides"></span>
+								<?php esc_html_e( 'No Images', 'photo-competition-manager' ); ?>
+							</button>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<!-- Voting Controls -->
+				<div class="control-group voting-controls">
+					<label class="control-label"><?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></label>
+					<div class="control-row">
+						<?php if ( $is_voting_open ) : ?>
+							<a href="<?php echo esc_url( $close_voting_url ); ?>" class="button button-large focus-panel-voting-btn voting-close">
+								<span class="dashicons dashicons-lock"></span>
+								<?php esc_html_e( 'Close Voting', 'photo-competition-manager' ); ?>
+							</a>
+						<?php else : ?>
+							<a href="<?php echo esc_url( $open_voting_url ); ?>" class="button button-primary button-large focus-panel-voting-btn voting-open">
+								<span class="dashicons dashicons-unlock"></span>
+								<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
+							</a>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<!-- Critique Mode -->
+				<div class="control-group critique-controls">
+					<label class="control-label"><?php esc_html_e( 'Critique', 'photo-competition-manager' ); ?></label>
+					<div class="control-row">
+						<?php if ( $image_count > 0 ) : ?>
+							<button type="button" class="button button-large photo-competition-manager-start-critique"
+								data-competition-id="<?php echo esc_attr( $active_competition->id ); ?>"
+								data-competition-slug="<?php echo esc_attr( $active_competition->slug ); ?>"
+								data-category="<?php echo esc_attr( $category_slug ); ?>"
+								data-category-label="<?php echo esc_attr( $category_label ); ?>"
+								title="<?php esc_attr_e( 'Manual slideshow for discussion - advance with Space or arrow keys', 'photo-competition-manager' ); ?>">
+								<span class="dashicons dashicons-format-chat"></span>
+								<?php esc_html_e( 'Critique Mode', 'photo-competition-manager' ); ?>
+							</button>
+						<?php else : ?>
+							<button type="button" class="button button-large" disabled>
+								<span class="dashicons dashicons-format-chat"></span>
+								<?php esc_html_e( 'No Images', 'photo-competition-manager' ); ?>
+							</button>
+						<?php endif; ?>
+					</div>
+				</div>
+			</div>
+
+			<p class="focus-panel-hint">
+				<?php if ( $is_voting_open ) : ?>
+					<span class="dashicons dashicons-info"></span>
+					<?php esc_html_e( 'Members can now vote. Start slideshow to display images, then close voting when done.', 'photo-competition-manager' ); ?>
+				<?php elseif ( ! $uploads_closed || $results_visible ) : ?>
+					<span class="dashicons dashicons-warning"></span>
+					<?php esc_html_e( 'Before voting: close uploads and hide results.', 'photo-competition-manager' ); ?>
+				<?php else : ?>
+					<span class="dashicons dashicons-info"></span>
+					<?php esc_html_e( 'Ready to vote. Preview slideshow, then open voting. Use critique mode after voting for discussion.', 'photo-competition-manager' ); ?>
+				<?php endif; ?>
+			</p>
+		</div>
+		<?php
 	}
 
 	/**
