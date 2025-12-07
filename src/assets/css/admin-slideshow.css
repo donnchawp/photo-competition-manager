@@ -189,24 +189,113 @@
 	word-break: break-all;
 }
 
-/* Focus Panel for Competition Night Workflow */
-.photo-comp-focus-panel {
-	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
-	border: 2px solid #2271b1;
-	border-radius: 8px;
-	padding: 24px;
-	margin: 20px 0;
-	max-width: 900px;
-	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
+/* ==========================================================================
+   VOTING CONTROLS PAGE - REDESIGNED LAYOUT
+   ========================================================================== */
+
+.photo-comp-voting-controls {
+	max-width: 960px;
 }
 
-/* Category tabs for switching between categories */
-.focus-panel-category-tabs {
+/* ==========================================================================
+   Competition Status Bar
+   ========================================================================== */
+
+.competition-status-bar {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 8px;
+	padding: 20px 24px;
+	margin: 20px 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 20px;
+}
+
+.status-bar-title {
+	flex: 1;
+	min-width: 200px;
+}
+
+.status-bar-title h2 {
+	margin: 0;
+	font-size: 1.3em;
+	color: #1d2327;
+}
+
+.status-bar-controls {
+	display: flex;
+	gap: 24px;
+	flex-wrap: wrap;
+}
+
+.status-control {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.status-control-label {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: #646970;
+}
+
+.status-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.status-pill .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+}
+
+.status-pill-success {
+	background: #d4edda;
+	color: #155724;
+}
+
+.status-pill-warning {
+	background: #fff3cd;
+	color: #856404;
+}
+
+.status-bar-warning {
+	flex-basis: 100%;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 10px 12px;
+	background: #fff8e5;
+	border: 1px solid #f0c33c;
+	border-radius: 4px;
+	font-size: 13px;
+	color: #856404;
+	margin-top: 4px;
+}
+
+.status-bar-warning .dashicons {
+	color: #dba617;
+}
+
+/* ==========================================================================
+   Category Tabs Bar
+   ========================================================================== */
+
+.category-tabs-bar {
 	display: flex;
 	gap: 8px;
-	margin-bottom: 16px;
-	padding-bottom: 16px;
-	border-bottom: 1px solid #dcdcde;
+	margin: 0 0 16px 0;
 	flex-wrap: wrap;
 }
 
@@ -214,10 +303,10 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	padding: 8px 14px;
+	padding: 10px 16px;
 	background: #f6f7f7;
 	border: 1px solid #dcdcde;
-	border-radius: 4px;
+	border-radius: 6px;
 	text-decoration: none;
 	color: #50575e;
 	font-size: 13px;
@@ -238,9 +327,20 @@
 	color: #fff;
 }
 
+.category-tab.is-voted .tab-check {
+	color: #00a32a;
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.category-tab.active.is-voted .tab-check {
+	color: #90ee90;
+}
+
 .category-tab .tab-count {
 	background: rgba(0, 0, 0, 0.1);
-	padding: 2px 6px;
+	padding: 2px 8px;
 	border-radius: 10px;
 	font-size: 11px;
 }
@@ -266,41 +366,40 @@
 	50% { opacity: 0.5; }
 }
 
-.focus-panel-header {
+/* ==========================================================================
+   Category Control Panel
+   ========================================================================== */
+
+.category-control-panel {
+	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
+	border: 2px solid #2271b1;
+	border-radius: 8px;
+	padding: 24px;
+	margin-bottom: 16px;
+	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
+}
+
+.control-panel-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
-	margin-bottom: 20px;
+	margin-bottom: 24px;
 	padding-bottom: 16px;
 	border-bottom: 1px solid #dcdcde;
 }
 
-.focus-panel-title {
-	flex: 1;
-}
-
-.focus-panel-label {
-	display: inline-block;
-	font-size: 11px;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: #2271b1;
-	margin-bottom: 4px;
-}
-
-.focus-panel-title h2 {
+.control-panel-title h3 {
 	margin: 0 0 4px 0;
-	font-size: 1.5em;
+	font-size: 1.4em;
 	color: #1d2327;
 }
 
-.focus-panel-image-count {
+.control-panel-meta {
 	color: #646970;
 	font-size: 13px;
 }
 
-.focus-panel-status {
+.control-panel-status {
 	flex-shrink: 0;
 }
 
@@ -320,60 +419,61 @@
 	height: 16px;
 }
 
-.status-badge.status-voting-open {
+.status-badge-voting {
 	background: #d4edda;
 	color: #155724;
 	border: 1px solid #c3e6cb;
 }
 
-.status-badge.status-ready {
+.status-badge-ready {
+	background: #e7f3ff;
+	color: #0a4b78;
+	border: 1px solid #b8daff;
+}
+
+.status-badge-setup {
 	background: #fff3cd;
 	color: #856404;
 	border: 1px solid #ffeeba;
 }
 
-.focus-panel-controls {
+.control-panel-body {
 	display: flex;
-	gap: 24px;
+	gap: 32px;
 	flex-wrap: wrap;
 }
 
-.focus-panel-controls-setup {
-	padding-bottom: 16px;
-	margin-bottom: 16px;
-	border-bottom: 1px solid #dcdcde;
-}
-
-.control-group {
+.control-section {
 	flex: 1;
-	min-width: 200px;
+	min-width: 280px;
 }
 
-.control-label {
-	display: block;
+.section-header {
+	margin-bottom: 12px;
+}
+
+.section-label {
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	color: #646970;
-	margin-bottom: 8px;
 }
 
-.control-row {
+.section-content {
 	display: flex;
-	gap: 8px;
-	align-items: center;
-	flex-wrap: wrap;
+	flex-direction: column;
+	gap: 12px;
 }
 
 .duration-presets {
 	display: flex;
-	gap: 4px;
-	margin-right: 8px;
+	gap: 6px;
+	flex-wrap: wrap;
 }
 
 .duration-presets .button {
-	padding: 4px 10px;
+	padding: 6px 12px;
 	min-width: auto;
 	font-size: 12px;
 }
@@ -384,97 +484,355 @@
 	color: #fff;
 }
 
-.focus-panel-slideshow-btn,
-.focus-panel-voting-btn,
-.photo-competition-manager-start-critique {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
+.slideshow-buttons {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
 }
 
-.focus-panel-slideshow-btn .dashicons,
-.focus-panel-voting-btn .dashicons,
-.photo-competition-manager-start-critique .dashicons {
+.slideshow-buttons .button .dashicons {
 	font-size: 18px;
 	width: 18px;
 	height: 18px;
 	line-height: 18px;
 	position: relative;
-	top: 5px;
+	top: 4px;
+	margin-right: 4px;
 }
 
-.focus-panel-voting-btn.voting-close {
+.voting-button .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+	line-height: 18px;
+	position: relative;
+	top: 11px;
+	margin-right: 4px;
+}
+
+.voting-section {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.voting-section .section-header {
+	text-align: center;
+}
+
+.voting-section .section-content {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.voting-button.button-hero {
+	padding: 16px 40px;
+	font-size: 16px;
+	font-weight: 600;
+	height: auto;
+	border-radius: 6px;
+	border-width: 2px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	transition: all 0.2s ease;
+}
+
+.voting-button.button-hero:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.voting-button.button-hero:active {
+	transform: translateY(0);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.voting-button.voting-close {
 	background: #d63638;
-	border-color: #d63638;
+	border-color: #b32d2e;
 	color: #fff;
 }
 
-.focus-panel-voting-btn.voting-close:hover {
+.voting-button.voting-close:hover {
 	background: #b32d2e;
-	border-color: #b32d2e;
+	border-color: #8a2324;
 }
 
-/* Status indicators for Uploads/Results */
-.status-indicator {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	font-size: 13px;
-	font-weight: 500;
-	padding: 4px 8px;
-	border-radius: 4px;
+.voting-button.voting-open {
+	background: #00a32a;
+	border-color: #008a20;
 }
 
-.status-indicator .dashicons {
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-	line-height: 16px;
+.voting-button.voting-open:hover {
+	background: #008a20;
+	border-color: #006818;
 }
 
-.status-indicator.status-closed,
-.status-indicator.status-hidden {
-	background: #fef1f1;
-	color: #d63638;
-}
-
-.status-indicator.status-open {
-	background: #edfaef;
-	color: #00a32a;
-}
-
-.status-indicator.status-visible {
-	background: #fff8e5;
-	color: #996800;
-}
-
-.focus-panel-hint {
+.control-panel-hint {
 	display: flex;
 	align-items: flex-start;
 	gap: 6px;
-	margin: 16px 0 0 0;
-	padding: 12px;
+	margin: 20px 0 0 0;
+	padding: 12px 16px;
 	background: #f6f7f7;
 	border-radius: 4px;
 	font-size: 13px;
 	color: #646970;
 }
 
-.focus-panel-hint .dashicons {
+.control-panel-hint .dashicons {
 	flex-shrink: 0;
 }
 
-.focus-panel-hint .dashicons-info {
+.control-panel-hint .dashicons-info {
 	color: #2271b1;
 }
 
-.focus-panel-hint .dashicons-warning {
+.control-panel-hint .dashicons-warning {
 	color: #dba617;
 }
 
-.focus-panel-hint:has(.dashicons-warning) {
+.control-panel-hint:has(.dashicons-warning) {
 	background: #fff8e5;
 	border: 1px solid #f0c33c;
+}
+
+/* ==========================================================================
+   Quick Actions Bar
+   ========================================================================== */
+
+.quick-actions-bar {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 6px;
+	margin-bottom: 20px;
+}
+
+.quick-actions-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 12px 16px;
+	background: transparent;
+	border: none;
+	font-size: 13px;
+	font-weight: 600;
+	color: #50575e;
+	cursor: pointer;
+	text-align: left;
+}
+
+.quick-actions-toggle:hover {
+	color: #2271b1;
+}
+
+.quick-actions-toggle .dashicons {
+	transition: transform 0.2s ease;
+}
+
+.quick-actions-toggle[aria-expanded="true"] .dashicons {
+	transform: rotate(90deg);
+}
+
+.quick-actions-content {
+	padding: 16px;
+	border-top: 1px solid #dcdcde;
+}
+
+.quick-actions-buttons {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.quick-actions-buttons .button .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	position: relative;
+	top: 3px;
+	margin-right: 4px;
+}
+
+.qr-code-panel {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px solid #dcdcde;
+}
+
+.qr-code-container {
+	display: flex;
+	align-items: center;
+	gap: 24px;
+	flex-wrap: wrap;
+}
+
+.qr-code-canvas {
+	width: 600px;
+	height: 600px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+}
+
+.qr-code-canvas canvas,
+.qr-code-canvas img {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.qr-code-details h4 {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+}
+
+.qr-code-details p {
+	margin: 0 0 12px 0;
+}
+
+.qr-code-details a {
+	word-break: break-all;
+}
+
+.copy-url-btn .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	position: relative;
+	top: 2px;
+	margin-right: 4px;
+}
+
+/* ==========================================================================
+   Competition Complete Panel
+   ========================================================================== */
+
+.competition-complete-panel {
+	background: linear-gradient(135deg, #d4edda 0%, #fff 100%);
+	border: 2px solid #00a32a;
+	border-radius: 8px;
+	padding: 32px;
+	margin-bottom: 16px;
+	text-align: center;
+}
+
+.complete-header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	margin-bottom: 24px;
+}
+
+.complete-header .dashicons {
+	font-size: 48px;
+	width: 48px;
+	height: 48px;
+	color: #00a32a;
+}
+
+.complete-header h2 {
+	margin: 0;
+	font-size: 1.6em;
+	color: #155724;
+}
+
+.complete-body {
+	max-width: 500px;
+	margin: 0 auto;
+}
+
+.complete-competition {
+	font-size: 1.2em;
+	font-weight: 600;
+	color: #1d2327;
+	margin-bottom: 16px;
+}
+
+.complete-categories {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 24px 0;
+	text-align: left;
+}
+
+.complete-category-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: rgba(255, 255, 255, 0.7);
+	border-radius: 4px;
+	margin-bottom: 4px;
+}
+
+.complete-category-item .dashicons {
+	color: #00a32a;
+}
+
+.complete-category-item .category-count {
+	color: #646970;
+	font-size: 12px;
+	margin-left: auto;
+}
+
+.complete-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	align-items: center;
+}
+
+.results-status {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.results-label {
+	font-weight: 600;
+	color: #646970;
+}
+
+.results-links {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.results-links .button .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	position: relative;
+	top: 3px;
+	margin-right: 4px;
+}
+
+/* ==========================================================================
+   Legacy styles retained for backward compatibility
+   ========================================================================== */
+
+/* Focus Panel for Competition Night Workflow - DEPRECATED, kept for reference */
+.photo-comp-focus-panel {
+	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
+	border: 2px solid #2271b1;
+	border-radius: 8px;
+	padding: 24px;
+	margin: 20px 0;
+	max-width: 900px;
+	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
 }
 
 /* Responsive adjustments */

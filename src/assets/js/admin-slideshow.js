@@ -27,10 +27,15 @@
 			this.progressInterval = null;
 			this.startTime = 0;
 
+			// Critique mode state
+			this.isInCritiqueMode = false;
+			this.previousDuration = 10; // Store previous duration before critique mode
+
 			// Image pre-caching
 			this.imageCache = new Map();
 
 			this.bindEvents();
+			this.initQuickActions();
 		}
 
 		getDisplayDuration() {
@@ -57,6 +62,11 @@
 				// Update active state on preset buttons
 				$('.duration-presets .button').removeClass('active');
 				$btn.addClass('active');
+
+				// If not in critique mode, store this as the previous duration
+				if (!self.isInCritiqueMode && duration > 0) {
+					self.previousDuration = duration;
+				}
 			});
 
 			// Start slideshow buttons
@@ -66,6 +76,9 @@
 				const competitionSlug = $btn.data('competition-slug');
 				const category = $btn.data('category');
 				const categoryLabel = $btn.data('category-label');
+
+				// Clear critique mode flag
+				self.isInCritiqueMode = false;
 
 				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
 			});
@@ -77,6 +90,15 @@
 				const competitionSlug = $btn.data('competition-slug');
 				const category = $btn.data('category');
 				const categoryLabel = $btn.data('category-label');
+
+				// Store current duration before switching to critique mode
+				const currentDuration = parseInt($('#slideshow-duration-setting').val(), 10);
+				if (currentDuration > 0) {
+					self.previousDuration = currentDuration;
+				}
+
+				// Set critique mode flag
+				self.isInCritiqueMode = true;
 
 				// Set duration to 0 for manual mode
 				$('#slideshow-duration-setting').val(0);
@@ -126,6 +148,85 @@
 						self.previousImage();
 						break;
 				}
+			});
+		}
+
+		/**
+		 * Initialize quick actions panel functionality.
+		 */
+		initQuickActions() {
+			const self = this;
+
+			// Quick actions toggle
+			$(document).on('click', '.quick-actions-toggle', function() {
+				const $toggle = $(this);
+				const $content = $('#quick-actions-content');
+				const isExpanded = $toggle.attr('aria-expanded') === 'true';
+
+				$toggle.attr('aria-expanded', !isExpanded);
+				$content.slideToggle(200);
+
+				// Store preference in localStorage
+				localStorage.setItem('photoCompQuickActionsExpanded', !isExpanded ? '1' : '0');
+			});
+
+			// Restore quick actions state from localStorage
+			const savedState = localStorage.getItem('photoCompQuickActionsExpanded');
+			if (savedState === '1') {
+				$('.quick-actions-toggle').attr('aria-expanded', 'true');
+				$('#quick-actions-content').show();
+			}
+
+			// QR code toggle button
+			$(document).on('click', '.quick-action-qr', function() {
+				const $panel = $('#qr-code-panel');
+				$panel.slideToggle(200);
+
+				// Generate QR code if not already done
+				if (!$panel.data('qr-generated')) {
+					self.generateQuickActionsQR();
+					$panel.data('qr-generated', true);
+				}
+			});
+
+			// Copy URL button
+			$(document).on('click', '.copy-url-btn', function() {
+				const url = $(this).data('url');
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(url).then(function() {
+						// Show brief success feedback
+						const $btn = $('.copy-url-btn');
+						const originalText = $btn.html();
+						$btn.html('<span class="dashicons dashicons-yes"></span> Copied!');
+						setTimeout(function() {
+							$btn.html(originalText);
+						}, 2000);
+					});
+				}
+			});
+		}
+
+		/**
+		 * Generate QR code for quick actions panel.
+		 */
+		generateQuickActionsQR() {
+			const $container = $('.qr-code-container');
+			const votingUrl = $container.data('voting-url');
+
+			if (!votingUrl || typeof QRCode === 'undefined') {
+				return;
+			}
+
+			const $canvas = $container.find('.qr-code-canvas');
+			$canvas.empty();
+
+			new QRCode($canvas[0], {
+				text: votingUrl,
+				width: 560,
+				height: 560,
+				colorDark: '#000000',
+				colorLight: '#ffffff',
+				correctLevel: QRCode.CorrectLevel.M
 			});
 		}
 
@@ -216,6 +317,18 @@
 			this.isRunning = false;
 			this.isPaused = false;
 			this.stopAutoAdvance();
+
+			// If we were in critique mode, restore the previous duration
+			if (this.isInCritiqueMode && this.previousDuration > 0) {
+				$('#slideshow-duration-setting').val(this.previousDuration);
+
+				// Update active state on preset buttons
+				$('.duration-presets .button').removeClass('active');
+				$('.duration-presets .button[data-duration="' + this.previousDuration + '"]').addClass('active');
+
+				// Clear critique mode flag
+				this.isInCritiqueMode = false;
+			}
 
 			// Hide display
 			this.$display.fadeOut(300);
