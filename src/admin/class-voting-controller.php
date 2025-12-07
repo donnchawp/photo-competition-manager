@@ -1125,7 +1125,13 @@ class Voting_Controller {
 				<!-- Voting Section -->
 				<div class="control-section voting-section">
 					<div class="section-header">
-						<span class="section-label"><?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></span>
+						<span class="section-label">
+							<?php if ( $is_voting_open ) : ?>
+								<?php esc_html_e( 'Voting is Open', 'photo-competition-manager' ); ?>
+							<?php else : ?>
+								<?php esc_html_e( 'Voting is Closed', 'photo-competition-manager' ); ?>
+							<?php endif; ?>
+						</span>
 					</div>
 					<div class="section-content">
 						<?php if ( $is_voting_open ) : ?>
