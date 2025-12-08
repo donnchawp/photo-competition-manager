@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Image_Processor;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
@@ -101,15 +102,23 @@ class Email_Results_Job_Manager {
 	private $email_service;
 
 	/**
+	 * Image processor.
+	 *
+	 * @var Image_Processor
+	 */
+	private $image_processor;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository $competitions   Competitions repository.
-	 * @param Images_Repository       $images         Images repository.
-	 * @param Members_Repository      $members        Members repository.
-	 * @param Votes_Repository        $votes          Votes repository.
-	 * @param Results_Analytics       $analytics      Results analytics service.
-	 * @param Score_Calculator        $calculator     Score calculator service.
-	 * @param Email_Service           $email_service  Email service.
+	 * @param Competitions_Repository $competitions    Competitions repository.
+	 * @param Images_Repository       $images          Images repository.
+	 * @param Members_Repository      $members         Members repository.
+	 * @param Votes_Repository        $votes           Votes repository.
+	 * @param Results_Analytics       $analytics       Results analytics service.
+	 * @param Score_Calculator        $calculator      Score calculator service.
+	 * @param Email_Service           $email_service   Email service.
+	 * @param Image_Processor|null    $image_processor Image processor (optional).
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -118,15 +127,17 @@ class Email_Results_Job_Manager {
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
-		Email_Service $email_service
+		Email_Service $email_service,
+		?Image_Processor $image_processor = null
 	) {
-		$this->competitions  = $competitions;
-		$this->images        = $images;
-		$this->members       = $members;
-		$this->votes         = $votes;
-		$this->analytics     = $analytics;
-		$this->calculator    = $calculator;
-		$this->email_service = $email_service;
+		$this->competitions    = $competitions;
+		$this->images          = $images;
+		$this->members         = $members;
+		$this->votes           = $votes;
+		$this->analytics       = $analytics;
+		$this->calculator      = $calculator;
+		$this->email_service   = $email_service;
+		$this->image_processor = $image_processor ?? new Image_Processor();
 	}
 
 	/**
@@ -256,6 +267,9 @@ class Email_Results_Job_Manager {
 				'images' => array(),
 			);
 
+			// Get the member's grade.
+			$member_grade = ! empty( $member->grade ) ? $member->grade : '';
+
 			foreach ( $categories as $category ) {
 				$category_slug  = $category['slug'] ?? '';
 				$category_label = $category['label'] ?? $category_slug;
@@ -266,16 +280,52 @@ class Email_Results_Job_Manager {
 
 				$results = $this->calculator->get_results( $competition_id, $category_slug );
 
-				// Find this member's images in the results.
-				$rank = 1;
+				// Build a members lookup for grade filtering.
+				$members_lookup = array();
 				foreach ( $results as $result ) {
+					$result_member_id = (int) $result->member_id;
+					if ( ! isset( $members_lookup[ $result_member_id ] ) ) {
+						$members_lookup[ $result_member_id ] = $this->members->find( $result_member_id );
+					}
+				}
+
+				// Filter results to only include images from the member's grade.
+				$grade_results = array();
+				if ( ! empty( $member_grade ) ) {
+					foreach ( $results as $result ) {
+						$result_member_id = (int) $result->member_id;
+						$result_member    = $members_lookup[ $result_member_id ] ?? null;
+						if ( $result_member && $result_member->grade === $member_grade ) {
+							$grade_results[] = $result;
+						}
+					}
+				} else {
+					// If member has no grade, fall back to all results.
+					$grade_results = $results;
+				}
+
+				$total_in_grade = count( $grade_results );
+
+				// Find this member's images in the grade results.
+				$rank = 1;
+				foreach ( $grade_results as $result ) {
 					if ( (int) $result->member_id === (int) $member_id ) {
 						$image_details = $this->analytics->get_image_details( (int) $result->id );
+
+						// Get thumbnail URL.
+						$thumbnail_url = $this->image_processor->get_thumbnail_url(
+							$competition->slug,
+							$category_slug,
+							$result->filename
+						);
 
 						$member_results['images'][] = array(
 							'category_label' => $category_label,
 							'image_number'   => $result->random_number,
 							'rank'           => $rank,
+							'total_in_grade' => $total_in_grade,
+							'grade'          => $member_grade,
+							'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
 							'statistics'     => $image_details['statistics'],
 							'votes'          => $image_details['votes'],
 						);

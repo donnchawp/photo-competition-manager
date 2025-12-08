@@ -571,10 +571,31 @@ class Email_Service {
 								?>
 							</h3>
 
+							<?php if ( ! empty( $image_data['thumbnail_url'] ) ) : ?>
+								<div style="margin-bottom: 15px;">
+									<img src="<?php echo esc_url( $image_data['thumbnail_url'] ); ?>" alt="<?php esc_attr_e( 'Your submitted image', 'photo-competition-manager' ); ?>" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;">
+								</div>
+							<?php endif; ?>
+
 							<table style="width: 100%; border-collapse: collapse;">
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php esc_html_e( 'Rank:', 'photo-competition-manager' ); ?></td>
-									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['rank'] ); ?></td>
+									<td style="padding: 8px 0;">
+										<?php
+										$rank_display = $image_data['rank'];
+										if ( ! empty( $image_data['total_in_grade'] ) ) {
+											$rank_display .= ' ' . sprintf(
+												/* translators: %d: Total number of images in the grade */
+												__( 'of %d', 'photo-competition-manager' ),
+												$image_data['total_in_grade']
+											);
+										}
+										if ( ! empty( $image_data['grade'] ) ) {
+											$rank_display .= ' (' . esc_html( $image_data['grade'] ) . ')';
+										}
+										echo esc_html( $rank_display );
+										?>
+									</td>
 								</tr>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
