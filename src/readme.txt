@@ -17,7 +17,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 **Core Features**
 
 * **Member Management** – Maintain active rosters, assign grades, track member status, and bulk import/update via CSV
-* **Competition Setup** – Create recurring competitions with custom categories, grade divisions, submission quotas, and scoring matrices
+* **Competition Setup** – Create competitions with custom categories, grade divisions, submission quotas, and scoring matrices
 * **Secure Submissions** – Members upload via magic-link authentication with automatic file validation, resizing, and quota enforcement
 * **Flexible Voting** – Token-based member voting, password-protected public voting, and full-screen slideshow mode for in-person club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
@@ -121,7 +121,7 @@ Absolutely. Set default categories, grades, quotas, and scoring matrices in **Co
 
 = Can I hide member names in the results? =
 
-Yes. When configuring a competition's settings, enable "Hide member names in public results" to show only image numbers and scores. Perfect for anonymous judging or when members prefer privacy.
+Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names.
 
 = Does it work on mobile devices? =
 
