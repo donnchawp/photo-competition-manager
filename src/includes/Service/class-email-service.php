@@ -73,7 +73,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 		// Log the email.
 		if ( $result && $this->event_logger ) {
 			$this->event_logger->log_email_sent(
@@ -124,7 +124,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -295,7 +295,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -352,7 +352,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -409,7 +409,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -457,7 +457,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -508,7 +508,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $subject, $message, $headers );
+		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -696,6 +696,17 @@ class Email_Service {
 	 */
 	private function replace_merge_tags( string $content, array $merge_data ): string {
 		return str_replace( array_keys( $merge_data ), array_values( $merge_data ), $content );
+	}
+
+	/**
+	 * Prefix email subject with site title.
+	 *
+	 * @param string $subject The email subject.
+	 * @return string Subject prefixed with [Site Title].
+	 */
+	private function prefix_subject( string $subject ): string {
+		$site_title = get_bloginfo( 'name' );
+		return sprintf( '[%s] %s', $site_title, $subject );
 	}
 
 	/**
