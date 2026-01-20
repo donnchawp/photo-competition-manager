@@ -36,10 +36,6 @@ class Logs_Repository extends Abstract_Repository {
 	public function create( array $data ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
-
 		$defaults = array(
 			'competition_id' => null,
 			'event_type'     => '',
@@ -91,10 +87,6 @@ class Logs_Repository extends Abstract_Repository {
 	public function find_by_competition( int $competition_id, int $limit = 50, int $offset = 0, array $filters = array() ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
 
@@ -139,10 +131,6 @@ class Logs_Repository extends Abstract_Repository {
 	 */
 	public function paginate( int $limit = 50, int $offset = 0, array $filters = array() ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		$query        = 'SELECT * FROM %i WHERE 1=1';
 		$prepare_args = array( $this->table() );
@@ -192,10 +180,6 @@ class Logs_Repository extends Abstract_Repository {
 	public function count( array $filters = array() ): int {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return 0;
-		}
-
 		$query        = 'SELECT COUNT(*) FROM %i WHERE 1=1';
 		$prepare_args = array( $this->table() );
 
@@ -238,10 +222,6 @@ class Logs_Repository extends Abstract_Repository {
 	public function delete_older_than( string $date ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
-
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 		return $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s', $this->table(), $date ) );
 	}
@@ -253,10 +233,6 @@ class Logs_Repository extends Abstract_Repository {
 	 */
 	public function get_event_categories(): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 		$results = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT event_category FROM %i ORDER BY event_category ASC', $this->table() ) );
@@ -271,10 +247,6 @@ class Logs_Repository extends Abstract_Repository {
 	 */
 	public function get_event_types(): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 		$results = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT event_type FROM %i ORDER BY event_type ASC', $this->table() ) );

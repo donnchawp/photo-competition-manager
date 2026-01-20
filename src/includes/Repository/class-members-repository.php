@@ -29,10 +29,6 @@ class Members_Repository extends Abstract_Repository {
 	public function all( int $limit = 1000, bool $only_active = true ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		$query  = 'SELECT * FROM %i';
 		$query .= $only_active ? ' WHERE active = 1 ' : ' ';
 		$query .= 'ORDER BY name ASC LIMIT %d';
@@ -57,7 +53,7 @@ class Members_Repository extends Abstract_Repository {
 	public function find( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return null;
 		}
 
@@ -83,7 +79,7 @@ class Members_Repository extends Abstract_Repository {
 	public function find_by_email( string $email ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || ! is_email( $email ) ) {
+		if ( ! is_email( $email ) ) {
 			return null;
 		}
 
@@ -108,10 +104,6 @@ class Members_Repository extends Abstract_Repository {
 	 */
 	public function find_many( array $ids ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		$ids = array_unique( array_filter( array_map( 'absint', $ids ) ) );
 
@@ -139,10 +131,6 @@ class Members_Repository extends Abstract_Repository {
 	 */
 	public function create( array $data ) {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return new WP_Error( 'missing_table', __( 'Members table not available. Reactivate the plugin.', 'photo-competition-manager' ) );
-		}
 
 		$name  = isset( $data['name'] ) ? sanitize_text_field( (string) $data['name'] ) : '';
 		$email = isset( $data['email'] ) ? sanitize_email( (string) $data['email'] ) : '';
@@ -194,7 +182,7 @@ class Members_Repository extends Abstract_Repository {
 	public function update( int $id, array $data ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
@@ -281,7 +269,7 @@ class Members_Repository extends Abstract_Repository {
 	public function delete( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 

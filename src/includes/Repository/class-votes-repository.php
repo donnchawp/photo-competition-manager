@@ -41,10 +41,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, int $score ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return new WP_Error( 'table_missing', __( 'Votes table does not exist.', 'photo-competition-manager' ) );
-		}
-
 		if ( $voting_token_id <= 0 ) {
 			return new WP_Error( 'missing_token_id', __( 'Voting token ID is required.', 'photo-competition-manager' ) );
 		}
@@ -87,10 +83,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function create( int $competition_id, string $category, string $voter_name, int $image_id, int $score ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return new WP_Error( 'table_missing', __( 'Votes table does not exist.', 'photo-competition-manager' ) );
-		}
-
 		if ( empty( $voter_name ) ) {
 			return new WP_Error( 'missing_voter_name', __( 'Voter name is required.', 'photo-competition-manager' ) );
 		}
@@ -130,10 +122,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function find_by_competition( int $competition_id, ?string $category = null ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
 
@@ -157,10 +145,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function find_by_image( int $image_id ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE image_id = %d ORDER BY created_at DESC',
@@ -181,10 +165,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function has_voted_with_token( int $voting_token_id ): bool {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
@@ -209,10 +189,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function delete_by_token( int $voting_token_id ): void {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return;
-		}
-
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->delete(
 			$this->table(),
@@ -231,10 +207,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function delete_by_voter( int $competition_id, string $category, string $voter_name ): void {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return;
-		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->delete(
@@ -256,10 +228,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function get_votes_by_token( int $voting_token_id ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
@@ -294,10 +262,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function get_votes_by_voter( int $competition_id, string $category, string $voter_name ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
@@ -335,10 +299,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function has_voted( int $competition_id, string $category, string $voter_name ): bool {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
 			'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s AND voter_name = %s',
@@ -364,10 +324,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function calculate_averages( int $competition_id, ?string $category = null ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		$query        = 'SELECT image_id, SUM(score) as total_score, AVG(score) as average_score, COUNT(*) as vote_count FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
@@ -408,10 +364,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function delete_by_competition( int $competition_id ): bool {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
-
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$deleted = $wpdb->delete(
 			$this->table(),
@@ -430,10 +382,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function get_voters( int $competition_id ): array {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
@@ -458,10 +406,6 @@ class Votes_Repository extends Abstract_Repository {
 	public function get_votes_by_competition( int $competition_id ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		// phpcs:disable WordPress.DB.PreparedSQL
 		$sql = $wpdb->prepare(
 			'SELECT * FROM %i WHERE competition_id = %d ORDER BY voter_name, created_at',
@@ -482,10 +426,6 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	public function delete_by_image( int $image_id ): bool {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return false;
-		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$deleted = $wpdb->delete(

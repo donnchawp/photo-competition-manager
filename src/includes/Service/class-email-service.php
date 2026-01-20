@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Email_Configuration;
+
 /**
  * Class Email_Service
  *
@@ -73,7 +75,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 		// Log the email.
 		if ( $result && $this->event_logger ) {
 			$this->event_logger->log_email_sent(
@@ -124,7 +126,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -295,7 +297,7 @@ class Email_Service {
 			'Content-Type: text/html; charset=UTF-8',
 		);
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -352,7 +354,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -409,7 +411,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -457,7 +459,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -508,7 +510,7 @@ class Email_Service {
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
-		$result = wp_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
 
 		// Log the email.
 		if ( $result && $this->event_logger ) {
@@ -743,5 +745,23 @@ class Email_Service {
 		</html>
 		<?php
 		return ob_get_clean();
+	}
+
+	/**
+	 * Send an email with plugin context flag set.
+	 *
+	 * Wraps wp_mail to ensure Email_Configuration knows this is a plugin email.
+	 *
+	 * @param string       $to      Recipient email address.
+	 * @param string       $subject Email subject.
+	 * @param string       $message Email body.
+	 * @param array|string $headers Optional headers.
+	 * @return bool Whether the email was sent successfully.
+	 */
+	private function send_mail( string $to, string $subject, string $message, $headers = array() ): bool {
+		Email_Configuration::begin_plugin_email();
+		$result = wp_mail( $to, $subject, $message, $headers );
+		Email_Configuration::end_plugin_email();
+		return $result;
 	}
 }

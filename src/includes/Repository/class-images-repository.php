@@ -30,7 +30,7 @@ class Images_Repository extends Abstract_Repository {
 	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return array();
 		}
 
@@ -62,7 +62,7 @@ class Images_Repository extends Abstract_Repository {
 	public function find_by_member( int $member_id ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $member_id <= 0 ) {
+		if ( $member_id <= 0 ) {
 			return array();
 		}
 
@@ -86,7 +86,7 @@ class Images_Repository extends Abstract_Repository {
 	public function find( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return null;
 		}
 
@@ -112,10 +112,6 @@ class Images_Repository extends Abstract_Repository {
 	public function count_by_member_category( int $competition_id, int $member_id, ?string $category = null ): int {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return 0;
-		}
-
 		$query        = 'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND member_id = %d';
 		$prepare_args = array( $this->table(), $competition_id, $member_id );
 
@@ -137,10 +133,6 @@ class Images_Repository extends Abstract_Repository {
 	 */
 	public function get_next_random_number( int $competition_id, string $category ): int {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return 1;
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$max = $wpdb->get_var(
@@ -168,10 +160,6 @@ class Images_Repository extends Abstract_Repository {
 	 */
 	public function get_member_random_number( int $competition_id, int $member_id ): int {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return 1;
-		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$existing = $wpdb->get_var(
@@ -212,7 +200,7 @@ class Images_Repository extends Abstract_Repository {
 	public function regenerate_member_numbers( int $competition_id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 
@@ -270,10 +258,6 @@ class Images_Repository extends Abstract_Repository {
 	public function create( array $data ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return new WP_Error( 'missing_table', __( 'Images table is not available.', 'photo-competition-manager' ) );
-		}
-
 		$competition_id = isset( $data['competition_id'] ) ? absint( $data['competition_id'] ) : 0;
 		$member_id      = isset( $data['member_id'] ) ? absint( $data['member_id'] ) : 0;
 		$category       = isset( $data['category'] ) ? sanitize_text_field( $data['category'] ) : '';
@@ -323,7 +307,7 @@ class Images_Repository extends Abstract_Repository {
 	public function update_score( int $id, int $score ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
@@ -362,7 +346,7 @@ class Images_Repository extends Abstract_Repository {
 	public function update_category( int $id, string $category ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
@@ -402,7 +386,7 @@ class Images_Repository extends Abstract_Repository {
 	public function delete( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
@@ -439,7 +423,7 @@ class Images_Repository extends Abstract_Repository {
 	public function delete_by_competition( int $competition_id ): bool {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return false;
 		}
 
@@ -468,10 +452,6 @@ class Images_Repository extends Abstract_Repository {
 	public function get_all_images_with_uploader_info(): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $wpdb->get_results(
 			$wpdb->prepare(
@@ -492,7 +472,7 @@ class Images_Repository extends Abstract_Repository {
 	public function get_original_attachment_ids( int $competition_id ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return array();
 		}
 
@@ -520,7 +500,7 @@ class Images_Repository extends Abstract_Repository {
 	public function clear_original_attachment_ids( int $competition_id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 

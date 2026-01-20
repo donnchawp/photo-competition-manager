@@ -9,11 +9,6 @@ namespace PhotoCompetitionManager\Admin;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use PhotoCompetitionManager\Repository\Competitions_Repository;
-use PhotoCompetitionManager\Repository\Images_Repository;
-use PhotoCompetitionManager\Repository\Logs_Repository;
-use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Votes_Repository;
 
 /**
  * Orchestrate admin menus and delegate to specialized controllers.
@@ -94,32 +89,32 @@ class Admin_Screen {
 
 	/**
 	 * Constructor.
+	 *
+	 * @param Admin_Dependencies|null $deps Optional dependencies container.
 	 */
-	public function __construct() {
-		// Initialize repositories.
-		$competitions = new Competitions_Repository();
-		$members      = new Members_Repository();
-		$images       = new Images_Repository();
-		$votes        = new Votes_Repository();
-		$logs         = new Logs_Repository();
-
-		// Initialize services.
-		$analytics        = new \PhotoCompetitionManager\Service\Results_Analytics( $competitions, $images, $members, $votes );
-		$score_calculator = new \PhotoCompetitionManager\Service\Score_Calculator( $images, $votes );
-		$email_service    = new \PhotoCompetitionManager\Service\Email_Service();
-		$email_job_mgr    = new \PhotoCompetitionManager\Service\Email_Results_Job_Manager( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service );
+	public function __construct( ?Admin_Dependencies $deps = null ) {
+		$deps = $deps ?? new Admin_Dependencies();
 
 		// Initialize controllers with their dependencies.
-		$this->competitions_controller    = new Competitions_Controller( $competitions );
-		$this->members_controller         = new Members_Controller( $competitions, $members );
-		$this->submissions_controller     = new Submissions_Controller( $competitions, $members, $images, $votes );
-		$this->voting_controller          = new Voting_Controller( $competitions, $images );
-		$this->settings_controller        = new Settings_Controller( $competitions, $members );
+		$this->competitions_controller    = new Competitions_Controller( $deps->competitions );
+		$this->members_controller         = new Members_Controller( $deps->competitions, $deps->members );
+		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
+		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images );
+		$this->settings_controller        = new Settings_Controller( $deps->competitions, $deps->members );
 		$this->export_screen              = new Export_Screen();
-		$this->results_controller         = new Results_Controller( $competitions, $images, $members, $votes, $analytics, $score_calculator, $email_service, $email_job_mgr );
+		$this->results_controller         = new Results_Controller(
+			$deps->competitions,
+			$deps->images,
+			$deps->members,
+			$deps->votes,
+			$deps->analytics,
+			$deps->score_calculator,
+			$deps->email_service,
+			$deps->email_job_manager
+		);
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
 		$this->email_templates_controller = new Email_Templates_Controller();
-		$this->logs_controller            = new Logs_Controller( $logs, $competitions );
+		$this->logs_controller            = new Logs_Controller( $deps->logs, $deps->competitions );
 	}
 
 	/**

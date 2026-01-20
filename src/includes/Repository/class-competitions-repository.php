@@ -32,10 +32,6 @@ class Competitions_Repository extends Abstract_Repository {
 	public function all( int $limit = 20, bool $include_archived = false, bool $only_archived = false ): array {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return array();
-		}
-
 		if ( $only_archived ) {
 			$conditions = 'deleted_at IS NOT NULL';
 		} elseif ( $include_archived ) {
@@ -57,10 +53,6 @@ class Competitions_Repository extends Abstract_Repository {
 	public function count( bool $only_archived = false ): int {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return 0;
-		}
-
 		$condition = $only_archived ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $condition is a hardcoded string.
@@ -77,7 +69,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find( int $id, bool $include_archived = false ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return null;
 		}
 
@@ -110,7 +102,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find_by_slug( string $slug, bool $include_archived = false ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || empty( $slug ) ) {
+		if ( empty( $slug ) ) {
 			return null;
 		}
 
@@ -143,10 +135,6 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find_current_active() {
 		global $wpdb;
 
-		if ( ! $this->table_exists() ) {
-			return null;
-		}
-
 		$current = utc_time();
 
 		// phpcs:disable WordPress.DB.PreparedSQL
@@ -171,10 +159,6 @@ class Competitions_Repository extends Abstract_Repository {
 	 */
 	public function create( array $data ) {
 		global $wpdb;
-
-		if ( ! $this->table_exists() ) {
-			return new WP_Error( 'missing_table', __( 'Competition table is not available. Activate the plugin again.', 'photo-competition-manager' ) );
-		}
 
 		$title = isset( $data['title'] ) ? sanitize_text_field( (string) $data['title'] ) : '';
 
@@ -234,7 +218,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function update( int $id, array $data ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
@@ -306,7 +290,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function archive( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
@@ -338,7 +322,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function restore( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
@@ -378,7 +362,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function delete( int $id ) {
 		global $wpdb;
 
-		if ( ! $this->table_exists() || $id <= 0 ) {
+		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
@@ -485,7 +469,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * @return array{success: bool, sent_count: int, total_count: int, message: string}|WP_Error
 	 */
 	public function send_submission_reminder_emails( $competition_id ) {
-		if ( ! $this->table_exists() || $competition_id <= 0 ) {
+		if ( $competition_id <= 0 ) {
 			return new WP_Error(
 				'invalid_competition',
 				__( 'Competition not found.', 'photo-competition-manager' )

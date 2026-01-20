@@ -19,6 +19,35 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 class Email_Configuration {
 
 	/**
+	 * Flag indicating if the current email is being sent by this plugin.
+	 *
+	 * @var bool
+	 */
+	private static $is_sending_plugin_email = false;
+
+	/**
+	 * Mark the start of sending a plugin email.
+	 *
+	 * Call this before wp_mail() in Email_Service.
+	 *
+	 * @return void
+	 */
+	public static function begin_plugin_email(): void {
+		self::$is_sending_plugin_email = true;
+	}
+
+	/**
+	 * Mark the end of sending a plugin email.
+	 *
+	 * Call this after wp_mail() in Email_Service.
+	 *
+	 * @return void
+	 */
+	public static function end_plugin_email(): void {
+		self::$is_sending_plugin_email = false;
+	}
+
+	/**
 	 * Initialize email configuration hooks.
 	 *
 	 * @return void
@@ -80,16 +109,7 @@ class Email_Configuration {
 	 * @return bool True if this is a plugin email, false otherwise.
 	 */
 	private static function is_plugin_email(): bool {
-		// Get the call stack to determine if Email_Service is in the chain.
-		$backtrace = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS, 15 ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace
-
-		foreach ( $backtrace as $trace ) {
-			if ( isset( $trace['class'] ) && 'PhotoCompetitionManager\Service\Email_Service' === $trace['class'] ) {
-				return true;
-			}
-		}
-
-		return false;
+		return self::$is_sending_plugin_email;
 	}
 
 	/**
