@@ -404,6 +404,8 @@ class Images_Repository extends Abstract_Repository {
 	/**
 	 * Delete an image record.
 	 *
+	 * Also deletes any votes associated with the image.
+	 *
 	 * @param int $id Image ID.
 	 * @return bool|WP_Error
 	 */
@@ -419,6 +421,10 @@ class Images_Repository extends Abstract_Repository {
 		if ( ! $image ) {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
+
+		// Delete any votes for this image first.
+		$votes_repo = new Votes_Repository();
+		$votes_repo->delete_by_image( $id );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$deleted = $wpdb->delete(
