@@ -159,6 +159,7 @@ Yes. Visit **Competitions → Export** to download:
   * Streamlined voting controls page with improved layout
   * Added focus panel for managing individual categories
   * Clear "Voting is Open/Closed" status headings
+  * Extended slideshow duration options (5s to 30s) with 20s default
 
 * **Member Management**
   * New toggle button on Members page to enable/disable uploads
