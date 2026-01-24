@@ -4,7 +4,7 @@ Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.2
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -154,6 +154,35 @@ Yes. Visit **Competitions → Export** to download:
 
 == Changelog ==
 
+= 0.2.0 =
+* **Voting Controls Redesign**
+  * Streamlined voting controls page with improved layout
+  * Added focus panel for managing individual categories
+  * Clear "Voting is Open/Closed" status headings
+
+* **Member Management**
+  * New toggle button on Members page to enable/disable uploads
+
+* **Results & Scoring**
+  * Proper tie handling in admin results and scoring calculations
+  * Scores now stored as totals per category for accuracy
+  * Grades displayed in results emails and thumbnails
+
+* **Exports**
+  * Improved vote and uploader exports with category separation
+  * Aligned export columns across categories for better spreadsheet compatibility
+
+* **Email**
+  * Site name now prefixed to all email subjects for clarity
+
+* **Bug Fixes**
+  * Delete associated votes when deleting an image
+  * Normalized all times to UTC
+  * Proper cleanup of physical files and attachment posts on deletion
+
+* **Compatibility**
+  * Tested up to WordPress 6.9
+
 = 0.1.0 =
 * **Core Features**
   * Member management with CSV bulk import/export
@@ -191,6 +220,9 @@ Yes. Visit **Competitions → Export** to download:
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.2.0 =
+Redesigned voting controls, improved tie handling in scoring, better export formatting, and various bug fixes. All times are now normalized to UTC.
 
 = 0.1.0 =
 First public release. After activation, visit **Competitions → Setup Wizard** to create pages and **Competitions → Settings** to configure defaults before launching your first competition.

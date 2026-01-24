@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Photo Competition Manager
  * Description: Manage photography competitions, submissions, and voting.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: Donncha O Caoimh
  * License: GPL2
  * Text Domain: photo-competition-manager
