@@ -657,7 +657,7 @@ class Voting_Controller {
 		$this->render_quick_actions( $voting_page_url, $global_settings );
 
 		// Hidden duration setting for slideshow.
-		echo '<input type="hidden" id="slideshow-duration-setting" value="10" />';
+		echo '<input type="hidden" id="slideshow-duration-setting" value="20" />';
 
 		// Slideshow container (hidden by default).
 		$this->render_slideshow_container();
@@ -1022,28 +1022,6 @@ class Voting_Controller {
 			'photo_competition_close_voting_' . (int) $competition->id . '_' . $category_slug
 		);
 
-		// Calculate estimated duration.
-		$default_duration = 10; // seconds.
-		$estimated_time   = $image_count * $default_duration;
-		$estimated_text   = '';
-		if ( $estimated_time > 0 ) {
-			if ( $estimated_time >= 60 ) {
-				$minutes        = floor( $estimated_time / 60 );
-				$seconds        = $estimated_time % 60;
-				$estimated_text = sprintf(
-					/* translators: 1: minutes, 2: seconds */
-					_n( '%1$d min %2$d sec', '%1$d min %2$d sec', $minutes, 'photo-competition-manager' ),
-					$minutes,
-					$seconds
-				);
-			} else {
-				$estimated_text = sprintf(
-					/* translators: %d: seconds */
-					__( '%d seconds', 'photo-competition-manager' ),
-					$estimated_time
-				);
-			}
-		}
 		?>
 		<div id="focus-panel" class="category-control-panel" data-competition-id="<?php echo esc_attr( $competition->id ); ?>" data-category="<?php echo esc_attr( $category_slug ); ?>">
 			<div class="control-panel-header">
@@ -1052,10 +1030,9 @@ class Voting_Controller {
 					<span class="control-panel-meta">
 						<?php
 						printf(
-							/* translators: 1: number of images, 2: estimated time */
-							esc_html__( '%1$d images &bull; ~%2$s at 10s each', 'photo-competition-manager' ),
-							(int) $image_count,
-							esc_html( $estimated_text )
+							/* translators: %d: number of images */
+							esc_html__( '%d images', 'photo-competition-manager' ),
+							(int) $image_count
 						);
 						?>
 					</span>
@@ -1089,8 +1066,11 @@ class Voting_Controller {
 					<div class="section-content">
 						<div class="duration-presets">
 							<button type="button" class="button duration-preset" data-duration="5"><?php esc_html_e( '5s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset active" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
 							<button type="button" class="button duration-preset" data-duration="15"><?php esc_html_e( '15s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset active" data-duration="20"><?php esc_html_e( '20s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset" data-duration="25"><?php esc_html_e( '25s', 'photo-competition-manager' ); ?></button>
+							<button type="button" class="button duration-preset" data-duration="30"><?php esc_html_e( '30s', 'photo-competition-manager' ); ?></button>
 							<button type="button" class="button duration-preset" data-duration="0" title="<?php esc_attr_e( 'Manual: advance with Space or arrow keys', 'photo-competition-manager' ); ?>"><?php esc_html_e( 'Manual', 'photo-competition-manager' ); ?></button>
 						</div>
 						<div class="slideshow-buttons">
