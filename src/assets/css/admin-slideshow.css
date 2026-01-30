@@ -746,7 +746,7 @@
 }
 
 .complete-body {
-	max-width: 500px;
+	max-width: 680px;
 	margin: 0 auto;
 }
 
@@ -781,7 +781,29 @@
 .complete-category-item .category-count {
 	color: #646970;
 	font-size: 12px;
+}
+
+.complete-category-item .category-slideshow-actions {
 	margin-left: auto;
+	display: flex;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.complete-category-item .category-slideshow-actions .button .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	position: relative;
+	top: 2px;
+	margin-right: 2px;
+}
+
+.complete-slideshow-section {
+	margin-bottom: 16px;
+	display: flex;
+	justify-content: center;
 }
 
 .complete-actions {

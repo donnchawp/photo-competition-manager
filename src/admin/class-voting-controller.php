@@ -1251,12 +1251,41 @@ class Voting_Controller {
 			</div>
 			<div class="complete-body">
 				<p class="complete-competition"><?php echo esc_html( $competition->title ); ?></p>
+				<div class="complete-slideshow-section">
+					<div class="duration-presets">
+						<button type="button" class="button duration-preset" data-duration="5"><?php esc_html_e( '5s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset" data-duration="15"><?php esc_html_e( '15s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset active" data-duration="20"><?php esc_html_e( '20s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset" data-duration="25"><?php esc_html_e( '25s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset" data-duration="30"><?php esc_html_e( '30s', 'photo-competition-manager' ); ?></button>
+						<button type="button" class="button duration-preset" data-duration="0" title="<?php esc_attr_e( 'Manual: advance with Space or arrow keys', 'photo-competition-manager' ); ?>"><?php esc_html_e( 'Manual', 'photo-competition-manager' ); ?></button>
+					</div>
+				</div>
+
 				<ul class="complete-categories">
 					<?php foreach ( $all_categories as $cat_data ) : ?>
 						<li class="complete-category-item">
 							<span class="dashicons dashicons-yes"></span>
-							<?php echo esc_html( $cat_data['category']['label'] ?? '' ); ?>
+							<span class="category-name"><?php echo esc_html( $cat_data['category']['label'] ?? '' ); ?></span>
 							<span class="category-count">(<?php echo (int) $cat_data['image_count']; ?> <?php esc_html_e( 'images', 'photo-competition-manager' ); ?>)</span>
+							<span class="category-slideshow-actions">
+								<button type="button" class="button button-small photo-competition-manager-start-slideshow"
+									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
+									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
+									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
+									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>">
+									<span class="dashicons dashicons-slides"></span> <?php esc_html_e( 'Slideshow', 'photo-competition-manager' ); ?>
+								</button>
+								<button type="button" class="button button-small photo-competition-manager-start-critique"
+									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
+									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
+									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
+									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>"
+									title="<?php esc_attr_e( 'Manual slideshow for discussion', 'photo-competition-manager' ); ?>">
+									<span class="dashicons dashicons-format-chat"></span> <?php esc_html_e( 'Critique', 'photo-competition-manager' ); ?>
+								</button>
+							</span>
 						</li>
 					<?php endforeach; ?>
 				</ul>
