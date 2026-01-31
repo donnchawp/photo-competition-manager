@@ -654,7 +654,7 @@ class Voting_Controller {
 		}
 
 		// Render Quick Actions.
-		$this->render_quick_actions( $voting_page_url, $global_settings );
+		$this->render_quick_actions( $voting_page_url, $global_settings, $active_settings );
 
 		// Hidden duration setting for slideshow.
 		echo '<input type="hidden" id="slideshow-duration-setting" value="20" />';
@@ -1162,13 +1162,21 @@ class Voting_Controller {
 	/**
 	 * Render collapsible quick actions bar.
 	 *
-	 * @param string $voting_page_url The voting page URL for QR code.
-	 * @param array  $settings        Global settings.
+	 * @param string $voting_page_url    The voting page URL for QR code.
+	 * @param array  $settings           Global settings.
+	 * @param array  $competition_settings Active competition settings.
 	 * @return void
 	 */
-	private function render_quick_actions( string $voting_page_url, array $settings ): void {
+	private function render_quick_actions( string $voting_page_url, array $settings, array $competition_settings = array() ): void {
 		$results_url = $settings['urls']['results_page'] ?? '';
 		$top3_url    = $settings['urls']['top3_page'] ?? '';
+
+		// Get voting password if it's stored as plaintext (not a legacy hash).
+		$voting_password = '';
+		$raw_password    = $competition_settings['voting']['password'] ?? '';
+		if ( '' !== $raw_password && ! preg_match( '/^\$P\$|\$wp\$/', $raw_password ) ) {
+			$voting_password = $raw_password;
+		}
 		?>
 		<div class="quick-actions-bar" id="quick-actions">
 			<button type="button" class="quick-actions-toggle" aria-expanded="false" aria-controls="quick-actions-content">
@@ -1199,6 +1207,12 @@ class Voting_Controller {
 
 				<?php if ( ! empty( $voting_page_url ) ) : ?>
 				<div class="qr-code-panel" id="qr-code-panel" style="display: none;">
+					<?php if ( '' !== $voting_password ) : ?>
+					<div class="qr-code-password">
+						<span class="qr-code-password-label"><?php esc_html_e( 'Voting Password:', 'photo-competition-manager' ); ?></span>
+						<span class="qr-code-password-value"><?php echo esc_html( $voting_password ); ?></span>
+					</div>
+					<?php endif; ?>
 					<div class="qr-code-container" data-voting-url="<?php echo esc_attr( $voting_page_url ); ?>">
 						<div class="qr-code-canvas"></div>
 						<div class="qr-code-details">

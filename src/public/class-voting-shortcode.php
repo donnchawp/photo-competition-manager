@@ -497,8 +497,10 @@ class Voting_Shortcode {
 				);
 			}
 
-			// Lowercase the provided password for case-insensitive comparison.
-			if ( ! wp_check_password( strtolower( $provided_pass ), $expected_password ) ) {
+			// Try direct case-insensitive comparison first (plaintext), fall back to wp_check_password for legacy hashes.
+			$password_matches = strtolower( $provided_pass ) === strtolower( $expected_password )
+				|| wp_check_password( strtolower( $provided_pass ), $expected_password );
+			if ( ! $password_matches ) {
 				return array(
 					'status'   => 'error',
 					'message'  => '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'photo-competition-manager' ) . '</p>',

@@ -483,17 +483,20 @@ class Competitions_Controller {
 			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 
-			// Hash the password if provided, clear if checkbox checked, otherwise preserve existing hash.
-			$hashed_password = '';
+			// Store the password if provided, clear if empty or checkbox checked.
+			// For legacy hashed passwords (not shown in the form), preserve when field is blank.
+			$existing_password    = $existing_settings['voting']['password'] ?? '';
+			$is_legacy_hash       = '' !== $existing_password && (bool) preg_match( '/^\$P\$|\$wp\$/', $existing_password );
+			$hashed_password      = '';
 			if ( $voting_password_clear ) {
-				// Clear the password - leave empty.
+				// Clear the password via checkbox (legacy hash flow).
 				$hashed_password = '';
 			} elseif ( ! empty( $voting_password ) ) {
-				// New password provided - lowercase and hash it for case-insensitive comparison.
-				$hashed_password = wp_hash_password( strtolower( $voting_password ) );
-			} elseif ( isset( $existing_settings['voting']['password'] ) ) {
-				// Preserve existing password hash if no new password provided and not clearing.
-				$hashed_password = $existing_settings['voting']['password'];
+				// Password provided - store lowercase for case-insensitive comparison.
+				$hashed_password = strtolower( $voting_password );
+			} elseif ( $is_legacy_hash ) {
+				// Legacy hash: blank field means keep existing password.
+				$hashed_password = $existing_password;
 			}
 
 			$settings = array(
@@ -842,18 +845,20 @@ class Competitions_Controller {
 		echo '<p>';
 		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
 
-		// Show placeholder if password is set, empty if not.
-		$password_placeholder = ! empty( $voting['password'] ) ? __( 'Password is set', 'photo-competition-manager' ) : '';
-		echo '<input type="text" id="voting_password" name="voting_password" value="" placeholder="' . esc_attr( $password_placeholder ) . '" class="regular-text" />';
+		$is_plaintext_password = ! empty( $voting['password'] ) && ! preg_match( '/^\$P\$|\$wp\$/', $voting['password'] );
+		$is_legacy_hash        = ! empty( $voting['password'] ) && ! $is_plaintext_password;
+		$password_value        = $is_plaintext_password ? $voting['password'] : '';
 
-		if ( ! empty( $voting['password'] ) ) {
+		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $password_value ) . '" class="regular-text" />';
+
+		if ( $is_legacy_hash ) {
 			echo '<br /><label>';
 			echo '<input type="checkbox" id="voting_password_clear" name="voting_password_clear" value="1" />';
 			echo ' ' . esc_html__( 'Remove password protection', 'photo-competition-manager' );
 			echo '</label>';
 			echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password. Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
 		} else {
-			echo '<br /><span class="description">' . esc_html__( 'Voters must enter this password before submitting votes. Leave blank to disable. Only used when auth mode is "Password-based". Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
+			echo '<br /><span class="description">' . esc_html__( 'Leave blank for no password. Passwords are case insensitive.', 'photo-competition-manager' ) . '</span>';
 		}
 		echo '</p>';
 
