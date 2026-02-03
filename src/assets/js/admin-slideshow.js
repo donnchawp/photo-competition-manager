@@ -33,6 +33,7 @@
 
 			// Image pre-caching
 			this.imageCache = new Map();
+			this.meterType = $('#slideshow-meter-type').val() || 'bar';
 
 			this.bindEvents();
 			this.initQuickActions();
@@ -46,6 +47,67 @@
 				return 10 * 1000; // Default 10 seconds
 			}
 			return seconds * 1000;
+		}
+
+		createMeterRenderer(type) {
+			const $progress = this.$display.find('.slideshow-progress');
+			const $progressBar = this.$progressBar;
+
+			if (type === 'line') {
+				$progress.addClass('meter-line');
+				return {
+					update(progress) { $progressBar.css('width', progress + '%'); },
+					reset() { $progressBar.css('width', '0%'); },
+					destroy() { $progress.removeClass('meter-line'); }
+				};
+			}
+
+			if (type === 'dots') {
+				$progress.addClass('meter-dots');
+				for (let i = 0; i < 20; i++) {
+					$progress.append('<div class="meter-dot"></div>');
+				}
+				const $dots = $progress.find('.meter-dot');
+				return {
+					update(progress) {
+						const filledCount = Math.floor(progress / 100 * $dots.length);
+						$dots.each(function(i) {
+							const $dot = $(this);
+							$dot.removeClass('filled filling');
+							if (i < filledCount) {
+								$dot.addClass('filled');
+							} else if (i === filledCount) {
+								$dot.addClass('filling');
+							}
+						});
+					},
+					reset() { $dots.removeClass('filled filling'); },
+					destroy() { $dots.remove(); $progress.removeClass('meter-dots'); }
+				};
+			}
+
+			if (type === 'radial') {
+				$progress.addClass('meter-radial');
+				const circumference = 2 * Math.PI * 16;
+				const svg = '<svg width="44" height="44" viewBox="0 0 44 44">' +
+					'<circle cx="22" cy="22" r="16" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>' +
+					'<circle class="meter-ring" cx="22" cy="22" r="16" fill="none" stroke="#0073aa" stroke-width="3" stroke-linecap="round" transform="rotate(-90 22 22)" stroke-dasharray="' + circumference + '" stroke-dashoffset="' + circumference + '"/>' +
+					'</svg>';
+				$progress.append(svg);
+				const $ring = $progress.find('.meter-ring');
+				return {
+					update(progress) { $ring.attr('stroke-dashoffset', circumference * (1 - progress / 100)); },
+					reset() { $ring.attr('stroke-dashoffset', circumference); },
+					destroy() { $progress.find('svg').remove(); $progress.removeClass('meter-radial'); }
+				};
+			}
+
+			// Default: bar
+			return {
+				update(progress) { $progressBar.css('width', progress + '%'); },
+				reset() { $progressBar.css('width', '0%'); },
+				destroy() {}
+			};
 		}
 
 		bindEvents() {
@@ -271,6 +333,7 @@
 				this.$display.css('display', 'flex');
 
 				// Show first image (pass true to start timer)
+				this.meterRenderer = this.createMeterRenderer(this.meterType);
 				this.showImage(0, true);
 
 				// Attempt fullscreen after display is visible
@@ -284,6 +347,7 @@
 				this.isPaused = false;
 				this.currentIndex = 0;
 				this.$display.css('display', 'flex');
+				this.meterRenderer = this.createMeterRenderer(this.meterType);
 				this.showImage(0, true);
 				setTimeout(function() {
 					self.requestFullscreen();
@@ -332,7 +396,10 @@
 
 			// Hide display
 			this.$display.fadeOut(300);
-			this.$progressBar.css('width', '0%');
+			if (this.meterRenderer) {
+				this.meterRenderer.reset();
+				this.meterRenderer.destroy();
+			}
 			this.$pauseBtn.show();
 			this.$resumeBtn.hide();
 
@@ -358,7 +425,7 @@
 				this.$imageInfo.find('.image-number').text('#' + image.random_number);
 
 				// Reset progress bar
-				this.$progressBar.css('width', '0%');
+				if (this.meterRenderer) this.meterRenderer.reset();
 				this.startTime = Date.now();
 
 				// Start auto-advance timer AFTER image is loaded
@@ -375,7 +442,7 @@
 				this.$image.attr('src', image.url);
 				this.$image.attr('alt', 'Image #' + image.random_number);
 				this.$imageInfo.find('.image-number').text('#' + image.random_number);
-				this.$progressBar.css('width', '0%');
+				if (this.meterRenderer) this.meterRenderer.reset();
 				this.startTime = Date.now();
 
 				// Start auto-advance even if image failed to load
@@ -418,7 +485,7 @@
 			// If duration is 0, manual mode - no auto-advance
 			if (duration === 0) {
 				// Hide progress bar in manual mode
-				this.$progressBar.css('width', '0%');
+				if (this.meterRenderer) this.meterRenderer.reset();
 				return;
 			}
 
@@ -432,7 +499,7 @@
 			this.progressInterval = setInterval(function() {
 				const elapsed = Date.now() - self.startTime;
 				const progress = Math.min((elapsed / duration) * 100, 100);
-				self.$progressBar.css('width', progress + '%');
+				if (self.meterRenderer) self.meterRenderer.update(progress);
 			}, 100);
 		}
 

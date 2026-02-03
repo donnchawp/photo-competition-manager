@@ -91,7 +91,8 @@ class Competition_Settings {
 				'ui_type'             => 'default',
 			),
 			'slideshow'       => array(
-				'duration_seconds' => 10,
+				'duration_seconds'    => 10,
+				'progress_meter_type' => 'bar',
 			),
 			'email_reminders' => array(
 				'enabled'                => true,
@@ -265,6 +266,13 @@ class Competition_Settings {
 			$valid_ui_types = array( 'default', 'buttons', 'dropdown' );
 			if ( ! in_array( $settings['voting']['ui_type'], $valid_ui_types, true ) ) {
 				return new WP_Error( 'invalid_voting_ui_type', __( 'Voting UI type must be "default", "buttons", or "dropdown".', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
+			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
+			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
+				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
 			}
 		}
 

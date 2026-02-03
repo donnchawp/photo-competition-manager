@@ -146,6 +146,7 @@
 	display: block;
 }
 
+/* Progress Meter - shared container */
 .slideshow-progress {
 	position: absolute;
 	bottom: 0;
@@ -159,6 +160,74 @@
 	height: 100%;
 	background: #0073aa;
 	transition: width 100ms linear;
+}
+
+/* Progress Meter - Thin Line */
+.slideshow-progress.meter-line {
+	height: 3px;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.slideshow-progress.meter-line .progress-bar {
+	background: #fff;
+	box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+/* Progress Meter - Dots */
+.slideshow-progress.meter-dots {
+	height: 20px;
+	background: transparent;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+}
+
+.slideshow-progress.meter-dots .progress-bar {
+	display: none;
+}
+
+.slideshow-progress.meter-dots .meter-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.2);
+	transition: background 0.2s ease, transform 0.2s ease;
+	flex-shrink: 0;
+}
+
+.slideshow-progress.meter-dots .meter-dot.filled {
+	background: #0073aa;
+	transform: scale(1.4);
+}
+
+.slideshow-progress.meter-dots .meter-dot.filling {
+	background: rgba(0, 115, 170, 0.5);
+	transform: scale(1.2);
+}
+
+/* Progress Meter - Radial */
+.slideshow-progress.meter-radial {
+	width: 100%;
+	height: 44px;
+	background: transparent;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.slideshow-progress.meter-radial .progress-bar {
+	display: none;
+}
+
+.slideshow-progress.meter-radial svg {
+	width: 44px;
+	height: 44px;
+	filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.5));
+}
+
+.slideshow-progress.meter-radial .meter-ring {
+	transition: stroke-dashoffset 100ms linear;
 }
 
 .slideshow-exit {

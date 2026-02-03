@@ -659,6 +659,10 @@ class Voting_Controller {
 		// Hidden duration setting for slideshow.
 		echo '<input type="hidden" id="slideshow-duration-setting" value="20" />';
 
+		// Hidden meter type setting for slideshow.
+		$meter_type = $active_settings['slideshow']['progress_meter_type'] ?? 'bar';
+		echo '<input type="hidden" id="slideshow-meter-type" value="' . esc_attr( $meter_type ) . '" />';
+
 		// Slideshow container (hidden by default).
 		$this->render_slideshow_container();
 

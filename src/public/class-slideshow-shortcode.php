@@ -148,7 +148,7 @@ class Slideshow_Shortcode {
 
 		// Output slideshow interface.
 		ob_start();
-		$this->render_slideshow_interface( $competition, $category, $category_label, $image_data );
+		$this->render_slideshow_interface( $competition, $category, $category_label, $image_data, $settings );
 		$output = ob_get_clean();
 
 		return $output ? $output : '';
@@ -160,10 +160,11 @@ class Slideshow_Shortcode {
 	 * @param object            $competition    Competition object.
 	 * @param string            $category       Category slug.
 	 * @param string            $category_label Category label.
-	 * @param array<int, array> $image_data     Image data for JavaScript.
+	 * @param array<int, array>   $image_data     Image data for JavaScript.
+	 * @param array<string, mixed> $settings       Competition settings.
 	 * @return void
 	 */
-	private function render_slideshow_interface( object $competition, string $category, string $category_label, array $image_data ): void {
+	private function render_slideshow_interface( object $competition, string $category, string $category_label, array $image_data, array $settings ): void {
 		$nonce = wp_create_nonce( 'photo_comp_slideshow' );
 		?>
 		<div class="photo-comp-slideshow-container"
@@ -171,7 +172,8 @@ class Slideshow_Shortcode {
 			data-category="<?php echo esc_attr( $category ); ?>"
 			data-nonce="<?php echo esc_attr( $nonce ); ?>"
 			data-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
-			data-images="<?php echo esc_attr( wp_json_encode( $image_data ) ); ?>">
+			data-images="<?php echo esc_attr( wp_json_encode( $image_data ) ); ?>"
+			data-meter-type="<?php echo esc_attr( $settings['slideshow']['progress_meter_type'] ?? 'bar' ); ?>">
 
 			<!-- Control Panel -->
 			<div class="slideshow-controls">

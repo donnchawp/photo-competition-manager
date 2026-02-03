@@ -124,6 +124,137 @@ class Settings_Controller {
 					e.target.closest(\'.grade-row\').remove();
 				}
 			});
+
+			// Progress meter preview animations
+			document.querySelectorAll(".progress-meter-card").forEach(function(card) {
+				card.addEventListener("click", function() {
+					document.querySelectorAll(".progress-meter-card").forEach(function(c) {
+						c.classList.remove("active");
+						c.style.borderColor = "#ddd";
+					});
+					card.classList.add("active");
+					card.style.borderColor = "#0073aa";
+				});
+			});
+
+			function animatePreviews() {
+				var duration = 3000;
+				var startTime = Date.now();
+
+				function tick() {
+					var elapsed = Date.now() - startTime;
+					var progress = (elapsed % duration) / duration;
+
+					document.querySelectorAll(".meter-preview").forEach(function(preview) {
+						var type = preview.dataset.meterType;
+						renderMeterPreview(preview, type, progress);
+					});
+
+					requestAnimationFrame(tick);
+				}
+
+				tick();
+			}
+
+			function renderMeterPreview(container, type, progress) {
+				if (!container._initialized) {
+					container._initialized = true;
+					container.innerHTML = "";
+
+					if (type === "bar") {
+						container.style.display = "flex";
+						container.style.alignItems = "flex-end";
+						var track = document.createElement("div");
+						track.style.cssText = "width:100%;height:8px;background:rgba(255,255,255,0.2);border-radius:0;";
+						var fill = document.createElement("div");
+						fill.style.cssText = "height:100%;background:#0073aa;transition:width 100ms linear;border-radius:0;";
+						fill.className = "meter-fill";
+						track.appendChild(fill);
+						container.appendChild(track);
+					} else if (type === "line") {
+						container.style.display = "flex";
+						container.style.alignItems = "flex-end";
+						var track = document.createElement("div");
+						track.style.cssText = "width:100%;height:3px;background:rgba(255,255,255,0.1);";
+						var fill = document.createElement("div");
+						fill.style.cssText = "height:100%;background:#fff;box-shadow:0 0 8px rgba(255,255,255,0.6);transition:width 100ms linear;";
+						fill.className = "meter-fill";
+						track.appendChild(fill);
+						container.appendChild(track);
+					} else if (type === "dots") {
+						container.style.display = "flex";
+						container.style.alignItems = "flex-end";
+						container.style.justifyContent = "center";
+						container.style.gap = "4px";
+						container.style.paddingBottom = "4px";
+						for (var i = 0; i < 15; i++) {
+							var dot = document.createElement("div");
+							dot.style.cssText = "width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:background 0.2s,transform 0.2s;";
+							dot.className = "meter-dot";
+							container.appendChild(dot);
+						}
+					} else if (type === "radial") {
+						container.style.display = "flex";
+						container.style.alignItems = "center";
+						container.style.justifyContent = "center";
+						var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+						svg.setAttribute("width", "40");
+						svg.setAttribute("height", "40");
+						svg.setAttribute("viewBox", "0 0 40 40");
+						var bgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+						bgCircle.setAttribute("cx", "20");
+						bgCircle.setAttribute("cy", "20");
+						bgCircle.setAttribute("r", "16");
+						bgCircle.setAttribute("fill", "none");
+						bgCircle.setAttribute("stroke", "rgba(255,255,255,0.2)");
+						bgCircle.setAttribute("stroke-width", "3");
+						svg.appendChild(bgCircle);
+						var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+						circle.setAttribute("cx", "20");
+						circle.setAttribute("cy", "20");
+						circle.setAttribute("r", "16");
+						circle.setAttribute("fill", "none");
+						circle.setAttribute("stroke", "#0073aa");
+						circle.setAttribute("stroke-width", "3");
+						circle.setAttribute("stroke-linecap", "round");
+						circle.setAttribute("transform", "rotate(-90 20 20)");
+						var circumference = 2 * Math.PI * 16;
+						circle.setAttribute("stroke-dasharray", circumference);
+						circle.setAttribute("stroke-dashoffset", circumference);
+						circle.className.baseVal = "meter-ring";
+						svg.appendChild(circle);
+						container.appendChild(svg);
+					}
+				}
+
+				if (type === "bar" || type === "line") {
+					var fill = container.querySelector(".meter-fill");
+					if (fill) fill.style.width = (progress * 100) + "%";
+				} else if (type === "dots") {
+					var dots = container.querySelectorAll(".meter-dot");
+					var filledCount = Math.floor(progress * dots.length);
+					dots.forEach(function(dot, i) {
+						if (i < filledCount) {
+							dot.style.background = "#0073aa";
+							dot.style.transform = "scale(1.3)";
+						} else if (i === filledCount) {
+							dot.style.background = "rgba(0,115,170,0.5)";
+							dot.style.transform = "scale(1.1)";
+						} else {
+							dot.style.background = "rgba(255,255,255,0.2)";
+							dot.style.transform = "scale(1)";
+						}
+					});
+				} else if (type === "radial") {
+					var ring = container.querySelector(".meter-ring");
+					if (ring) {
+						var circumference = 2 * Math.PI * 16;
+						ring.setAttribute("stroke-dashoffset", circumference * (1 - progress));
+					}
+				}
+			}
+
+			animatePreviews();
 		})();
 		});
 		';
@@ -209,6 +340,11 @@ class Settings_Controller {
 		$voting_password     = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
 		$click_image_to_zoom = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
 
+		$progress_meter_type_input = sanitize_text_field( $this->get_post_string( 'progress_meter_type', 'bar' ) );
+		if ( ! in_array( $progress_meter_type_input, array( 'bar', 'line', 'dots', 'radial' ), true ) ) {
+			$progress_meter_type_input = 'bar';
+		}
+
 		$upload_page_url  = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 		$voting_page_url  = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 		$results_page_url = sanitize_url( $this->get_post_string( 'results_page_url', '' ) );
@@ -235,7 +371,8 @@ class Settings_Controller {
 				'ui_type'             => 'default',
 			),
 			'slideshow'       => array(
-				'duration_seconds' => 10,
+				'duration_seconds'    => 10,
+				'progress_meter_type' => $progress_meter_type_input,
 			),
 			'email_reminders' => array(
 				'enabled'                => true,
@@ -306,13 +443,15 @@ class Settings_Controller {
 
 		settings_errors( 'photo_competition_settings' );
 
-		$settings       = $this->get_global_settings();
-		$categories     = Competition_Settings::get_categories( $settings );
-		$grades         = Competition_Settings::get_grades( $settings );
-		$upload         = Competition_Settings::get_upload_constraints( $settings );
-		$voting         = Competition_Settings::get_voting_config( $settings );
-		$voting_ui_type = get_option( 'photo_comp_voting_ui_type', 'buttons' );
-		$urls           = $settings['urls'] ?? array(
+		$settings            = $this->get_global_settings();
+		$categories          = Competition_Settings::get_categories( $settings );
+		$grades              = Competition_Settings::get_grades( $settings );
+		$upload              = Competition_Settings::get_upload_constraints( $settings );
+		$voting              = Competition_Settings::get_voting_config( $settings );
+		$slideshow           = $settings['slideshow'] ?? array();
+		$progress_meter_type = $slideshow['progress_meter_type'] ?? 'bar';
+		$voting_ui_type      = get_option( 'photo_comp_voting_ui_type', 'buttons' );
+		$urls                = $settings['urls'] ?? array(
 			'upload_page' => '',
 			'voting_page' => '',
 		);
@@ -411,6 +550,33 @@ class Settings_Controller {
 		echo '<input type="text" id="score_matrix" name="score_matrix" value="' . esc_attr( implode( ', ', $voting['score_matrix'] ) ) . '" class="regular-text" />';
 		echo '<span class="description">' . esc_html__( 'E.g., 9, 8, 7, 6, 5', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
+
+		echo '<h2>' . esc_html__( 'Slideshow', 'photo-competition-manager' ) . '</h2>';
+
+		echo '<p>';
+		echo '<label>' . esc_html__( 'Progress Meter Style', 'photo-competition-manager' ) . '</label>';
+		echo '</p>';
+
+		$meter_types = array(
+			'bar'    => __( 'Bar', 'photo-competition-manager' ),
+			'line'   => __( 'Thin Line', 'photo-competition-manager' ),
+			'dots'   => __( 'Dots', 'photo-competition-manager' ),
+			'radial' => __( 'Radial', 'photo-competition-manager' ),
+		);
+
+		echo '<div class="progress-meter-selector" style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">';
+
+		foreach ( $meter_types as $type => $label ) {
+			$is_active = ( $type === $progress_meter_type ) ? ' active' : '';
+			echo '<label class="progress-meter-card' . esc_attr( $is_active ) . '" style="cursor: pointer; border: 2px solid ' . ( $is_active ? '#0073aa' : '#ddd' ) . '; border-radius: 8px; padding: 12px; text-align: center; background: #1a1a1a; min-width: 140px; transition: border-color 0.2s;">';
+			echo '<input type="radio" name="progress_meter_type" value="' . esc_attr( $type ) . '"' . checked( $progress_meter_type, $type, false ) . ' style="display: none;" />';
+			echo '<div class="meter-preview" data-meter-type="' . esc_attr( $type ) . '" style="height: 50px; position: relative; margin-bottom: 8px; overflow: hidden; border-radius: 4px;"></div>';
+			echo '<span style="color: #666; font-size: 13px; font-weight: 600;">' . esc_html( $label ) . '</span>';
+			echo '</label>';
+		}
+
+		echo '</div>';
+		echo '<span class="description">' . esc_html__( 'Choose the progress indicator style shown during the slideshow.', 'photo-competition-manager' ) . '</span>';
 
 		echo '<h2>' . esc_html__( 'Email Configuration', 'photo-competition-manager' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'Configure the sender name and email address for all competition emails. If left blank, WordPress defaults will be used.', 'photo-competition-manager' ) . '</p>';
