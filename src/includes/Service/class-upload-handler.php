@@ -190,7 +190,9 @@ class Upload_Handler {
 			$competition->title,
 			$category_config['label'],
 			$counter,
-			$quota
+			$quota,
+			null,
+			! empty( $member->grade ) ? $member->grade : ''
 		);
 
 		return $image_id;

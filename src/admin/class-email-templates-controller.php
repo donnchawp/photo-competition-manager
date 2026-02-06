@@ -246,8 +246,8 @@ class Email_Templates_Controller {
 				'description' => __( 'Sent when a member successfully uploads an image.', 'photo-competition-manager' ),
 				'enabled'     => false,
 				'subject'     => __( 'Image uploaded successfully for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Your image has been successfully uploaded for {competition_title} in the {category_name} category.</p>\n\n<p>You have uploaded {current_count} of {quota} images for this category.</p>\n\n<p>Thank you for your submission!</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{category_name}', '{current_count}', '{quota}', '{site_name}' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Your image has been successfully uploaded for {competition_title} in the {category_name} category.</p>\n\n<p>You are entering in the {member_grade} grade.</p>\n\n<p>You have uploaded {current_count} of {quota} images for this category.</p>\n\n<p>Thank you for your submission!</p>", 'photo-competition-manager' ),
+				'merge_tags'  => array( '{member_name}', '{member_grade}', '{competition_title}', '{category_name}', '{current_count}', '{quota}', '{site_name}' ),
 			),
 		);
 	}

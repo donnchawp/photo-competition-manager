@@ -322,6 +322,7 @@ class Email_Service {
 	 * @param int      $current_count     Current submission count.
 	 * @param int      $quota             Maximum allowed submissions.
 	 * @param int|null $competition_id    Optional competition ID for logging.
+	 * @param string   $member_grade      Member grade.
 	 * @return bool Whether email was sent successfully.
 	 */
 	public function send_submission_confirmed_notification(
@@ -331,7 +332,8 @@ class Email_Service {
 		string $category_name,
 		int $current_count,
 		int $quota,
-		?int $competition_id = null
+		?int $competition_id = null,
+		string $member_grade = ''
 	): bool {
 		$template = $this->get_template( 'submission_confirmed' );
 
@@ -341,6 +343,7 @@ class Email_Service {
 
 		$merge_data = array(
 			'{member_name}'       => $member_name,
+			'{member_grade}'      => $member_grade,
 			'{competition_title}' => $competition_title,
 			'{category_name}'     => $category_name,
 			'{current_count}'     => (string) $current_count,
