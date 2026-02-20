@@ -92,6 +92,7 @@ class Activator {
 			email VARCHAR(191) NOT NULL,
 			grade VARCHAR(100) NOT NULL,
 			active TINYINT(1) NOT NULL DEFAULT 1,
+			committee TINYINT(1) NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
@@ -105,11 +106,13 @@ class Activator {
 			open_date DATETIME NULL,
 			close_date DATETIME NULL,
 			settings LONGTEXT NULL,
+			share_hash VARCHAR(64) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			deleted_at DATETIME NULL,
 			PRIMARY KEY  (id),
-			UNIQUE KEY slug (slug)
+			UNIQUE KEY slug (slug),
+			KEY share_hash (share_hash)
 		) {$charset_collate};";
 
 		$images = "CREATE TABLE {$wpdb->prefix}photocomp_images (

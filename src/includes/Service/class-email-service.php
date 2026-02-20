@@ -529,6 +529,123 @@ class Email_Service {
 	}
 
 	/**
+	 * Send results share link email.
+	 *
+	 * @param string   $to_email          Recipient email address.
+	 * @param string   $member_name       Member name.
+	 * @param string   $competition_title Competition title.
+	 * @param string   $share_url         Results page URL with share hash.
+	 * @param int|null $competition_id    Optional competition ID for logging.
+	 * @return bool Whether the email was sent successfully.
+	 */
+	public function send_results_share_link(
+		string $to_email,
+		string $member_name,
+		string $competition_title,
+		string $share_url,
+		?int $competition_id = null
+	): bool {
+		$template = $this->get_template( 'results_published' );
+
+		if ( $template && $template['enabled'] ) {
+			$merge_data = array(
+				'{member_name}'        => $member_name,
+				'{competition_title}'  => $competition_title,
+				'{results_share_link}' => $share_url,
+				'{results_page}'       => $share_url,
+				'{site_name}'          => get_bloginfo( 'name' ),
+			);
+
+			$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+			$message = $this->replace_merge_tags( $template['body'], $merge_data );
+			$message = $this->wrap_html_email( $message );
+		} else {
+			$subject = sprintf(
+				/* translators: %s: Competition title */
+				__( 'Results for %s', 'photo-competition-manager' ),
+				$competition_title
+			);
+			$message = $this->get_results_share_link_email_body( $member_name, $competition_title, $share_url );
+		}
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
+
+		if ( $result && $this->event_logger ) {
+			$this->event_logger->log_email_sent(
+				$competition_id,
+				'results_share_link',
+				$member_name,
+				array( 'email' => $to_email )
+			);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Get results share link email body.
+	 *
+	 * @param string $member_name       Member name.
+	 * @param string $competition_title Competition title.
+	 * @param string $share_url         Share URL.
+	 * @return string
+	 */
+	private function get_results_share_link_email_body( string $member_name, string $competition_title, string $share_url ): string {
+		ob_start();
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+		</head>
+		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+
+				<p>
+				<?php
+					printf(
+						/* translators: %s: Member name */
+						esc_html__( 'Hi %s,', 'photo-competition-manager' ),
+						esc_html( $member_name )
+					);
+				?>
+				</p>
+
+				<p><?php esc_html_e( 'The results for this competition are now available. Click the button below to view them:', 'photo-competition-manager' ); ?></p>
+
+				<p style="margin: 30px 0;">
+					<a href="<?php echo esc_url( $share_url ); ?>"
+						style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+						<?php esc_html_e( 'View Results', 'photo-competition-manager' ); ?>
+					</a>
+				</p>
+
+				<p style="color: #666; font-size: 14px;">
+					<?php esc_html_e( 'This is a private link. Please do not share it publicly.', 'photo-competition-manager' ); ?>
+				</p>
+
+				<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+				<p style="color: #999; font-size: 12px;">
+					<?php
+					printf(
+						/* translators: %s: Site name */
+						esc_html__( 'This email was sent by %s', 'photo-competition-manager' ),
+						esc_html( get_bloginfo( 'name' ) )
+					);
+					?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
 	 * Get results email body.
 	 *
 	 * @param string               $member_name       Member name.

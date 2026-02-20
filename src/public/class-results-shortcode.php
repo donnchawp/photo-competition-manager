@@ -102,26 +102,44 @@ class Results_Shortcode {
 			'competition_results'
 		);
 
+		$share_hash  = isset( $_GET['share'] ) ? sanitize_text_field( wp_unslash( $_GET['share'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public read-only parameter for share link access.
 		$competition = null;
+		$valid_share = false;
 
-		// If no competition specified, get the most recent one.
 		if ( empty( $atts['competition'] ) ) {
-			$competitions = $this->competitions_repo->all( 1, false, false );
-			if ( empty( $competitions ) ) {
-				return '<p class="error">' . esc_html__( 'No competitions found.', 'photo-competition-manager' ) . '</p>';
+			// When a share hash is provided, resolve the competition it belongs to.
+			if ( ! empty( $share_hash ) ) {
+				$competition = $this->competitions_repo->find_by_share_hash( $share_hash );
+				if ( $competition ) {
+					$valid_share = true;
+				}
 			}
-			$competition = $competitions[0];
+
+			// Fall back to the most recent competition.
+			if ( ! $competition ) {
+				$competitions = $this->competitions_repo->all( 1, false, false );
+				if ( empty( $competitions ) ) {
+					return '<p class="error">' . esc_html__( 'No competitions found.', 'photo-competition-manager' ) . '</p>';
+				}
+				$competition = $competitions[0];
+			}
 		} else {
 			$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
 			if ( ! $competition ) {
 				return '<p class="error">' . esc_html__( 'Competition not found.', 'photo-competition-manager' ) . '</p>';
+			}
+
+			// Validate share hash against the explicit competition.
+			if ( ! empty( $share_hash ) ) {
+				$stored_hash = $competition->share_hash ?? '';
+				$valid_share = ! empty( $stored_hash ) && hash_equals( $stored_hash, $share_hash );
 			}
 		}
 
 		$hide_names = filter_var( $atts['hide_names'], FILTER_VALIDATE_BOOLEAN );
 
 		ob_start();
-		$this->render_results( $competition, $hide_names );
+		$this->render_results( $competition, $hide_names, $valid_share );
 		$output = ob_get_clean();
 		return false !== $output ? $output : '';
 	}
@@ -129,19 +147,19 @@ class Results_Shortcode {
 	/**
 	 * Render results display.
 	 *
-	 * @param object $competition Competition object.
-	 * @param bool   $hide_names  Whether to hide member names.
+	 * @param object $competition  Competition object.
+	 * @param bool   $hide_names   Whether to hide member names.
+	 * @param bool   $valid_share  Whether a valid share hash was provided.
 	 * @return void
 	 */
-	private function render_results( object $competition, bool $hide_names = false ): void {
+	private function render_results( object $competition, bool $hide_names = false, bool $valid_share = false ): void {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$grades     = Competition_Settings::get_grades( $settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
-		// Check if results are visible.
 		$results_visible = $settings['results']['results_visible'] ?? false;
 
-		if ( ! $results_visible ) {
+		if ( ! $results_visible && ! $valid_share ) {
 			echo '<div class="photo-comp-results">';
 			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';
 			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';

@@ -277,16 +277,18 @@ class Members_Controller {
 			$name_raw  = $this->get_post_string( 'member_name' );
 			$email_raw = $this->get_post_string( 'member_email' );
 			$grade_raw = $this->get_post_string( 'member_grade' );
-			$is_active = isset( $_POST['member_active'] );
-			$name      = sanitize_text_field( $name_raw );
-			$email     = sanitize_email( $email_raw );
-			$grade     = sanitize_text_field( $grade_raw );
+			$is_active    = isset( $_POST['member_active'] );
+			$is_committee = isset( $_POST['member_committee'] );
+			$name         = sanitize_text_field( $name_raw );
+			$email        = sanitize_email( $email_raw );
+			$grade        = sanitize_text_field( $grade_raw );
 
 			$data = array(
-				'name'   => $name,
-				'email'  => $email,
-				'grade'  => $grade,
-				'active' => $is_active ? 1 : 0,
+				'name'      => $name,
+				'email'     => $email,
+				'grade'     => $grade,
+				'active'    => $is_active ? 1 : 0,
+				'committee' => $is_committee ? 1 : 0,
 			);
 
 			$result = $this->members->create( $data );
@@ -315,19 +317,21 @@ class Members_Controller {
 
 			check_admin_referer( 'photo_competition_member_update_' . $member_id, 'photo_competition_member_nonce' );
 
-			$name_raw  = $this->get_post_string( 'member_name' );
-			$email_raw = $this->get_post_string( 'member_email' );
-			$grade_raw = $this->get_post_string( 'member_grade' );
-			$is_active = isset( $_POST['member_active'] );
-			$name      = sanitize_text_field( $name_raw );
-			$email     = sanitize_email( $email_raw );
-			$grade     = sanitize_text_field( $grade_raw );
+			$name_raw     = $this->get_post_string( 'member_name' );
+			$email_raw    = $this->get_post_string( 'member_email' );
+			$grade_raw    = $this->get_post_string( 'member_grade' );
+			$is_active    = isset( $_POST['member_active'] );
+			$is_committee = isset( $_POST['member_committee'] );
+			$name         = sanitize_text_field( $name_raw );
+			$email        = sanitize_email( $email_raw );
+			$grade        = sanitize_text_field( $grade_raw );
 
 			$data = array(
-				'name'   => $name,
-				'email'  => $email,
-				'grade'  => $grade,
-				'active' => $is_active ? 1 : 0,
+				'name'      => $name,
+				'email'     => $email,
+				'grade'     => $grade,
+				'active'    => $is_active ? 1 : 0,
+				'committee' => $is_committee ? 1 : 0,
 			);
 
 			$result = $this->members->update( $member_id, $data );
@@ -955,6 +959,13 @@ class Members_Controller {
 		echo '</label>';
 		echo '</p>';
 
+		echo '<p>';
+		echo '<label>';
+		echo '<input type="checkbox" name="member_committee" value="1" /> ';
+		echo esc_html__( 'Committee Member', 'photo-competition-manager' );
+		echo '</label>';
+		echo '</p>';
+
 		submit_button( __( 'Add Member', 'photo-competition-manager' ) );
 
 		echo '</form>';
@@ -1008,6 +1019,13 @@ class Members_Controller {
 		echo '<label>';
 		echo '<input type="checkbox" name="member_active" value="1"' . checked( (bool) $member->active, true, false ) . ' /> ';
 		echo esc_html__( 'Active', 'photo-competition-manager' );
+		echo '</label>';
+		echo '</p>';
+
+		echo '<p>';
+		echo '<label>';
+		echo '<input type="checkbox" name="member_committee" value="1"' . checked( (bool) ( $member->committee ?? false ), true, false ) . ' /> ';
+		echo esc_html__( 'Committee Member', 'photo-competition-manager' );
 		echo '</label>';
 		echo '</p>';
 

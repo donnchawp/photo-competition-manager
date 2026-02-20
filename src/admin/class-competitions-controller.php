@@ -308,6 +308,7 @@ class Competitions_Controller {
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
 				'settings'   => $this->get_global_settings(),
+				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
 			$result = $this->competitions->create( $data );
@@ -381,6 +382,63 @@ class Competitions_Controller {
 			);
 
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
+		}
+
+		if ( 'generate_results_link' === $action && isset( $_GET['competition'] ) ) {
+			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
+
+			check_admin_referer( 'photo_competition_generate_results_link_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_manager',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
+				return;
+			}
+
+			$new_hash = Competition_Settings::generate_share_hash();
+			$result   = $this->competitions->update_share_hash( $competition_id, $new_hash );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				$settings         = Competition_Settings::parse( $competition->settings );
+				$results_page_url = $settings['urls']['results_page'] ?? '';
+				if ( ! empty( $results_page_url ) ) {
+					$share_url = add_query_arg( 'share', $new_hash, $results_page_url );
+					add_settings_error(
+						'photo_competition_manager',
+						'results_link_generated',
+						sprintf(
+							/* translators: %s: share URL */
+							__( 'Results share link generated: <a href="%s" target="_blank">%s</a>', 'photo-competition-manager' ),
+							esc_url( $share_url ),
+							esc_html( $share_url )
+						),
+						'updated'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition_manager',
+						'results_link_generated',
+						__( 'Results share hash generated. Configure a results page URL to get a shareable link.', 'photo-competition-manager' ),
+						'updated'
+					);
+				}
+			}
+
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
+			return;
 		}
 
 		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
@@ -635,6 +693,9 @@ class Competitions_Controller {
 				$hashed_password = $existing_password;
 			}
 
+			// Preserve existing results settings (results_visible) controlled via Voting Controls page.
+			$existing_results = $existing_settings['results'] ?? array();
+
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'grades'          => $sanitized_grades,
@@ -666,6 +727,7 @@ class Competitions_Controller {
 					'upload_page' => $upload_page_url,
 					'voting_page' => $voting_page_url,
 				),
+				'results'         => $existing_results,
 			);
 
 			// Allow empty categories/grades for competitions (will fall back to global defaults).
@@ -1071,6 +1133,20 @@ class Competitions_Controller {
 		echo '<br /><span class="description">' . esc_html__( 'The page where members can vote on images. This URL will be included in voting notification emails.', 'photo-competition-manager' ) . '</span>';
 		echo '</p>';
 
+		$share_hash = $competition->share_hash ?? '';
+		if ( ! empty( $share_hash ) ) {
+			echo '<p>';
+			echo '<label>' . esc_html__( 'Results Share Hash', 'photo-competition-manager' ) . '</label><br />';
+			echo '<code>' . esc_html( $share_hash ) . '</code>';
+
+			$results_page_url = $urls['results_page'] ?? '';
+			if ( ! empty( $results_page_url ) ) {
+				$share_url = add_query_arg( 'share', $share_hash, $results_page_url );
+				echo '<br /><span class="description">' . esc_html__( 'Share link:', 'photo-competition-manager' ) . ' <a href="' . esc_url( $share_url ) . '" target="_blank">' . esc_html( $share_url ) . '</a></span>';
+			}
+			echo '</p>';
+		}
+
 		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );
 
 		echo '</form>';
@@ -1225,6 +1301,21 @@ class Competitions_Controller {
 			} else {
 				$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 			}
+
+			// Generate Results Link action.
+			$generate_link_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager',
+						'action'      => 'generate_results_link',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_generate_results_link_' . (int) $competition->id
+			);
+
+			$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $generate_link_url ), esc_html__( 'Generate Results Link', 'photo-competition-manager' ) );
 
 			if ( $is_archived ) {
 				$restore_url = wp_nonce_url(

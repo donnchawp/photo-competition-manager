@@ -259,6 +259,102 @@ class Results_Controller {
 			exit;
 		}
 
+		if ( 'send_results_committee' === $action || 'send_results_all' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_' . $action . '_' . $competition_id );
+
+			$redirect_url = add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager-results',
+					'competition' => $competition_id,
+				),
+				admin_url( 'admin.php' )
+			);
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_results',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
+			}
+
+			$share_hash = $competition->share_hash ?? '';
+
+			if ( empty( $share_hash ) ) {
+				add_settings_error(
+					'photo_competition_results',
+					'no_share_hash',
+					__( 'No share hash exists. Generate a results link first from the Competitions page.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
+			}
+
+			$settings         = Competition_Settings::parse( $competition->settings );
+			$results_page_url = $settings['urls']['results_page'] ?? '';
+			if ( empty( $results_page_url ) ) {
+				add_settings_error(
+					'photo_competition_results',
+					'no_results_page',
+					__( 'No results page URL configured. Set one in competition settings.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
+			}
+
+			$share_url = add_query_arg( 'share', $share_hash, $results_page_url );
+
+			if ( 'send_results_committee' === $action ) {
+				$recipients = $this->members->find_committee_members();
+			} else {
+				$recipients = $this->members->find_active_members();
+			}
+
+			$sent_count = 0;
+
+			foreach ( $recipients as $member ) {
+				if ( ! empty( $member->email ) ) {
+					$sent = $this->email_service->send_results_share_link(
+						$member->email,
+						$member->name,
+						$competition->title,
+						$share_url,
+						$competition_id
+					);
+					if ( $sent ) {
+						++$sent_count;
+					}
+				}
+			}
+
+			$audience_label = 'send_results_committee' === $action
+				? __( 'committee members', 'photo-competition-manager' )
+				: __( 'active members', 'photo-competition-manager' );
+
+			add_settings_error(
+				'photo_competition_results',
+				'results_link_sent',
+				sprintf(
+					/* translators: 1: number of emails sent, 2: audience label */
+					__( 'Results link sent to %1$d %2$s.', 'photo-competition-manager' ),
+					$sent_count,
+					$audience_label
+				),
+				'updated'
+			);
+
+			$this->redirect_with_settings_errors( $redirect_url );
+			return;
+		}
+
 		if ( 'export_results_csv' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
@@ -476,6 +572,70 @@ class Results_Controller {
 		echo '<span class="dashicons dashicons-email" style="margin-top: 3px;"></span> ';
 		echo esc_html__( 'Email Results', 'photo-competition-manager' );
 		echo '</a>';
+
+		echo '</div>';
+
+		// Share results section.
+		$share_hash   = $competition->share_hash ?? '';
+		$results_page = $settings['urls']['results_page'] ?? '';
+
+		echo '<div class="photo-comp-share-results" style="margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">';
+		echo '<h3 style="margin-top: 0;">' . esc_html__( 'Share Results', 'photo-competition-manager' ) . '</h3>';
+
+		if ( ! empty( $share_hash ) && ! empty( $results_page ) ) {
+			$share_url = add_query_arg( 'share', $share_hash, $results_page );
+
+			$send_committee_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager-results',
+						'action'      => 'send_results_committee',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_send_results_committee_' . (int) $competition->id
+			);
+
+			$send_all_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager-results',
+						'action'      => 'send_results_all',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_send_results_all_' . (int) $competition->id
+			);
+
+			echo '<p class="description">';
+			echo esc_html__( 'Share link (bypasses visibility setting):', 'photo-competition-manager' );
+			echo '<br><code>' . esc_html( $share_url ) . '</code>';
+			echo '</p>';
+			echo '<p>';
+			echo '<a href="' . esc_url( $send_committee_url ) . '" class="button">';
+			echo '<span class="dashicons dashicons-groups" style="margin-top: 4px;"></span> ';
+			echo esc_html__( 'Send to Committee', 'photo-competition-manager' );
+			echo '</a> ';
+			echo '<a href="' . esc_url( $send_all_url ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' ) ) . '\');">';
+			echo '<span class="dashicons dashicons-email" style="margin-top: 4px;"></span> ';
+			echo esc_html__( 'Send to All Members', 'photo-competition-manager' );
+			echo '</a>';
+			echo '</p>';
+		} elseif ( empty( $share_hash ) ) {
+			echo '<p class="description">';
+			printf(
+				/* translators: %s: link to competitions page */
+				esc_html__( 'No share hash exists. %s on the Competitions page first.', 'photo-competition-manager' ),
+				'<a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager' ) ) . '">' . esc_html__( 'Generate a results link', 'photo-competition-manager' ) . '</a>'
+			);
+			echo '</p>';
+		} else {
+			echo '<p class="description">';
+			echo esc_html__( 'No results page URL configured. Set one in competition settings.', 'photo-competition-manager' );
+			echo '</p>';
+		}
 
 		echo '</div>';
 

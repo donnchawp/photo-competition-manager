@@ -111,6 +111,15 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Generate a 32-character hex share hash.
+	 *
+	 * @return string
+	 */
+	public static function generate_share_hash(): string {
+		return bin2hex( random_bytes( 16 ) );
+	}
+
+	/**
 	 * Parse stored settings JSON.
 	 *
 	 * @param string|null $json Settings JSON string.

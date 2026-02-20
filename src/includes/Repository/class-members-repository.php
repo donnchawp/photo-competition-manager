@@ -147,20 +147,22 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_email', __( 'A member with this email already exists.', 'photo-competition-manager' ) );
 		}
 
-		$grade  = isset( $data['grade'] ) ? sanitize_text_field( (string) $data['grade'] ) : '';
-		$active = isset( $data['active'] ) ? (int) (bool) $data['active'] : 1;
-		$now    = utc_time();
+		$grade     = isset( $data['grade'] ) ? sanitize_text_field( (string) $data['grade'] ) : '';
+		$active    = isset( $data['active'] ) ? (int) (bool) $data['active'] : 1;
+		$committee = isset( $data['committee'] ) ? (int) (bool) $data['committee'] : 0;
+		$now       = utc_time();
 
 		$payload = array(
 			'name'       => $name,
 			'email'      => $email,
 			'grade'      => $grade,
 			'active'     => $active,
+			'committee'  => $committee,
 			'created_at' => $now,
 			'updated_at' => $now,
 		);
 
-		$format = array( '%s', '%s', '%s', '%d', '%s', '%s' );
+		$format = array( '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert( $this->table(), $payload, $format );
@@ -208,18 +210,20 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_email', __( 'A member with this email already exists.', 'photo-competition-manager' ) );
 		}
 
-		$grade  = array_key_exists( 'grade', $data ) ? sanitize_text_field( (string) $data['grade'] ) : $current->grade;
-		$active = array_key_exists( 'active', $data ) ? (int) (bool) $data['active'] : (int) $current->active;
+		$grade     = array_key_exists( 'grade', $data ) ? sanitize_text_field( (string) $data['grade'] ) : $current->grade;
+		$active    = array_key_exists( 'active', $data ) ? (int) (bool) $data['active'] : (int) $current->active;
+		$committee = array_key_exists( 'committee', $data ) ? (int) (bool) $data['committee'] : (int) ( $current->committee ?? 0 );
 
 		$payload = array(
 			'name'       => $name,
 			'email'      => $email,
 			'grade'      => $grade,
 			'active'     => $active,
+			'committee'  => $committee,
 			'updated_at' => utc_time(),
 		);
 
-		$format = array( '%s', '%s', '%s', '%d', '%s' );
+		$format = array( '%s', '%s', '%s', '%d', '%d', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$updated = $wpdb->update(
@@ -235,6 +239,40 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Fetch active committee members.
+	 *
+	 * @return array<int, object>
+	 */
+	public function find_committee_members(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE committee = 1 AND active = 1 ORDER BY name ASC',
+				$this->table()
+			)
+		);
+	}
+
+	/**
+	 * Fetch all active members (unbounded).
+	 *
+	 * @return array<int, object>
+	 */
+	public function find_active_members(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE active = 1 ORDER BY name ASC',
+				$this->table()
+			)
+		);
 	}
 
 	/**

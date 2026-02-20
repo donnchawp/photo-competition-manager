@@ -101,23 +101,25 @@ class Member_CSV_Importer {
 			$header = $first_row_normalized;
 
 			// Get column indexes.
-			$col_name   = array_search( 'name', $header, true );
-			$col_email  = array_search( 'email', $header, true );
-			$col_grade  = array_search( 'grade', $header, true );
-			$col_active = array_search( 'active', $header, true );
+			$col_name      = array_search( 'name', $header, true );
+			$col_email     = array_search( 'email', $header, true );
+			$col_grade     = array_search( 'grade', $header, true );
+			$col_active    = array_search( 'active', $header, true );
+			$col_committee = array_search( 'committee', $header, true );
 
 			$row_number = 1; // Start at 1 (header is row 0).
 		} else {
-			// First row is data - assume format: name,email or name,email,grade,active.
+			// First row is data - assume format: name,email or name,email,grade,active,committee.
 			// Rewind to process first row as data.
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rewind
 			rewind( $handle );
 
-			// Assume columns: name, email, grade (optional), active (optional).
-			$col_name   = 0;
-			$col_email  = 1;
-			$col_grade  = 2;
-			$col_active = 3;
+			// Assume columns: name, email, grade (optional), active (optional), committee (optional).
+			$col_name      = 0;
+			$col_email     = 1;
+			$col_grade     = 2;
+			$col_active    = 3;
+			$col_committee = 4;
 
 			$row_number = 0; // Start at 0 since there's no header.
 		}
@@ -139,7 +141,8 @@ class Member_CSV_Importer {
 			$name   = isset( $row[ $col_name ] ) ? sanitize_text_field( trim( $row[ $col_name ] ) ) : '';
 			$email  = isset( $row[ $col_email ] ) ? sanitize_email( trim( $row[ $col_email ] ) ) : '';
 			$grade  = false !== $col_grade && isset( $row[ $col_grade ] ) ? sanitize_text_field( trim( $row[ $col_grade ] ) ) : '';
-			$active = false !== $col_active && isset( $row[ $col_active ] ) ? trim( $row[ $col_active ] ) : '1';
+			$active    = false !== $col_active && isset( $row[ $col_active ] ) ? trim( $row[ $col_active ] ) : '1';
+			$committee = false !== $col_committee && isset( $row[ $col_committee ] ) ? trim( $row[ $col_committee ] ) : '0';
 
 			// Validate required fields.
 			if ( empty( $name ) || empty( $email ) ) {
@@ -167,16 +170,18 @@ class Member_CSV_Importer {
 			}
 
 			// Normalize active field (1, yes, true, active = true; others = false).
-			$active_normalized = in_array( strtolower( $active ), array( '1', 'yes', 'true', 'active' ), true ) ? 1 : 0;
+			$active_normalized    = in_array( strtolower( $active ), array( '1', 'yes', 'true', 'active' ), true ) ? 1 : 0;
+			$committee_normalized = in_array( strtolower( $committee ), array( '1', 'yes', 'true' ), true ) ? 1 : 0;
 
 			// Check if member already exists by email.
 			$existing = $this->members->find_by_email( $email );
 
 			$data = array(
-				'name'   => $name,
-				'email'  => $email,
-				'grade'  => $grade,
-				'active' => $active_normalized,
+				'name'      => $name,
+				'email'     => $email,
+				'grade'     => $grade,
+				'active'    => $active_normalized,
+				'committee' => $committee_normalized,
 			);
 
 			if ( $existing ) {
@@ -225,10 +230,10 @@ class Member_CSV_Importer {
 	 * @return string CSV content.
 	 */
 	public function generate_sample_csv(): string {
-		$csv  = "name,email,grade,active\n";
-		$csv .= '"John Doe",john.doe@example.com,Beginner,1' . "\n";
-		$csv .= '"Jane Smith",jane.smith@example.com,Advanced,1' . "\n";
-		$csv .= '"Bob Johnson",bob.johnson@example.com,Intermediate,0' . "\n";
+		$csv  = "name,email,grade,active,committee\n";
+		$csv .= '"John Doe",john.doe@example.com,Beginner,1,0' . "\n";
+		$csv .= '"Jane Smith",jane.smith@example.com,Advanced,1,1' . "\n";
+		$csv .= '"Bob Johnson",bob.johnson@example.com,Intermediate,0,0' . "\n";
 
 		return $csv;
 	}

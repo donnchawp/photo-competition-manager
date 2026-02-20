@@ -184,11 +184,13 @@ class Competitions_Repository extends Abstract_Repository {
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
+			'share_hash' => isset( $data['share_hash'] ) ? sanitize_text_field( (string) $data['share_hash'] ) : '',
 			'created_at' => $now,
 			'updated_at' => $now,
 		);
 
 		$format = array(
+			'%s',
 			'%s',
 			'%s',
 			'%s',
@@ -398,6 +400,62 @@ class Competitions_Repository extends Abstract_Repository {
 
 		if ( false === $deleted ) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete competition.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Find a competition by its share hash.
+	 *
+	 * @param string $share_hash Share hash to look up.
+	 * @return object|null
+	 */
+	public function find_by_share_hash( string $share_hash ) {
+		global $wpdb;
+
+		if ( empty( $share_hash ) ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE share_hash = %s AND deleted_at IS NULL LIMIT 1',
+				$this->table(),
+				$share_hash
+			)
+		);
+	}
+
+	/**
+	 * Update the share hash for a competition.
+	 *
+	 * @param int    $id         Competition ID.
+	 * @param string $share_hash New share hash.
+	 * @return bool|WP_Error
+	 */
+	public function update_share_hash( int $id, string $share_hash ) {
+		global $wpdb;
+
+		if ( $id <= 0 ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'share_hash' => $share_hash,
+				'updated_at' => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update share hash.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
