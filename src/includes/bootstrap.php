@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin version.
 if ( ! defined( 'PHOTO_COMPETITION_MANAGER_VERSION' ) ) {
-	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.1.0' );
+	define( 'PHOTO_COMPETITION_MANAGER_VERSION', '0.3.0' );
 }
 
 // Define plugin directory and URL.

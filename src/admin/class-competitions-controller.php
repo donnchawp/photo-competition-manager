@@ -119,7 +119,8 @@ class Competitions_Controller {
 			// Delete and reset votes confirmation
 			document.addEventListener(\'click\', function(e) {
 				if (e.target.classList.contains(\'photo-comp-delete\') ||
-						e.target.classList.contains(\'photo-comp-reset-votes\')) {
+						e.target.classList.contains(\'photo-comp-reset-votes\') ||
+						e.target.classList.contains(\'photo-comp-regenerate-hash\')) {
 							var confirmMessage = e.target.getAttribute(\'data-confirm\');
 							if (confirmMessage && !confirm(confirmMessage)) {
 								e.preventDefault();
@@ -1315,7 +1316,12 @@ class Competitions_Controller {
 				'photo_competition_generate_results_link_' . (int) $competition->id
 			);
 
-			$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $generate_link_url ), esc_html__( 'Generate Results Link', 'photo-competition-manager' ) );
+			$actions[] = sprintf(
+				'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
+				esc_url( $generate_link_url ),
+				esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
+				esc_html__( 'Generate Results Link', 'photo-competition-manager' )
+			);
 
 			if ( $is_archived ) {
 				$restore_url = wp_nonce_url(

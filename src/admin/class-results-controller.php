@@ -614,7 +614,7 @@ class Results_Controller {
 			echo '<br><code>' . esc_html( $share_url ) . '</code>';
 			echo '</p>';
 			echo '<p>';
-			echo '<a href="' . esc_url( $send_committee_url ) . '" class="button">';
+			echo '<a href="' . esc_url( $send_committee_url ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to all committee members. Continue?', 'photo-competition-manager' ) ) . '\');">';
 			echo '<span class="dashicons dashicons-groups" style="margin-top: 4px;"></span> ';
 			echo esc_html__( 'Send to Committee', 'photo-competition-manager' );
 			echo '</a> ';

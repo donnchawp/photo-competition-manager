@@ -4,7 +4,7 @@ Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.2
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -154,6 +154,15 @@ Yes. Visit **Competitions → Export** to download:
 
 == Changelog ==
 
+= 0.3.0 =
+* Fix fatal error on activation due to missing Admin_Dependencies class in release package
+* **Results Sharing** — Share competition results via a secret link before making them public
+  * New "Generate Results Link" action on the Competitions page
+  * "Send to Committee" and "Send to All Members" buttons on the Results Dashboard
+  * Share link bypasses results visibility and resolves to the correct competition
+* **Committee Members** — Mark members as committee via admin or CSV import
+* Confirmation dialogs on hash regeneration and email sending to prevent accidental actions
+
 = 0.2.0 =
 * **Voting Controls Redesign**
   * Streamlined voting controls page with improved layout
@@ -221,6 +230,9 @@ Yes. Visit **Competitions → Export** to download:
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.3.0 =
+Fixes a fatal error on plugin activation. Share competition results with committee members or all members via a secret link before making results public.
 
 = 0.2.0 =
 Redesigned voting controls, improved tie handling in scoring, better export formatting, and various bug fixes. All times are now normalized to UTC.
