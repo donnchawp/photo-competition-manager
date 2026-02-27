@@ -285,9 +285,7 @@ class Results_Shortcode {
 														<td class="position"><?php echo esc_html( $position ); ?></td>
 														<td class="image-cell">
 															<?php if ( $thumb_url ) : ?>
-																<a href="<?php echo esc_url( $image_urls['full'] ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-																	<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt_text ); ?>" loading="lazy" class="result-thumbnail" />
-																</a>
+																<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( $alt_text ); ?>" loading="lazy" class="result-thumbnail" />
 															<?php else : ?>
 																<div class="image-unavailable">
 																	<?php esc_html_e( 'Image unavailable', 'photo-competition-manager' ); ?>

@@ -284,10 +284,8 @@ class Top3_Shortcode {
 												</div>
 												<div class="image-container">
 													<?php if ( $thumb_url ) : ?>
-														<a href="<?php echo esc_url( $image_urls['full'] ); ?>" target="_blank" rel="noopener noreferrer" class="image-link">
-															<?php // translators: Image alt text with image number. ?>
-															<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number ) ); ?>" loading="lazy" class="podium-thumbnail" />
-														</a>
+														<?php // translators: Image alt text with image number. ?>
+														<img src="<?php echo esc_url( $thumb_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number ) ); ?>" loading="lazy" class="podium-thumbnail" />
 													<?php else : ?>
 														<div class="image-unavailable">
 															<?php esc_html_e( 'Image unavailable', 'photo-competition-manager' ); ?>
