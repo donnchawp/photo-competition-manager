@@ -356,6 +356,29 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete all votes for a competition and category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return bool
+	 */
+	public function delete_by_competition_and_category( int $competition_id, string $category ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
+			$this->table(),
+			array(
+				'competition_id' => $competition_id,
+				'category'       => $category,
+			),
+			array( '%d', '%s' )
+		);
+
+		return false !== $deleted;
+	}
+
+	/**
 	 * Delete all votes for a competition.
 	 *
 	 * @param int $competition_id Competition ID.

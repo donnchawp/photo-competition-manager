@@ -595,6 +595,28 @@
 		}
 	}
 
+	// Reset category confirmation handler.
+	$(document).on('click', '.photo-comp-reset-category', function(e) {
+		e.preventDefault();
+		var $link = $(this);
+		var label = $link.data('category-label');
+
+		if (!confirm('Reset voting workflow for "' + label + '" back to step 1?')) {
+			return;
+		}
+
+		var clearVotes = confirm(
+			'Also clear all votes for "' + label + '"?\n\n' +
+			'Click OK to clear votes, or Cancel to keep existing votes.'
+		);
+
+		if (clearVotes) {
+			window.location.href = $link.data('clear-votes-url');
+		} else {
+			window.location.href = $link.data('reset-url');
+		}
+	});
+
 	// Initialize on page load
 	$(document).ready(function() {
 		new AdminSlideshow();

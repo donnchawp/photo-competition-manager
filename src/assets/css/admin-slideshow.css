@@ -497,6 +497,17 @@
 	font-style: italic;
 }
 
+.photo-comp-reset-category {
+	float: right;
+	font-size: 12px;
+	color: #a7aaad;
+	text-decoration: none;
+}
+
+.photo-comp-reset-category:hover {
+	color: #d63638;
+}
+
 /* ==========================================================================
    Quick Actions Bar
    ========================================================================== */

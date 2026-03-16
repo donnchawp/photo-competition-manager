@@ -14,6 +14,8 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -238,6 +240,93 @@ class Voting_Controller {
 					__( 'Voting closed successfully.', 'photo-competition-manager' ),
 					'updated'
 				);
+			}
+
+			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+			if ( ! empty( $focus_param ) ) {
+				$redirect_args['focus'] = $focus_param;
+			}
+			$this->redirect_with_settings_errors(
+				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
+			);
+		}
+
+		if ( 'reset_category' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+			$clear_votes    = isset( $_GET['clear_votes'] ) ? absint( wp_unslash( $_GET['clear_votes'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_reset_category_' . $competition_id . '_' . $category_slug );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_voting',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+
+				$this->redirect_with_settings_errors(
+					add_query_arg(
+						array( 'page' => 'photo-competition-manager-voting' ),
+						admin_url( 'admin.php' )
+					)
+				);
+			}
+
+			$settings = Competition_Settings::parse( $competition->settings );
+
+			// Close voting if currently open for this category.
+			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
+			if ( in_array( $category_slug, $open_categories, true ) ) {
+				$settings['voting']['open_categories'] = array();
+			}
+
+			// Reset step back to 1.
+			$settings['voting']['category_steps'][ $category_slug ] = 1;
+
+			// Remove from voted_categories if present.
+			$category_key     = $competition_id . '_' . $category_slug;
+			$voted_categories = $settings['voting']['voted_categories'] ?? array();
+			$voted_categories = array_values( array_diff( $voted_categories, array( $category_key ) ) );
+			$settings['voting']['voted_categories'] = $voted_categories;
+
+			$result = $this->competitions->update(
+				$competition_id,
+				array( 'settings' => $settings )
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_voting',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				// Clear votes and tokens if requested.
+				if ( 1 === $clear_votes ) {
+					$votes_repo = new Votes_Repository();
+					$votes_repo->delete_by_competition_and_category( $competition_id, $category_slug );
+
+					$token_repo = new Voting_Token_Repository();
+					$token_repo->delete_by_competition_and_category( $competition_id, $category_slug );
+
+					add_settings_error(
+						'photo_competition_voting',
+						'category_reset',
+						__( 'Category reset to step 1 and all votes cleared.', 'photo-competition-manager' ),
+						'updated'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition_voting',
+						'category_reset',
+						__( 'Category reset to step 1. Existing votes were kept.', 'photo-competition-manager' ),
+						'updated'
+					);
+				}
 			}
 
 			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
@@ -991,6 +1080,18 @@ class Voting_Controller {
 			'photo_competition_close_voting_' . $comp_id . '_' . $category_slug
 		);
 
+		$reset_url = wp_nonce_url(
+			add_query_arg(
+				array_merge( $focus_args, array(
+					'action'      => 'reset_category',
+					'competition' => $comp_id,
+					'category'    => $category_slug,
+				) ),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_reset_category_' . $comp_id . '_' . $category_slug
+		);
+
 		// Is voting currently open for THIS category?
 		$voting_open_here = $voting_open_globally
 			&& $open_competition_id === $comp_id
@@ -1045,6 +1146,15 @@ class Voting_Controller {
 						<?php echo esc_html( $category_label ); ?>
 						<span class="photo-comp-tab-count">(<?php echo (int) $image_count; ?> <?php esc_html_e( 'images', 'photo-competition-manager' ); ?>)</span>
 					</h2>
+				<?php endif; ?>
+
+				<?php if ( $current_step > 1 ) : ?>
+					<a href="#" class="photo-comp-reset-category"
+						data-reset-url="<?php echo esc_url( $reset_url ); ?>"
+						data-clear-votes-url="<?php echo esc_url( $reset_url . '&clear_votes=1' ); ?>"
+						data-category-label="<?php echo esc_attr( $category_label ); ?>">
+						<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
+					</a>
 				<?php endif; ?>
 
 				<?php if ( ! $is_ready ) : ?>

@@ -217,6 +217,33 @@ class Voting_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete all voting tokens for a competition and category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return bool
+	 */
+	public function delete_by_competition_and_category( int $competition_id, string $category ): bool {
+		global $wpdb;
+
+		if ( ! $this->table_exists() || $competition_id <= 0 || empty( $category ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
+			$this->table(),
+			array(
+				'competition_id' => $competition_id,
+				'category'       => $category,
+			),
+			array( '%d', '%s' )
+		);
+
+		return false !== $deleted;
+	}
+
+	/**
 	 * Delete all voting tokens for a competition.
 	 *
 	 * @param int $competition_id Competition ID.
