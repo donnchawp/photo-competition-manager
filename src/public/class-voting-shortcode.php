@@ -183,11 +183,6 @@ class Voting_Shortcode {
 		// Enqueue voting validation assets.
 		$this->enqueue_voting_assets();
 
-		// Enforce HTTPS requirement for voting.
-		if ( ! $this->is_https_connection() ) {
-			return $this->render_https_required_notice();
-		}
-
 		// Find the most recent active competition.
 		$competition = $this->competitions_repo->find_current_active();
 
@@ -1308,11 +1303,6 @@ class Voting_Shortcode {
 	 * @return void
 	 */
 	private function refresh_voter_cookie( string $name, string $password ): void {
-		// Only set cookies over HTTPS.
-		if ( ! $this->is_https_connection() ) {
-			return;
-		}
-
 		$payload = array(
 			'name'     => $name,
 			'password' => $password, // Store password for accessibility on mobile devices.
@@ -1325,7 +1315,7 @@ class Voting_Shortcode {
 				'expires'  => time() + YEAR_IN_SECONDS,
 				'path'     => COOKIEPATH ? COOKIEPATH : '/',
 				'domain'   => COOKIE_DOMAIN,
-				'secure'   => true, // Always require HTTPS for cookies.
+				'secure'   => is_ssl(),
 				'samesite' => 'Lax',
 				'httponly' => true, // Prevent JavaScript access for security.
 			)
@@ -1333,49 +1323,5 @@ class Voting_Shortcode {
 
 		// Make the cookie immediately available during this request.
 		$_COOKIE['photo_competition_voter'] = wp_json_encode( $payload );
-	}
-
-	/**
-	 * Check if the current connection is using HTTPS.
-	 *
-	 * @return bool True if HTTPS is being used, false otherwise.
-	 */
-	private function is_https_connection(): bool {
-		return is_ssl();
-	}
-
-	/**
-	 * Render HTTPS required notice.
-	 *
-	 * @return string HTML notice.
-	 */
-	private function render_https_required_notice(): string {
-		$https_url = '';
-		if ( isset( $_SERVER['HTTP_HOST'] ) && isset( $_SERVER['REQUEST_URI'] ) ) {
-			$https_url = 'https://' . sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) . sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) );
-		}
-
-		ob_start();
-		?>
-		<div class="photo-comp-voting">
-			<div class="notice notice-error">
-				<h3><?php esc_html_e( 'Secure Connection Required', 'photo-competition-manager' ); ?></h3>
-				<p>
-					<?php esc_html_e( 'For security reasons, voting requires a secure HTTPS connection. This protects your voting password and personal information.', 'photo-competition-manager' ); ?>
-				</p>
-				<?php if ( $https_url ) : ?>
-					<p>
-						<a href="<?php echo esc_url( $https_url ); ?>" class="button button-primary">
-							<?php esc_html_e( 'Switch to Secure Connection', 'photo-competition-manager' ); ?>
-						</a>
-					</p>
-				<?php endif; ?>
-				<p class="description">
-					<?php esc_html_e( 'If you continue to see this message after switching to HTTPS, please contact your site administrator.', 'photo-competition-manager' ); ?>
-				</p>
-			</div>
-		</div>
-		<?php
-		return ob_get_clean();
 	}
 }
