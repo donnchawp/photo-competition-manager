@@ -89,10 +89,15 @@ class Competition_Settings {
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 				'ui_type'             => 'default',
+				'category_steps'      => array(),
+				'voted_categories'    => array(),
 			),
 			'slideshow'       => array(
 				'duration_seconds'    => 10,
 				'progress_meter_type' => 'bar',
+				'preview_duration'    => 10,
+				'voting_duration'     => 15,
+				'critique_duration'   => 0,
 			),
 			'email_reminders' => array(
 				'enabled'                => true,
