@@ -1149,12 +1149,22 @@ class Voting_Controller {
 				<?php endif; ?>
 
 				<?php if ( $current_step > 1 ) : ?>
-					<a href="#" class="photo-comp-reset-category"
-						data-reset-url="<?php echo esc_url( $reset_url ); ?>"
-						data-clear-votes-url="<?php echo esc_url( $reset_url . '&clear_votes=1' ); ?>"
-						data-category-label="<?php echo esc_attr( $category_label ); ?>">
+					<a href="#" class="photo-comp-reset-toggle">
 						<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
 					</a>
+					<div class="photo-comp-reset-panel" style="display: none;">
+						<p><?php printf( esc_html__( 'Reset %s back to step 1?', 'photo-competition-manager' ), '<strong>' . esc_html( $category_label ) . '</strong>' ); ?></p>
+						<label>
+							<input type="checkbox" class="photo-comp-reset-clear-votes" />
+							<?php esc_html_e( 'Also clear all votes for this category', 'photo-competition-manager' ); ?>
+						</label>
+						<div class="photo-comp-reset-actions">
+							<a href="<?php echo esc_url( $reset_url ); ?>" class="button button-small photo-comp-reset-confirm" data-base-url="<?php echo esc_url( $reset_url ); ?>" data-clear-url="<?php echo esc_url( $reset_url . '&clear_votes=1' ); ?>">
+								<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
+							</a>
+							<a href="#" class="button button-small button-link photo-comp-reset-cancel"><?php esc_html_e( 'Cancel', 'photo-competition-manager' ); ?></a>
+						</div>
+					</div>
 				<?php endif; ?>
 
 				<?php if ( ! $is_ready ) : ?>

@@ -595,26 +595,23 @@
 		}
 	}
 
-	// Reset category confirmation handler.
-	$(document).on('click', '.photo-comp-reset-category', function(e) {
+	// Reset category — toggle inline panel.
+	$(document).on('click', '.photo-comp-reset-toggle', function(e) {
 		e.preventDefault();
-		var $link = $(this);
-		var label = $link.data('category-label');
+		$(this).siblings('.photo-comp-reset-panel').slideToggle(150);
+	});
 
-		if (!confirm('Reset voting workflow for "' + label + '" back to step 1?')) {
-			return;
-		}
+	// Reset cancel.
+	$(document).on('click', '.photo-comp-reset-cancel', function(e) {
+		e.preventDefault();
+		$(this).closest('.photo-comp-reset-panel').slideUp(150);
+	});
 
-		var clearVotes = confirm(
-			'Also clear all votes for "' + label + '"?\n\n' +
-			'Click OK to clear votes, or Cancel to keep existing votes.'
-		);
-
-		if (clearVotes) {
-			window.location.href = $link.data('clear-votes-url');
-		} else {
-			window.location.href = $link.data('reset-url');
-		}
+	// Reset confirm — update href based on checkbox.
+	$(document).on('click', '.photo-comp-reset-confirm', function() {
+		var $panel = $(this).closest('.photo-comp-reset-panel');
+		var clearVotes = $panel.find('.photo-comp-reset-clear-votes').is(':checked');
+		$(this).attr('href', clearVotes ? $(this).data('clear-url') : $(this).data('base-url'));
 	});
 
 	// Initialize on page load

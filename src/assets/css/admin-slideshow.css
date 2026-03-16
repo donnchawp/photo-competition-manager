@@ -497,15 +497,41 @@
 	font-style: italic;
 }
 
-.photo-comp-reset-category {
+.photo-comp-reset-toggle {
 	float: right;
 	font-size: 12px;
 	color: #a7aaad;
 	text-decoration: none;
 }
 
-.photo-comp-reset-category:hover {
+.photo-comp-reset-toggle:hover {
 	color: #d63638;
+}
+
+.photo-comp-reset-panel {
+	clear: both;
+	background: #fff8e5;
+	border: 1px solid #f0c33c;
+	border-radius: 4px;
+	padding: 12px 14px;
+	margin: 8px 0 12px;
+	font-size: 13px;
+}
+
+.photo-comp-reset-panel p {
+	margin: 0 0 8px;
+}
+
+.photo-comp-reset-panel label {
+	display: block;
+	margin-bottom: 10px;
+	color: #50575e;
+}
+
+.photo-comp-reset-actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
 }
 
 /* ==========================================================================
