@@ -787,51 +787,6 @@ class Voting_Controller {
 	 *
 	 * @return void
 	 */
-	private function render_results_links(): void {
-		// Get global settings to find results page URLs.
-		// URLs are auto-detected by Competition_Settings::parse() if not explicitly set.
-		$global_settings = $this->get_global_settings();
-		$results_url     = $global_settings['urls']['results_page'] ?? '';
-		$top3_url        = $global_settings['urls']['top3_page'] ?? '';
-
-		echo '<div style="max-width: 900px; margin-top: 40px; padding: 20px; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px;">';
-		echo '<h2 style="margin-top: 0;">' . esc_html__( 'Results Pages', 'photo-competition-manager' ) . '</h2>';
-		echo '<p class="description">' . esc_html__( 'Use these links when the competition is finished and you are ready to publish results.', 'photo-competition-manager' ) . '</p>';
-
-		if ( ! empty( $results_url ) || ! empty( $top3_url ) ) {
-			echo '<p>';
-
-			if ( ! empty( $results_url ) ) {
-				echo '<a href="' . esc_url( $results_url ) . '" class="button button-secondary" target="_blank" rel="noopener noreferrer">';
-				echo '<span class="dashicons dashicons-awards" style="margin-top: 3px;"></span> ';
-				echo esc_html__( 'View Full Results', 'photo-competition-manager' );
-				echo '</a> ';
-			}
-
-			if ( ! empty( $top3_url ) ) {
-				echo '<a href="' . esc_url( $top3_url ) . '" class="button button-secondary" target="_blank" rel="noopener noreferrer">';
-				echo '<span class="dashicons dashicons-star-filled" style="margin-top: 3px;"></span> ';
-				echo esc_html__( 'View Top 3 Results', 'photo-competition-manager' );
-				echo '</a>';
-			}
-
-			echo '</p>';
-		} else {
-			echo '<div class="notice notice-warning inline">';
-			echo '<p>';
-			echo esc_html__( 'No results pages configured.', 'photo-competition-manager' ) . ' ';
-			printf(
-				/* translators: %s: link to global settings page */
-				esc_html__( 'Add results page URLs in the %s.', 'photo-competition-manager' ),
-				'<a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-settings' ) ) . '">' . esc_html__( 'Global Settings', 'photo-competition-manager' ) . '</a>'
-			);
-			echo '</p>';
-			echo '</div>';
-		}
-
-		echo '</div>';
-	}
-
 	/**
 	 * Render the competition status bar with competition-wide controls.
 	 *
