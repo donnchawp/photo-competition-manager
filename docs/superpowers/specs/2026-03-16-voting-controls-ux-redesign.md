@@ -67,6 +67,7 @@ Each category follows this 5-step workflow:
 | 3 | Show Slideshow | Optional | "Start Slideshow" button, duration text input, "Continue" button | User clicks "Continue" |
 | 4 | Close Voting | Required | "Close Voting" button | Immediately on action, auto-advances to step 5 |
 | 5 | Critique | Optional | "Start Critique" button, duration text input, "Continue" button | User clicks "Continue" (completes category) |
+| 6 | Complete (sentinel) | — | No controls | Written when step 5 Continue is clicked; used by "All Categories Complete" check |
 
 **"Continue" button behaviour:** Present on slideshow steps (1, 3, 5). Serves dual purpose — skip the step if the slideshow was never started, or confirm completion after running the slideshow. The slideshow can be re-run as many times as needed before clicking Continue. Label is always "Continue", never changes.
 
@@ -105,6 +106,7 @@ voting.category_steps.bw = 1
 **AJAX endpoint for "Continue" button:** Register a `wp_ajax_photo_comp_advance_voting_step` action.
 
 - **Request parameters:** `competition_id` (int), `category_slug` (string), `step` (int — the step to advance to), `_wpnonce` (string).
+- **Authorization:** Verify `current_user_can( 'manage_photo_competitions' )` before processing. Return `{ "success": false, "message": "Insufficient permissions." }` (HTTP 403) if the check fails.
 - **Nonce:** Generated per-page via `wp_create_nonce( 'photo_comp_voting_step' )` and passed as a JS variable.
 - **Success response:** `{ "success": true, "step": <new step value> }`.
 - **Error response:** `{ "success": false, "message": "..." }` — displayed as a WP admin notice.
@@ -113,7 +115,7 @@ voting.category_steps.bw = 1
 **Page load recovery:** On page load, if the live voting state disagrees with the stored step, live state wins. Specifically:
 
 - If voting is currently open for this category and stored step < 3, set step to 3.
-- If voting was closed (category appears in `voted_categories`) and stored step < 5, set step to 5.
+- If voting was closed (the key `{competition_id}_{category_slug}` appears in `voted_categories`) and stored step < 5, set step to 5.
 
 This handles the case where an admin reloads on a different device or after a browser crash.
 
