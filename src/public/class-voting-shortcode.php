@@ -127,7 +127,7 @@ class Voting_Shortcode {
 			$asset_data = require $style_asset;
 			wp_enqueue_style(
 				'photo-competition-manager-voting',
-				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/index.css',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/build/style-index.css',
 				array(),
 				$asset_data['version'] ?? PHOTO_COMPETITION_MANAGER_VERSION
 			);
