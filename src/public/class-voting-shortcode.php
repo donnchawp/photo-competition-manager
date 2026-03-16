@@ -260,6 +260,13 @@ class Voting_Shortcode {
 		if ( 'success' === $status_param ) {
 			$message  = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
 			$message .= '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+
+			ob_start();
+			echo '<div class="photo-comp-voting">';
+			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</h2>';
+			echo wp_kses_post( $message );
+			echo '</div>';
+			return ob_get_clean();
 		}
 
 		$submitted_data = array(
