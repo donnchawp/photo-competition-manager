@@ -478,24 +478,30 @@ class Competitions_Controller {
 			}
 
 			if ( 'reset_votes' === $action ) {
+				// Delete all votes.
 				$votes_repo = new \PhotoCompetitionManager\Repository\Votes_Repository();
-				$result     = $votes_repo->delete_by_competition( $competition_id );
+				$votes_repo->delete_by_competition( $competition_id );
 
-				if ( false === $result ) {
-					add_settings_error(
-						'photo_competition',
-						'reset_votes_failed',
-						__( 'Could not reset votes.', 'photo-competition-manager' ),
-						'error'
-					);
-				} else {
-					add_settings_error(
-						'photo_competition',
-						'votes_reset',
-						__( 'All votes for this competition have been deleted.', 'photo-competition-manager' ),
-						'updated'
-					);
+				// Delete all voting tokens.
+				$token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
+				$token_repo->delete_by_competition( $competition_id );
+
+				// Reset voting workflow state.
+				$competition = $this->competitions->find( $competition_id );
+				if ( $competition ) {
+					$settings                                  = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+					$settings['voting']['category_steps']      = array();
+					$settings['voting']['voted_categories']    = array();
+					$settings['voting']['open_categories']     = array();
+					$this->competitions->update( $competition_id, array( 'settings' => $settings ) );
 				}
+
+				add_settings_error(
+					'photo_competition',
+					'votes_reset',
+					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
+					'updated'
+				);
 
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
@@ -1371,8 +1377,8 @@ class Competitions_Controller {
 			$actions[] = sprintf(
 				'<a href="%s" class="photo-comp-reset-votes" data-confirm="%s">%s</a>',
 				esc_url( $reset_votes_url ),
-				esc_attr( __( 'Are you sure you want to delete all votes for this competition? This cannot be undone.', 'photo-competition-manager' ) ),
-				esc_html__( 'Reset Votes', 'photo-competition-manager' )
+				esc_attr( __( 'Reset all voting progress? This deletes all votes, tokens, and resets the workflow to step 1. This cannot be undone.', 'photo-competition-manager' ) ),
+				esc_html__( 'Reset Voting', 'photo-competition-manager' )
 			);
 
 			// Delete competition action.
