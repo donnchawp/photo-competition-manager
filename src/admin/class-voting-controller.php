@@ -1177,7 +1177,10 @@ class Voting_Controller {
 						<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
 					</a>
 					<div class="photo-comp-reset-panel" style="display: none;">
-						<p><?php printf( esc_html__( 'Reset %s back to step 1?', 'photo-competition-manager' ), '<strong>' . esc_html( $category_label ) . '</strong>' ); ?></p>
+						<p><?php
+						/* translators: %s: Category name */
+						printf( esc_html__( 'Reset %s back to step 1?', 'photo-competition-manager' ), '<strong>' . esc_html( $category_label ) . '</strong>' );
+						?></p>
 						<label>
 							<input type="checkbox" class="photo-comp-reset-clear-votes" />
 							<?php esc_html_e( 'Also clear all votes for this category', 'photo-competition-manager' ); ?>
