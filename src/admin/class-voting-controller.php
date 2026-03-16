@@ -581,6 +581,31 @@ class Voting_Controller {
 			return;
 		}
 
+		// Page load recovery: live state wins over stored step.
+		foreach ( $all_categories as &$cat_data ) {
+			$cat_slug     = $cat_data['category']['slug'] ?? '';
+			$cat_comp_id  = (int) $cat_data['competition']->id;
+			$cat_key      = $cat_comp_id . '_' . $cat_slug;
+			$cat_settings = $cat_data['settings'];
+
+			$stored_step = $cat_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
+
+			// If voting is currently open for this category and step < 3, jump to 3.
+			$open_cats = Competition_Settings::get_open_voting_categories( $cat_settings );
+			if ( in_array( $cat_slug, $open_cats, true ) && $stored_step < 3 ) {
+				$stored_step = 3;
+			}
+
+			// If category is in voted_categories and step < 5, jump to 5.
+			$voted = $cat_settings['voting']['voted_categories'] ?? array();
+			if ( in_array( $cat_key, $voted, true ) && $stored_step < 5 ) {
+				$stored_step = 5;
+			}
+
+			$cat_data['current_step'] = $stored_step;
+		}
+		unset( $cat_data );
+
 		// Determine which category is active.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display parameter.
 		$selected_key = isset( $_GET['focus'] ) ? sanitize_text_field( wp_unslash( $_GET['focus'] ) ) : '';
@@ -612,20 +637,10 @@ class Voting_Controller {
 			$active_category_data = $all_categories[0];
 		}
 
-		$current_key    = $active_category_data['key'];
-		$is_voting_open = $voting_open_globally && (int) $active_category_data['competition']->id === $open_competition_id && ( $active_category_data['category']['slug'] ?? '' ) === $open_category_slug;
+		$current_key = $active_category_data['key'];
 
 		// Get voted categories from settings.
 		$voted_categories = $active_settings['voting']['voted_categories'] ?? array();
-
-		// Check if all categories have been voted.
-		$all_voted = ! empty( $voted_categories ) && count( $voted_categories ) >= count( $all_categories );
-		foreach ( $all_categories as $cat_data ) {
-			if ( ! in_array( $cat_data['key'], $voted_categories, true ) ) {
-				$all_voted = false;
-				break;
-			}
-		}
 
 		// Get voting page URL.
 		$voting_page_url = '';
@@ -636,31 +651,36 @@ class Voting_Controller {
 			$voting_page_url = $global_settings['urls']['voting_page'];
 		}
 
-		// Render the Competition Status Bar.
+		// Render Competition Status Bar.
 		$this->render_competition_status_bar( $active_competition, $active_settings );
 
-		// Render Category Tabs.
+		// Determine readiness.
+		$uploads_closed  = $active_settings['upload']['uploads_closed'] ?? false;
+		$results_visible = $active_settings['results']['results_visible'] ?? false;
+		$is_ready        = $uploads_closed && ! $results_visible;
+
+		// Render category tabs (attached to the workflow card postbox).
 		$this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug, $voted_categories );
 
-		// Render Competition Complete panel OR Category Control Panel.
-		if ( $all_voted && ! $voting_open_globally ) {
+		// Check completion: category_steps >= 6 is primary, voted_categories is fallback for pre-upgrade data.
+		$all_complete = true;
+		foreach ( $all_categories as $cat_data ) {
+			$step         = $cat_data['current_step'] ?? 1;
+			$key_in_voted = in_array( $cat_data['key'], $voted_categories, true );
+			if ( $step < 6 && ! $key_in_voted ) {
+				$all_complete = false;
+				break;
+			}
+		}
+
+		if ( $all_complete && ! $voting_open_globally ) {
 			$this->render_competition_complete( $active_competition, $all_categories, $voted_categories, $active_settings, $global_settings );
 		} else {
-			$this->render_category_control_panel(
-				$active_category_data['competition'],
-				$active_category_data['category'],
-				$active_category_data['image_count'],
-				$is_voting_open,
-				$voting_open_globally,
-				$active_category_data['settings']
-			);
+			$this->render_workflow_steps( $active_category_data, $is_ready, $voting_open_globally, $open_competition_id, $open_category_slug, $global_settings, count( $all_categories ) );
 		}
 
 		// Render Quick Actions.
 		$this->render_quick_actions( $voting_page_url, $global_settings, $active_settings );
-
-		// Hidden duration setting for slideshow.
-		echo '<input type="hidden" id="slideshow-duration-setting" value="20" />';
 
 		// Hidden meter type setting for slideshow.
 		$meter_type = $active_settings['slideshow']['progress_meter_type'] ?? 'bar';
@@ -872,59 +892,42 @@ class Voting_Controller {
 			'photo_competition_hide_results_' . (int) $competition->id
 		);
 
-		// Determine ready state - uploads closed AND results hidden.
-		$is_ready = $uploads_closed && ! $results_visible;
 		?>
-		<div class="competition-status-bar">
-			<div class="status-bar-title">
-				<h2><?php echo esc_html( $competition->title ); ?></h2>
-			</div>
-			<div class="status-bar-controls">
-				<div class="status-control uploads-control">
-					<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>
-					<?php if ( $uploads_closed ) : ?>
-						<span class="status-pill status-pill-success">
-							<span class="dashicons dashicons-yes"></span>
-							<?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?>
-						</span>
-						<a href="<?php echo esc_url( $open_uploads_url ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
-					<?php else : ?>
-						<span class="status-pill status-pill-warning">
-							<span class="dashicons dashicons-warning"></span>
-							<?php esc_html_e( 'Open', 'photo-competition-manager' ); ?>
-						</span>
-						<a href="<?php echo esc_url( $close_uploads_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close', 'photo-competition-manager' ); ?></a>
-					<?php endif; ?>
-				</div>
-				<div class="status-control results-control">
-					<span class="status-control-label"><?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></span>
-					<?php if ( $results_visible ) : ?>
-						<span class="status-pill status-pill-warning">
-							<span class="dashicons dashicons-warning"></span>
-							<?php esc_html_e( 'Visible', 'photo-competition-manager' ); ?>
-						</span>
-						<a href="<?php echo esc_url( $hide_results_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Hide', 'photo-competition-manager' ); ?></a>
-					<?php else : ?>
-						<span class="status-pill status-pill-success">
-							<span class="dashicons dashicons-yes"></span>
-							<?php esc_html_e( 'Hidden', 'photo-competition-manager' ); ?>
-						</span>
-						<a href="<?php echo esc_url( $show_results_url ); ?>" class="button button-small"><?php esc_html_e( 'Show', 'photo-competition-manager' ); ?></a>
-					<?php endif; ?>
+		<div class="postbox photo-comp-status-bar">
+			<div class="inside" style="margin: 0; padding: 10px 14px;">
+				<div class="status-bar-layout">
+					<strong class="status-bar-title"><?php echo esc_html( $competition->title ); ?></strong>
+					<div class="status-bar-controls">
+						<div class="status-control">
+							<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>
+							<?php if ( $uploads_closed ) : ?>
+								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?></span>
+								<a href="<?php echo esc_url( $open_uploads_url ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
+							<?php else : ?>
+								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Open', 'photo-competition-manager' ); ?></span>
+								<a href="<?php echo esc_url( $close_uploads_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></a>
+							<?php endif; ?>
+						</div>
+						<div class="status-control">
+							<span class="status-control-label"><?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></span>
+							<?php if ( $results_visible ) : ?>
+								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Visible', 'photo-competition-manager' ); ?></span>
+								<a href="<?php echo esc_url( $hide_results_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Hide', 'photo-competition-manager' ); ?></a>
+							<?php else : ?>
+								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Hidden', 'photo-competition-manager' ); ?></span>
+							<?php endif; ?>
+						</div>
+					</div>
 				</div>
 			</div>
-			<?php if ( ! $is_ready ) : ?>
-			<div class="status-bar-warning">
-				<span class="dashicons dashicons-info"></span>
-				<?php esc_html_e( 'Close uploads and hide results before opening voting.', 'photo-competition-manager' ); ?>
-			</div>
-			<?php endif; ?>
 		</div>
 		<?php
 	}
 
 	/**
 	 * Render category tabs for switching between categories.
+	 *
+	 * Uses WordPress nav-tab-wrapper styling. Skips rendering if only 1 category.
 	 *
 	 * @param array       $all_categories       Array of category data with competition info.
 	 * @param string      $current_key          Currently active category key.
@@ -936,20 +939,18 @@ class Voting_Controller {
 	 */
 	private function render_category_tabs( array $all_categories, string $current_key, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $voted_categories = array() ): void {
 		if ( count( $all_categories ) < 2 ) {
-			return; // No need for tabs with only one category.
+			return; // Single category: no tabs, heading rendered inside card.
 		}
 		?>
-		<div class="category-tabs-bar">
-			<?php
-			foreach ( $all_categories as $cat_data ) :
-				$tab_key        = $cat_data['key'];
-				$tab_comp       = $cat_data['competition'];
-				$tab_cat        = $cat_data['category'];
-				$tab_count      = $cat_data['image_count'];
-				$tab_is_active  = ( $tab_key === $current_key );
-				$tab_has_voting = $voting_open_globally && (int) $tab_comp->id === $open_competition_id && ( $tab_cat['slug'] ?? '' ) === $open_category_slug;
-				$tab_is_voted   = in_array( $tab_key, $voted_categories, true );
-				$tab_url        = add_query_arg(
+		<nav class="nav-tab-wrapper photo-comp-category-tabs">
+			<?php foreach ( $all_categories as $cat_data ) :
+				$tab_key         = $cat_data['key'];
+				$tab_cat         = $cat_data['category'];
+				$tab_count       = $cat_data['image_count'];
+				$tab_is_active   = ( $tab_key === $current_key );
+				$tab_has_voting  = $voting_open_globally && (int) $cat_data['competition']->id === $open_competition_id && ( $tab_cat['slug'] ?? '' ) === $open_category_slug;
+				$tab_is_complete = ( $cat_data['current_step'] ?? 1 ) >= 6;
+				$tab_url         = add_query_arg(
 					array(
 						'page'  => 'photo-competition-manager-voting',
 						'focus' => $tab_key,
@@ -957,210 +958,242 @@ class Voting_Controller {
 					admin_url( 'admin.php' )
 				);
 				?>
-				<a href="<?php echo esc_url( $tab_url ); ?>" class="category-tab <?php echo $tab_is_active ? 'active' : ''; ?> <?php echo $tab_has_voting ? 'has-voting' : ''; ?> <?php echo $tab_is_voted ? 'is-voted' : ''; ?>">
-					<?php if ( $tab_is_voted ) : ?>
-						<span class="tab-check dashicons dashicons-yes-alt"></span>
+				<a href="<?php echo esc_url( $tab_url ); ?>" class="nav-tab <?php echo $tab_is_active ? 'nav-tab-active' : ''; ?>">
+					<?php if ( $tab_is_complete ) : ?>
+						<span class="dashicons dashicons-yes-alt" style="color: #00a32a; font-size: 14px; width: 14px; height: 14px; vertical-align: text-bottom;"></span>
 					<?php endif; ?>
-					<span class="tab-label"><?php echo esc_html( $tab_cat['label'] ?? '' ); ?></span>
-					<span class="tab-count"><?php echo (int) $tab_count; ?></span>
+					<?php echo esc_html( $tab_cat['label'] ?? '' ); ?>
+					<span class="photo-comp-tab-count">(<?php echo (int) $tab_count; ?>)</span>
 					<?php if ( $tab_has_voting ) : ?>
-						<span class="tab-voting-indicator" title="<?php esc_attr_e( 'Voting open', 'photo-competition-manager' ); ?>"></span>
+						<span class="photo-comp-voting-dot" title="<?php esc_attr_e( 'Voting open', 'photo-competition-manager' ); ?>"></span>
 					<?php endif; ?>
 				</a>
 			<?php endforeach; ?>
-		</div>
+		</nav>
 		<?php
 	}
 
 	/**
-	 * Render the category control panel with slideshow and voting controls.
+	 * Render the 5-step workflow for a category inside a postbox.
 	 *
-	 * @param object $competition          Competition object.
-	 * @param array  $category             Category data.
-	 * @param int    $image_count          Number of images in category.
-	 * @param bool   $is_voting_open       Whether voting is open for this category.
-	 * @param bool   $voting_open_globally Whether voting is open for any category.
-	 * @param array  $settings             Parsed competition settings.
+	 * Replaces the old render_category_control_panel() method.
+	 *
+	 * @param array       $category_data        Category data array with competition, settings, etc.
+	 * @param bool        $is_ready             Whether uploads are closed and results hidden.
+	 * @param bool        $voting_open_globally Whether voting is open for any category.
+	 * @param int|null    $open_competition_id  Competition ID with voting open.
+	 * @param string|null $open_category_slug   Category slug with voting open.
+	 * @param array       $global_settings      Global default settings.
+	 * @param int         $total_categories     Total number of categories (for single-category heading).
 	 * @return void
 	 */
-	private function render_category_control_panel( object $competition, array $category, int $image_count, bool $is_voting_open, bool $voting_open_globally, array $settings ): void {
+	private function render_workflow_steps( array $category_data, bool $is_ready, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $global_settings, int $total_categories = 1 ): void {
+		$competition    = $category_data['competition'];
+		$category       = $category_data['category'];
+		$image_count    = $category_data['image_count'];
 		$category_slug  = $category['slug'] ?? '';
 		$category_label = $category['label'] ?? '';
-		$current_key    = $competition->id . '_' . $category_slug;
+		$current_step   = $category_data['current_step'] ?? 1;
+		$settings       = $category_data['settings'];
+		$comp_id        = (int) $competition->id;
 
-		// Check readiness state.
-		$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
-		$results_visible = $settings['results']['results_visible'] ?? false;
-		$is_ready        = $uploads_closed && ! $results_visible;
+		// Duration defaults from global settings.
+		$preview_duration  = $global_settings['slideshow']['preview_duration'] ?? 10;
+		$voting_duration   = $global_settings['slideshow']['voting_duration'] ?? 15;
+		$critique_duration = $global_settings['slideshow']['critique_duration'] ?? 0;
 
-		// Build action URLs with focus parameter preserved.
+		// Check if another category has voting open (blocks step 2).
+		$another_cat_voting = $voting_open_globally
+			&& ! ( $open_competition_id === $comp_id && $open_category_slug === $category_slug );
+
+		// Build action URLs for Open/Close voting.
 		$focus_args = array(
 			'page'  => 'photo-competition-manager-voting',
-			'focus' => $current_key,
+			'focus' => $comp_id . '_' . $category_slug,
 		);
 
 		$open_voting_url = wp_nonce_url(
 			add_query_arg(
-				array_merge(
-					$focus_args,
-					array(
-						'action'      => 'open_category_voting',
-						'competition' => (int) $competition->id,
-						'category'    => $category_slug,
-					)
-				),
+				array_merge( $focus_args, array(
+					'action'      => 'open_category_voting',
+					'competition' => $comp_id,
+					'category'    => $category_slug,
+				) ),
 				admin_url( 'admin.php' )
 			),
-			'photo_competition_open_voting_' . (int) $competition->id . '_' . $category_slug
+			'photo_competition_open_voting_' . $comp_id . '_' . $category_slug
 		);
 
 		$close_voting_url = wp_nonce_url(
 			add_query_arg(
-				array_merge(
-					$focus_args,
-					array(
-						'action'      => 'close_category_voting',
-						'competition' => (int) $competition->id,
-						'category'    => $category_slug,
-					)
-				),
+				array_merge( $focus_args, array(
+					'action'      => 'close_category_voting',
+					'competition' => $comp_id,
+					'category'    => $category_slug,
+				) ),
 				admin_url( 'admin.php' )
 			),
-			'photo_competition_close_voting_' . (int) $competition->id . '_' . $category_slug
+			'photo_competition_close_voting_' . $comp_id . '_' . $category_slug
+		);
+
+		// Is voting currently open for THIS category?
+		$voting_open_here = $voting_open_globally
+			&& $open_competition_id === $comp_id
+			&& $open_category_slug === $category_slug;
+
+		$steps = array(
+			1 => array(
+				'label'       => __( 'Preview Slideshow', 'photo-competition-manager' ),
+				'description' => __( 'Show images to the room before opening voting', 'photo-competition-manager' ),
+				'type'        => 'slideshow',
+				'duration'    => $preview_duration,
+				'optional'    => true,
+			),
+			2 => array(
+				'label'       => __( 'Open Voting', 'photo-competition-manager' ),
+				'description' => __( 'Members vote on their devices', 'photo-competition-manager' ),
+				'type'        => 'voting_open',
+				'optional'    => false,
+			),
+			3 => array(
+				'label'       => __( 'Show Slideshow', 'photo-competition-manager' ),
+				'description' => __( 'Display images on projector while members vote on their phones', 'photo-competition-manager' ),
+				'type'        => 'slideshow',
+				'duration'    => $voting_duration,
+				'optional'    => true,
+			),
+			4 => array(
+				'label'       => __( 'Close Voting', 'photo-competition-manager' ),
+				'description' => __( 'Lock in votes for this category', 'photo-competition-manager' ),
+				'type'        => 'voting_close',
+				'optional'    => false,
+			),
+			5 => array(
+				'label'       => __( 'Critique', 'photo-competition-manager' ),
+				'description' => __( 'Manual slideshow for discussion', 'photo-competition-manager' ),
+				'type'        => 'slideshow',
+				'duration'    => $critique_duration,
+				'optional'    => true,
+			),
 		);
 
 		?>
-		<div id="focus-panel" class="category-control-panel" data-competition-id="<?php echo esc_attr( $competition->id ); ?>" data-category="<?php echo esc_attr( $category_slug ); ?>">
-			<div class="control-panel-header">
-				<div class="control-panel-title">
-					<h3><?php echo esc_html( $category_label ); ?></h3>
-					<span class="control-panel-meta">
-						<?php
-						printf(
-							/* translators: %d: number of images */
-							esc_html__( '%d images', 'photo-competition-manager' ),
-							(int) $image_count
-						);
-						?>
-					</span>
-				</div>
-				<div class="control-panel-status">
-					<?php if ( $is_voting_open ) : ?>
-						<span class="status-badge status-badge-voting">
-							<span class="dashicons dashicons-yes-alt"></span>
-							<?php esc_html_e( 'Voting Open', 'photo-competition-manager' ); ?>
-						</span>
-					<?php elseif ( ! $is_ready ) : ?>
-						<span class="status-badge status-badge-setup">
-							<span class="dashicons dashicons-admin-settings"></span>
-							<?php esc_html_e( 'Setup Required', 'photo-competition-manager' ); ?>
-						</span>
-					<?php else : ?>
-						<span class="status-badge status-badge-ready">
-							<span class="dashicons dashicons-yes"></span>
-							<?php esc_html_e( 'Ready', 'photo-competition-manager' ); ?>
-						</span>
-					<?php endif; ?>
-				</div>
-			</div>
+		<div id="focus-panel" class="postbox photo-comp-workflow-card"
+			data-competition-id="<?php echo esc_attr( $comp_id ); ?>"
+			data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
+			data-category="<?php echo esc_attr( $category_slug ); ?>"
+			data-category-label="<?php echo esc_attr( $category_label ); ?>">
 
-			<div class="control-panel-body">
-				<!-- Slideshow Section -->
-				<div class="control-section slideshow-section">
-					<div class="section-header">
-						<span class="section-label"><?php esc_html_e( 'Slideshow', 'photo-competition-manager' ); ?></span>
-					</div>
-					<div class="section-content">
-						<div class="duration-presets">
-							<button type="button" class="button duration-preset" data-duration="5"><?php esc_html_e( '5s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset" data-duration="15"><?php esc_html_e( '15s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset active" data-duration="20"><?php esc_html_e( '20s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset" data-duration="25"><?php esc_html_e( '25s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset" data-duration="30"><?php esc_html_e( '30s', 'photo-competition-manager' ); ?></button>
-							<button type="button" class="button duration-preset" data-duration="0" title="<?php esc_attr_e( 'Manual: advance with Space or arrow keys', 'photo-competition-manager' ); ?>"><?php esc_html_e( 'Manual', 'photo-competition-manager' ); ?></button>
-						</div>
-						<div class="slideshow-buttons">
-							<?php if ( $image_count > 0 ) : ?>
-								<button type="button" class="button button-primary photo-competition-manager-start-slideshow"
-									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
-									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
-									data-category="<?php echo esc_attr( $category_slug ); ?>"
-									data-category-label="<?php echo esc_attr( $category_label ); ?>">
-									<span class="dashicons dashicons-slides"></span>
-									<?php esc_html_e( 'Start Slideshow', 'photo-competition-manager' ); ?>
-								</button>
-								<button type="button" class="button photo-competition-manager-start-critique"
-									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
-									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
-									data-category="<?php echo esc_attr( $category_slug ); ?>"
-									data-category-label="<?php echo esc_attr( $category_label ); ?>"
-									title="<?php esc_attr_e( 'Manual slideshow for discussion - advance with Space or arrow keys', 'photo-competition-manager' ); ?>">
-									<span class="dashicons dashicons-format-chat"></span>
-									<?php esc_html_e( 'Critique Mode', 'photo-competition-manager' ); ?>
-								</button>
-							<?php else : ?>
-								<button type="button" class="button" disabled>
-									<span class="dashicons dashicons-slides"></span>
-									<?php esc_html_e( 'No Images', 'photo-competition-manager' ); ?>
-								</button>
-							<?php endif; ?>
-						</div>
-					</div>
-				</div>
-
-				<!-- Voting Section -->
-				<div class="control-section voting-section">
-					<div class="section-header">
-						<span class="section-label">
-							<?php if ( $is_voting_open ) : ?>
-								<?php esc_html_e( 'Voting is Open', 'photo-competition-manager' ); ?>
-							<?php else : ?>
-								<?php esc_html_e( 'Voting is Closed', 'photo-competition-manager' ); ?>
-							<?php endif; ?>
-						</span>
-					</div>
-					<div class="section-content">
-						<?php if ( $is_voting_open ) : ?>
-							<a href="<?php echo esc_url( $close_voting_url ); ?>" class="button button-hero voting-button voting-close">
-								<span class="dashicons dashicons-lock"></span>
-								<?php esc_html_e( 'Close Voting', 'photo-competition-manager' ); ?>
-							</a>
-						<?php elseif ( ! $is_ready ) : ?>
-							<button type="button" class="button button-hero voting-button" disabled title="<?php esc_attr_e( 'Close uploads and hide results first', 'photo-competition-manager' ); ?>">
-								<span class="dashicons dashicons-unlock"></span>
-								<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
-							</button>
-						<?php elseif ( $voting_open_globally ) : ?>
-							<button type="button" class="button button-hero voting-button" disabled title="<?php esc_attr_e( 'Another category has voting open', 'photo-competition-manager' ); ?>">
-								<span class="dashicons dashicons-unlock"></span>
-								<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
-							</button>
-						<?php else : ?>
-							<a href="<?php echo esc_url( $open_voting_url ); ?>" class="button button-primary button-hero voting-button voting-open">
-								<span class="dashicons dashicons-unlock"></span>
-								<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
-							</a>
-						<?php endif; ?>
-					</div>
-				</div>
-			</div>
-
-			<!-- Contextual hint -->
-			<div class="control-panel-hint">
-				<?php if ( $is_voting_open ) : ?>
-					<span class="dashicons dashicons-info"></span>
-					<?php esc_html_e( 'Voting is open. Start slideshow to display images, then close voting when members are done.', 'photo-competition-manager' ); ?>
-				<?php elseif ( ! $is_ready ) : ?>
-					<span class="dashicons dashicons-warning"></span>
-					<?php esc_html_e( 'Close uploads and hide results in the status bar above before opening voting.', 'photo-competition-manager' ); ?>
-				<?php elseif ( $voting_open_globally ) : ?>
-					<span class="dashicons dashicons-warning"></span>
-					<?php esc_html_e( 'Close voting in the other category before opening voting here.', 'photo-competition-manager' ); ?>
-				<?php else : ?>
-					<span class="dashicons dashicons-info"></span>
-					<?php esc_html_e( 'Preview slideshow recommended before opening voting. Use Critique Mode after voting for discussion.', 'photo-competition-manager' ); ?>
+			<div class="inside <?php echo ! $is_ready ? 'photo-comp-workflow-disabled' : ''; ?>">
+				<?php if ( $total_categories < 2 ) : ?>
+					<h2 class="photo-comp-single-category-heading">
+						<?php echo esc_html( $category_label ); ?>
+						<span class="photo-comp-tab-count">(<?php echo (int) $image_count; ?> <?php esc_html_e( 'images', 'photo-competition-manager' ); ?>)</span>
+					</h2>
 				<?php endif; ?>
+
+				<?php if ( ! $is_ready ) : ?>
+					<div class="notice notice-warning inline photo-comp-prereq-notice">
+						<p>
+						<?php
+						$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
+						$results_visible = $settings['results']['results_visible'] ?? false;
+						if ( ! $uploads_closed ) {
+							esc_html_e( 'Close uploads before starting the voting workflow.', 'photo-competition-manager' );
+						} elseif ( $results_visible ) {
+							esc_html_e( 'Hide results before starting the voting workflow.', 'photo-competition-manager' );
+						}
+						?>
+						</p>
+					</div>
+				<?php endif; ?>
+
+				<div class="photo-comp-steps">
+					<?php foreach ( $steps as $step_num => $step ) :
+						$is_completed = $current_step > $step_num;
+						$is_active    = $current_step === $step_num && $is_ready;
+						$is_upcoming  = $current_step < $step_num || ! $is_ready;
+						?>
+						<div class="photo-comp-step <?php echo $is_completed ? 'step-completed' : ''; ?> <?php echo $is_active ? 'step-active' : ''; ?> <?php echo $is_upcoming ? 'step-upcoming' : ''; ?>">
+							<div class="step-indicator">
+								<?php if ( $is_completed ) : ?>
+									<span class="step-circle step-circle-done">&#10003;</span>
+								<?php elseif ( $is_active ) : ?>
+									<span class="step-circle step-circle-active"><?php echo (int) $step_num; ?></span>
+								<?php else : ?>
+									<span class="step-circle step-circle-upcoming"><?php echo (int) $step_num; ?></span>
+								<?php endif; ?>
+							</div>
+							<div class="step-content">
+								<div class="step-label">
+									<?php if ( $is_completed ) : ?>
+										<s><?php echo esc_html( $step['label'] ); ?></s>
+									<?php else : ?>
+										<?php echo esc_html( $step['label'] ); ?>
+									<?php endif; ?>
+
+									<?php // Show "Voting Open" badge on completed step 2 while voting is open. ?>
+									<?php if ( 2 === $step_num && $is_completed && $voting_open_here ) : ?>
+										<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Voting Open', 'photo-competition-manager' ); ?></span>
+									<?php endif; ?>
+								</div>
+
+								<?php if ( $is_active ) : ?>
+									<div class="step-description"><?php echo esc_html( $step['description'] ); ?></div>
+									<div class="step-actions">
+										<?php if ( 'slideshow' === $step['type'] ) : ?>
+											<button type="button" class="button button-primary photo-competition-manager-start-slideshow"
+												data-competition-id="<?php echo esc_attr( $comp_id ); ?>"
+												data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
+												data-category="<?php echo esc_attr( $category_slug ); ?>"
+												data-category-label="<?php echo esc_attr( $category_label ); ?>">
+												<?php
+												if ( 1 === $step_num ) {
+													esc_html_e( 'Start Preview', 'photo-competition-manager' );
+												} elseif ( 5 === $step_num ) {
+													esc_html_e( 'Start Critique', 'photo-competition-manager' );
+												} else {
+													esc_html_e( 'Start Slideshow', 'photo-competition-manager' );
+												}
+												?>
+												&#9654;
+											</button>
+											<span class="step-separator">|</span>
+											<label class="step-duration-label">
+												<?php esc_html_e( 'Duration:', 'photo-competition-manager' ); ?>
+												<input type="number" class="small-text photo-comp-step-duration" value="<?php echo esc_attr( $step['duration'] ); ?>" min="0" max="120" step="1" />s
+											</label>
+											<span class="step-separator">|</span>
+											<button type="button" class="button photo-comp-continue-step"
+												data-competition-id="<?php echo esc_attr( $comp_id ); ?>"
+												data-category="<?php echo esc_attr( $category_slug ); ?>"
+												data-next-step="<?php echo esc_attr( $step_num + 1 ); ?>">
+												<?php esc_html_e( 'Continue', 'photo-competition-manager' ); ?> &rarr;
+											</button>
+										<?php elseif ( 'voting_open' === $step['type'] ) : ?>
+											<?php if ( $another_cat_voting ) : ?>
+												<button type="button" class="button" disabled title="<?php esc_attr_e( 'Close voting in the other category first', 'photo-competition-manager' ); ?>">
+													<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
+												</button>
+												<span class="step-hint"><?php esc_html_e( 'Close voting in the other category first.', 'photo-competition-manager' ); ?></span>
+											<?php else : ?>
+												<a href="<?php echo esc_url( $open_voting_url ); ?>" class="button button-primary">
+													<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
+												</a>
+											<?php endif; ?>
+										<?php elseif ( 'voting_close' === $step['type'] ) : ?>
+											<a href="<?php echo esc_url( $close_voting_url ); ?>" class="button button-primary">
+												<?php esc_html_e( 'Close Voting', 'photo-competition-manager' ); ?>
+											</a>
+										<?php endif; ?>
+									</div>
+								<?php elseif ( $is_upcoming && ! $is_completed ) : ?>
+									<span class="step-upcoming-desc"><?php echo esc_html( $step['description'] ); ?></span>
+								<?php endif; ?>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
 			</div>
 		</div>
 		<?php
@@ -1241,6 +1274,8 @@ class Voting_Controller {
 	/**
 	 * Render competition complete panel when all categories have been voted.
 	 *
+	 * Uses WP postbox styling with two duration text inputs replacing the 7-button presets.
+	 *
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
 	 * @param array  $voted_categories  Array of voted category keys.
@@ -1252,6 +1287,10 @@ class Voting_Controller {
 		$results_visible = $settings['results']['results_visible'] ?? false;
 		$results_url     = $global_settings['urls']['results_page'] ?? '';
 		$top3_url        = $global_settings['urls']['top3_page'] ?? '';
+
+		// Duration defaults for replay.
+		$slideshow_replay_duration = $global_settings['slideshow']['voting_duration'] ?? 15;
+		$critique_replay_duration  = $global_settings['slideshow']['critique_duration'] ?? 0;
 
 		$show_results_url = wp_nonce_url(
 			add_query_arg(
@@ -1265,44 +1304,47 @@ class Voting_Controller {
 			'photo_competition_show_results_' . (int) $competition->id
 		);
 		?>
-		<div class="competition-complete-panel">
-			<div class="complete-header">
-				<span class="dashicons dashicons-yes-alt"></span>
-				<h2><?php esc_html_e( 'All Categories Complete', 'photo-competition-manager' ); ?></h2>
-			</div>
-			<div class="complete-body">
-				<p class="complete-competition"><?php echo esc_html( $competition->title ); ?></p>
-				<div class="complete-slideshow-section">
-					<div class="duration-presets">
-						<button type="button" class="button duration-preset" data-duration="5"><?php esc_html_e( '5s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset" data-duration="10"><?php esc_html_e( '10s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset" data-duration="15"><?php esc_html_e( '15s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset active" data-duration="20"><?php esc_html_e( '20s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset" data-duration="25"><?php esc_html_e( '25s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset" data-duration="30"><?php esc_html_e( '30s', 'photo-competition-manager' ); ?></button>
-						<button type="button" class="button duration-preset" data-duration="0" title="<?php esc_attr_e( 'Manual: advance with Space or arrow keys', 'photo-competition-manager' ); ?>"><?php esc_html_e( 'Manual', 'photo-competition-manager' ); ?></button>
+		<div class="postbox photo-comp-workflow-card">
+			<div class="inside">
+				<div class="complete-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+					<span class="dashicons dashicons-yes-alt" style="color: #00a32a; font-size: 24px; width: 24px; height: 24px;"></span>
+					<h2 style="margin: 0;"><?php esc_html_e( 'All Categories Complete', 'photo-competition-manager' ); ?></h2>
+				</div>
+
+				<div class="complete-slideshow-section" style="margin-bottom: 16px;">
+					<div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;">
+						<label class="step-duration-label">
+							<?php esc_html_e( 'Slideshow duration:', 'photo-competition-manager' ); ?>
+							<input type="number" class="small-text photo-comp-step-duration" id="replay-slideshow-duration" value="<?php echo esc_attr( $slideshow_replay_duration ); ?>" min="0" max="120" step="1" />s
+						</label>
+						<label class="step-duration-label">
+							<?php esc_html_e( 'Critique duration:', 'photo-competition-manager' ); ?>
+							<input type="number" class="small-text photo-comp-step-duration" id="replay-critique-duration" value="<?php echo esc_attr( $critique_replay_duration ); ?>" min="0" max="120" step="1" />s
+						</label>
 					</div>
 				</div>
 
-				<ul class="complete-categories">
+				<ul class="complete-categories" style="margin: 0 0 16px; padding: 0; list-style: none;">
 					<?php foreach ( $all_categories as $cat_data ) : ?>
-						<li class="complete-category-item">
-							<span class="dashicons dashicons-yes"></span>
-							<span class="category-name"><?php echo esc_html( $cat_data['category']['label'] ?? '' ); ?></span>
-							<span class="category-count">(<?php echo (int) $cat_data['image_count']; ?> <?php esc_html_e( 'images', 'photo-competition-manager' ); ?>)</span>
-							<span class="category-slideshow-actions">
+						<li class="complete-category-item" style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+							<span class="dashicons dashicons-yes" style="color: #00a32a;"></span>
+							<span class="category-name" style="font-weight: 600;"><?php echo esc_html( $cat_data['category']['label'] ?? '' ); ?></span>
+							<span class="category-count" style="color: #646970;">(<?php echo (int) $cat_data['image_count']; ?> <?php esc_html_e( 'images', 'photo-competition-manager' ); ?>)</span>
+							<span class="category-slideshow-actions" style="margin-left: auto;">
 								<button type="button" class="button button-small photo-competition-manager-start-slideshow"
 									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
 									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
 									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
-									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>">
+									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>"
+									data-duration-input="#replay-slideshow-duration">
 									<span class="dashicons dashicons-slides"></span> <?php esc_html_e( 'Slideshow', 'photo-competition-manager' ); ?>
 								</button>
-								<button type="button" class="button button-small photo-competition-manager-start-critique"
+								<button type="button" class="button button-small photo-competition-manager-start-slideshow"
 									data-competition-id="<?php echo esc_attr( $competition->id ); ?>"
 									data-competition-slug="<?php echo esc_attr( $competition->slug ); ?>"
 									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
 									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>"
+									data-duration-input="#replay-critique-duration"
 									title="<?php esc_attr_e( 'Manual slideshow for discussion', 'photo-competition-manager' ); ?>">
 									<span class="dashicons dashicons-format-chat"></span> <?php esc_html_e( 'Critique', 'photo-competition-manager' ); ?>
 								</button>
@@ -1312,36 +1354,24 @@ class Voting_Controller {
 				</ul>
 
 				<div class="complete-actions">
-					<div class="results-status">
-						<span class="results-label"><?php esc_html_e( 'Results:', 'photo-competition-manager' ); ?></span>
-						<?php if ( $results_visible ) : ?>
-							<span class="status-pill status-pill-success">
-								<span class="dashicons dashicons-yes"></span>
-								<?php esc_html_e( 'Visible', 'photo-competition-manager' ); ?>
-							</span>
-						<?php else : ?>
-							<span class="status-pill status-pill-warning">
-								<span class="dashicons dashicons-hidden"></span>
-								<?php esc_html_e( 'Hidden', 'photo-competition-manager' ); ?>
-							</span>
-							<a href="<?php echo esc_url( $show_results_url ); ?>" class="button button-primary button-hero">
-								<span class="dashicons dashicons-visibility"></span>
-								<?php esc_html_e( 'Show Results', 'photo-competition-manager' ); ?>
-							</a>
-						<?php endif; ?>
-					</div>
+					<?php if ( ! $results_visible ) : ?>
+						<a href="<?php echo esc_url( $show_results_url ); ?>" class="button button-primary button-large">
+							<span class="dashicons dashicons-visibility" style="margin-top: 4px;"></span>
+							<?php esc_html_e( 'Show Results', 'photo-competition-manager' ); ?>
+						</a>
+					<?php endif; ?>
 
 					<?php if ( ! empty( $results_url ) || ! empty( $top3_url ) ) : ?>
-					<div class="results-links">
+					<div class="results-links" style="margin-top: 12px;">
 						<?php if ( ! empty( $results_url ) ) : ?>
-							<a href="<?php echo esc_url( $results_url ); ?>" class="button button-large" target="_blank" rel="noopener noreferrer">
-								<span class="dashicons dashicons-chart-bar"></span>
+							<a href="<?php echo esc_url( $results_url ); ?>" class="button" target="_blank" rel="noopener noreferrer">
+								<span class="dashicons dashicons-chart-bar" style="margin-top: 4px;"></span>
 								<?php esc_html_e( 'View Full Results', 'photo-competition-manager' ); ?>
 							</a>
 						<?php endif; ?>
 						<?php if ( ! empty( $top3_url ) ) : ?>
-							<a href="<?php echo esc_url( $top3_url ); ?>" class="button button-large" target="_blank" rel="noopener noreferrer">
-								<span class="dashicons dashicons-awards"></span>
+							<a href="<?php echo esc_url( $top3_url ); ?>" class="button" target="_blank" rel="noopener noreferrer">
+								<span class="dashicons dashicons-awards" style="margin-top: 4px;"></span>
 								<?php esc_html_e( 'View Top 3 Results', 'photo-competition-manager' ); ?>
 							</a>
 						<?php endif; ?>
