@@ -27,10 +27,6 @@
 			this.progressInterval = null;
 			this.startTime = 0;
 
-			// Critique mode state
-			this.isInCritiqueMode = false;
-			this.previousDuration = 10; // Store previous duration before critique mode
-
 			// Image pre-caching
 			this.imageCache = new Map();
 			this.meterType = $('#slideshow-meter-type').val() || 'bar';
@@ -40,13 +36,30 @@
 		}
 
 		getDisplayDuration() {
-			// Read from settings input, default to 10 seconds
-			// Note: 0 means manual mode (no auto-advance)
-			const seconds = parseInt($('#slideshow-duration-setting').val(), 10);
-			if (isNaN(seconds) || seconds < 0) {
-				return 10 * 1000; // Default 10 seconds
+			// If override was set by the start handler, use it.
+			if (this.overrideDuration !== undefined && this.overrideDuration !== null) {
+				const duration = this.overrideDuration;
+				this.overrideDuration = null;
+				return duration;
 			}
-			return seconds * 1000;
+
+			// Read from the active step's input, or completion panel.
+			const $activeStep = $('.photo-comp-step.step-active');
+			let duration = 10;
+
+			if ($activeStep.length) {
+				const $input = $activeStep.find('.photo-comp-step-duration');
+				if ($input.length) {
+					duration = parseInt($input.val(), 10) || 0;
+				}
+			} else {
+				const $focusedInput = $(document.activeElement).closest('.complete-category-item, .complete-slideshow-section').find('.photo-comp-step-duration');
+				if ($focusedInput.length) {
+					duration = parseInt($focusedInput.val(), 10) || 0;
+				}
+			}
+
+			return duration * 1000;
 		}
 
 		createMeterRenderer(type) {
@@ -113,22 +126,39 @@
 		bindEvents() {
 			const self = this;
 
-			// Duration preset buttons
-			$(document).on('click', '.duration-preset', function() {
+			// Continue button - advances workflow step via AJAX
+			$(document).on('click', '.photo-comp-continue-step', function(e) {
+				e.preventDefault();
 				const $btn = $(this);
-				const duration = parseInt($btn.data('duration'), 10);
+				const competitionId = $btn.data('competition-id');
+				const categorySlug = $btn.data('category');
+				const nextStep = $btn.data('next-step');
 
-				// Update the hidden duration setting input
-				$('#slideshow-duration-setting').val(duration);
+				$btn.prop('disabled', true).text('Saving...');
 
-				// Update active state on preset buttons
-				$('.duration-presets .button').removeClass('active');
-				$btn.addClass('active');
-
-				// If not in critique mode, store this as the previous duration
-				if (!self.isInCritiqueMode && duration > 0) {
-					self.previousDuration = duration;
-				}
+				$.ajax({
+					url: photoCompetitionManagerSlideshow.ajaxUrl,
+					type: 'POST',
+					data: {
+						action: 'photo_comp_advance_voting_step',
+						_wpnonce: photoCompetitionManagerSlideshow.stepNonce,
+						competition_id: competitionId,
+						category_slug: categorySlug,
+						step: nextStep
+					},
+					success: function(response) {
+						if (response.success) {
+							window.location.reload();
+						} else {
+							alert(response.data.message || 'Could not save progress — try again.');
+							$btn.prop('disabled', false).html('Continue &rarr;');
+						}
+					},
+					error: function() {
+						alert('Could not save progress — try again.');
+						$btn.prop('disabled', false).html('Continue &rarr;');
+					}
+				});
 			});
 
 			// Start slideshow buttons
@@ -139,37 +169,13 @@
 				const category = $btn.data('category');
 				const categoryLabel = $btn.data('category-label');
 
-				// Clear critique mode flag
-				self.isInCritiqueMode = false;
-
-				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
-			});
-
-			// Critique mode button - sets duration to 0 (manual) and starts slideshow
-			$(document).on('click', '.photo-competition-manager-start-critique', function() {
-				const $btn = $(this);
-				const competitionId = $btn.data('competition-id');
-				const competitionSlug = $btn.data('competition-slug');
-				const category = $btn.data('category');
-				const categoryLabel = $btn.data('category-label');
-
-				// Store current duration before switching to critique mode
-				const currentDuration = parseInt($('#slideshow-duration-setting').val(), 10);
-				if (currentDuration > 0) {
-					self.previousDuration = currentDuration;
+				// Before starting the slideshow, find and set the duration from the triggering step
+				const $step = $(this).closest('.photo-comp-step, .complete-category-item, .complete-slideshow-section');
+				const $durationInput = $step.find('.photo-comp-step-duration');
+				if ($durationInput.length) {
+					self.overrideDuration = parseInt($durationInput.val(), 10) * 1000 || 0;
 				}
 
-				// Set critique mode flag
-				self.isInCritiqueMode = true;
-
-				// Set duration to 0 for manual mode
-				$('#slideshow-duration-setting').val(0);
-
-				// Update active state on preset buttons
-				$('.duration-presets .button').removeClass('active');
-				$('.duration-presets .button[data-duration="0"]').addClass('active');
-
-				// Start the slideshow in manual mode
 				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
 			});
 
@@ -381,18 +387,6 @@
 			this.isRunning = false;
 			this.isPaused = false;
 			this.stopAutoAdvance();
-
-			// If we were in critique mode, restore the previous duration
-			if (this.isInCritiqueMode && this.previousDuration > 0) {
-				$('#slideshow-duration-setting').val(this.previousDuration);
-
-				// Update active state on preset buttons
-				$('.duration-presets .button').removeClass('active');
-				$('.duration-presets .button[data-duration="' + this.previousDuration + '"]').addClass('active');
-
-				// Clear critique mode flag
-				this.isInCritiqueMode = false;
-			}
 
 			// Hide display
 			this.$display.fadeOut(300);
