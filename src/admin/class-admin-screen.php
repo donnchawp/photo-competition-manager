@@ -284,8 +284,9 @@ class Admin_Screen {
 			'photo-competition-manager-admin-slideshow',
 			'photoCompetitionManagerSlideshow',
 			array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'photo_comp_admin_slideshow' ),
+				'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+				'nonce'     => wp_create_nonce( 'photo_comp_admin_slideshow' ),
+				'stepNonce' => wp_create_nonce( 'photo_comp_voting_step' ),
 			)
 		);
 	}

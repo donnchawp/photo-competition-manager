@@ -72,6 +72,7 @@ class Voting_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'wp_ajax_photo_comp_advance_voting_step', array( $this, 'handle_advance_step' ) );
 	}
 
 	/**
@@ -148,6 +149,7 @@ class Voting_Controller {
 
 			$settings                              = Competition_Settings::parse( $competition->settings );
 			$settings['voting']['open_categories'] = array( $category_slug );
+			$settings['voting']['category_steps'][ $category_slug ] = 3;
 
 			$result = $this->competitions->update(
 				$competition_id,
@@ -207,6 +209,7 @@ class Voting_Controller {
 
 			$settings                              = Competition_Settings::parse( $competition->settings );
 			$settings['voting']['open_categories'] = array();
+			$settings['voting']['category_steps'][ $category_slug ] = 5;
 
 			// Track voted categories - add this category to the list if not already there.
 			$category_key     = $competition_id . '_' . $category_slug;
@@ -1389,5 +1392,50 @@ class Voting_Controller {
 		}
 
 		return $members_without_grades;
+	}
+
+	/**
+	 * AJAX handler for advancing the voting workflow step.
+	 *
+	 * @return void
+	 */
+	public function handle_advance_step(): void {
+		check_ajax_referer( 'photo_comp_voting_step', '_wpnonce' );
+
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'photo-competition-manager' ) ), 403 );
+		}
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( wp_unslash( $_POST['competition_id'] ) ) : 0;
+		$category_slug  = isset( $_POST['category_slug'] ) ? sanitize_text_field( wp_unslash( $_POST['category_slug'] ) ) : '';
+		$step           = isset( $_POST['step'] ) ? absint( wp_unslash( $_POST['step'] ) ) : 0;
+
+		if ( ! $competition_id || '' === $category_slug || $step < 1 || $step > 6 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid parameters.', 'photo-competition-manager' ) ) );
+		}
+
+		$competition = $this->competitions->find( $competition_id );
+		if ( ! $competition ) {
+			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
+		}
+
+		$settings = Competition_Settings::parse( $competition->settings );
+		$settings['voting']['category_steps'][ $category_slug ] = $step;
+
+		// Step 6 = category complete. Also write to voted_categories for backward compat.
+		if ( 6 === $step ) {
+			$category_key = $competition_id . '_' . $category_slug;
+			if ( ! in_array( $category_key, $settings['voting']['voted_categories'] ?? array(), true ) ) {
+				$settings['voting']['voted_categories'][] = $category_key;
+			}
+		}
+
+		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success( array( 'step' => $step ) );
 	}
 }
