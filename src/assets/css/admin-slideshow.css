@@ -266,406 +266,235 @@
 }
 
 /* ==========================================================================
-   Competition Status Bar
+   Voting Controls - Status Bar
    ========================================================================== */
 
-.competition-status-bar {
-	background: #fff;
-	border: 1px solid #c3c4c7;
-	border-radius: 8px;
-	padding: 20px 24px;
-	margin: 20px 0;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 20px;
+.photo-comp-status-bar {
+	margin-bottom: 16px;
 }
 
-.status-bar-title {
-	flex: 1;
-	min-width: 200px;
-}
-
-.status-bar-title h2 {
+.photo-comp-status-bar .inside {
 	margin: 0;
-	font-size: 1.3em;
-	color: #1d2327;
+	padding: 10px 14px;
+}
+
+.status-bar-layout {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.status-bar-layout .status-bar-title {
+	margin-right: auto;
+	font-size: 14px;
 }
 
 .status-bar-controls {
 	display: flex;
-	gap: 24px;
+	gap: 20px;
 	flex-wrap: wrap;
 }
 
 .status-control {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 8px;
 }
 
 .status-control-label {
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	color: #646970;
 }
 
-.status-pill {
+/* Badges */
+.photo-comp-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.photo-comp-badge-success {
+	background: #d4edda;
+	color: #155724;
+}
+
+.photo-comp-badge-warning {
+	background: #fcf0c3;
+	color: #6e4e00;
+}
+
+/* ==========================================================================
+   Voting Controls - Category Tabs
+   ========================================================================== */
+
+.photo-comp-category-tabs {
+	margin-bottom: 0;
+	padding-top: 0;
+}
+
+.photo-comp-category-tabs .nav-tab {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px 10px;
-	border-radius: 12px;
-	font-size: 12px;
-	font-weight: 600;
 }
 
-.status-pill .dashicons {
-	font-size: 14px;
-	width: 14px;
-	height: 14px;
+.photo-comp-tab-count {
+	color: #646970;
+	font-weight: normal;
 }
 
-.status-pill-success {
-	background: #d4edda;
-	color: #155724;
-}
-
-.status-pill-warning {
-	background: #fff3cd;
-	color: #856404;
-}
-
-.status-bar-warning {
-	flex-basis: 100%;
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 10px 12px;
-	background: #fff8e5;
-	border: 1px solid #f0c33c;
-	border-radius: 4px;
-	font-size: 13px;
-	color: #856404;
-	margin-top: 4px;
-}
-
-.status-bar-warning .dashicons {
-	color: #dba617;
-}
-
-/* ==========================================================================
-   Category Tabs Bar
-   ========================================================================== */
-
-.category-tabs-bar {
-	display: flex;
-	gap: 8px;
-	margin: 0 0 16px 0;
-	flex-wrap: wrap;
-}
-
-.category-tab {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 10px 16px;
-	background: #f6f7f7;
-	border: 1px solid #dcdcde;
-	border-radius: 6px;
-	text-decoration: none;
-	color: #50575e;
-	font-size: 13px;
-	font-weight: 500;
-	transition: all 0.15s ease;
-	position: relative;
-}
-
-.category-tab:hover {
-	background: #fff;
-	border-color: #2271b1;
-	color: #2271b1;
-}
-
-.category-tab.active {
-	background: #2271b1;
-	border-color: #2271b1;
-	color: #fff;
-}
-
-.category-tab.is-voted .tab-check {
-	color: #00a32a;
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-}
-
-.category-tab.active.is-voted .tab-check {
-	color: #90ee90;
-}
-
-.category-tab .tab-count {
-	background: rgba(0, 0, 0, 0.1);
-	padding: 2px 8px;
-	border-radius: 10px;
-	font-size: 11px;
-}
-
-.category-tab.active .tab-count {
-	background: rgba(255, 255, 255, 0.2);
-}
-
-.category-tab .tab-voting-indicator {
-	width: 8px;
-	height: 8px;
-	background: #00a32a;
-	border-radius: 50%;
-	animation: pulse 1.5s infinite;
-}
-
-.category-tab.active .tab-voting-indicator {
-	background: #90ee90;
-}
-
-@keyframes pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.5; }
-}
-
-/* ==========================================================================
-   Category Control Panel
-   ========================================================================== */
-
-.category-control-panel {
-	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
-	border: 2px solid #2271b1;
-	border-radius: 8px;
-	padding: 24px;
-	margin-bottom: 16px;
-	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
-}
-
-.control-panel-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	margin-bottom: 24px;
-	padding-bottom: 16px;
-	border-bottom: 1px solid #dcdcde;
-}
-
-.control-panel-title h3 {
-	margin: 0 0 4px 0;
-	font-size: 1.4em;
+.nav-tab-active .photo-comp-tab-count {
 	color: #1d2327;
 }
 
-.control-panel-meta {
-	color: #646970;
-	font-size: 13px;
+.photo-comp-voting-dot {
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	background: #00a32a;
+	border-radius: 50%;
+	margin-left: 2px;
 }
 
-.control-panel-status {
+/* ==========================================================================
+   Voting Controls - Workflow Card
+   ========================================================================== */
+
+.photo-comp-workflow-card {
+	margin-bottom: 16px;
+}
+
+/* When tabs are present, remove top border-radius to attach to tabs. */
+.photo-comp-category-tabs + .photo-comp-workflow-card {
+	border-top: none;
+	margin-top: -1px;
+}
+
+.photo-comp-workflow-disabled > .photo-comp-steps {
+	opacity: 0.45;
+	pointer-events: none;
+}
+
+.photo-comp-prereq-notice {
+	margin: 0 0 12px 0 !important;
+}
+
+/* ==========================================================================
+   Voting Controls - Steps
+   ========================================================================== */
+
+.photo-comp-steps {
+	padding: 4px 0;
+}
+
+.photo-comp-step {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 10px 12px;
+}
+
+.photo-comp-step.step-active {
+	background: #f0f6fc;
+	border-left: 4px solid #2271b1;
+	border-radius: 0 4px 4px 0;
+	padding: 12px;
+	margin-bottom: 4px;
+}
+
+.step-indicator {
 	flex-shrink: 0;
 }
 
-.status-badge {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 8px 14px;
-	border-radius: 20px;
-	font-size: 13px;
-	font-weight: 600;
-}
-
-.status-badge .dashicons {
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-}
-
-.status-badge-voting {
-	background: #d4edda;
-	color: #155724;
-	border: 1px solid #c3e6cb;
-}
-
-.status-badge-ready {
-	background: #e7f3ff;
-	color: #0a4b78;
-	border: 1px solid #b8daff;
-}
-
-.status-badge-setup {
-	background: #fff3cd;
-	color: #856404;
-	border: 1px solid #ffeeba;
-}
-
-.control-panel-body {
+.step-circle {
 	display: flex;
-	gap: 32px;
-	flex-wrap: wrap;
-}
-
-.control-section {
-	flex: 1;
-	min-width: 280px;
-}
-
-.section-header {
-	margin-bottom: 12px;
-}
-
-.section-label {
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
 	font-size: 11px;
 	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: #646970;
 }
 
-.section-content {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
-
-.duration-presets {
-	display: flex;
-	gap: 6px;
-	flex-wrap: wrap;
-}
-
-.duration-presets .button {
-	padding: 6px 12px;
-	min-width: auto;
-	font-size: 12px;
-}
-
-.duration-presets .button.active {
-	background: #2271b1;
-	border-color: #2271b1;
+.step-circle-done {
+	background: #00a32a;
 	color: #fff;
 }
 
-.slideshow-buttons {
+.step-circle-active {
+	background: #2271b1;
+	color: #fff;
+}
+
+.step-circle-upcoming {
+	border: 2px solid #c3c4c7;
+	color: #646970;
+	width: 22px;
+	height: 22px;
+}
+
+.step-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.step-label {
+	font-weight: 600;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.step-completed .step-label {
+	color: #646970;
+}
+
+.step-upcoming .step-label {
+	color: #646970;
+}
+
+.step-description {
+	font-size: 12px;
+	color: #646970;
+	margin: 4px 0 10px;
+}
+
+.step-upcoming-desc {
+	font-size: 12px;
+	color: #a7aaad;
+}
+
+.step-actions {
 	display: flex;
+	align-items: center;
 	gap: 8px;
 	flex-wrap: wrap;
 }
 
-.slideshow-buttons .button .dashicons {
-	font-size: 18px;
-	width: 18px;
-	height: 18px;
-	line-height: 18px;
-	position: relative;
-	top: 4px;
-	margin-right: 4px;
+.step-separator {
+	color: #c3c4c7;
 }
 
-.voting-button .dashicons {
-	font-size: 18px;
-	width: 18px;
-	height: 18px;
-	line-height: 18px;
-	position: relative;
-	top: 11px;
-	margin-right: 4px;
-}
-
-.voting-section {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: flex-start;
-}
-
-.voting-section .section-header {
-	text-align: center;
-}
-
-.voting-section .section-content {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.voting-button.button-hero {
-	padding: 16px 40px;
-	font-size: 16px;
-	font-weight: 600;
-	height: auto;
-	border-radius: 6px;
-	border-width: 2px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	transition: all 0.2s ease;
-}
-
-.voting-button.button-hero:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.voting-button.button-hero:active {
-	transform: translateY(0);
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.voting-button.voting-close {
-	background: #d63638;
-	border-color: #b32d2e;
-	color: #fff;
-}
-
-.voting-button.voting-close:hover {
-	background: #b32d2e;
-	border-color: #8a2324;
-}
-
-.voting-button.voting-open {
-	background: #00a32a;
-	border-color: #008a20;
-}
-
-.voting-button.voting-open:hover {
-	background: #008a20;
-	border-color: #006818;
-}
-
-.control-panel-hint {
-	display: flex;
-	align-items: flex-start;
-	gap: 6px;
-	margin: 20px 0 0 0;
-	padding: 12px 16px;
-	background: #f6f7f7;
-	border-radius: 4px;
-	font-size: 13px;
+.step-duration-label {
+	font-size: 12px;
 	color: #646970;
 }
 
-.control-panel-hint .dashicons {
-	flex-shrink: 0;
+.photo-comp-step-duration {
+	width: 48px !important;
+	text-align: center;
 }
 
-.control-panel-hint .dashicons-info {
-	color: #2271b1;
-}
-
-.control-panel-hint .dashicons-warning {
-	color: #dba617;
-}
-
-.control-panel-hint:has(.dashicons-warning) {
-	background: #fff8e5;
-	border: 1px solid #f0c33c;
+.step-hint {
+	font-size: 12px;
+	color: #646970;
+	font-style: italic;
 }
 
 /* ==========================================================================
@@ -806,152 +635,6 @@
 	margin-right: 4px;
 }
 
-/* ==========================================================================
-   Competition Complete Panel
-   ========================================================================== */
-
-.competition-complete-panel {
-	background: linear-gradient(135deg, #d4edda 0%, #fff 100%);
-	border: 2px solid #00a32a;
-	border-radius: 8px;
-	padding: 32px;
-	margin-bottom: 16px;
-	text-align: center;
-}
-
-.complete-header {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 12px;
-	margin-bottom: 24px;
-}
-
-.complete-header .dashicons {
-	font-size: 48px;
-	width: 48px;
-	height: 48px;
-	color: #00a32a;
-}
-
-.complete-header h2 {
-	margin: 0;
-	font-size: 1.6em;
-	color: #155724;
-}
-
-.complete-body {
-	max-width: 680px;
-	margin: 0 auto;
-}
-
-.complete-competition {
-	font-size: 1.2em;
-	font-weight: 600;
-	color: #1d2327;
-	margin-bottom: 16px;
-}
-
-.complete-categories {
-	list-style: none;
-	padding: 0;
-	margin: 0 0 24px 0;
-	text-align: left;
-}
-
-.complete-category-item {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 12px;
-	background: rgba(255, 255, 255, 0.7);
-	border-radius: 4px;
-	margin-bottom: 4px;
-}
-
-.complete-category-item .dashicons {
-	color: #00a32a;
-}
-
-.complete-category-item .category-count {
-	color: #646970;
-	font-size: 12px;
-}
-
-.complete-category-item .category-slideshow-actions {
-	margin-left: auto;
-	display: flex;
-	gap: 6px;
-	flex-shrink: 0;
-}
-
-.complete-category-item .category-slideshow-actions .button .dashicons {
-	font-size: 14px;
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
-	position: relative;
-	top: 2px;
-	margin-right: 2px;
-}
-
-.complete-slideshow-section {
-	margin-bottom: 16px;
-	display: flex;
-	justify-content: center;
-}
-
-.complete-actions {
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
-	align-items: center;
-}
-
-.results-status {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex-wrap: wrap;
-	justify-content: center;
-}
-
-.results-label {
-	font-weight: 600;
-	color: #646970;
-}
-
-.results-links {
-	display: flex;
-	gap: 12px;
-	flex-wrap: wrap;
-	justify-content: center;
-}
-
-.results-links .button .dashicons {
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-	position: relative;
-	top: 3px;
-	margin-right: 4px;
-}
-
-/* ==========================================================================
-   Legacy styles retained for backward compatibility
-   ========================================================================== */
-
-/* Focus Panel for Competition Night Workflow - DEPRECATED, kept for reference */
-.photo-comp-focus-panel {
-	background: linear-gradient(135deg, #f0f6fc 0%, #fff 100%);
-	border: 2px solid #2271b1;
-	border-radius: 8px;
-	padding: 24px;
-	margin: 20px 0;
-	max-width: 900px;
-	box-shadow: 0 2px 8px rgba(34, 113, 177, 0.15);
-}
-
 /* Responsive adjustments */
 @media screen and (max-width: 768px) {
 	.slideshow-image-info {
@@ -990,25 +673,5 @@
 
 	.photo-comp-qr-image {
 		max-width: 440px;
-	}
-
-	.focus-panel-header {
-		flex-direction: column;
-		gap: 12px;
-	}
-
-	.focus-panel-controls {
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	.control-row {
-		flex-direction: column;
-		align-items: flex-start;
-	}
-
-	.duration-presets {
-		margin-right: 0;
-		margin-bottom: 8px;
 	}
 }
