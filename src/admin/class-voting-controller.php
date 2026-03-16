@@ -622,6 +622,30 @@ class Voting_Controller {
 		$active_settings    = Competition_Settings::parse( $active_competition->settings );
 		$global_settings    = $this->get_global_settings();
 
+		// Check that required pages are configured.
+		$voting_page  = $active_settings['urls']['voting_page'] ?? $global_settings['urls']['voting_page'] ?? '';
+		$results_page = $global_settings['urls']['results_page'] ?? '';
+		if ( empty( $voting_page ) || empty( $results_page ) ) {
+			$missing = array();
+			if ( empty( $voting_page ) ) {
+				$missing[] = __( 'Voting', 'photo-competition-manager' );
+			}
+			if ( empty( $results_page ) ) {
+				$missing[] = __( 'Results', 'photo-competition-manager' );
+			}
+			echo '<div class="notice notice-warning">';
+			echo '<p>';
+			printf(
+				/* translators: %s: comma-separated list of missing page types */
+				esc_html__( 'Missing pages: %s. Voting controls require these pages to be created.', 'photo-competition-manager' ),
+				'<strong>' . esc_html( implode( ', ', $missing ) ) . '</strong>'
+			);
+			echo ' <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-setup' ) ) . '">' . esc_html__( 'Run Setup Wizard', 'photo-competition-manager' ) . '</a>';
+			echo ' | <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-settings' ) ) . '">' . esc_html__( 'Configure in Settings', 'photo-competition-manager' ) . '</a>';
+			echo '</p>';
+			echo '</div>';
+		}
+
 		// Check if any category has voting open globally.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
