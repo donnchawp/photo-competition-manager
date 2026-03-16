@@ -442,14 +442,15 @@ class Competitions_Controller {
 			return;
 		}
 
-		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
+		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes', 'toggle_uploads' ), true ) && isset( $_GET['competition'] ) ) {
 			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
 			$nonces         = array(
-				'send_emails' => 'photo_competition_send_emails_',
-				'archive'     => 'photo_competition_archive_',
-				'restore'     => 'photo_competition_restore_',
-				'delete'      => 'photo_competition_delete_',
-				'reset_votes' => 'photo_competition_reset_votes_',
+				'send_emails'    => 'photo_competition_send_emails_',
+				'archive'        => 'photo_competition_archive_',
+				'restore'        => 'photo_competition_restore_',
+				'delete'         => 'photo_competition_delete_',
+				'reset_votes'    => 'photo_competition_reset_votes_',
+				'toggle_uploads' => 'photo_competition_toggle_uploads_',
 			);
 			$nonce_action   = $nonces[ $action ];
 
@@ -502,6 +503,40 @@ class Competitions_Controller {
 					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
 					'updated'
 				);
+
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
+			}
+
+			if ( 'toggle_uploads' === $action ) {
+				$competition = $this->competitions->find( $competition_id );
+
+				if ( $competition ) {
+					$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+					$uploads_closed = ! empty( $settings['upload']['uploads_closed'] );
+
+					$settings['upload']['uploads_closed'] = ! $uploads_closed;
+
+					$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+
+					if ( is_wp_error( $result ) ) {
+						add_settings_error(
+							'photo_competition_manager',
+							$result->get_error_code(),
+							$result->get_error_message(),
+							'error'
+						);
+					} else {
+						$message = $uploads_closed
+							? __( 'Uploads reopened. Members can now upload images.', 'photo-competition-manager' )
+							: __( 'Uploads closed. Members can no longer upload images.', 'photo-competition-manager' );
+						add_settings_error(
+							'photo_competition_manager',
+							'uploads_toggled',
+							$message,
+							'updated'
+						);
+					}
+				}
 
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
@@ -1292,6 +1327,30 @@ class Competitions_Controller {
 			$actions = array(
 				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
 			);
+
+			// Toggle uploads action.
+			if ( ! $is_archived ) {
+				$comp_settings  = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+				$uploads_closed = ! empty( $comp_settings['upload']['uploads_closed'] );
+
+				$toggle_uploads_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager',
+							'action'      => 'toggle_uploads',
+							'competition' => (int) $competition->id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_toggle_uploads_' . (int) $competition->id
+				);
+
+				$toggle_label = $uploads_closed
+					? __( 'Open Uploads', 'photo-competition-manager' )
+					: __( 'Close Uploads', 'photo-competition-manager' );
+
+				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $toggle_uploads_url ), esc_html( $toggle_label ) );
+			}
 
 			if ( $this->competitions->is_open( $competition ) && ! $is_archived ) {
 				$send_email_link = wp_nonce_url(
