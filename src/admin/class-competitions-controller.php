@@ -421,8 +421,8 @@ class Competitions_Controller {
 						'photo_competition_manager',
 						'results_link_generated',
 						sprintf(
-							/* translators: %s: share URL */
-							__( 'Results share link generated: <a href="%s" target="_blank">%s</a>', 'photo-competition-manager' ),
+							/* translators: %1$s: share URL href, %2$s: share URL display text */
+							__( 'Results share link generated: <a href="%1$s" target="_blank">%2$s</a>', 'photo-competition-manager' ),
 							esc_url( $share_url ),
 							esc_html( $share_url )
 						),
