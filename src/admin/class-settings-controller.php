@@ -345,6 +345,15 @@ class Settings_Controller {
 			$progress_meter_type_input = 'bar';
 		}
 
+		$preview_duration  = isset( $_POST['preview_duration'] ) ? absint( wp_unslash( $_POST['preview_duration'] ) ) : 10;
+		$voting_duration   = isset( $_POST['voting_duration'] ) ? absint( wp_unslash( $_POST['voting_duration'] ) ) : 15;
+		$critique_duration = isset( $_POST['critique_duration'] ) ? absint( wp_unslash( $_POST['critique_duration'] ) ) : 0;
+
+		// Clamp to 0-120 range.
+		$preview_duration  = min( 120, $preview_duration );
+		$voting_duration   = min( 120, $voting_duration );
+		$critique_duration = min( 120, $critique_duration );
+
 		$upload_page_url  = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
 		$voting_page_url  = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
 		$results_page_url = sanitize_url( $this->get_post_string( 'results_page_url', '' ) );
@@ -371,8 +380,10 @@ class Settings_Controller {
 				'ui_type'             => 'default',
 			),
 			'slideshow'       => array(
-				'duration_seconds'    => 10,
 				'progress_meter_type' => $progress_meter_type_input,
+				'preview_duration'    => $preview_duration,
+				'voting_duration'     => $voting_duration,
+				'critique_duration'   => $critique_duration,
 			),
 			'email_reminders' => array(
 				'enabled'                => true,
@@ -450,6 +461,9 @@ class Settings_Controller {
 		$voting              = Competition_Settings::get_voting_config( $settings );
 		$slideshow           = $settings['slideshow'] ?? array();
 		$progress_meter_type = $slideshow['progress_meter_type'] ?? 'bar';
+		$preview_duration    = $slideshow['preview_duration'] ?? 10;
+		$voting_duration     = $slideshow['voting_duration'] ?? 15;
+		$critique_duration   = $slideshow['critique_duration'] ?? 0;
 		$voting_ui_type      = get_option( 'photo_comp_voting_ui_type', 'buttons' );
 		$urls                = $settings['urls'] ?? array(
 			'upload_page' => '',
@@ -577,6 +591,38 @@ class Settings_Controller {
 
 		echo '</div>';
 		echo '<span class="description">' . esc_html__( 'Choose the progress indicator style shown during the slideshow.', 'photo-competition-manager' ) . '</span>';
+
+		echo '<table class="form-table" style="margin-top: 16px;"><tbody>';
+		?>
+		<tr>
+			<th scope="row">
+				<label for="preview_duration"><?php esc_html_e( 'Preview Duration', 'photo-competition-manager' ); ?></label>
+			</th>
+			<td>
+				<input type="number" id="preview_duration" name="preview_duration" value="<?php echo esc_attr( $preview_duration ); ?>" min="0" max="120" step="1" class="small-text" />
+				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row">
+				<label for="voting_duration"><?php esc_html_e( 'Voting Slideshow Duration', 'photo-competition-manager' ); ?></label>
+			</th>
+			<td>
+				<input type="number" id="voting_duration" name="voting_duration" value="<?php echo esc_attr( $voting_duration ); ?>" min="0" max="120" step="1" class="small-text" />
+				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row">
+				<label for="critique_duration"><?php esc_html_e( 'Critique Duration', 'photo-competition-manager' ); ?></label>
+			</th>
+			<td>
+				<input type="number" id="critique_duration" name="critique_duration" value="<?php echo esc_attr( $critique_duration ); ?>" min="0" max="120" step="1" class="small-text" />
+				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
+			</td>
+		</tr>
+		<?php
+		echo '</tbody></table>';
 
 		echo '<h2>' . esc_html__( 'Email Configuration', 'photo-competition-manager' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'Configure the sender name and email address for all competition emails. If left blank, WordPress defaults will be used.', 'photo-competition-manager' ) . '</p>';

@@ -715,8 +715,10 @@ class Competitions_Controller {
 					'ui_type'             => $voting_ui_type,
 				),
 				'slideshow'       => array(
-					'duration_seconds'    => 10,
 					'progress_meter_type' => $progress_meter_type_input,
+					'preview_duration'    => $existing_settings['slideshow']['preview_duration'] ?? 10,
+					'voting_duration'     => $existing_settings['slideshow']['voting_duration'] ?? 15,
+					'critique_duration'   => $existing_settings['slideshow']['critique_duration'] ?? 0,
 				),
 				'email_reminders' => array(
 					'enabled'                => true,
