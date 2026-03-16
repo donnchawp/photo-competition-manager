@@ -4,4 +4,22 @@
   margin: 2rem auto;
   max-width: 720px;
   text-align: center;
+
+  .photo-comp-redirect-btn {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.6em 1.4em;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    background: #2271b1;
+    border: 1px solid #135e96;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #135e96;
+    }
+  }
 }
