@@ -404,64 +404,6 @@ class Competition_Settings {
 	}
 
 	/**
-	 * Set voting open status for a specific category.
-	 *
-	 * @param array<string, mixed> $settings Parsed settings (passed by reference).
-	 * @param string               $category Category slug.
-	 * @param bool                 $open     Whether voting should be open.
-	 * @return true|WP_Error
-	 */
-	public static function set_voting_open_for_category( array &$settings, string $category, bool $open ) {
-		// Verify category exists.
-		$categories      = self::get_categories( $settings );
-		$category_exists = false;
-
-		foreach ( $categories as $cat ) {
-			if ( $cat['slug'] === $category ) {
-				$category_exists = true;
-				break;
-			}
-		}
-
-		if ( ! $category_exists ) {
-			return new WP_Error( 'invalid_category', __( 'Category does not exist.', 'photo-competition-manager' ) );
-		}
-
-		// Initialize voting config if needed.
-		if ( ! isset( $settings['voting'] ) ) {
-			$settings['voting'] = self::defaults()['voting'];
-		}
-
-		if ( ! isset( $settings['voting']['open_categories'] ) ) {
-			$settings['voting']['open_categories'] = array();
-		}
-
-		// Update open categories list.
-		$open_categories = $settings['voting']['open_categories'];
-
-		if ( $open ) {
-			// Add category if not already present.
-			if ( ! in_array( $category, $open_categories, true ) ) {
-				$open_categories[] = $category;
-			}
-		} else {
-			// Remove category if present.
-			$open_categories = array_filter(
-				$open_categories,
-				function ( $cat ) use ( $category ) {
-					return $cat !== $category;
-				}
-			);
-			// Re-index array.
-			$open_categories = array_values( $open_categories );
-		}
-
-		$settings['voting']['open_categories'] = $open_categories;
-
-		return true;
-	}
-
-	/**
 	 * Auto-detect page URLs by searching for shortcodes if URLs are not set.
 	 *
 	 * @param array<string, mixed> $settings Settings array.
