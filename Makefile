@@ -9,7 +9,7 @@ MAILPIT_CONTAINER := photo-competition-manager-mailpit
 PLUGIN_NAME := photo-competition-manager
 RELEASE_DIR := release
 
-.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release
+.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -95,6 +95,9 @@ release: clean-release build ## Build production release zip file
 	@echo "Release package info:"
 	@unzip -l $(PLUGIN_NAME).zip | head -20
 	@rm -fr $(RELEASE_DIR)/$(PLUGIN_NAME)
+
+seed-competition: ## Seed 12 members, a competition, and test images for voting
+	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/plugins/src/scripts/seed-voting-data.php
 
 clean-release: ## Remove release build artifacts
 	@echo "Cleaning release artifacts..."
