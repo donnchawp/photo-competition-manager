@@ -279,7 +279,10 @@ class Image_Processor {
 		}
 
 		// Generate attachment metadata.
+		// Buffer output to prevent exif_read_data() warnings from corrupting REST API JSON responses.
+		ob_start();
 		$attachment_data = wp_generate_attachment_metadata( $attachment_id, $temp_file );
+		ob_end_clean();
 		wp_update_attachment_metadata( $attachment_id, $attachment_data );
 
 		// Add competition and category metadata.
