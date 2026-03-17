@@ -61,211 +61,32 @@ class Competitions_Controller {
 			return;
 		}
 
-		$inline_js = '
-		document.addEventListener(\'DOMContentLoaded\', function() {
-		(function() {
-			let categoryIndex = document.querySelectorAll(\'.category-row\').length;
-			let gradeIndex = document.querySelectorAll(\'.grade-row\').length;
+		wp_enqueue_script(
+			'photo-comp-admin-category-grade',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 
-			document.getElementById(\'add-category\')?.addEventListener(\'click\', function() {
-				const container = document.getElementById(\'categories-container\');
-				const row = document.createElement(\'div\');
-				row.className = \'category-row\';
-				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="categories[${categoryIndex}][label]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Slug', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="categories[${categoryIndex}][slug]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Upload Quota', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="number" name="categories[${categoryIndex}][quota]" value="1" min="1" max="10" class="small-text" required />
-					</p>
-					<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
-				`;
-				container.appendChild(row);
-				categoryIndex++;
-			});
+		wp_localize_script(
+			'photo-comp-admin-category-grade',
+			'photoCompCategoryGrade',
+			array(
+				'labelText'       => __( 'Label', 'photo-competition-manager' ),
+				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
+				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
+				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+			)
+		);
 
-			document.getElementById(\'add-grade\')?.addEventListener(\'click\', function() {
-				const container = document.getElementById(\'grades-container\');
-				const row = document.createElement(\'div\');
-				row.className = \'grade-row\';
-				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
-					</p>
-					<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
-				`;
-				container.appendChild(row);
-				gradeIndex++;
-			});
-
-			document.addEventListener(\'click\', function(e) {
-				if (e.target.classList.contains(\'remove-category\')) {
-					e.target.closest(\'.category-row\').remove();
-				}
-				if (e.target.classList.contains(\'remove-grade\')) {
-					e.target.closest(\'.grade-row\').remove();
-				}
-			});
-
-			// Delete and reset votes confirmation
-			document.addEventListener(\'click\', function(e) {
-				if (e.target.classList.contains(\'photo-comp-delete\') ||
-						e.target.classList.contains(\'photo-comp-reset-votes\') ||
-						e.target.classList.contains(\'photo-comp-regenerate-hash\')) {
-							var confirmMessage = e.target.getAttribute(\'data-confirm\');
-							if (confirmMessage && !confirm(confirmMessage)) {
-								e.preventDefault();
-								return false;
-							}
-						}
-				});
-
-			// Progress meter preview animations
-			document.querySelectorAll(".progress-meter-card").forEach(function(card) {
-				card.addEventListener("click", function() {
-					document.querySelectorAll(".progress-meter-card").forEach(function(c) {
-						c.classList.remove("active");
-						c.style.borderColor = "#ddd";
-					});
-					card.classList.add("active");
-					card.style.borderColor = "#0073aa";
-				});
-			});
-
-			function animatePreviews() {
-				var duration = 3000;
-				var startTime = Date.now();
-
-				function tick() {
-					var elapsed = Date.now() - startTime;
-					var progress = (elapsed % duration) / duration;
-
-					document.querySelectorAll(".meter-preview").forEach(function(preview) {
-						var type = preview.dataset.meterType;
-						renderMeterPreview(preview, type, progress);
-					});
-
-					requestAnimationFrame(tick);
-				}
-
-				tick();
-			}
-
-			function renderMeterPreview(container, type, progress) {
-				if (!container._initialized) {
-					container._initialized = true;
-					container.innerHTML = "";
-
-					if (type === "bar") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						var track = document.createElement("div");
-						track.style.cssText = "width:100%;height:8px;background:rgba(255,255,255,0.2);border-radius:0;";
-						var fill = document.createElement("div");
-						fill.style.cssText = "height:100%;background:#0073aa;transition:width 100ms linear;border-radius:0;";
-						fill.className = "meter-fill";
-						track.appendChild(fill);
-						container.appendChild(track);
-					} else if (type === "line") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						var track = document.createElement("div");
-						track.style.cssText = "width:100%;height:3px;background:rgba(255,255,255,0.1);";
-						var fill = document.createElement("div");
-						fill.style.cssText = "height:100%;background:#fff;box-shadow:0 0 8px rgba(255,255,255,0.6);transition:width 100ms linear;";
-						fill.className = "meter-fill";
-						track.appendChild(fill);
-						container.appendChild(track);
-					} else if (type === "dots") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						container.style.justifyContent = "center";
-						container.style.gap = "4px";
-						container.style.paddingBottom = "4px";
-						for (var i = 0; i < 15; i++) {
-							var dot = document.createElement("div");
-							dot.style.cssText = "width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:background 0.2s,transform 0.2s;";
-							dot.className = "meter-dot";
-							container.appendChild(dot);
-						}
-					} else if (type === "radial") {
-						container.style.display = "flex";
-						container.style.alignItems = "center";
-						container.style.justifyContent = "center";
-						var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-						svg.setAttribute("width", "40");
-						svg.setAttribute("height", "40");
-						svg.setAttribute("viewBox", "0 0 40 40");
-						var bgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						bgCircle.setAttribute("cx", "20");
-						bgCircle.setAttribute("cy", "20");
-						bgCircle.setAttribute("r", "16");
-						bgCircle.setAttribute("fill", "none");
-						bgCircle.setAttribute("stroke", "rgba(255,255,255,0.2)");
-						bgCircle.setAttribute("stroke-width", "3");
-						svg.appendChild(bgCircle);
-						var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						circle.setAttribute("cx", "20");
-						circle.setAttribute("cy", "20");
-						circle.setAttribute("r", "16");
-						circle.setAttribute("fill", "none");
-						circle.setAttribute("stroke", "#0073aa");
-						circle.setAttribute("stroke-width", "3");
-						circle.setAttribute("stroke-linecap", "round");
-						circle.setAttribute("transform", "rotate(-90 20 20)");
-						var circumference = 2 * Math.PI * 16;
-						circle.setAttribute("stroke-dasharray", circumference);
-						circle.setAttribute("stroke-dashoffset", circumference);
-						circle.className.baseVal = "meter-ring";
-						svg.appendChild(circle);
-						container.appendChild(svg);
-					}
-				}
-
-				if (type === "bar" || type === "line") {
-					var fill = container.querySelector(".meter-fill");
-					if (fill) fill.style.width = (progress * 100) + "%";
-				} else if (type === "dots") {
-					var dots = container.querySelectorAll(".meter-dot");
-					var filledCount = Math.floor(progress * dots.length);
-					dots.forEach(function(dot, i) {
-						if (i < filledCount) {
-							dot.style.background = "#0073aa";
-							dot.style.transform = "scale(1.3)";
-						} else if (i === filledCount) {
-							dot.style.background = "rgba(0,115,170,0.5)";
-							dot.style.transform = "scale(1.1)";
-						} else {
-							dot.style.background = "rgba(255,255,255,0.2)";
-							dot.style.transform = "scale(1)";
-						}
-					});
-				} else if (type === "radial") {
-					var ring = container.querySelector(".meter-ring");
-					if (ring) {
-						var circumference = 2 * Math.PI * 16;
-						ring.setAttribute("stroke-dashoffset", circumference * (1 - progress));
-					}
-				}
-			}
-
-			animatePreviews();
-			})();
-		});
-		';
-
-		wp_register_script( 'photo-competition-manager-competitions-js', false, array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
-		wp_enqueue_script( 'photo-competition-manager-competitions-js' );
-		wp_add_inline_script( 'photo-competition-manager-competitions-js', $inline_js );
+		wp_enqueue_script(
+			'photo-comp-admin-confirm',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-confirm.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -442,15 +263,14 @@ class Competitions_Controller {
 			return;
 		}
 
-		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes', 'toggle_uploads' ), true ) && isset( $_GET['competition'] ) ) {
+		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
 			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
 			$nonces         = array(
-				'send_emails'    => 'photo_competition_send_emails_',
-				'archive'        => 'photo_competition_archive_',
-				'restore'        => 'photo_competition_restore_',
-				'delete'         => 'photo_competition_delete_',
-				'reset_votes'    => 'photo_competition_reset_votes_',
-				'toggle_uploads' => 'photo_competition_toggle_uploads_',
+				'send_emails' => 'photo_competition_send_emails_',
+				'archive'     => 'photo_competition_archive_',
+				'restore'     => 'photo_competition_restore_',
+				'delete'      => 'photo_competition_delete_',
+				'reset_votes' => 'photo_competition_reset_votes_',
 			);
 			$nonce_action   = $nonces[ $action ];
 
@@ -503,40 +323,6 @@ class Competitions_Controller {
 					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
 					'updated'
 				);
-
-				$this->redirect_with_settings_errors( $this->dashboard_url() );
-			}
-
-			if ( 'toggle_uploads' === $action ) {
-				$competition = $this->competitions->find( $competition_id );
-
-				if ( $competition ) {
-					$settings       = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-					$uploads_closed = ! empty( $settings['upload']['uploads_closed'] );
-
-					$settings['upload']['uploads_closed'] = ! $uploads_closed;
-
-					$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
-
-					if ( is_wp_error( $result ) ) {
-						add_settings_error(
-							'photo_competition_manager',
-							$result->get_error_code(),
-							$result->get_error_message(),
-							'error'
-						);
-					} else {
-						$message = $uploads_closed
-							? __( 'Uploads reopened. Members can now upload images.', 'photo-competition-manager' )
-							: __( 'Uploads closed. Members can no longer upload images.', 'photo-competition-manager' );
-						add_settings_error(
-							'photo_competition_manager',
-							'uploads_toggled',
-							$message,
-							'updated'
-						);
-					}
-				}
 
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
@@ -651,6 +437,53 @@ class Competitions_Controller {
 			: $this->dashboard_url();
 
 			$this->redirect_with_settings_errors( $redirect );
+		}
+
+		// Centralised toggle_uploads handler — all pages route here via ref_page for redirect.
+		if ( 'toggle_uploads' === $action && isset( $_GET['competition'] ) ) {
+			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
+
+			check_admin_referer( 'photo_competition_toggle_uploads_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+
+			if ( $competition ) {
+				$settings       = Competition_Settings::parse( $competition->settings );
+				$uploads_closed = ! empty( $settings['upload']['uploads_closed'] );
+
+				$settings['upload']['uploads_closed'] = ! $uploads_closed;
+
+				$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'photo_competition_manager',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					$message = $uploads_closed
+						? __( 'Uploads reopened. Members can now upload images.', 'photo-competition-manager' )
+						: __( 'Uploads closed. Members can no longer upload images.', 'photo-competition-manager' );
+					add_settings_error(
+						'photo_competition_manager',
+						'uploads_toggled',
+						$message,
+						'updated'
+					);
+				}
+			}
+
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of ref_page for redirect routing.
+			$ref_page     = isset( $_GET['ref_page'] ) ? sanitize_key( wp_unslash( $_GET['ref_page'] ) ) : '';
+			$redirect_map = array(
+				'voting'  => add_query_arg( array( 'page' => 'photo-competition-manager-voting' ), admin_url( 'admin.php' ) ),
+				'members' => $this->members_url(),
+			);
+			$redirect_url = $redirect_map[ $ref_page ] ?? $this->dashboard_url();
+
+			$this->redirect_with_settings_errors( $redirect_url );
 		}
 
 		if ( 'update_competition_settings' === $action ) {

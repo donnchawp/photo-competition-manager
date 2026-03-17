@@ -69,199 +69,24 @@ class Settings_Controller {
 			return;
 		}
 
-		// Same JavaScript as competitions controller for category/grade management.
-		$inline_js = '
-		document.addEventListener(\'DOMContentLoaded\', function() {
-		(function() {
-			let categoryIndex = document.querySelectorAll(\'.category-row\').length;
-			let gradeIndex = document.querySelectorAll(\'.grade-row\').length;
+		wp_enqueue_script(
+			'photo-comp-admin-category-grade',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 
-			document.getElementById(\'add-category\')?.addEventListener(\'click\', function() {
-				const container = document.getElementById(\'categories-container\');
-				const row = document.createElement(\'div\');
-				row.className = \'category-row\';
-				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="categories[${categoryIndex}][label]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Slug', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="categories[${categoryIndex}][slug]" class="regular-text" required />
-					</p>
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Upload Quota', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="number" name="categories[${categoryIndex}][quota]" value="1" min="1" max="10" class="small-text" required />
-					</p>
-					<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
-				`;
-				container.appendChild(row);
-				categoryIndex++;
-			});
-
-			document.getElementById(\'add-grade\')?.addEventListener(\'click\', function() {
-				const container = document.getElementById(\'grades-container\');
-				const row = document.createElement(\'div\');
-				row.className = \'grade-row\';
-				row.style.cssText = \'margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;\';
-				row.innerHTML = `
-					<p style="margin: 5px 0;">
-						<label>' . esc_js( __( 'Label', 'photo-competition-manager' ) ) . '</label><br />
-						<input type="text" name="grades[${gradeIndex}][label]" class="regular-text" required />
-					</p>
-					<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_js( __( 'Remove', 'photo-competition-manager' ) ) . '</button>
-				`;
-				container.appendChild(row);
-				gradeIndex++;
-			});
-
-			document.addEventListener(\'click\', function(e) {
-				if (e.target.classList.contains(\'remove-category\')) {
-					e.target.closest(\'.category-row\').remove();
-				}
-				if (e.target.classList.contains(\'remove-grade\')) {
-					e.target.closest(\'.grade-row\').remove();
-				}
-			});
-
-			// Progress meter preview animations
-			document.querySelectorAll(".progress-meter-card").forEach(function(card) {
-				card.addEventListener("click", function() {
-					document.querySelectorAll(".progress-meter-card").forEach(function(c) {
-						c.classList.remove("active");
-						c.style.borderColor = "#ddd";
-					});
-					card.classList.add("active");
-					card.style.borderColor = "#0073aa";
-				});
-			});
-
-			function animatePreviews() {
-				var duration = 3000;
-				var startTime = Date.now();
-
-				function tick() {
-					var elapsed = Date.now() - startTime;
-					var progress = (elapsed % duration) / duration;
-
-					document.querySelectorAll(".meter-preview").forEach(function(preview) {
-						var type = preview.dataset.meterType;
-						renderMeterPreview(preview, type, progress);
-					});
-
-					requestAnimationFrame(tick);
-				}
-
-				tick();
-			}
-
-			function renderMeterPreview(container, type, progress) {
-				if (!container._initialized) {
-					container._initialized = true;
-					container.innerHTML = "";
-
-					if (type === "bar") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						var track = document.createElement("div");
-						track.style.cssText = "width:100%;height:8px;background:rgba(255,255,255,0.2);border-radius:0;";
-						var fill = document.createElement("div");
-						fill.style.cssText = "height:100%;background:#0073aa;transition:width 100ms linear;border-radius:0;";
-						fill.className = "meter-fill";
-						track.appendChild(fill);
-						container.appendChild(track);
-					} else if (type === "line") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						var track = document.createElement("div");
-						track.style.cssText = "width:100%;height:3px;background:rgba(255,255,255,0.1);";
-						var fill = document.createElement("div");
-						fill.style.cssText = "height:100%;background:#fff;box-shadow:0 0 8px rgba(255,255,255,0.6);transition:width 100ms linear;";
-						fill.className = "meter-fill";
-						track.appendChild(fill);
-						container.appendChild(track);
-					} else if (type === "dots") {
-						container.style.display = "flex";
-						container.style.alignItems = "flex-end";
-						container.style.justifyContent = "center";
-						container.style.gap = "4px";
-						container.style.paddingBottom = "4px";
-						for (var i = 0; i < 15; i++) {
-							var dot = document.createElement("div");
-							dot.style.cssText = "width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:background 0.2s,transform 0.2s;";
-							dot.className = "meter-dot";
-							container.appendChild(dot);
-						}
-					} else if (type === "radial") {
-						container.style.display = "flex";
-						container.style.alignItems = "center";
-						container.style.justifyContent = "center";
-						var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-						svg.setAttribute("width", "40");
-						svg.setAttribute("height", "40");
-						svg.setAttribute("viewBox", "0 0 40 40");
-						var bgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						bgCircle.setAttribute("cx", "20");
-						bgCircle.setAttribute("cy", "20");
-						bgCircle.setAttribute("r", "16");
-						bgCircle.setAttribute("fill", "none");
-						bgCircle.setAttribute("stroke", "rgba(255,255,255,0.2)");
-						bgCircle.setAttribute("stroke-width", "3");
-						svg.appendChild(bgCircle);
-						var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						circle.setAttribute("cx", "20");
-						circle.setAttribute("cy", "20");
-						circle.setAttribute("r", "16");
-						circle.setAttribute("fill", "none");
-						circle.setAttribute("stroke", "#0073aa");
-						circle.setAttribute("stroke-width", "3");
-						circle.setAttribute("stroke-linecap", "round");
-						circle.setAttribute("transform", "rotate(-90 20 20)");
-						var circumference = 2 * Math.PI * 16;
-						circle.setAttribute("stroke-dasharray", circumference);
-						circle.setAttribute("stroke-dashoffset", circumference);
-						circle.className.baseVal = "meter-ring";
-						svg.appendChild(circle);
-						container.appendChild(svg);
-					}
-				}
-
-				if (type === "bar" || type === "line") {
-					var fill = container.querySelector(".meter-fill");
-					if (fill) fill.style.width = (progress * 100) + "%";
-				} else if (type === "dots") {
-					var dots = container.querySelectorAll(".meter-dot");
-					var filledCount = Math.floor(progress * dots.length);
-					dots.forEach(function(dot, i) {
-						if (i < filledCount) {
-							dot.style.background = "#0073aa";
-							dot.style.transform = "scale(1.3)";
-						} else if (i === filledCount) {
-							dot.style.background = "rgba(0,115,170,0.5)";
-							dot.style.transform = "scale(1.1)";
-						} else {
-							dot.style.background = "rgba(255,255,255,0.2)";
-							dot.style.transform = "scale(1)";
-						}
-					});
-				} else if (type === "radial") {
-					var ring = container.querySelector(".meter-ring");
-					if (ring) {
-						var circumference = 2 * Math.PI * 16;
-						ring.setAttribute("stroke-dashoffset", circumference * (1 - progress));
-					}
-				}
-			}
-
-			animatePreviews();
-		})();
-		});
-		';
-
-		wp_register_script( 'photo-competition-manager-settings-js', false, array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
-		wp_enqueue_script( 'photo-competition-manager-settings-js' );
-		wp_add_inline_script( 'photo-competition-manager-settings-js', $inline_js );
+		wp_localize_script(
+			'photo-comp-admin-category-grade',
+			'photoCompCategoryGrade',
+			array(
+				'labelText'       => __( 'Label', 'photo-competition-manager' ),
+				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
+				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
+				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+			)
+		);
 	}
 
 	/**

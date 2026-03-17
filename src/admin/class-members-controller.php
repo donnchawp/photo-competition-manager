@@ -209,68 +209,6 @@ class Members_Controller {
 			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
-		// Toggle uploads open/closed for active competition.
-		if ( 'toggle_uploads' === $action ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			if ( ! $competition_id ) {
-				add_settings_error(
-					'photo_competition_members',
-					'invalid_competition',
-					__( 'Invalid competition.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
-			}
-
-			check_admin_referer( 'photo_competition_toggle_uploads_' . $competition_id );
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
-				add_settings_error(
-					'photo_competition_members',
-					'competition_not_open',
-					__( 'Competition must be open to toggle uploads.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
-			}
-
-			$settings        = Competition_Settings::parse( $competition->settings );
-			$uploads_closed  = ! empty( $settings['upload']['uploads_closed'] );
-			// Toggle the current state.
-			$settings['upload']['uploads_closed'] = ! $uploads_closed;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_members',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				$message = $uploads_closed
-					? __( 'Uploads reopened. Members can now upload images.', 'photo-competition-manager' )
-					: __( 'Uploads closed. Members can no longer upload images.', 'photo-competition-manager' );
-				add_settings_error(
-					'photo_competition_members',
-					'uploads_toggled',
-					$message,
-					'updated'
-				);
-			}
-
-			$this->redirect_with_settings_errors( $this->members_url() );
-		}
-
 		if ( 'create_member' === $action ) {
 			check_admin_referer( 'photo_competition_member_create', 'photo_competition_member_nonce' );
 
@@ -712,9 +650,10 @@ class Members_Controller {
 			$toggle_url = wp_nonce_url(
 				add_query_arg(
 					array(
-						'page'        => 'photo-competition-manager-members',
+						'page'        => 'photo-competition-manager',
 						'action'      => 'toggle_uploads',
 						'competition' => (int) $active_competition->id,
+						'ref_page'    => 'members',
 					),
 					admin_url( 'admin.php' )
 				),

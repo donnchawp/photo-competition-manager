@@ -338,116 +338,6 @@ class Voting_Controller {
 			);
 		}
 
-		if ( 'close_uploads' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_close_uploads_' . $competition_id );
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings                             = Competition_Settings::parse( $competition->settings );
-			$settings['upload']['uploads_closed'] = true;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'uploads_closed',
-					__( 'Uploads closed successfully. Members can no longer upload or delete images.', 'photo-competition-manager' ),
-					'updated'
-				);
-			}
-
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
-		}
-
-		if ( 'open_uploads' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_open_uploads_' . $competition_id );
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings                             = Competition_Settings::parse( $competition->settings );
-			$settings['upload']['uploads_closed'] = false;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'uploads_opened',
-					__( 'Uploads reopened successfully. Members can now upload and delete images again.', 'photo-competition-manager' ),
-					'updated'
-				);
-			}
-
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
-		}
-
 		if ( 'show_results' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
@@ -912,28 +802,17 @@ class Voting_Controller {
 		$results_visible = $settings['results']['results_visible'] ?? false;
 
 		// Build action URLs.
-		$close_uploads_url = wp_nonce_url(
+		$toggle_uploads_url = wp_nonce_url(
 			add_query_arg(
 				array(
-					'page'        => 'photo-competition-manager-voting',
-					'action'      => 'close_uploads',
+					'page'        => 'photo-competition-manager',
+					'action'      => 'toggle_uploads',
 					'competition' => (int) $competition->id,
+					'ref_page'    => 'voting',
 				),
 				admin_url( 'admin.php' )
 			),
-			'photo_competition_close_uploads_' . (int) $competition->id
-		);
-
-		$open_uploads_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-voting',
-					'action'      => 'open_uploads',
-					'competition' => (int) $competition->id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_open_uploads_' . (int) $competition->id
+			'photo_competition_toggle_uploads_' . (int) $competition->id
 		);
 
 		$show_results_url = wp_nonce_url(
@@ -970,10 +849,10 @@ class Voting_Controller {
 							<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>
 							<?php if ( $uploads_closed ) : ?>
 								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $open_uploads_url ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
+								<a href="<?php echo esc_url( $toggle_uploads_url ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
 							<?php else : ?>
 								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Open', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $close_uploads_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></a>
+								<a href="<?php echo esc_url( $toggle_uploads_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></a>
 							<?php endif; ?>
 						</div>
 						<div class="status-control">
