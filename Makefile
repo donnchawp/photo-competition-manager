@@ -3,10 +3,10 @@ MAKEFLAGS += --no-builtin-rules
 .DEFAULT_GOAL := help
 
 ASSETS_DIR := assets
-WP_ENV := npx @wordpress/env
 MAILPIT_SCRIPT := ./start-mailpit.sh
 MAILPIT_CONTAINER := photo-competition-manager-mailpit
 PLUGIN_NAME := photo-competition-manager
+WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
 
 .PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition
