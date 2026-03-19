@@ -9,7 +9,7 @@ PLUGIN_NAME := photo-competition-manager
 WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
 
-.PHONY: help install up down env-destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition
+.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -19,6 +19,9 @@ install: ## Install PHP and JS dependencies
 	composer install
 	npm --prefix $(ASSETS_DIR) install
 
+logs: ## Show WordPress environment logs
+	$(WP_ENV) logs
+
 up: ## Boot the local WordPress environment
 	$(WP_ENV) start
 	bash $(MAILPIT_SCRIPT)
@@ -27,7 +30,7 @@ down: ## Stop the local WordPress environment
 	$(WP_ENV) stop
 	$(MAKE) mailpit-stop
 
-env-destroy: ## Destroy the local WordPress environment
+destroy: ## Destroy the local WordPress environment
 	$(WP_ENV) destroy
 	$(MAKE) mailpit-stop
 
