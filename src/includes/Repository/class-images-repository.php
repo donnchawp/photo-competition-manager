@@ -54,6 +54,37 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Shuffle images in a deterministic order based on competition and category.
+	 *
+	 * Produces the same random order for all viewers within a given competition
+	 * and category, so the slideshow and voting form stay in sync. The order
+	 * differs across categories to prevent identifying photographers.
+	 *
+	 * @param array  $images         Array of image objects.
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return array Shuffled array of image objects.
+	 */
+	public function shuffle_deterministic( array $images, int $competition_id, string $category ): array {
+		if ( count( $images ) <= 1 ) {
+			return $images;
+		}
+
+		$seed = $competition_id . '_' . $category;
+		usort(
+			$images,
+			function ( $a, $b ) use ( $seed ) {
+				return strcmp(
+					md5( $seed . '_' . $a->id ),
+					md5( $seed . '_' . $b->id )
+				);
+			}
+		);
+
+		return $images;
+	}
+
+	/**
 	 * Find all images for a member.
 	 *
 	 * @param int $member_id Member ID.

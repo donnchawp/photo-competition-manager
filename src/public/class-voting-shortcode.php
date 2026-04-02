@@ -722,8 +722,9 @@ class Voting_Shortcode {
 					}
 				}
 
-				// Get images for this category.
+				// Get images for this category in randomized order to prevent identification across categories.
 				$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+				$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 				if ( empty( $images ) ) {
 					echo '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'photo-competition-manager' ) . '</p>';
@@ -850,6 +851,7 @@ class Voting_Shortcode {
 	 */
 	private function render_image_gallery( object $competition, string $category ): void {
 		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 		if ( empty( $images ) ) {
 			return;
@@ -1018,6 +1020,7 @@ class Voting_Shortcode {
 					<?php
 					$category_slug = $category_data['slug'];
 					$images        = $this->images_repo->find_by_competition( (int) $competition->id, $category_slug );
+					$images        = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category_slug );
 
 					if ( empty( $images ) ) {
 						continue;

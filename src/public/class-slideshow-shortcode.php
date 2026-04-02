@@ -123,8 +123,9 @@ class Slideshow_Shortcode {
 			return '<p class="error">' . esc_html__( 'Invalid category specified.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Get images for this category.
+		// Get images for this category in randomized order to prevent identification across categories.
 		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 		if ( empty( $images ) ) {
 			return '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'photo-competition-manager' ) . '</p>';
@@ -256,8 +257,9 @@ class Slideshow_Shortcode {
 			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
 		}
 
-		// Get images for this category.
+		// Get images for this category in randomized order to prevent identification across categories.
 		$images = $this->images_repo->find_by_competition( $competition_id, $category );
+		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
 		if ( empty( $images ) ) {
 			wp_send_json_error( array( 'message' => __( 'No images found for this category.', 'photo-competition-manager' ) ) );
