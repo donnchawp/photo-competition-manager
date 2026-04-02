@@ -665,12 +665,11 @@ class Voting_Controller {
 		// Render category tabs (attached to the workflow card postbox).
 		$this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug, $voted_categories );
 
-		// Check completion: category_steps >= 6 is primary, voted_categories is fallback for pre-upgrade data.
+		// Check completion: all categories must have completed critique (step 6).
 		$all_complete = true;
 		foreach ( $all_categories as $cat_data ) {
-			$step         = $cat_data['current_step'] ?? 1;
-			$key_in_voted = in_array( $cat_data['key'], $voted_categories, true );
-			if ( $step < 6 && ! $key_in_voted ) {
+			$step = $cat_data['current_step'] ?? 1;
+			if ( $step < 6 ) {
 				$all_complete = false;
 				break;
 			}
