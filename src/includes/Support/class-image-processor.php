@@ -240,7 +240,9 @@ class Image_Processor {
 		$image->set_quality( $quality );
 
 		// Generate filename for original.
-		$original_filename = sprintf( '%s-%s-%d-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ), $counter );
+		$original_filename = $counter > 0
+			? sprintf( '%s-%s-%d-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ), $counter )
+			: sprintf( '%s-%s-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ) );
 
 		// Create a temporary file.
 		$upload_dir = wp_upload_dir();
@@ -253,13 +255,9 @@ class Image_Processor {
 		}
 
 		// Prepare attachment data.
-		$attachment_title = sprintf(
-			'%s - %s - %s #%d',
-			$competition_slug,
-			$category_slug,
-			$username,
-			$counter
-		);
+		$attachment_title = $counter > 0
+			? sprintf( '%s - %s - %s #%d', $competition_slug, $category_slug, $username, $counter )
+			: sprintf( '%s - %s - %s', $competition_slug, $category_slug, $username );
 
 		$attachment = array(
 			'guid'           => $upload_dir['url'] . '/' . basename( $temp_file ),
@@ -357,7 +355,11 @@ class Image_Processor {
 			$safe_category = str_replace( '..', '', $safe_category );
 		}
 
-		return sprintf( '%s-%s-%d.jpg', $safe_username, $safe_category, $counter );
+		if ( $counter > 0 ) {
+			return sprintf( '%s-%s-%d.jpg', $safe_username, $safe_category, $counter );
+		}
+
+		return sprintf( '%s-%s.jpg', $safe_username, $safe_category );
 	}
 
 	/**

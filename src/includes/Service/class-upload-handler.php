@@ -146,7 +146,7 @@ class Upload_Handler {
 		$constraints = Competition_Settings::get_upload_constraints( $settings );
 
 		// Process and store the image.
-		$counter  = $current_count + 1;
+		$counter  = $quota > 1 ? $current_count + 1 : 0;
 		$username = sanitize_title( $member->name );
 
 		$result = $this->image_processor->process(
