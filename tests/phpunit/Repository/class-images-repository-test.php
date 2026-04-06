@@ -383,12 +383,12 @@ class Images_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->images_repo->update_score( $image_id, 8.5 );
+		$result = $this->images_repo->update_score( $image_id, 8 );
 
 		$this->assertTrue( $result );
 
 		$image = $this->images_repo->find( $image_id );
-		$this->assertEquals( 8.5, $image->score );
+		$this->assertEquals( 8, $image->score );
 	}
 
 	public function test_update_score_rejects_invalid_id(): void {

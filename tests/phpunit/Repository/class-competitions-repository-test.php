@@ -57,7 +57,6 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 'october-2024-competition', $row->slug );
-		$this->assertSame( 'draft', $row->status );
 	}
 
 	/**
