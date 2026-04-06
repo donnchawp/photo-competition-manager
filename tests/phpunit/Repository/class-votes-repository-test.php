@@ -202,4 +202,153 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 		$this->assertContains( 'Bob', $voters );
 		$this->assertNotContains( 'Charlie', $voters );
 	}
+
+	// ---------------------------------------------------------------
+	// Anonymous (token-based) voting
+	// ---------------------------------------------------------------
+
+	public function test_create_anonymous_persists_vote(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create_anonymous( 1, 'colour', 100, 42, 9 );
+
+		$this->assertIsInt( $id );
+		$this->assertGreaterThan( 0, $id );
+	}
+
+	public function test_create_anonymous_rejects_missing_token_id(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->create_anonymous( 1, 'colour', 0, 42, 9 );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'missing_token_id', $result->get_error_code() );
+	}
+
+	public function test_create_anonymous_rejects_negative_score(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->create_anonymous( 1, 'colour', 100, 42, -1 );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'invalid_score', $result->get_error_code() );
+	}
+
+	public function test_has_voted_with_token_detects_votes(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$this->assertFalse( $repository->has_voted_with_token( 100 ) );
+
+		$repository->create_anonymous( 1, 'colour', 100, 42, 9 );
+
+		$this->assertTrue( $repository->has_voted_with_token( 100 ) );
+		$this->assertFalse( $repository->has_voted_with_token( 999 ) );
+	}
+
+	public function test_get_votes_by_token_returns_image_score_map(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create_anonymous( 1, 'colour', 100, 42, 9 );
+		$repository->create_anonymous( 1, 'colour', 100, 43, 7 );
+
+		$votes = $repository->get_votes_by_token( 100 );
+
+		$this->assertCount( 2, $votes );
+		$this->assertSame( 9.0, $votes[42] );
+		$this->assertSame( 7.0, $votes[43] );
+	}
+
+	public function test_get_votes_by_token_returns_empty_for_unknown_token(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$this->assertSame( array(), $repository->get_votes_by_token( 999 ) );
+	}
+
+	public function test_delete_by_token_removes_votes(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create_anonymous( 1, 'colour', 100, 42, 9 );
+		$repository->create_anonymous( 1, 'colour', 100, 43, 7 );
+		$repository->create_anonymous( 1, 'colour', 200, 44, 8 );
+
+		$repository->delete_by_token( 100 );
+
+		$this->assertSame( array(), $repository->get_votes_by_token( 100 ) );
+		$this->assertCount( 1, $repository->get_votes_by_token( 200 ) );
+	}
+
+	// ---------------------------------------------------------------
+	// Named voter operations
+	// ---------------------------------------------------------------
+
+	public function test_get_votes_by_voter_returns_image_score_map(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create( 1, 'colour', 'Alice', 42, 9 );
+		$repository->create( 1, 'colour', 'Alice', 43, 7 );
+		$repository->create( 1, 'colour', 'Bob', 44, 8 );
+
+		$votes = $repository->get_votes_by_voter( 1, 'colour', 'Alice' );
+
+		$this->assertCount( 2, $votes );
+		$this->assertSame( 9.0, $votes[42] );
+		$this->assertSame( 7.0, $votes[43] );
+	}
+
+	public function test_delete_by_voter_removes_matching_votes(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create( 1, 'colour', 'Alice', 42, 9 );
+		$repository->create( 1, 'colour', 'Bob', 43, 8 );
+
+		$repository->delete_by_voter( 1, 'colour', 'Alice' );
+
+		$this->assertFalse( $repository->has_voted( 1, 'colour', 'Alice' ) );
+		$this->assertTrue( $repository->has_voted( 1, 'colour', 'Bob' ) );
+	}
+
+	// ---------------------------------------------------------------
+	// Bulk delete operations
+	// ---------------------------------------------------------------
+
+	public function test_delete_by_competition_and_category(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create( 1, 'colour', 'Alice', 42, 9 );
+		$repository->create( 1, 'bw', 'Alice', 43, 8 );
+		$repository->create( 2, 'colour', 'Bob', 44, 7 );
+
+		$result = $repository->delete_by_competition_and_category( 1, 'colour' );
+		$this->assertTrue( $result );
+
+		$this->assertCount( 0, $repository->find_by_competition( 1, 'colour' ) );
+		$this->assertCount( 1, $repository->find_by_competition( 1, 'bw' ) );
+		$this->assertCount( 1, $repository->find_by_competition( 2 ) );
+	}
+
+	public function test_delete_by_image_removes_votes_for_image(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create( 1, 'colour', 'Alice', 42, 9 );
+		$repository->create( 1, 'colour', 'Bob', 42, 8 );
+		$repository->create( 1, 'colour', 'Alice', 43, 7 );
+
+		$result = $repository->delete_by_image( 42 );
+		$this->assertTrue( $result );
+
+		$this->assertCount( 0, $repository->find_by_image( 42 ) );
+		$this->assertCount( 1, $repository->find_by_image( 43 ) );
+	}
+
+	public function test_get_votes_by_competition_returns_all_votes(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create( 1, 'colour', 'Alice', 42, 9 );
+		$repository->create( 1, 'bw', 'Bob', 43, 8 );
+		$repository->create( 2, 'colour', 'Charlie', 44, 7 );
+
+		$votes = $repository->get_votes_by_competition( 1 );
+
+		$this->assertCount( 2, $votes );
+	}
 }
