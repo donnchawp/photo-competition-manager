@@ -347,4 +347,54 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'novice', $grades[0]['slug'] );
 		$this->assertEquals( 'expert', $grades[1]['slug'] );
 	}
+
+	// ---------------------------------------------------------------
+	// is_voting_open_for_category()
+	// ---------------------------------------------------------------
+
+	public function test_is_voting_open_for_category_returns_true_when_listed(): void {
+		$settings = array(
+			'voting' => array( 'open_categories' => array( 'colour', 'black-white' ) ),
+		);
+
+		$this->assertTrue( Competition_Settings::is_voting_open_for_category( $settings, 'colour' ) );
+	}
+
+	public function test_is_voting_open_for_category_returns_false_when_not_listed(): void {
+		$settings = array(
+			'voting' => array( 'open_categories' => array( 'colour' ) ),
+		);
+
+		$this->assertFalse( Competition_Settings::is_voting_open_for_category( $settings, 'black-white' ) );
+	}
+
+	public function test_is_voting_open_for_category_returns_false_when_empty(): void {
+		$settings = array(
+			'voting' => array( 'open_categories' => array() ),
+		);
+
+		$this->assertFalse( Competition_Settings::is_voting_open_for_category( $settings, 'colour' ) );
+	}
+
+	// ---------------------------------------------------------------
+	// get_open_voting_categories()
+	// ---------------------------------------------------------------
+
+	public function test_get_open_voting_categories_returns_list(): void {
+		$settings = array(
+			'voting' => array( 'open_categories' => array( 'colour', 'black-white' ) ),
+		);
+
+		$result = Competition_Settings::get_open_voting_categories( $settings );
+
+		$this->assertSame( array( 'colour', 'black-white' ), $result );
+	}
+
+	public function test_get_open_voting_categories_returns_empty_when_not_set(): void {
+		$settings = array();
+
+		$result = Competition_Settings::get_open_voting_categories( $settings );
+
+		$this->assertSame( array(), $result );
+	}
 }

@@ -396,4 +396,53 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 1, $tracking );
 		$this->assertArrayNotHasKey( 2, $tracking );
 	}
+
+	// ---------------------------------------------------------------
+	// delete_by_competition()
+	// ---------------------------------------------------------------
+
+	public function test_delete_by_competition_removes_tokens(): void {
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$this->repository->create( 1, 10, 'colour', hash( 'sha256', 'tok1' ), $expires_at );
+		$this->repository->create( 2, 10, 'colour', hash( 'sha256', 'tok2' ), $expires_at );
+		$this->repository->create( 3, 20, 'colour', hash( 'sha256', 'tok3' ), $expires_at );
+
+		$result = $this->repository->delete_by_competition( 10 );
+		$this->assertTrue( $result );
+
+		$tracking_10 = $this->repository->get_tracking_by_competition( 10 );
+		$tracking_20 = $this->repository->get_tracking_by_competition( 20 );
+
+		$this->assertCount( 0, $tracking_10 );
+		$this->assertCount( 1, $tracking_20 );
+	}
+
+	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
+		$this->assertFalse( $this->repository->delete_by_competition( 0 ) );
+	}
+
+	// ---------------------------------------------------------------
+	// delete_by_competition_and_category()
+	// ---------------------------------------------------------------
+
+	public function test_delete_by_competition_and_category_removes_matching(): void {
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$this->repository->create( 1, 10, 'colour', hash( 'sha256', 'c1' ), $expires_at );
+		$this->repository->create( 2, 10, 'black-white', hash( 'sha256', 'bw1' ), $expires_at );
+
+		$result = $this->repository->delete_by_competition_and_category( 10, 'colour' );
+		$this->assertTrue( $result );
+
+		// colour token gone, black-white still there.
+		$token_colour = $this->repository->find_valid_token( hash( 'sha256', 'c1' ) );
+		$token_bw     = $this->repository->find_valid_token( hash( 'sha256', 'bw1' ) );
+
+		$this->assertNull( $token_colour );
+		$this->assertNotNull( $token_bw );
+	}
+
+	public function test_delete_by_competition_and_category_returns_false_for_invalid(): void {
+		$this->assertFalse( $this->repository->delete_by_competition_and_category( 0, 'colour' ) );
+		$this->assertFalse( $this->repository->delete_by_competition_and_category( 1, '' ) );
+	}
 }

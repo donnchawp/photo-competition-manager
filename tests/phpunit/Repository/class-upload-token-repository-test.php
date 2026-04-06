@@ -350,4 +350,28 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 1, $tracking );
 		$this->assertArrayNotHasKey( 2, $tracking );
 	}
+
+	// ---------------------------------------------------------------
+	// delete_by_competition()
+	// ---------------------------------------------------------------
+
+	public function test_delete_by_competition_removes_tokens(): void {
+		$this->repo->find_or_create( 1, 10 );
+		$this->repo->find_or_create( 2, 10 );
+		$this->repo->find_or_create( 3, 20 );
+
+		$result = $this->repo->delete_by_competition( 10 );
+		$this->assertTrue( $result );
+
+		// Tokens for competition 10 should be gone, competition 20 intact.
+		$tracking_10 = $this->repo->get_tracking_by_competition( 10 );
+		$tracking_20 = $this->repo->get_tracking_by_competition( 20 );
+
+		$this->assertCount( 0, $tracking_10 );
+		$this->assertCount( 1, $tracking_20 );
+	}
+
+	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
+		$this->assertFalse( $this->repo->delete_by_competition( 0 ) );
+	}
 }
