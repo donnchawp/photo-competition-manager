@@ -906,7 +906,7 @@ class Submissions_Controller {
 
 			if ( isset( $scores_data[ $image_id ] ) ) {
 				$score_info  = $scores_data[ $image_id ];
-				$total_score = number_format( $score_info['average_score'], 0 );
+				$total_score = number_format( $score_info['total_score'], 0 );
 				$vote_count  = $score_info['vote_count'];
 			}
 
