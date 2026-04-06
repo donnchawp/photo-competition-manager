@@ -423,6 +423,89 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'invalid_image', $result->get_error_code() );
 	}
 
+	public function test_shuffle_deterministic_returns_empty_array_unchanged(): void {
+		$result = $this->images_repo->shuffle_deterministic( array(), 1, 'colour' );
+
+		$this->assertSame( array(), $result );
+	}
+
+	public function test_shuffle_deterministic_returns_single_image_unchanged(): void {
+		$image     = (object) array( 'id' => 1 );
+		$result    = $this->images_repo->shuffle_deterministic( array( $image ), 1, 'colour' );
+
+		$this->assertCount( 1, $result );
+		$this->assertSame( $image, $result[0] );
+	}
+
+	public function test_shuffle_deterministic_is_deterministic(): void {
+		$images = array(
+			(object) array( 'id' => 1 ),
+			(object) array( 'id' => 2 ),
+			(object) array( 'id' => 3 ),
+			(object) array( 'id' => 4 ),
+			(object) array( 'id' => 5 ),
+		);
+
+		$first  = $this->images_repo->shuffle_deterministic( $images, 10, 'colour' );
+		$second = $this->images_repo->shuffle_deterministic( $images, 10, 'colour' );
+
+		$first_ids  = array_map( fn( $img ) => $img->id, $first );
+		$second_ids = array_map( fn( $img ) => $img->id, $second );
+
+		$this->assertSame( $first_ids, $second_ids );
+	}
+
+	public function test_shuffle_deterministic_differs_by_category(): void {
+		$images = array(
+			(object) array( 'id' => 1 ),
+			(object) array( 'id' => 2 ),
+			(object) array( 'id' => 3 ),
+			(object) array( 'id' => 4 ),
+			(object) array( 'id' => 5 ),
+		);
+
+		$colour = $this->images_repo->shuffle_deterministic( $images, 10, 'colour' );
+		$bw     = $this->images_repo->shuffle_deterministic( $images, 10, 'black-white' );
+
+		$colour_ids = array_map( fn( $img ) => $img->id, $colour );
+		$bw_ids     = array_map( fn( $img ) => $img->id, $bw );
+
+		$this->assertNotSame( $colour_ids, $bw_ids, 'Different categories should produce different orders.' );
+	}
+
+	public function test_shuffle_deterministic_differs_by_competition(): void {
+		$images = array(
+			(object) array( 'id' => 1 ),
+			(object) array( 'id' => 2 ),
+			(object) array( 'id' => 3 ),
+			(object) array( 'id' => 4 ),
+			(object) array( 'id' => 5 ),
+		);
+
+		$comp1 = $this->images_repo->shuffle_deterministic( $images, 1, 'colour' );
+		$comp2 = $this->images_repo->shuffle_deterministic( $images, 2, 'colour' );
+
+		$comp1_ids = array_map( fn( $img ) => $img->id, $comp1 );
+		$comp2_ids = array_map( fn( $img ) => $img->id, $comp2 );
+
+		$this->assertNotSame( $comp1_ids, $comp2_ids, 'Different competitions should produce different orders.' );
+	}
+
+	public function test_shuffle_deterministic_preserves_all_images(): void {
+		$images = array(
+			(object) array( 'id' => 10, 'filename' => 'a.jpg' ),
+			(object) array( 'id' => 20, 'filename' => 'b.jpg' ),
+			(object) array( 'id' => 30, 'filename' => 'c.jpg' ),
+		);
+
+		$result = $this->images_repo->shuffle_deterministic( $images, 1, 'colour' );
+
+		$result_ids = array_map( fn( $img ) => $img->id, $result );
+		sort( $result_ids );
+
+		$this->assertSame( array( 10, 20, 30 ), $result_ids );
+	}
+
 	public function test_create_assigns_random_number_automatically(): void {
 		$image_id = $this->images_repo->create(
 			array(
