@@ -261,4 +261,116 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertNull( $member );
 	}
+
+	// ---------------------------------------------------------------
+	// find_committee_members()
+	// ---------------------------------------------------------------
+
+	public function test_find_committee_members_returns_active_committee(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'name'      => 'Committee Alice',
+				'email'     => 'calice@example.com',
+				'grade'     => 'beginner',
+				'active'    => 1,
+				'committee' => 1,
+			)
+		);
+
+		$repository->create(
+			array(
+				'name'      => 'Regular Bob',
+				'email'     => 'rbob@example.com',
+				'grade'     => 'beginner',
+				'active'    => 1,
+				'committee' => 0,
+			)
+		);
+
+		// Inactive committee member should be excluded.
+		$repository->create(
+			array(
+				'name'      => 'Inactive Charlie',
+				'email'     => 'icharlie@example.com',
+				'grade'     => 'beginner',
+				'active'    => 0,
+				'committee' => 1,
+			)
+		);
+
+		$members = $repository->find_committee_members();
+
+		$this->assertCount( 1, $members );
+		$this->assertSame( 'Committee Alice', $members[0]->name );
+	}
+
+	// ---------------------------------------------------------------
+	// find_active_members()
+	// ---------------------------------------------------------------
+
+	public function test_find_active_members_excludes_inactive(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'name'   => 'Active Alice',
+				'email'  => 'aalice@example.com',
+				'grade'  => 'beginner',
+				'active' => 1,
+			)
+		);
+
+		$repository->create(
+			array(
+				'name'   => 'Inactive Bob',
+				'email'  => 'ibob@example.com',
+				'grade'  => 'beginner',
+				'active' => 0,
+			)
+		);
+
+		$members = $repository->find_active_members();
+
+		$this->assertCount( 1, $members );
+		$this->assertSame( 'Active Alice', $members[0]->name );
+	}
+
+	// ---------------------------------------------------------------
+	// delete()
+	// ---------------------------------------------------------------
+
+	public function test_delete_removes_member(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'  => 'Delete Me',
+				'email' => 'deleteme@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$result = $repository->delete( $id );
+		$this->assertTrue( $result );
+
+		$this->assertNull( $repository->find( $id ) );
+	}
+
+	public function test_delete_rejects_invalid_id(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->delete( 0 );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_member', $result->get_error_code() );
+	}
+
+	public function test_delete_rejects_missing_member(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->delete( 9999 );
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_member', $result->get_error_code() );
+	}
 }

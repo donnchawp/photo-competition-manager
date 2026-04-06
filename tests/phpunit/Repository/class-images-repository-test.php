@@ -506,6 +506,143 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 10, 20, 30 ), $result_ids );
 	}
 
+	// ---------------------------------------------------------------
+	// update_category()
+	// ---------------------------------------------------------------
+
+	public function test_update_category_changes_image_category(): void {
+		$image_id = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'testuser-colour-1.jpg',
+			)
+		);
+
+		$result = $this->images_repo->update_category( $image_id, 'black-white' );
+
+		$this->assertTrue( $result );
+
+		$image = $this->images_repo->find( $image_id );
+		$this->assertSame( 'black-white', $image->category );
+	}
+
+	public function test_update_category_rejects_invalid_id(): void {
+		$result = $this->images_repo->update_category( 9999, 'colour' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_image', $result->get_error_code() );
+	}
+
+	// ---------------------------------------------------------------
+	// delete_by_competition()
+	// ---------------------------------------------------------------
+
+	public function test_delete_by_competition_removes_all_images(): void {
+		$this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'a.jpg',
+			)
+		);
+
+		$this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'black-white',
+				'filename'       => 'b.jpg',
+			)
+		);
+
+		$result = $this->images_repo->delete_by_competition( $this->competition_id );
+
+		$this->assertTrue( $result );
+		$this->assertEmpty( $this->images_repo->find_by_competition( $this->competition_id ) );
+	}
+
+	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
+		$this->assertFalse( $this->images_repo->delete_by_competition( 0 ) );
+	}
+
+	// ---------------------------------------------------------------
+	// get_all_images_with_uploader_info()
+	// ---------------------------------------------------------------
+
+	public function test_get_all_images_with_uploader_info_joins_member_data(): void {
+		$this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'test.jpg',
+			)
+		);
+
+		$results = $this->images_repo->get_all_images_with_uploader_info();
+
+		$this->assertCount( 1, $results );
+		$this->assertSame( 'Test User', $results[0]->member_name );
+		$this->assertSame( 'test@example.com', $results[0]->member_email );
+	}
+
+	// ---------------------------------------------------------------
+	// regenerate_member_numbers()
+	// ---------------------------------------------------------------
+
+	public function test_regenerate_member_numbers_assigns_sequential(): void {
+		$member2_id = $this->members_repo->create(
+			array(
+				'name'  => 'Test User 2',
+				'email' => 'test2@example.com',
+				'grade' => 'intermediate',
+			)
+		);
+
+		$img1 = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'a.jpg',
+			)
+		);
+
+		$img2 = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member2_id,
+				'category'       => 'colour',
+				'filename'       => 'b.jpg',
+			)
+		);
+
+		$result = $this->images_repo->regenerate_member_numbers( $this->competition_id );
+		$this->assertTrue( $result );
+
+		$image1 = $this->images_repo->find( $img1 );
+		$image2 = $this->images_repo->find( $img2 );
+
+		// Both should have numbers, and they should be different.
+		$numbers = array( (int) $image1->random_number, (int) $image2->random_number );
+		sort( $numbers );
+		$this->assertSame( array( 1, 2 ), $numbers );
+	}
+
+	public function test_regenerate_member_numbers_rejects_invalid_competition(): void {
+		$result = $this->images_repo->regenerate_member_numbers( 0 );
+		$this->assertWPError( $result );
+	}
+
+	public function test_regenerate_member_numbers_rejects_empty_competition(): void {
+		$result = $this->images_repo->regenerate_member_numbers( $this->competition_id );
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_images', $result->get_error_code() );
+	}
+
 	public function test_create_assigns_random_number_automatically(): void {
 		$image_id = $this->images_repo->create(
 			array(

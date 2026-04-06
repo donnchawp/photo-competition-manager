@@ -263,4 +263,325 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertNull( $competition );
 	}
+
+	// ---------------------------------------------------------------
+	// is_open()
+	// ---------------------------------------------------------------
+
+	public function test_is_open_returns_true_for_current_dates(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Open Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertTrue( $repository->is_open( $competition ) );
+	}
+
+	public function test_is_open_returns_false_when_not_yet_opened(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'     => 'Future Comp',
+				'open_date' => '2099-01-01 00:00:00',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_open( $competition ) );
+	}
+
+	public function test_is_open_returns_false_when_past_close_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_open( $competition ) );
+	}
+
+	public function test_is_open_returns_false_when_archived(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Archived Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+
+		$repository->archive( $id );
+		$competition = $repository->find( $id, true );
+
+		$this->assertFalse( $repository->is_open( $competition ) );
+	}
+
+	public function test_is_open_returns_true_when_dates_are_null(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create( array( 'title' => 'No Dates' ) );
+		$competition = $repository->find( $id );
+
+		$this->assertTrue( $repository->is_open( $competition ) );
+	}
+
+	// ---------------------------------------------------------------
+	// is_accepting_uploads()
+	// ---------------------------------------------------------------
+
+	public function test_is_accepting_uploads_when_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Upload Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertTrue( $repository->is_accepting_uploads( $competition ) );
+	}
+
+	public function test_is_accepting_uploads_false_when_closed(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_accepting_uploads( $competition ) );
+	}
+
+	public function test_is_accepting_uploads_false_when_uploads_closed_setting(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Uploads Closed',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+				'settings'   => array( 'upload' => array( 'uploads_closed' => true ) ),
+			)
+		);
+
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_accepting_uploads( $competition ) );
+	}
+
+	// ---------------------------------------------------------------
+	// is_accepting_votes()
+	// ---------------------------------------------------------------
+
+	public function test_is_accepting_votes_when_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Voting Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertTrue( $repository->is_accepting_votes( $competition ) );
+	}
+
+	public function test_is_accepting_votes_false_when_closed(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_accepting_votes( $competition ) );
+	}
+
+	public function test_is_accepting_votes_respects_open_categories(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Category Voting',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+				'settings'   => array( 'open_categories' => array( 'colour' ) ),
+			)
+		);
+
+		$competition = $repository->find( $id );
+
+		$this->assertTrue( $repository->is_accepting_votes( $competition, 'colour' ) );
+		$this->assertFalse( $repository->is_accepting_votes( $competition, 'black-white' ) );
+	}
+
+	// ---------------------------------------------------------------
+	// find_current_active()
+	// ---------------------------------------------------------------
+
+	public function test_find_current_active_returns_open_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Active Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+
+		$active = $repository->find_current_active();
+
+		$this->assertNotNull( $active );
+		$this->assertEquals( $id, (int) $active->id );
+	}
+
+	public function test_find_current_active_returns_null_when_none_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Past Comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_current_active() );
+	}
+
+	public function test_find_current_active_excludes_archived(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Archived Active',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2099-12-31 23:59:59',
+			)
+		);
+
+		$repository->archive( $id );
+
+		$this->assertNull( $repository->find_current_active() );
+	}
+
+	// ---------------------------------------------------------------
+	// find_by_share_hash() / update_share_hash()
+	// ---------------------------------------------------------------
+
+	public function test_find_by_share_hash_returns_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Shared Comp',
+				'share_hash' => 'abc123',
+			)
+		);
+
+		$found = $repository->find_by_share_hash( 'abc123' );
+
+		$this->assertNotNull( $found );
+		$this->assertEquals( $id, (int) $found->id );
+	}
+
+	public function test_find_by_share_hash_returns_null_for_empty(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$this->assertNull( $repository->find_by_share_hash( '' ) );
+	}
+
+	public function test_find_by_share_hash_excludes_archived(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Archived Shared',
+				'share_hash' => 'xyz789',
+			)
+		);
+
+		$repository->archive( $id );
+
+		$this->assertNull( $repository->find_by_share_hash( 'xyz789' ) );
+	}
+
+	public function test_update_share_hash_persists(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create( array( 'title' => 'Hash Comp' ) );
+
+		$result = $repository->update_share_hash( $id, 'newhash' );
+		$this->assertTrue( $result );
+
+		$found = $repository->find_by_share_hash( 'newhash' );
+		$this->assertNotNull( $found );
+		$this->assertEquals( $id, (int) $found->id );
+	}
+
+	public function test_update_share_hash_rejects_invalid_id(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->update_share_hash( 0, 'hash' );
+		$this->assertWPError( $result );
+	}
+
+	// ---------------------------------------------------------------
+	// delete()
+	// ---------------------------------------------------------------
+
+	public function test_delete_removes_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create( array( 'title' => 'Delete Me' ) );
+
+		$result = $repository->delete( $id );
+		$this->assertTrue( $result );
+
+		$this->assertNull( $repository->find( $id ) );
+		$this->assertNull( $repository->find( $id, true ) );
+	}
+
+	public function test_delete_rejects_invalid_id(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->delete( 0 );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_competition', $result->get_error_code() );
+	}
+
+	public function test_delete_rejects_missing_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$result = $repository->delete( 9999 );
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_competition', $result->get_error_code() );
+	}
 }
