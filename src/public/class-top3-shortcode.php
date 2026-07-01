@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Image_Processor;
 
 /**
  * Shortcode to display top 3 results.
@@ -348,7 +349,7 @@ class Top3_Shortcode {
 		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
 
 		$filename   = $image->filename;
-		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
 
 		$full_path  = $folder_path . $filename;
 		$thumb_path = $folder_path . $thumb_name;
@@ -360,20 +361,6 @@ class Top3_Shortcode {
 			'full'  => $full_url,
 			'thumb' => $thumb_url,
 		);
-	}
-
-	/**
-	 * Determine thumbnail filename from base filename.
-	 *
-	 * @param string $filename Base filename.
-	 * @return string
-	 */
-	private function get_thumbnail_filename( string $filename ): string {
-		$info = pathinfo( $filename );
-		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
-
-		return $base . '-thumb' . $ext;
 	}
 
 	/**

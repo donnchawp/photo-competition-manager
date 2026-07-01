@@ -407,6 +407,23 @@ class Image_Processor {
 	}
 
 	/**
+	 * Determine the thumbnail filename for a stored image filename.
+	 *
+	 * Appends a `-thumb` suffix before the file extension while preserving the
+	 * original extension casing (e.g. `photo.jpg` becomes `photo-thumb.jpg`).
+	 *
+	 * @param string $filename Base filename.
+	 * @return string
+	 */
+	public static function get_thumbnail_filename( string $filename ): string {
+		$info = pathinfo( $filename );
+		$base = $info['filename'] ?? $filename;
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
+
+		return $base . '-thumb' . $ext;
+	}
+
+	/**
 	 * Delete image and thumbnail files.
 	 *
 	 * @param string $competition_slug Competition slug.

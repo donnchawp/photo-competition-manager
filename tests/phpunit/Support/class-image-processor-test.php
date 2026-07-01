@@ -194,6 +194,40 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'john-doe-colour-1-thumb.jpg', $url );
 	}
 
+	/**
+	 * Thumbnail suffix is inserted before the file extension.
+	 */
+	public function test_get_thumbnail_filename_appends_suffix_before_extension(): void {
+		$this->assertEquals( 'photo-thumb.jpg', Image_Processor::get_thumbnail_filename( 'photo.jpg' ) );
+	}
+
+	/**
+	 * Generated slideshow filenames derive the expected thumbnail name.
+	 */
+	public function test_get_thumbnail_filename_handles_generated_names(): void {
+		$this->assertEquals(
+			'john-doe-colour-1-thumb.jpg',
+			Image_Processor::get_thumbnail_filename( 'john-doe-colour-1.jpg' )
+		);
+	}
+
+	/**
+	 * Only the final extension is treated as the extension.
+	 */
+	public function test_get_thumbnail_filename_handles_multiple_dots(): void {
+		$this->assertEquals(
+			'my.photo.final-thumb.png',
+			Image_Processor::get_thumbnail_filename( 'my.photo.final.png' )
+		);
+	}
+
+	/**
+	 * Filenames without an extension still receive the suffix.
+	 */
+	public function test_get_thumbnail_filename_handles_missing_extension(): void {
+		$this->assertEquals( 'photo-thumb', Image_Processor::get_thumbnail_filename( 'photo' ) );
+	}
+
 	public function test_process_resizes_oversized_images(): void {
 		$tmp_file = $this->create_test_image( 2000, 2000 );
 

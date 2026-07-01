@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Upload_Handler;
+use PhotoCompetitionManager\Support\Image_Processor;
 
 /**
  * Manage submissions viewing page.
@@ -977,7 +978,7 @@ class Submissions_Controller {
 		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
 
 		$filename   = $submission->filename;
-		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
 
 		$full_path  = $folder_path . $filename;
 		$thumb_path = $folder_path . $thumb_name;
@@ -989,20 +990,6 @@ class Submissions_Controller {
 			'full'  => $full_url,
 			'thumb' => $thumb_url,
 		);
-	}
-
-	/**
-	 * Determine thumbnail filename from base filename.
-	 *
-	 * @param  string $filename Base filename.
-	 * @return string
-	 */
-	private function get_thumbnail_filename( string $filename ): string {
-		$info = pathinfo( $filename );
-		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
-
-		return $base . '-thumb' . $ext;
 	}
 
 	/**
@@ -1029,7 +1016,7 @@ class Submissions_Controller {
 		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
 
 		$filename   = $image->filename;
-		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
 
 		$full_path  = $folder_path . $filename;
 		$thumb_path = $folder_path . $thumb_name;
