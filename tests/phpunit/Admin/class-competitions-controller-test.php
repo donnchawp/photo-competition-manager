@@ -208,10 +208,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 	/**
 	 * Updating a competition persists the change and redirects to dashboard.
-	 *
-	 * NOTE: success message is registered against the 'photo_competition'
-	 * settings group (not 'photo_competition_manager' that the dashboard
-	 * renders) - characterized here, flagged as a suspected bug.
 	 */
 	public function test_update_competition_success(): void {
 		$id = $this->create_competition( 'Old Title', 'old-title' );
@@ -236,7 +232,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertStringNotContainsString( 'action=edit', $location );
-		$this->assertContains( 'updated', $this->settings_error_codes( 'photo_competition' ) );
+		$this->assertContains( 'updated', $this->settings_error_codes( 'photo_competition_manager' ) );
 
 		$competition = $this->competitions->find( $id );
 		$this->assertSame( 'New Title', $competition->title );
@@ -427,9 +423,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 	/**
 	 * Deleting permanently removes the competition and reports success.
-	 *
-	 * NOTE: success message is registered against the 'photo_competition'
-	 * group, characterized here.
 	 */
 	public function test_delete_success(): void {
 		$id = $this->create_competition( 'To Delete', 'to-delete' );
@@ -449,7 +442,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
-		$this->assertContains( 'deleted', $this->settings_error_codes( 'photo_competition' ) );
+		$this->assertContains( 'deleted', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNull( $this->competitions->find( $id, true ), 'Competition should be permanently gone.' );
 	}
 
@@ -473,7 +466,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertContains( 'missing_competition', $this->settings_error_codes( 'photo_competition' ) );
+		$this->assertContains( 'missing_competition', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/*
@@ -511,7 +504,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
-		$this->assertContains( 'votes_reset', $this->settings_error_codes( 'photo_competition' ) );
+		$this->assertContains( 'votes_reset', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertSame( 0, $this->vote_count( $id, 'colour' ), 'Votes must be deleted on reset.' );
 
 		$after = $this->settings( $id );
