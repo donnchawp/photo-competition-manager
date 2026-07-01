@@ -71,8 +71,10 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'title'      => $title,
 				'slug'       => $slug,
-				'open_date'  => '2026-01-01 00:00:00',
-				'close_date' => '2026-12-31 00:00:00',
+				// Null dates make is_open() true independent of the clock, so the
+				// send_member_upload_email success path doesn't rot after any fixed date.
+				'open_date'  => null,
+				'close_date' => null,
 				'settings'   => array(),
 			)
 		);
