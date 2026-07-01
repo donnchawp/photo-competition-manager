@@ -149,7 +149,7 @@ class Settings_Controller {
 		}
 
 		// Get existing settings to preserve open_categories (controlled via Voting Controls page).
-		$existing_settings        = $this->get_global_settings();
+		$existing_settings        = Competition_Settings::global_settings();
 		$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
 		$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
@@ -279,7 +279,7 @@ class Settings_Controller {
 
 		settings_errors( 'photo_competition_settings' );
 
-		$settings            = $this->get_global_settings();
+		$settings            = Competition_Settings::global_settings();
 		$categories          = Competition_Settings::get_categories( $settings );
 		$grades              = Competition_Settings::get_grades( $settings );
 		$upload              = Competition_Settings::get_upload_constraints( $settings );
@@ -552,16 +552,6 @@ class Settings_Controller {
 		echo '</div>';
 	}
 
-
-	/**
-	 * Get global default settings.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function get_global_settings(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-		return Competition_Settings::parse( $saved );
-	}
 
 	/**
 	 * Save global default settings.

@@ -129,7 +129,7 @@ class Competitions_Controller {
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
-				'settings'   => $this->get_global_settings(),
+				'settings'   => Competition_Settings::global_settings(),
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
@@ -1351,15 +1351,5 @@ class Competitions_Controller {
 		submit_button( __( 'Create Competition', 'photo-competition-manager' ) );
 
 		echo '</form>';
-	}
-
-	/**
-	 * Get global default settings.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function get_global_settings(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-		return Competition_Settings::parse( $saved );
 	}
 }

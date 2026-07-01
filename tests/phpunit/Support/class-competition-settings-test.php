@@ -397,4 +397,50 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), $result );
 	}
+
+	// ---------------------------------------------------------------
+	// global_settings()
+	// ---------------------------------------------------------------
+
+	public function test_global_settings_returns_defaults_when_option_unset(): void {
+		delete_option( 'photo_comp_default_settings' );
+
+		$result = Competition_Settings::global_settings();
+
+		$this->assertEquals( Competition_Settings::defaults(), $result );
+	}
+
+	public function test_global_settings_reads_stored_option(): void {
+		$custom = array(
+			'categories' => array(
+				array(
+					'slug'  => 'macro',
+					'label' => 'Macro',
+					'quota' => 4,
+				),
+			),
+			'grades'     => Competition_Settings::defaults()['grades'],
+		);
+
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $custom ) );
+
+		$result = Competition_Settings::global_settings();
+
+		$categories = Competition_Settings::get_categories( $result );
+		$this->assertCount( 1, $categories );
+		$this->assertSame( 'macro', $categories[0]['slug'] );
+		$this->assertSame( 4, $categories[0]['quota'] );
+
+		delete_option( 'photo_comp_default_settings' );
+	}
+
+	public function test_global_settings_returns_defaults_when_option_invalid(): void {
+		update_option( 'photo_comp_default_settings', '{invalid json' );
+
+		$result = Competition_Settings::global_settings();
+
+		$this->assertEquals( Competition_Settings::defaults(), $result );
+
+		delete_option( 'photo_comp_default_settings' );
+	}
 }

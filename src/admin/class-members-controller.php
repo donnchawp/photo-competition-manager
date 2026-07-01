@@ -985,7 +985,7 @@ class Members_Controller {
 	 * @return array<string, string>
 	 */
 	private function get_grade_options(): array {
-		$settings = $this->get_global_settings();
+		$settings = Competition_Settings::global_settings();
 		$grades   = Competition_Settings::get_grades( $settings );
 
 		$options = array();
@@ -1077,15 +1077,5 @@ class Members_Controller {
 
 		echo '</form>';
 		echo '</div>';
-	}
-
-	/**
-	 * Get global default settings.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function get_global_settings(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-		return Competition_Settings::parse( $saved );
 	}
 }

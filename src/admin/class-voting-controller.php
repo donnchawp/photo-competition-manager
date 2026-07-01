@@ -510,7 +510,7 @@ class Voting_Controller {
 		// Get the first open competition (there should only be one).
 		$active_competition = reset( $open_competitions );
 		$active_settings    = Competition_Settings::parse( $active_competition->settings );
-		$global_settings    = $this->get_global_settings();
+		$global_settings    = Competition_Settings::global_settings();
 
 		// Check that required pages are configured.
 		$voting_page  = $active_settings['urls']['voting_page'] ?? $global_settings['urls']['voting_page'] ?? '';
@@ -729,15 +729,6 @@ class Voting_Controller {
 		<?php
 	}
 
-	/**
-	 * Get global default settings.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function get_global_settings(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-		return Competition_Settings::parse( $saved );
-	}
 
 
 	/**
@@ -748,7 +739,7 @@ class Voting_Controller {
 	 */
 	private function send_voting_opened_notifications( object $competition ): void {
 		// Get voting page URL from global settings.
-		$global_settings = $this->get_global_settings();
+		$global_settings = Competition_Settings::global_settings();
 		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
 
 		if ( empty( $voting_page_url ) ) {
