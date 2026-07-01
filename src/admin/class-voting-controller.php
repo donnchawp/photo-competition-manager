@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Admin;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Admin\Traits\Admin_Action_Dispatcher;
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
@@ -26,6 +27,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  */
 class Voting_Controller {
 
+	use Admin_Action_Dispatcher;
 	use Date_Formatting;
 	use Form_Rendering;
 
@@ -87,366 +89,303 @@ class Voting_Controller {
 			return;
 		}
 
-		$action = '';
+		$focus = $this->query_text( 'focus' );
 
-		if ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
-			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
+		$this->dispatch_action(
+			array(
+				'open_category_voting'  => array(
+					'nonce'  => fn() => 'photo_competition_open_voting_' . $this->query_int( 'competition' ) . '_' . $this->query_text( 'category' ),
+					'handle' => fn() => $this->handle_open_category_voting( $focus ),
+				),
+				'close_category_voting' => array(
+					'nonce'  => fn() => 'photo_competition_close_voting_' . $this->query_int( 'competition' ) . '_' . $this->query_text( 'category' ),
+					'handle' => fn() => $this->handle_close_category_voting( $focus ),
+				),
+				'reset_category'        => array(
+					'nonce'  => fn() => 'photo_competition_reset_category_' . $this->query_int( 'competition' ) . '_' . $this->query_text( 'category' ),
+					'handle' => fn() => $this->handle_reset_category( $focus ),
+				),
+				'show_results'          => array(
+					'nonce'  => fn() => 'photo_competition_show_results_' . $this->query_int( 'competition' ),
+					'handle' => fn() => $this->handle_show_results( $focus ),
+				),
+				'hide_results'          => array(
+					'nonce'  => fn() => 'photo_competition_hide_results_' . $this->query_int( 'competition' ),
+					'handle' => fn() => $this->handle_hide_results( $focus ),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Open voting for a single category.
+	 *
+	 * Enforces the global constraint that only one category may have voting open
+	 * across all active competitions, then opens the requested category at step 3
+	 * and notifies members.
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_open_category_voting( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+		$category_slug  = $this->query_text( 'category' );
+
+		// Global constraint: no other ACTIVE competition may have a category open.
+		$all_competitions = $this->competitions->all( 100, false, false );
+		foreach ( $all_competitions as $comp ) {
+			if ( ! $this->competitions->is_open( $comp ) ) {
+				continue;
+			}
+
+			$comp_settings = Competition_Settings::parse( $comp->settings );
+			if ( ! empty( Competition_Settings::get_open_voting_categories( $comp_settings ) ) ) {
+				$this->fail_voting(
+					'voting_already_open',
+					__( 'Cannot open voting. Another category already has voting open. Close it first.', 'photo-competition-manager' )
+				);
+			}
 		}
 
-		// Preserve focus parameter for redirects.
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only for redirect preservation.
-		$focus_param = isset( $_GET['focus'] ) ? sanitize_text_field( wp_unslash( $_GET['focus'] ) ) : '';
+		$competition = $this->load_competition_or_fail( $competition_id );
 
-		if ( 'open_category_voting' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+		$settings                              = Competition_Settings::parse( $competition->settings );
+		$settings['voting']['open_categories'] = array( $category_slug );
+		$settings['voting']['category_steps'][ $category_slug ] = 3;
 
-			check_admin_referer( 'photo_competition_open_voting_' . $competition_id . '_' . $category_slug );
-
-			// Global constraint validation: ensure no other category has voting open in ACTIVE competitions only.
-			$all_competitions = $this->competitions->all( 100, false, false );
-			foreach ( $all_competitions as $comp ) {
-				// Skip closed/inactive competitions.
-				if ( ! $this->competitions->is_open( $comp ) ) {
-					continue;
-				}
-
-				$comp_settings  = Competition_Settings::parse( $comp->settings );
-				$comp_open_cats = Competition_Settings::get_open_voting_categories( $comp_settings );
-
-				if ( ! empty( $comp_open_cats ) ) {
-					add_settings_error(
-						'photo_competition_voting',
-						'voting_already_open',
-						__( 'Cannot open voting. Another category already has voting open. Close it first.', 'photo-competition-manager' ),
-						'error'
-					);
-
-					$this->redirect_with_settings_errors(
-						add_query_arg(
-							array( 'page' => 'photo-competition-manager-voting' ),
-							admin_url( 'admin.php' )
-						)
-					);
-				}
-			}
-
-			// Open voting for this category.
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings                              = Competition_Settings::parse( $competition->settings );
-			$settings['voting']['open_categories'] = array( $category_slug );
-			$settings['voting']['category_steps'][ $category_slug ] = 3;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'voting_opened',
-					__( 'Voting opened successfully.', 'photo-competition-manager' ),
-					'updated'
-				);
-
-				// Send voting opened notifications to active members.
+		$this->finish_voting_update(
+			$competition_id,
+			$settings,
+			'voting_opened',
+			__( 'Voting opened successfully.', 'photo-competition-manager' ),
+			$focus,
+			function () use ( $competition ) {
 				$this->send_voting_opened_notifications( $competition );
 			}
+		);
+	}
 
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
-		}
+	/**
+	 * Close voting for a single category.
+	 *
+	 * Clears the open category, advances it to step 5, and records it as voted.
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_close_category_voting( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+		$category_slug  = $this->query_text( 'category' );
 
-		if ( 'close_category_voting' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+		$competition = $this->load_competition_or_fail( $competition_id );
 
-			check_admin_referer( 'photo_competition_close_voting_' . $competition_id . '_' . $category_slug );
+		$settings                              = Competition_Settings::parse( $competition->settings );
+		$settings['voting']['open_categories'] = array();
+		$settings['voting']['category_steps'][ $category_slug ] = 5;
 
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings                              = Competition_Settings::parse( $competition->settings );
-			$settings['voting']['open_categories'] = array();
-			$settings['voting']['category_steps'][ $category_slug ] = 5;
-
-			// Track voted categories - add this category to the list if not already there.
-			$category_key     = $competition_id . '_' . $category_slug;
-			$voted_categories = $settings['voting']['voted_categories'] ?? array();
-			if ( ! in_array( $category_key, $voted_categories, true ) ) {
-				$voted_categories[]                     = $category_key;
-				$settings['voting']['voted_categories'] = $voted_categories;
-			}
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'voting_closed',
-					__( 'Voting closed successfully.', 'photo-competition-manager' ),
-					'updated'
-				);
-			}
-
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
-		}
-
-		if ( 'reset_category' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-			$category_slug  = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
-			$clear_votes    = isset( $_GET['clear_votes'] ) ? absint( wp_unslash( $_GET['clear_votes'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_reset_category_' . $competition_id . '_' . $category_slug );
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings = Competition_Settings::parse( $competition->settings );
-
-			// Close voting if currently open for this category.
-			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
-			if ( in_array( $category_slug, $open_categories, true ) ) {
-				$settings['voting']['open_categories'] = array();
-			}
-
-			// Reset step back to 1.
-			$settings['voting']['category_steps'][ $category_slug ] = 1;
-
-			// Remove from voted_categories if present.
-			$category_key     = $competition_id . '_' . $category_slug;
-			$voted_categories = $settings['voting']['voted_categories'] ?? array();
-			$voted_categories = array_values( array_diff( $voted_categories, array( $category_key ) ) );
+		// Track voted categories - add this category to the list if not already there.
+		$category_key     = $competition_id . '_' . $category_slug;
+		$voted_categories = $settings['voting']['voted_categories'] ?? array();
+		if ( ! in_array( $category_key, $voted_categories, true ) ) {
+			$voted_categories[]                     = $category_key;
 			$settings['voting']['voted_categories'] = $voted_categories;
+		}
 
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
+		$this->finish_voting_update(
+			$competition_id,
+			$settings,
+			'voting_closed',
+			__( 'Voting closed successfully.', 'photo-competition-manager' ),
+			$focus
+		);
+	}
 
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				// Clear votes and tokens if requested.
-				if ( 1 === $clear_votes ) {
-					$votes_repo = new Votes_Repository();
-					$votes_repo->delete_by_competition_and_category( $competition_id, $category_slug );
+	/**
+	 * Reset a category back to step 1, optionally clearing its votes and tokens.
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_reset_category( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+		$category_slug  = $this->query_text( 'category' );
+		$clear_votes    = 1 === $this->query_int( 'clear_votes' );
 
-					$token_repo = new Voting_Token_Repository();
-					$token_repo->delete_by_competition_and_category( $competition_id, $category_slug );
+		$competition = $this->load_competition_or_fail( $competition_id );
 
-					add_settings_error(
-						'photo_competition_voting',
-						'category_reset',
-						__( 'Category reset to step 1 and all votes cleared.', 'photo-competition-manager' ),
-						'updated'
-					);
-				} else {
-					add_settings_error(
-						'photo_competition_voting',
-						'category_reset',
-						__( 'Category reset to step 1. Existing votes were kept.', 'photo-competition-manager' ),
-						'updated'
-					);
-				}
+		$settings = Competition_Settings::parse( $competition->settings );
+
+		// Close voting if currently open for this category.
+		$open_categories = Competition_Settings::get_open_voting_categories( $settings );
+		if ( in_array( $category_slug, $open_categories, true ) ) {
+			$settings['voting']['open_categories'] = array();
+		}
+
+		// Reset step back to 1.
+		$settings['voting']['category_steps'][ $category_slug ] = 1;
+
+		// Remove from voted_categories if present.
+		$category_key                           = $competition_id . '_' . $category_slug;
+		$voted_categories                       = $settings['voting']['voted_categories'] ?? array();
+		$voted_categories                       = array_values( array_diff( $voted_categories, array( $category_key ) ) );
+		$settings['voting']['voted_categories'] = $voted_categories;
+
+		$message = $clear_votes
+			? __( 'Category reset to step 1 and all votes cleared.', 'photo-competition-manager' )
+			: __( 'Category reset to step 1. Existing votes were kept.', 'photo-competition-manager' );
+
+		$on_success = $clear_votes
+			? function () use ( $competition_id, $category_slug ) {
+				$votes_repo = new Votes_Repository();
+				$votes_repo->delete_by_competition_and_category( $competition_id, $category_slug );
+
+				$token_repo = new Voting_Token_Repository();
+				$token_repo->delete_by_competition_and_category( $competition_id, $category_slug );
 			}
+			: null;
 
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
+		$this->finish_voting_update(
+			$competition_id,
+			$settings,
+			'category_reset',
+			$message,
+			$focus,
+			$on_success
+		);
+	}
+
+	/**
+	 * Make competition results visible to the public.
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_show_results( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+
+		$competition = $this->load_competition_or_fail( $competition_id );
+
+		$settings                               = Competition_Settings::parse( $competition->settings );
+		$settings['results']['results_visible'] = true;
+
+		$this->finish_voting_update(
+			$competition_id,
+			$settings,
+			'results_shown',
+			__( 'Results are now visible to the public.', 'photo-competition-manager' ),
+			$focus
+		);
+	}
+
+	/**
+	 * Hide competition results from the public.
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_hide_results( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+
+		$competition = $this->load_competition_or_fail( $competition_id );
+
+		$settings                               = Competition_Settings::parse( $competition->settings );
+		$settings['results']['results_visible'] = false;
+
+		$this->finish_voting_update(
+			$competition_id,
+			$settings,
+			'results_hidden',
+			__( 'Results are now hidden from the public.', 'photo-competition-manager' ),
+			$focus
+		);
+	}
+
+	/**
+	 * Load a competition or add a not-found error and redirect to the voting page.
+	 *
+	 * The redirect terminates the request, so callers can treat the return value
+	 * as a guaranteed competition object.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return object Competition object.
+	 */
+	private function load_competition_or_fail( int $competition_id ): object {
+		$competition = $this->competitions->find( $competition_id );
+
+		if ( ! $competition ) {
+			$this->fail_voting(
+				'competition_not_found',
+				__( 'Competition not found.', 'photo-competition-manager' )
 			);
 		}
 
-		if ( 'show_results' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+		return $competition;
+	}
 
-			check_admin_referer( 'photo_competition_show_results_' . $competition_id );
+	/**
+	 * Register an error and redirect to the plain voting page (no focus/anchor).
+	 *
+	 * @param string $code    Settings-error code.
+	 * @param string $message Human-readable error message.
+	 * @return void
+	 */
+	private function fail_voting( string $code, string $message ): void {
+		add_settings_error( 'photo_competition_voting', $code, $message, 'error' );
 
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
+		$this->redirect_with_settings_errors(
+			add_query_arg(
+				array( 'page' => 'photo-competition-manager-voting' ),
+				admin_url( 'admin.php' )
+			)
+		);
+	}
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
+	/**
+	 * Persist settings, register the outcome, and redirect back to the category.
+	 *
+	 * On a repository error the error message is surfaced; on success the given
+	 * success message is registered, the optional side-effect runs, and the
+	 * request redirects to the voting page focused on the active category.
+	 *
+	 * @param int           $competition_id  Competition ID.
+	 * @param array         $settings        Settings array to persist.
+	 * @param string        $success_code    Settings-error code for the success notice.
+	 * @param string        $success_message Human-readable success message.
+	 * @param string        $focus           Focus-panel key to preserve across the redirect.
+	 * @param callable|null $on_success      Optional side-effect to run only on success.
+	 * @return void
+	 */
+	private function finish_voting_update( int $competition_id, array $settings, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
+		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
 
-			$settings                               = Competition_Settings::parse( $competition->settings );
-			$settings['results']['results_visible'] = true;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
+		if ( is_wp_error( $result ) ) {
+			add_settings_error(
+				'photo_competition_voting',
+				$result->get_error_code(),
+				$result->get_error_message(),
+				'error'
+			);
+		} else {
+			add_settings_error(
+				'photo_competition_voting',
+				$success_code,
+				$success_message,
+				'updated'
 			);
 
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'results_shown',
-					__( 'Results are now visible to the public.', 'photo-competition-manager' ),
-					'updated'
-				);
+			if ( $on_success ) {
+				$on_success();
 			}
-
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
 		}
 
-		if ( 'hide_results' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_hide_results_' . $competition_id );
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_voting',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array( 'page' => 'photo-competition-manager-voting' ),
-						admin_url( 'admin.php' )
-					)
-				);
-			}
-
-			$settings                               = Competition_Settings::parse( $competition->settings );
-			$settings['results']['results_visible'] = false;
-
-			$result = $this->competitions->update(
-				$competition_id,
-				array( 'settings' => $settings )
-			);
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_voting',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_voting',
-					'results_hidden',
-					__( 'Results are now hidden from the public.', 'photo-competition-manager' ),
-					'updated'
-				);
-			}
-
-			$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
-			if ( ! empty( $focus_param ) ) {
-				$redirect_args['focus'] = $focus_param;
-			}
-			$this->redirect_with_settings_errors(
-				add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
-			);
+		$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+		if ( ! empty( $focus ) ) {
+			$redirect_args['focus'] = $focus;
 		}
+
+		$this->redirect_with_settings_errors(
+			add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) . '#focus-panel'
+		);
 	}
 
 	/**
@@ -880,7 +819,8 @@ class Voting_Controller {
 		}
 		?>
 		<nav class="nav-tab-wrapper photo-comp-category-tabs">
-			<?php foreach ( $all_categories as $cat_data ) :
+			<?php
+			foreach ( $all_categories as $cat_data ) :
 				$tab_key         = $cat_data['key'];
 				$tab_cat         = $cat_data['category'];
 				$tab_count       = $cat_data['image_count'];
@@ -951,11 +891,14 @@ class Voting_Controller {
 
 		$open_voting_url = wp_nonce_url(
 			add_query_arg(
-				array_merge( $focus_args, array(
-					'action'      => 'open_category_voting',
-					'competition' => $comp_id,
-					'category'    => $category_slug,
-				) ),
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'open_category_voting',
+						'competition' => $comp_id,
+						'category'    => $category_slug,
+					)
+				),
 				admin_url( 'admin.php' )
 			),
 			'photo_competition_open_voting_' . $comp_id . '_' . $category_slug
@@ -963,11 +906,14 @@ class Voting_Controller {
 
 		$close_voting_url = wp_nonce_url(
 			add_query_arg(
-				array_merge( $focus_args, array(
-					'action'      => 'close_category_voting',
-					'competition' => $comp_id,
-					'category'    => $category_slug,
-				) ),
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'close_category_voting',
+						'competition' => $comp_id,
+						'category'    => $category_slug,
+					)
+				),
 				admin_url( 'admin.php' )
 			),
 			'photo_competition_close_voting_' . $comp_id . '_' . $category_slug
@@ -975,11 +921,14 @@ class Voting_Controller {
 
 		$reset_url = wp_nonce_url(
 			add_query_arg(
-				array_merge( $focus_args, array(
-					'action'      => 'reset_category',
-					'competition' => $comp_id,
-					'category'    => $category_slug,
-				) ),
+				array_merge(
+					$focus_args,
+					array(
+						'action'      => 'reset_category',
+						'competition' => $comp_id,
+						'category'    => $category_slug,
+					)
+				),
 				admin_url( 'admin.php' )
 			),
 			'photo_competition_reset_category_' . $comp_id . '_' . $category_slug
@@ -1046,10 +995,12 @@ class Voting_Controller {
 						<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
 					</a>
 					<div class="photo-comp-reset-panel" style="display: none;">
-						<p><?php
+						<p>
+						<?php
 						/* translators: %s: Category name */
 						printf( esc_html__( 'Reset %s back to step 1?', 'photo-competition-manager' ), '<strong>' . esc_html( $category_label ) . '</strong>' );
-						?></p>
+						?>
+						</p>
 						<label>
 							<input type="checkbox" class="photo-comp-reset-clear-votes" />
 							<?php esc_html_e( 'Also clear all votes for this category', 'photo-competition-manager' ); ?>
@@ -1080,7 +1031,8 @@ class Voting_Controller {
 				<?php endif; ?>
 
 				<div class="photo-comp-steps">
-					<?php foreach ( $steps as $step_num => $step ) :
+					<?php
+					foreach ( $steps as $step_num => $step ) :
 						$is_completed = $current_step > $step_num;
 						$is_active    = $current_step === $step_num && $is_ready;
 						$is_upcoming  = $current_step < $step_num || ! $is_ready;
