@@ -226,6 +226,31 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$this->controller->handle_actions();
 	}
 
+	/**
+	 * Recalculating a missing competition yields a not-found error, not success.
+	 */
+	public function test_recalculate_scores_competition_not_found(): void {
+		$missing = 999999;
+
+		$this->set_request(
+			array(
+				'action'      => 'recalculate_scores',
+				'competition' => $missing,
+			)
+		);
+		$this->set_nonce( 'photo_competition_recalculate_scores_' . $missing );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$codes = $this->settings_error_codes( 'photo_competition_results' );
+		$this->assertContains( 'competition_not_found', $codes );
+		$this->assertNotContains( 'scores_recalculated', $codes );
+	}
+
 	/*
 	 * -------------------------------------------------------------------------
 	 * email_results (background job).
