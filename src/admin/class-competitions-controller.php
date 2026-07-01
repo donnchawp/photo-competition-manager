@@ -197,7 +197,7 @@ class Competitions_Controller {
 			}
 
 			add_settings_error(
-				'photo_competition',
+				'photo_competition_manager',
 				'updated',
 				__( 'Competition updated successfully.', 'photo-competition-manager' ),
 				'updated'
@@ -281,14 +281,14 @@ class Competitions_Controller {
 
 				if ( is_wp_error( $result ) ) {
 					add_settings_error(
-						'photo_competition',
+						'photo_competition_manager',
 						$result->get_error_code(),
 						$result->get_error_message(),
 						'error'
 					);
 				} else {
 					add_settings_error(
-						'photo_competition',
+						'photo_competition_manager',
 						'deleted',
 						__( 'Competition permanently deleted.', 'photo-competition-manager' ),
 						'updated'
@@ -310,15 +310,15 @@ class Competitions_Controller {
 				// Reset voting workflow state.
 				$competition = $this->competitions->find( $competition_id );
 				if ( $competition ) {
-					$settings                                  = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-					$settings['voting']['category_steps']      = array();
-					$settings['voting']['voted_categories']    = array();
-					$settings['voting']['open_categories']     = array();
+					$settings                               = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+					$settings['voting']['category_steps']   = array();
+					$settings['voting']['voted_categories'] = array();
+					$settings['voting']['open_categories']  = array();
 					$this->competitions->update( $competition_id, array( 'settings' => $settings ) );
 				}
 
 				add_settings_error(
-					'photo_competition',
+					'photo_competition_manager',
 					'votes_reset',
 					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
 					'updated'
@@ -554,9 +554,9 @@ class Competitions_Controller {
 
 			// Store the password if provided, clear if empty or checkbox checked.
 			// For legacy hashed passwords (not shown in the form), preserve when field is blank.
-			$existing_password    = $existing_settings['voting']['password'] ?? '';
-			$is_legacy_hash       = '' !== $existing_password && (bool) preg_match( '/^\$P\$|\$wp\$/', $existing_password );
-			$hashed_password      = '';
+			$existing_password = $existing_settings['voting']['password'] ?? '';
+			$is_legacy_hash    = '' !== $existing_password && (bool) preg_match( '/^\$P\$|\$wp\$/', $existing_password );
+			$hashed_password   = '';
 			if ( $voting_password_clear ) {
 				// Clear the password via checkbox (legacy hash flow).
 				$hashed_password = '';
