@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Image_Processor;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
@@ -990,25 +991,11 @@ class Results_Controller {
 		$folder_path = trailingslashit( $upload_dir['basedir'] ) . 'competitions/' . $competition->slug . '/' . $category . '/';
 
 		// Get thumbnail filename.
-		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
 		$thumb_path = $folder_path . $thumb_name;
 
 		// Return thumbnail URL if it exists, otherwise null.
 		return file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : null;
-	}
-
-	/**
-	 * Get thumbnail filename from base filename.
-	 *
-	 * @param string $filename Base filename.
-	 * @return string
-	 */
-	private function get_thumbnail_filename( string $filename ): string {
-		$info = pathinfo( $filename );
-		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
-
-		return $base . '-thumb' . $ext;
 	}
 
 	/**
