@@ -283,15 +283,31 @@ class Email_Service {
 	 * @return bool Whether the email was sent successfully.
 	 */
 	public function send_results_email( string $to_email, string $member_name, string $competition_title, array $member_results, ?int $competition_id = null ): bool {
-		// Note: This method sends detailed results data.
-		// For a simple notification without detailed results, use send_results_published_notification() instead.
-		$subject = sprintf(
-			/* translators: %s: Competition title */
-			__( 'Results for %s', 'photo-competition-manager' ),
-			$competition_title
-		);
+		// This method sends detailed results data. When the admin-editable
+		// "results_detailed" template is enabled, its subject/body wrap the
+		// generated results table via the {results_table} merge tag; otherwise
+		// fall back to the built-in detailed body so results still send.
+		$template = $this->get_template( 'results_detailed' );
 
-		$message = $this->get_results_email_body( $member_name, $competition_title, $member_results );
+		if ( $template ) {
+			$merge_data = array(
+				'{member_name}'       => $member_name,
+				'{competition_title}' => $competition_title,
+				'{results_table}'     => $this->get_results_table_html( $member_results ),
+				'{site_name}'         => get_bloginfo( 'name' ),
+			);
+
+			$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
+			$message = $this->wrap_html_email( $this->replace_merge_tags( $template['body'], $merge_data ) );
+		} else {
+			$subject = sprintf(
+				/* translators: %s: Competition title */
+				__( 'Results for %s', 'photo-competition-manager' ),
+				$competition_title
+			);
+
+			$message = $this->get_results_email_body( $member_name, $competition_title, $member_results );
+		}
 
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
@@ -677,6 +693,30 @@ class Email_Service {
 
 				<p><?php esc_html_e( 'The results for this competition are now available. Here are your results:', 'photo-competition-manager' ); ?></p>
 
+					<?php echo $this->get_results_table_html( $member_results ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Method returns pre-escaped HTML. ?>
+
+				<p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+					<?php esc_html_e( 'Thank you for participating in this competition!', 'photo-competition-manager' ); ?>
+				</p>
+			</div>
+		</body>
+		</html>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render the per-image results detail blocks.
+	 *
+	 * Shared by the templated results email (as the {results_table} merge tag)
+	 * and the hardcoded fallback body, so both render identical detail.
+	 *
+	 * @param array<string, mixed> $member_results Member results payload.
+	 * @return string HTML for the results detail section.
+	 */
+	private function get_results_table_html( array $member_results ): string {
+		ob_start();
+		?>
 				<?php if ( empty( $member_results['images'] ) ) : ?>
 					<p><em><?php esc_html_e( 'You did not submit any images for this competition.', 'photo-competition-manager' ); ?></em></p>
 				<?php else : ?>
@@ -775,13 +815,6 @@ class Email_Service {
 						</div>
 					<?php endforeach; ?>
 				<?php endif; ?>
-
-				<p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
-					<?php esc_html_e( 'Thank you for participating in this competition!', 'photo-competition-manager' ); ?>
-				</p>
-			</div>
-		</body>
-		</html>
 		<?php
 		return ob_get_clean();
 	}

@@ -241,6 +241,14 @@ class Email_Templates_Controller {
 				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available!</p>\n\n<p><a href=\"{results_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">View Results</a></p>\n\n<p>Thanks to everyone who participated.</p>", 'photo-competition-manager' ),
 				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_page}', '{site_name}' ),
 			),
+			'results_detailed'     => array(
+				'name'        => __( 'Detailed Results', 'photo-competition-manager' ),
+				'description' => __( 'Sent to each member with their personal results. The {results_table} tag is replaced with the ranked scores for their images.', 'photo-competition-manager' ),
+				'enabled'     => true,
+				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available. Here are your results:</p>\n\n{results_table}\n\n<p>Thank you for participating!</p>", 'photo-competition-manager' ),
+				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_table}', '{site_name}' ),
+			),
 			'submission_confirmed' => array(
 				'name'        => __( 'Submission Confirmed', 'photo-competition-manager' ),
 				'description' => __( 'Sent when a member successfully uploads an image.', 'photo-competition-manager' ),
