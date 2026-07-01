@@ -15,6 +15,8 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -93,6 +95,54 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	private function first_voting_error_message(): string {
 		$errors = get_settings_errors( 'photo_competition_voting' );
 		return $errors ? $errors[0]['message'] : '';
+	}
+
+	/**
+	 * Seed one anonymous vote for a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 */
+	private function seed_vote( int $competition_id, string $category ): void {
+		$votes = new Votes_Repository();
+		$votes->create_anonymous( $competition_id, $category, 4321, 1234, 5 );
+	}
+
+	/**
+	 * Seed one voting token for a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 */
+	private function seed_token( int $competition_id, string $category ): void {
+		$tokens = new Voting_Token_Repository();
+		$tokens->create( $this->admin_id, $competition_id, $category, 'hash_' . $category, '2099-12-31 00:00:00' );
+	}
+
+	/**
+	 * Count votes recorded for a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int
+	 */
+	private function vote_count( int $competition_id, string $category ): int {
+		return count( ( new Votes_Repository() )->find_by_competition( $competition_id, $category ) );
+	}
+
+	/**
+	 * Count voting tokens recorded for a competition/category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int
+	 */
+	private function token_count( int $competition_id, string $category ): int {
+		global $wpdb;
+		$repo  = new Voting_Token_Repository();
+		$table = $repo->table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Test assertion; placeholders only.
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s', $table, $competition_id, $category ) );
 	}
 
 	/**
@@ -240,9 +290,12 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Resetting with clear_votes=0 returns to step 1 and keeps votes.
+	 * Resetting with clear_votes=0 returns to step 1 and keeps votes and tokens.
 	 */
 	public function test_reset_category_keeps_votes(): void {
+		$this->seed_vote( $this->competition_id, 'colour' );
+		$this->seed_token( $this->competition_id, 'colour' );
+
 		$this->set_request(
 			array(
 				'action'      => 'reset_category',
@@ -262,12 +315,21 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'category_reset', $this->settings_error_codes( 'photo_competition_voting' ) );
 		$this->assertStringContainsString( 'kept', $this->first_voting_error_message() );
 		$this->assertSame( 1, $this->settings()['voting']['category_steps']['colour'] );
+		$this->assertSame( 1, $this->vote_count( $this->competition_id, 'colour' ), 'Votes must survive clear_votes=0.' );
+		$this->assertSame( 1, $this->token_count( $this->competition_id, 'colour' ), 'Tokens must survive clear_votes=0.' );
 	}
 
 	/**
-	 * Resetting with clear_votes=1 reports that votes were cleared.
+	 * Resetting with clear_votes=1 deletes the category's votes and tokens,
+	 * leaving sibling categories untouched.
 	 */
 	public function test_reset_category_clears_votes(): void {
+		$this->seed_vote( $this->competition_id, 'colour' );
+		$this->seed_token( $this->competition_id, 'colour' );
+		// Sibling category proves the deletion is scoped by category, not competition-wide.
+		$this->seed_vote( $this->competition_id, 'mono' );
+		$this->seed_token( $this->competition_id, 'mono' );
+
 		$this->set_request(
 			array(
 				'action'      => 'reset_category',
@@ -286,6 +348,10 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'category_reset', $this->settings_error_codes( 'photo_competition_voting' ) );
 		$this->assertStringContainsString( 'cleared', $this->first_voting_error_message() );
+		$this->assertSame( 0, $this->vote_count( $this->competition_id, 'colour' ), 'Colour votes must be deleted.' );
+		$this->assertSame( 0, $this->token_count( $this->competition_id, 'colour' ), 'Colour tokens must be deleted.' );
+		$this->assertSame( 1, $this->vote_count( $this->competition_id, 'mono' ), 'Sibling category votes must survive.' );
+		$this->assertSame( 1, $this->token_count( $this->competition_id, 'mono' ), 'Sibling category tokens must survive.' );
 	}
 
 	/**
