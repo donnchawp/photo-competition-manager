@@ -494,57 +494,6 @@ class Email_Service {
 	}
 
 	/**
-	 * Send results published notification.
-	 *
-	 * @param string   $to_email          Recipient email.
-	 * @param string   $member_name       Member name.
-	 * @param string   $competition_title Competition title.
-	 * @param string   $results_page_url  Results page URL.
-	 * @param int|null $competition_id    Optional competition ID for logging.
-	 * @return bool Whether email was sent successfully.
-	 */
-	public function send_results_published_notification(
-		string $to_email,
-		string $member_name,
-		string $competition_title,
-		string $results_page_url,
-		?int $competition_id = null
-	): bool {
-		$template = $this->get_template( 'results_published' );
-
-		if ( ! $template || ! $template['enabled'] ) {
-			return false; // Template disabled, skip sending.
-		}
-
-		$merge_data = array(
-			'{member_name}'       => $member_name,
-			'{competition_title}' => $competition_title,
-			'{results_page}'      => $results_page_url,
-			'{site_name}'         => get_bloginfo( 'name' ),
-		);
-
-		$subject = $this->replace_merge_tags( $template['subject'], $merge_data );
-		$message = $this->replace_merge_tags( $template['body'], $merge_data );
-		$message = $this->wrap_html_email( $message );
-
-		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-
-		$result = $this->send_mail( $to_email, $this->prefix_subject( $subject ), $message, $headers );
-
-		// Log the email.
-		if ( $result && $this->event_logger ) {
-			$this->event_logger->log_email_sent(
-				$competition_id,
-				'results_published',
-				$member_name,
-				array( 'email' => $to_email )
-			);
-		}
-
-		return $result;
-	}
-
-	/**
 	 * Send results share link email.
 	 *
 	 * @param string   $to_email          Recipient email address.
