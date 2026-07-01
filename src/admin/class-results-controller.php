@@ -182,37 +182,43 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_recalculate_scores_' . $competition_id );
 
-			$result = $this->calculator->calculate_scores( $competition_id );
+			$redirect_url = add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager-results',
+					'competition' => $competition_id,
+				),
+				admin_url( 'admin.php' )
+			);
 
-			if ( is_wp_error( $result ) ) {
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
 				add_settings_error(
 					'photo_competition_results',
-					$result->get_error_code(),
-					$result->get_error_message(),
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
 					'error'
 				);
-			} else {
-				add_settings_error(
-					'photo_competition_results',
-					'scores_recalculated',
-					sprintf(
-						/* translators: %d: number of images updated */
-						__( 'Scores recalculated successfully. %d images updated.', 'photo-competition-manager' ),
-						$result['updated']
-					),
-					'updated'
-				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
 			}
 
-			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => $competition_id,
-					),
-					admin_url( 'admin.php' )
-				)
+			// Score_Calculator::calculate_scores() always returns an array{updated, errors};
+			// it has no whole-run failure mode, so there is no WP_Error path to handle here.
+			$result = $this->calculator->calculate_scores( $competition_id );
+
+			add_settings_error(
+				'photo_competition_results',
+				'scores_recalculated',
+				sprintf(
+					/* translators: %d: number of images updated */
+					__( 'Scores recalculated successfully. %d images updated.', 'photo-competition-manager' ),
+					$result['updated']
+				),
+				'updated'
 			);
+
+			$this->redirect_with_settings_errors( $redirect_url );
+			return;
 		}
 
 		if ( 'email_results' === $action ) {
