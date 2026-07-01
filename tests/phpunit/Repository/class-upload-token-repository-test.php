@@ -64,7 +64,6 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertEquals( $member_id, $token->member_id );
 		$this->assertEquals( $competition_id, $token->competition_id );
 		$this->assertNotEmpty( $token->token );
-		$this->assertNull( $token->used_at );
 	}
 
 	/**
@@ -89,7 +88,26 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertEquals( $token_obj->id, $found->id );
 		$this->assertEquals( 1, $found->member_id );
 		$this->assertEquals( 2, $found->competition_id );
-		$this->assertNull( $found->used_at );
+	}
+
+	/**
+	 * A token is not single-use: repeated lookups keep returning it as valid.
+	 *
+	 * Regression guard for the quota-based semantics (issue #2). Token
+	 * consumption is enforced by per-category upload quota, never by the token
+	 * itself, so a member can revisit their magic link to upload more images
+	 * until it expires.
+	 */
+	public function test_token_remains_valid_across_repeated_use() {
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+		$this->assertIsObject( $token_obj );
+
+		// Look the token up several times, as a member returning to upload more.
+		for ( $i = 0; $i < 3; $i++ ) {
+			$found = $this->repo->find_valid_token( $token_obj->token );
+			$this->assertNotNull( $found, "Token should stay valid on lookup #{$i}." );
+			$this->assertEquals( $token_obj->id, $found->id );
+		}
 	}
 
 	/**

@@ -66,10 +66,9 @@ class Upload_Token_Repository extends Abstract_Repository {
 					array(
 						'token'      => $new_token,
 						'expires_at' => $new_expires_at,
-						'used_at'    => null,
 					),
 					array( 'id' => $existing->id ),
-					array( '%s', '%s', '%s' ),
+					array( '%s', '%s' ),
 					array( '%d' )
 				);
 
@@ -80,7 +79,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 				// Return updated token object.
 				$existing->token      = $new_token;
 				$existing->expires_at = $new_expires_at;
-				$existing->used_at    = null;
 			}
 
 			return $existing;
@@ -142,7 +140,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE token = %s
-				AND used_at IS NULL
 				AND expires_at > %s
 				LIMIT 1',
 				$this->table(),

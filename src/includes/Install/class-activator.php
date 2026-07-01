@@ -154,7 +154,6 @@ class Activator {
 			competition_id BIGINT UNSIGNED NOT NULL,
 			token VARCHAR(64) NOT NULL,
 			expires_at DATETIME NOT NULL,
-			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
 			sent_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
