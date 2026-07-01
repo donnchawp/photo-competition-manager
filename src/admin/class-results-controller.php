@@ -1012,17 +1012,6 @@ class Results_Controller {
 	}
 
 	/**
-	 * Get global settings.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function get_global_settings(): array {
-		$settings = get_option( 'photo_comp_global_settings', array() );
-
-		return is_array( $settings ) ? $settings : array();
-	}
-
-	/**
 	 * Email results to all members who submitted images.
 	 *
 	 * @param int $competition_id Competition ID.

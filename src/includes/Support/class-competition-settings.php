@@ -150,6 +150,21 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Get the global default settings stored in the site options.
+	 *
+	 * Reads the `photo_comp_default_settings` option and returns the parsed
+	 * settings array, falling back to the hard-coded defaults when the option
+	 * is empty or invalid.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function global_settings(): array {
+		$saved = get_option( 'photo_comp_default_settings', '' );
+
+		return self::parse( is_string( $saved ) ? $saved : '' );
+	}
+
+	/**
 	 * Merge parsed settings with defaults.
 	 *
 	 * @param array<string, mixed> $settings User settings.
