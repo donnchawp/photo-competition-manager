@@ -118,9 +118,15 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Seed a competition and return its ID.
 	 *
-	 * @param string $title Competition title.
+	 * @param string      $title      Competition title.
+	 * @param string|null $created_at Explicit created_at to force a deterministic
+	 *                                Competitions_Repository::all() DESC ordering
+	 *                                when a scenario seeds more than one
+	 *                                competition; MySQL does not guarantee
+	 *                                tie-break order for equal auto-assigned
+	 *                                timestamps.
 	 */
-	private function seed_competition( string $title ): int {
+	private function seed_competition( string $title, ?string $created_at = null ): int {
 		$id = $this->competitions->create(
 			array(
 				'title'      => $title,
@@ -130,7 +136,26 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 
+		if ( null !== $created_at ) {
+			$this->force_created_at( $this->competitions->table(), (int) $id, $created_at );
+		}
+
 		return (int) $id;
+	}
+
+	/**
+	 * Force a row's created_at directly, bypassing repository timestamp
+	 * auto-assignment, to make ORDER BY created_at DESC deterministic in tests.
+	 *
+	 * @param string $table      Table name.
+	 * @param int    $id         Row ID.
+	 * @param string $created_at Timestamp to set.
+	 */
+	private function force_created_at( string $table, int $id, string $created_at ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $table, array( 'created_at' => $created_at ), array( 'id' => $id ), array( '%s' ), array( '%d' ) );
 	}
 
 	/**
@@ -163,8 +188,12 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_logs_with_pagination(): void {
-		$comp_a = $this->seed_competition( 'Spring Show' );
-		$comp_b = $this->seed_competition( 'Autumn Exhibition' );
+		// Explicit, distinct created_at (Spring Show newer than Autumn
+		// Exhibition) to keep the filter dropdown's ORDER BY created_at DESC
+		// list deterministic; both would otherwise tie on the auto-assigned
+		// current-time timestamp.
+		$comp_a = $this->seed_competition( 'Spring Show', '2026-01-15 10:00:00' );
+		$comp_b = $this->seed_competition( 'Autumn Exhibition', '2026-01-14 10:00:00' );
 
 		$log_ids = array();
 
@@ -218,8 +247,12 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_filtered_second_page(): void {
-		$comp_a = $this->seed_competition( 'Winter Salon' );
-		$comp_b = $this->seed_competition( 'Summer Showcase' );
+		// Explicit, distinct created_at (Winter Salon newer than Summer
+		// Showcase) to keep the filter dropdown's ORDER BY created_at DESC
+		// list deterministic; both would otherwise tie on the auto-assigned
+		// current-time timestamp.
+		$comp_a = $this->seed_competition( 'Winter Salon', '2026-01-15 10:00:00' );
+		$comp_b = $this->seed_competition( 'Summer Showcase', '2026-01-14 10:00:00' );
 
 		$log_ids = array();
 
