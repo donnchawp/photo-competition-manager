@@ -3,7 +3,8 @@
     "./src"
   ],
   "mappings": {
-    "wp-content/mu-plugins": "./mu-plugins"
+    "wp-content/mu-plugins": "./mu-plugins",
+    "wp-content/pcm": "."
   },
   "config": {
     "WP_DEBUG": true,

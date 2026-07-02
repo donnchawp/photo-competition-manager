@@ -8,6 +8,12 @@
 	<!-- Exclude build directory (auto-generated files) -->
 	<exclude-pattern>*/assets/build/*</exclude-pattern>
 
+	<!-- Exclude dev-only CLI helpers (not shipped; see .releaseignore) -->
+	<exclude-pattern>*/src/scripts/*</exclude-pattern>
+
+	<!-- Errors block CI; warnings are informational and do not fail the build. -->
+	<config name="ignore_warnings_on_exit" value="1"/>
+
 	<!-- Use WordPress coding standards -->
 	<rule ref="WordPress">
 		<!-- Allow custom capabilities -->

@@ -3,6 +3,16 @@
  * Project-specific WordPress test configuration.
  */
 
+// CI / standalone: honour an explicit WordPress core directory (e.g. one
+// installed by bin/install-wp-tests.sh) before falling back to wp-env.
+if ( ! defined( 'ABSPATH' ) ) {
+	$core_dir = getenv( 'WP_CORE_DIR' );
+
+	if ( $core_dir && file_exists( rtrim( $core_dir, '/' ) . '/wp-settings.php' ) ) {
+		define( 'ABSPATH', rtrim( $core_dir, '/' ) . '/' );
+	}
+}
+
 if ( ! defined( 'ABSPATH' ) ) {
 	$env_root      = getenv( 'WP_ENV_ROOT' );
 	$tests_env_dir = getenv( 'WP_ENV_TESTS_ROOT' );

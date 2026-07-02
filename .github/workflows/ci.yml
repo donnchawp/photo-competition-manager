@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: PHPCS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run PHPCS
+        run: composer lint
+
+  test:
+    name: PHPUnit (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: [ '8.1', '8.2', '8.3' ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Run the container's PHP on the matrix version. WordPress core is pinned
+      # in .wp-env.json so the render golden-masters stay deterministic.
+      - name: Pin container PHP version
+        run: echo '{"phpVersion":"${{ matrix.php }}"}' > .wp-env.override.json
+
+      - name: Start wp-env
+        run: npx --yes @wordpress/env start
+
+      # Tests run *inside* the tests container, where wp-env provides the
+      # PHPUnit library (WP_TESTS_DIR=/wordpress-phpunit) and the tests DB
+      # (tests-mysql). The repo is mounted at wp-content/pcm via .wp-env.json,
+      # so tests/, vendor/ and phpunit.xml.dist are on the container's disk.
+      - name: Run PHPUnit
+        run: |
+          npx --yes @wordpress/env run tests-cli --env-cwd=wp-content/pcm \
+            bash -c 'WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist'
+
+      - name: Stop wp-env
+        if: always()
+        run: npx --yes @wordpress/env stop

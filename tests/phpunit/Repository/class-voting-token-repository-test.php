@@ -44,8 +44,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 			first_accessed_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
+			UNIQUE KEY member_competition_category (member_id, competition_id, category),
 			KEY token_hash (token_hash),
-			KEY member_competition_category (member_id, competition_id, category),
 			KEY expires_at (expires_at)
 		) {$charset_collate};";
 
