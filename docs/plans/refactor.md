@@ -215,19 +215,28 @@ read them before starting the next controller:
   block's boundary bytes in that inspection — a line-range diff that stops one line short
   of the boundary will miss exactly the trailing-whitespace drift described above.
 
-### Known gap: phpcs flags partial-local variables as globals
+### phpcs: template partials and PrefixAllGlobals
 
 `WordPress.NamingConventions.PrefixAllGlobals` does not know a partial is `include`d
 into a method's scope — it sees top-level variable assignments in a file with no
 enclosing function/class and flags them as globals needing a `photo_comp_`/
 `PhotoCompetitionManager` prefix (e.g. `$cat_data`, `$step_num`, `$uploads_closed`).
 This did **not** fire before extraction, because the same variables lived inside a
-method body. As of this writing `src/templates/admin/voting/*.php` has ~19 such errors
-across four partials; `phpcs.xml` has no exclusion for `src/templates/`. Decide and fix
-before relying on "phpcs clean" as a merge gate for the next controller — either add an
-`exclude-pattern` for `src/templates/*` (loses other checks there too) or scope an
-inline `<rule ref="WordPress.NamingConventions.PrefixAllGlobals"><exclude-pattern>` in
-`phpcs.xml`, or add `// phpcs:ignore` per line. Not fixed as part of #10.
+method body.
+
+The project's actual lint gate is bare `./vendor/bin/phpcs` (reads `phpcs.xml`), not
+`--standard=WordPress` — the latter does not apply this project's configured prefixes
+and will not surface this class of error at all. Always lint with bare
+`./vendor/bin/phpcs` when checking rollout work; `--standard=WordPress` gives a false
+"clean" result.
+
+`phpcs.xml` now excludes `*/src/templates/*` from the
+`WordPress.NamingConventions.PrefixAllGlobals` sniff only (all other WordPress checks
+still apply to templates), since partial-local variables there are legitimately
+include-scoped locals, not true globals. This was fixed alongside #10. Because the
+four remaining rollout controllers' partials will also live under `src/templates/`,
+the same exclusion covers them automatically — no further action needed per
+controller.
 
 ### Reference implementation
 
