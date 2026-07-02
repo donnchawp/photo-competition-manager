@@ -289,12 +289,28 @@ class Logs_Controller {
 		$date_from            = isset( $filters['date_from'] ) ? gmdate( 'Y-m-d', strtotime( $filters['date_from'] ) ) : '';
 		$date_to              = isset( $filters['date_to'] ) ? gmdate( 'Y-m-d', strtotime( $filters['date_to'] ) ) : '';
 
+		$category_options = array();
+		foreach ( $event_categories as $category ) {
+			$category_options[] = array(
+				'value' => $category,
+				'label' => $this->get_category_label( $category ),
+			);
+		}
+
+		$type_options = array();
+		foreach ( $event_types as $type ) {
+			$type_options[] = array(
+				'value' => $type,
+				'label' => $this->get_type_label( $type ),
+			);
+		}
+
 		return $this->render_template(
 			'admin/logs/filters.php',
 			array(
 				'competitions'         => $competitions,
-				'event_categories'     => $event_categories,
-				'event_types'          => $event_types,
+				'event_categories'     => $category_options,
+				'event_types'          => $type_options,
 				'selected_competition' => $selected_competition,
 				'selected_category'    => $selected_category,
 				'selected_type'        => $selected_type,
@@ -318,11 +334,28 @@ class Logs_Controller {
 			$comp_lookup[ (int) $comp->id ] = $comp->title;
 		}
 
+		// Pre-format each row so the partial only reads $data; helper calls
+		// live here, where $this is unambiguous.
+		$rows = array();
+		foreach ( $logs as $log ) {
+			$competition_title = $log->competition_id ? ( $comp_lookup[ (int) $log->competition_id ] ?? __( 'Unknown', 'photo-competition-manager' ) ) : __( 'Global', 'photo-competition-manager' );
+
+			$rows[] = (object) array(
+				'id'                 => $log->id,
+				'formatted_datetime' => $this->format_datetime( $log->created_at ),
+				'category_icon'      => $this->get_category_icon( $log->event_category ),
+				'category_label'     => $this->get_category_label( $log->event_category ),
+				'description'        => $log->description,
+				'actor_name'         => $log->actor_name,
+				'competition_title'  => $competition_title,
+				'metadata'           => $log->metadata,
+			);
+		}
+
 		return $this->render_template(
 			'admin/logs/logs-table.php',
 			array(
-				'logs'        => $logs,
-				'comp_lookup' => $comp_lookup,
+				'logs' => $rows,
 			)
 		);
 	}

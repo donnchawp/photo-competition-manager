@@ -2,7 +2,11 @@
 /**
  * Logs table partial for the admin logs page.
  *
- * Reads $data keys: logs, comp_lookup.
+ * Reads $data['logs']: array of row objects, each pre-formatted by the
+ * controller with: id, formatted_datetime, category_icon, category_label,
+ * description, actor_name, competition_title, metadata.
+ *
+ * Pure function of $data — reaches into no controller/trait state.
  *
  * @package PhotoCompetitionManager
  */
@@ -23,19 +27,17 @@ echo '</thead>';
 echo '<tbody>';
 
 foreach ( $data['logs'] as $log ) {
-	$icon              = $this->get_category_icon( $log->event_category );
-	$competition_title = $log->competition_id ? ( $data['comp_lookup'][ (int) $log->competition_id ] ?? __( 'Unknown', 'photo-competition-manager' ) ) : __( 'Global', 'photo-competition-manager' );
-	$has_metadata      = ! empty( $log->metadata ) && 'null' !== $log->metadata;
+	$has_metadata = ! empty( $log->metadata ) && 'null' !== $log->metadata;
 
 	echo '<tr>';
 
 	// Date/Time.
-	echo '<td>' . esc_html( $this->format_datetime( $log->created_at ) ) . '</td>';
+	echo '<td>' . esc_html( $log->formatted_datetime ) . '</td>';
 
 	// Category with icon.
 	echo '<td>';
-	echo '<span class="dashicons ' . esc_attr( $icon ) . '" style="color: #2271b1;"></span> ';
-	echo esc_html( $this->get_category_label( $log->event_category ) );
+	echo '<span class="dashicons ' . esc_attr( $log->category_icon ) . '" style="color: #2271b1;"></span> ';
+	echo esc_html( $log->category_label );
 	echo '</td>';
 
 	// Description.
@@ -45,7 +47,7 @@ foreach ( $data['logs'] as $log ) {
 	echo '<td>' . esc_html( $log->actor_name ) . '</td>';
 
 	// Competition.
-	echo '<td>' . esc_html( $competition_title ) . '</td>';
+	echo '<td>' . esc_html( $log->competition_title ) . '</td>';
 
 	// Details toggle.
 	echo '<td>';

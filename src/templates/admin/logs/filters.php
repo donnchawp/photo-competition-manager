@@ -2,8 +2,12 @@
 /**
  * Filters form partial for the admin logs page.
  *
- * Reads $data keys: competitions, event_categories, event_types,
+ * Reads $data keys: competitions (objects with id, title), event_categories
+ * (array of ['value' => string, 'label' => string], pre-labeled by the
+ * controller), event_types (same shape as event_categories),
  * selected_competition, selected_category, selected_type, date_from, date_to.
+ *
+ * Pure function of $data — reaches into no controller/trait state.
  *
  * @package PhotoCompetitionManager
  */
@@ -33,9 +37,8 @@ echo '<label for="event-category-filter"><strong>' . esc_html__( 'Category', 'ph
 echo '<select id="event-category-filter" name="event_category" style="width: 100%;">';
 echo '<option value="">' . esc_html__( 'All Categories', 'photo-competition-manager' ) . '</option>';
 foreach ( $data['event_categories'] as $category ) {
-	$selected = ( $category === $data['selected_category'] ) ? ' selected' : '';
-	$label    = $this->get_category_label( $category );
-	echo '<option value="' . esc_attr( $category ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
+	$selected = ( $category['value'] === $data['selected_category'] ) ? ' selected' : '';
+	echo '<option value="' . esc_attr( $category['value'] ) . '"' . esc_attr( $selected ) . '>' . esc_html( $category['label'] ) . '</option>';
 }
 echo '</select>';
 echo '</div>';
@@ -46,9 +49,8 @@ echo '<label for="event-type-filter"><strong>' . esc_html__( 'Event Type', 'phot
 echo '<select id="event-type-filter" name="event_type" style="width: 100%;">';
 echo '<option value="">' . esc_html__( 'All Types', 'photo-competition-manager' ) . '</option>';
 foreach ( $data['event_types'] as $found_type ) {
-	$selected = ( $found_type === $data['selected_type'] ) ? ' selected' : '';
-	$label    = $this->get_type_label( $found_type );
-	echo '<option value="' . esc_attr( $found_type ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
+	$selected = ( $found_type['value'] === $data['selected_type'] ) ? ' selected' : '';
+	echo '<option value="' . esc_attr( $found_type['value'] ) . '"' . esc_attr( $selected ) . '>' . esc_html( $found_type['label'] ) . '</option>';
 }
 echo '</select>';
 echo '</div>';
