@@ -43,6 +43,9 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 		// Normalize per-run nonces: _wpnonce=<10 hex> and nonce field values.
 		$html = preg_replace( '/(_wpnonce=)[a-f0-9]{10}/', '$1NONCE', $html );
 		$html = preg_replace( '/(name="_wpnonce" value=")[a-f0-9]{10}/', '$1NONCE', $html );
+		// Normalize the WordPress version string on enqueued core assets
+		// (e.g. dashicons.min.css?ver=7.0) so patch releases don't churn the snapshot.
+		$html = preg_replace( '/([?&]ver=)[^\'"&\s]+/', '$1VER', $html );
 		return $html;
 	}
 

@@ -1,9 +1,11 @@
 {
+  "core": "https://wordpress.org/wordpress-7.0.zip",
   "plugins": [
     "./src"
   ],
   "mappings": {
-    "wp-content/mu-plugins": "./mu-plugins"
+    "wp-content/mu-plugins": "./mu-plugins",
+    "wp-content/pcm": "."
   },
   "config": {
     "WP_DEBUG": true,
