@@ -645,338 +645,226 @@ class Members_Controller {
 
 		// Show upload status with toggle button for active competition.
 		if ( $active_competition && $this->competitions->is_open( $active_competition ) ) {
-			$comp_settings  = Competition_Settings::parse( $active_competition->settings ?? '' );
-			$uploads_closed = ! empty( $comp_settings['upload']['uploads_closed'] );
-
-			$toggle_url = wp_nonce_url(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager',
-						'action'      => 'toggle_uploads',
-						'competition' => (int) $active_competition->id,
-						'ref_page'    => 'members',
-					),
-					admin_url( 'admin.php' )
-				),
-				'photo_competition_toggle_uploads_' . (int) $active_competition->id
-			);
-
-			$notice_class = $uploads_closed ? 'notice-warning' : 'notice-info';
-			$status_text  = $uploads_closed
-				? __( 'Uploads are closed', 'photo-competition-manager' )
-				: __( 'Uploads are open', 'photo-competition-manager' );
-			$button_text  = $uploads_closed
-				? __( 'Open Uploads', 'photo-competition-manager' )
-				: __( 'Close Uploads', 'photo-competition-manager' );
-
-			echo '<div class="notice ' . esc_attr( $notice_class ) . '" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">';
-			echo '<p style="margin:0;"><strong>' . esc_html( $active_competition->title ) . ':</strong> ' . esc_html( $status_text ) . '</p>';
-			echo '<a href="' . esc_url( $toggle_url ) . '" class="button">' . esc_html( $button_text ) . '</a>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_uploads_status_notice( $active_competition );
 		}
 
 		if ( 'edit' === $member_action ) {
-			$this->render_member_edit_form( $current );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_member_edit_form( $current );
 		}
 
 		// Display members list first (unless in edit mode).
 		if ( 'edit' !== $member_action ) {
 			// Display filter form.
-			echo '<form method="get" class="photo-comp-filters" style="margin-bottom: 15px;">';
-			echo '<input type="hidden" name="page" value="photo-competition-manager-members" />';
-
-			echo '<input type="search" name="s" value="' . esc_attr( $search ) . '" placeholder="' . esc_attr__( 'Search members...', 'photo-competition-manager' ) . '" style="margin-right: 10px;" />';
-
-			echo '<select name="status" style="margin-right: 10px;">';
-			echo '<option value="">' . esc_html__( 'All Statuses', 'photo-competition-manager' ) . '</option>';
-			echo '<option value="active"' . selected( $status_filter, 'active', false ) . '>' . esc_html__( 'Active', 'photo-competition-manager' ) . '</option>';
-			echo '<option value="inactive"' . selected( $status_filter, 'inactive', false ) . '>' . esc_html__( 'Inactive', 'photo-competition-manager' ) . '</option>';
-			echo '</select>';
-
-			echo '<select name="grade" style="margin-right: 10px;">';
-			echo '<option value="">' . esc_html__( 'All Grades', 'photo-competition-manager' ) . '</option>';
-			foreach ( $grade_options as $grade_value => $grade_label ) {
-				echo '<option value="' . esc_attr( $grade_value ) . '"' . selected( $grade_filter, $grade_value, false ) . '>' . esc_html( $grade_label ) . '</option>';
-			}
-			echo '</select>';
-
-			echo '<button type="submit" class="button">' . esc_html__( 'Filter', 'photo-competition-manager' ) . '</button>';
-
-			if ( ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) ) {
-				echo ' <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-members' ) ) . '" class="button">' . esc_html__( 'Clear Filters', 'photo-competition-manager' ) . '</a>';
-			}
-
-			echo '</form>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options );
 
 			if ( empty( $members ) ) {
-				if ( ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) ) {
-					echo '<p>' . esc_html__( 'No members found matching the selected filters.', 'photo-competition-manager' ) . '</p>';
-				} else {
-					echo '<p>' . esc_html__( 'No members recorded yet. Import or create members to get started.', 'photo-competition-manager' ) . '</p>';
-				}
+				$has_filters = ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter );
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+				echo $this->render_template( 'admin/members/empty-state.php', array( 'has_filters' => $has_filters ) );
 			} else {
-				// Show results count.
-				$total_count    = count( $all_members );
-				$filtered_count = count( $members );
-				if ( $filtered_count < $total_count ) {
-					echo '<p class="description" style="margin-bottom: 10px;">' . esc_html(
-						sprintf(
-							/* translators: 1: filtered count, 2: total count */
-							__( 'Showing %1$d of %2$d members', 'photo-competition-manager' ),
-							$filtered_count,
-							$total_count
-						)
-					) . '</p>';
-				}
-
-				// Bulk actions form.
-				echo '<form method="post" id="bulk-members-form">';
-				wp_nonce_field( 'photo_competition_bulk_members', '_wpnonce' );
-
-				echo '<div class="tablenav top">';
-				echo '<div class="alignleft actions bulkactions">';
-				echo '<select name="action" id="bulk-action-selector-top">';
-				echo '<option value="-1">' . esc_html__( 'Bulk Actions', 'photo-competition-manager' ) . '</option>';
-				echo '<option value="bulk_activate">' . esc_html__( 'Activate', 'photo-competition-manager' ) . '</option>';
-				echo '<option value="bulk_deactivate">' . esc_html__( 'Deactivate', 'photo-competition-manager' ) . '</option>';
-				echo '<option value="bulk_update_grade">' . esc_html__( 'Update Grade', 'photo-competition-manager' ) . '</option>';
-				echo '</select>';
-
-				echo ' <select name="bulk_grade" id="bulk-grade-selector" style="display:none;">';
-				echo '<option value="">' . esc_html__( 'Select Grade...', 'photo-competition-manager' ) . '</option>';
-				foreach ( $grade_options as $grade_value => $grade_label ) {
-					echo '<option value="' . esc_attr( $grade_value ) . '">' . esc_html( $grade_label ) . '</option>';
-				}
-				echo '</select>';
-
-				echo ' <button type="submit" class="button action">' . esc_html__( 'Apply', 'photo-competition-manager' ) . '</button>';
-				echo '</div>';
-				echo '</div>';
-
-				echo '<table class="widefat striped">';
-				echo '<thead><tr>';
-				echo '<td class="check-column"><input type="checkbox" id="cb-select-all-1" /></td>';
-				echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
-				echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
-				echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
-				echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
-				echo '<th>' . esc_html__( 'Joined', 'photo-competition-manager' ) . '</th>';
-				echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
-				echo '</tr></thead>';
-				echo '<tbody>';
-
-				foreach ( $members as $member ) {
-					$edit_link    = add_query_arg(
-						array(
-							'page'          => 'photo-competition-manager-members',
-							'member_action' => 'edit',
-							'member'        => (int) $member->id,
-						),
-						admin_url( 'admin.php' )
-					);
-					$status_label = $member->active ? __( 'Active', 'photo-competition-manager' ) : __( 'Inactive', 'photo-competition-manager' );
-					$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
-
-					echo '<tr>';
-					echo '<th scope="row" class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '" /></th>';
-					echo '<td>' . esc_html( $member->name ) . '</td>';
-					echo '<td>' . esc_html( $member->email ) . '</td>';
-					echo '<td>' . esc_html( $grade_label ) . '</td>';
-					echo '<td>' . esc_html( $status_label ) . '</td>';
-					echo '<td>' . esc_html( $member->created_at ) . '</td>';
-
-					$delete_url = wp_nonce_url(
-						add_query_arg(
-							array(
-								'page'   => 'photo-competition-manager-members',
-								'action' => 'delete_member',
-								'member' => (int) $member->id,
-							),
-							admin_url( 'admin.php' )
-						),
-						'photo_competition_delete_member_' . (int) $member->id
-					);
-
-					$actions = array(
-						sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
-						sprintf(
-							'<a href="%s" class="delete-member-link" data-member-name="%s">%s</a>',
-							esc_url( $delete_url ),
-							esc_attr( $member->name ),
-							esc_html__( 'Delete', 'photo-competition-manager' )
-						),
-					);
-
-					// Add "Send Upload Email" if we have an open competition and active member with email.
-					if ( $active_competition && $this->competitions->is_open( $active_competition ) && $member->active && ! empty( $member->email ) ) {
-						$send_url = wp_nonce_url(
-							add_query_arg(
-								array(
-									'page'        => 'photo-competition-manager-members',
-									'action'      => 'send_member_upload_email',
-									'member'      => (int) $member->id,
-									'competition' => (int) $active_competition->id,
-								),
-								admin_url( 'admin.php' )
-							),
-							'photo_competition_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
-						);
-
-						$actions[] = sprintf(
-							'<a href="%s">%s</a>',
-							esc_url( $send_url ),
-							esc_html__( 'Send Upload Email', 'photo-competition-manager' )
-						);
-
-						// Add upload page link for copying/sharing.
-						$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
-						if ( ! empty( $upload_url ) ) {
-							$actions[] = sprintf(
-								'<a href="%s" target="_blank" title="%s">%s</a>',
-								esc_url( $upload_url ),
-								esc_attr__( 'Copy this link to share with the member', 'photo-competition-manager' ),
-								esc_html__( 'Upload Link', 'photo-competition-manager' )
-							);
-						}
-					} else {
-						$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'photo-competition-manager' ) . '">' . esc_html__( 'Send Upload Email', 'photo-competition-manager' ) . '</span>';
-					}
-
-					echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';
-					echo '</tr>';
-				}
-
-				echo '</tbody>';
-				echo '</table>';
-				echo '</form>';
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+				echo $this->render_members_table( $members, $all_members, $active_competition, $grade_options );
 			}
 
 			// Show create and import forms after the list.
-			$this->render_member_create_form();
-			$this->render_member_import_form();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_member_create_form();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_member_import_form();
 		}
 
 		echo '</div>';
 	}
 
 	/**
+	 * Render the upload-status notice bar for the active competition.
+	 *
+	 * @param  object $competition Active competition.
+	 * @return string
+	 */
+	private function render_uploads_status_notice( object $competition ): string {
+		$comp_settings  = Competition_Settings::parse( $competition->settings ?? '' );
+		$uploads_closed = ! empty( $comp_settings['upload']['uploads_closed'] );
+
+		$toggle_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager',
+					'action'      => 'toggle_uploads',
+					'competition' => (int) $competition->id,
+					'ref_page'    => 'members',
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_toggle_uploads_' . (int) $competition->id
+		);
+
+		$notice_class = $uploads_closed ? 'notice-warning' : 'notice-info';
+		$status_text  = $uploads_closed
+			? __( 'Uploads are closed', 'photo-competition-manager' )
+			: __( 'Uploads are open', 'photo-competition-manager' );
+		$button_text  = $uploads_closed
+			? __( 'Open Uploads', 'photo-competition-manager' )
+			: __( 'Close Uploads', 'photo-competition-manager' );
+
+		return $this->render_template(
+			'admin/members/uploads-status-notice.php',
+			array(
+				'notice_class' => $notice_class,
+				'title'        => $competition->title,
+				'status_text'  => $status_text,
+				'toggle_url'   => $toggle_url,
+				'button_text'  => $button_text,
+			)
+		);
+	}
+
+	/**
+	 * Render the search/status/grade filter form.
+	 *
+	 * @param  string               $search        Current search term.
+	 * @param  string               $status_filter Current status filter.
+	 * @param  string               $grade_filter  Current grade filter.
+	 * @param  array<string,string> $grade_options Grade slug => label options.
+	 * @return string
+	 */
+	private function render_filters( string $search, string $status_filter, string $grade_filter, array $grade_options ): string {
+		return $this->render_template(
+			'admin/members/filters.php',
+			array(
+				'search'        => $search,
+				'status_filter' => $status_filter,
+				'grade_filter'  => $grade_filter,
+				'grade_options' => $grade_options,
+			)
+		);
+	}
+
+	/**
+	 * Render the members list table with its wrapping bulk-actions form.
+	 *
+	 * @param  array<int,object>    $members            Filtered members to display.
+	 * @param  array<int,object>    $all_members        All members (for the results count).
+	 * @param  object|null          $active_competition Active competition, if any.
+	 * @param  array<string,string> $grade_options      Grade slug => label options.
+	 * @return string
+	 */
+	private function render_members_table( array $members, array $all_members, ?object $active_competition, array $grade_options ): string {
+		$total_count    = count( $all_members );
+		$filtered_count = count( $members );
+
+		$rows = array();
+
+		foreach ( $members as $member ) {
+			$edit_link    = add_query_arg(
+				array(
+					'page'          => 'photo-competition-manager-members',
+					'member_action' => 'edit',
+					'member'        => (int) $member->id,
+				),
+				admin_url( 'admin.php' )
+			);
+			$status_label = $member->active ? __( 'Active', 'photo-competition-manager' ) : __( 'Inactive', 'photo-competition-manager' );
+			$grade_label  = $grade_options[ $member->grade ] ?? $member->grade;
+
+			$delete_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'   => 'photo-competition-manager-members',
+						'action' => 'delete_member',
+						'member' => (int) $member->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_delete_member_' . (int) $member->id
+			);
+
+			$show_send_email = (bool) ( $active_competition && $this->competitions->is_open( $active_competition ) && $member->active && ! empty( $member->email ) );
+			$send_url        = '';
+			$upload_url      = '';
+
+			// Add "Send Upload Email" if we have an open competition and active member with email.
+			if ( $show_send_email ) {
+				$send_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager-members',
+							'action'      => 'send_member_upload_email',
+							'member'      => (int) $member->id,
+							'competition' => (int) $active_competition->id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_send_member_email_' . (int) $member->id . '_' . (int) $active_competition->id
+				);
+
+				// Upload page link for copying/sharing.
+				$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+			}
+
+			$rows[] = (object) array(
+				'member_id'       => (int) $member->id,
+				'name'            => $member->name,
+				'email'           => $member->email,
+				'grade_label'     => $grade_label,
+				'status_label'    => $status_label,
+				'joined'          => $member->created_at,
+				'edit_link'       => $edit_link,
+				'delete_url'      => $delete_url,
+				'show_send_email' => $show_send_email,
+				'send_url'        => $send_url,
+				'upload_url'      => $upload_url,
+			);
+		}
+
+		return $this->render_template(
+			'admin/members/members-table.php',
+			array(
+				'show_count'     => $filtered_count < $total_count,
+				'filtered_count' => $filtered_count,
+				'total_count'    => $total_count,
+				'grade_options'  => $grade_options,
+				'rows'           => $rows,
+			)
+		);
+	}
+
+	/**
 	 * Render create member form.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	private function render_member_create_form(): void {
-		echo '<form method="post" class="card" style="max-width: 520px; margin-bottom: 24px; padding: 16px;">';
-		echo '<h2>' . esc_html__( 'Add Member', 'photo-competition-manager' ) . '</h2>';
-
-		wp_nonce_field( 'photo_competition_member_create', 'photo_competition_member_nonce' );
-
-		echo '<input type="hidden" name="photo_competition_action" value="create_member" />';
-
-		echo '<p>';
-		echo '<label for="member_name">' . esc_html__( 'Name', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="member_name" name="member_name" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="member_email">' . esc_html__( 'Email', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="email" id="member_email" name="member_email" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="member_grade">' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="member_grade" name="member_grade" class="regular-text" required>';
-		echo '<option value="">' . esc_html__( 'Select grade', 'photo-competition-manager' ) . '</option>';
-		foreach ( $this->get_grade_options() as $grade_slug => $grade_label ) {
-			echo '<option value="' . esc_attr( $grade_slug ) . '">' . esc_html( $grade_label ) . '</option>';
-		}
-		echo '</select>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="member_active" value="1" checked /> ';
-		echo esc_html__( 'Active', 'photo-competition-manager' );
-		echo '</label>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="member_committee" value="1" /> ';
-		echo esc_html__( 'Committee Member', 'photo-competition-manager' );
-		echo '</label>';
-		echo '</p>';
-
-		submit_button( __( 'Add Member', 'photo-competition-manager' ) );
-
-		echo '</form>';
+	private function render_member_create_form(): string {
+		return $this->render_template(
+			'admin/members/create-form.php',
+			array( 'grade_options' => $this->get_grade_options() )
+		);
 	}
 
 	/**
 	 * Render edit member form.
 	 *
 	 * @param  object|null $member Member row.
-	 * @return void
+	 * @return string
 	 */
-	private function render_member_edit_form( $member ): void {
+	private function render_member_edit_form( $member ): string {
 		if ( ! $member ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'Member not found. Return to the list to continue.', 'photo-competition-manager' ) . '</p></div>';
-			printf(
-				'<p><a class="button" href="%s">%s</a></p>',
-				esc_url( $this->members_url() ),
-				esc_html__( 'Back to members', 'photo-competition-manager' )
+			return $this->render_template(
+				'admin/members/edit-form-not-found.php',
+				array( 'members_url' => $this->members_url() )
 			);
-			return;
 		}
 
-		echo '<form method="post" class="card" style="max-width: 520px; margin-bottom: 24px; padding: 16px;">';
-		echo '<h2>' . esc_html__( 'Edit Member', 'photo-competition-manager' ) . '</h2>';
-
-		wp_nonce_field( 'photo_competition_member_update_' . (int) $member->id, 'photo_competition_member_nonce' );
-
-		echo '<input type="hidden" name="photo_competition_action" value="update_member" />';
-		echo '<input type="hidden" name="member_id" value="' . esc_attr( $member->id ) . '" />';
-
-		echo '<p>';
-		echo '<label for="member_name">' . esc_html__( 'Name', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="member_name" name="member_name" class="regular-text" required value="' . esc_attr( $member->name ) . '" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="member_email">' . esc_html__( 'Email', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="email" id="member_email" name="member_email" class="regular-text" required value="' . esc_attr( $member->email ) . '" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="member_grade">' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="member_grade" name="member_grade" class="regular-text" required>';
-		foreach ( $this->get_grade_options() as $grade_slug => $grade_label ) {
-			echo '<option value="' . esc_attr( $grade_slug ) . '"' . selected( $member->grade, $grade_slug, false ) . '>' . esc_html( $grade_label ) . '</option>';
-		}
-		echo '</select>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="member_active" value="1"' . checked( (bool) $member->active, true, false ) . ' /> ';
-		echo esc_html__( 'Active', 'photo-competition-manager' );
-		echo '</label>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="member_committee" value="1"' . checked( (bool) ( $member->committee ?? false ), true, false ) . ' /> ';
-		echo esc_html__( 'Committee Member', 'photo-competition-manager' );
-		echo '</label>';
-		echo '</p>';
-
-		submit_button( __( 'Update Member', 'photo-competition-manager' ) );
-
-		echo '</form>';
-
-		printf(
-			'<p><a href="%s">%s</a></p>',
-			esc_url( $this->members_url() ),
-			esc_html__( 'Back to members', 'photo-competition-manager' )
+		return $this->render_template(
+			'admin/members/edit-form.php',
+			array(
+				'member'        => $member,
+				'grade_options' => $this->get_grade_options(),
+				'members_url'   => $this->members_url(),
+			)
 		);
 	}
 
@@ -1040,43 +928,9 @@ class Members_Controller {
 	/**
 	 * Render member import form.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	private function render_member_import_form(): void {
-		$sample_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'   => 'photo-competition-manager-members',
-					'action' => 'download_sample_csv',
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_download_sample'
-		);
-
-		echo '<div style="margin-top: 30px;">';
-		echo '<h2>' . esc_html__( 'Import Members from CSV', 'photo-competition-manager' ) . '</h2>';
-		echo '<p class="description">' . esc_html__( 'Upload a CSV file to import multiple members at once. Existing members (matched by email) will be updated.', 'photo-competition-manager' ) . '</p>';
-
-		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 600px; padding: 16px; margin-top: 10px;">';
-		wp_nonce_field( 'photo_competition_import_members', 'photo_competition_import_nonce' );
-		echo '<input type="hidden" name="photo_competition_action" value="import_members_csv" />';
-		echo '<input type="hidden" name="page" value="photo-competition-manager-members" />';
-
-		echo '<p>';
-		echo '<label for="csv_file">' . esc_html__( 'CSV File', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="file" id="csv_file" name="csv_file" accept=".csv,.txt" required />';
-		echo '</p>';
-
-		echo '<p class="description">';
-		echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inactive)', 'photo-competition-manager' );
-		echo '<br />';
-		echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';
-		echo '</p>';
-
-		submit_button( __( 'Import Members', 'photo-competition-manager' ), 'secondary', 'submit', false );
-
-		echo '</form>';
-		echo '</div>';
+	private function render_member_import_form(): string {
+		return $this->render_template( 'admin/members/import-form.php' );
 	}
 }
