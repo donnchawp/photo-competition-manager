@@ -392,4 +392,20 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
 		$this->assertFalse( $this->repo->delete_by_competition( 0 ) );
 	}
+
+	/**
+	 * Test mark_sent sets sent_at so has_recent_email_send becomes true.
+	 */
+	public function test_mark_sent_sets_sent_at() {
+		$member_id      = 1;
+		$competition_id = 2;
+
+		$token_obj = $this->repo->find_or_create( $member_id, $competition_id );
+		$this->assertIsObject( $token_obj );
+		$this->assertFalse( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
+
+		$this->repo->mark_sent( (int) $token_obj->id );
+
+		$this->assertTrue( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
+	}
 }

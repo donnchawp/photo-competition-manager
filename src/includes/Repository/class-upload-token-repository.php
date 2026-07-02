@@ -230,6 +230,26 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Record that an upload-link email was sent for a token.
+	 *
+	 * @since 1.2.0
+	 * @param int $token_id Token row ID.
+	 * @return void
+	 */
+	public function mark_sent( int $token_id ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->table(),
+			array( 'sent_at' => utc_time() ),
+			array( 'id' => $token_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
 	 * Generate an upload URL for a member using their existing or new token.
 	 *
 	 * Finds existing token or creates one if needed. Does not update sent_at.
@@ -340,17 +360,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new \WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
 		}
 
-		// Update sent_at timestamp to track when email was sent.
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->update(
-			$this->table(),
-			array( 'sent_at' => utc_time() ),
-			array( 'id' => $token_obj->id ),
-			array( '%s' ),
-			array( '%d' )
-		);
+		// Record when the email was sent.
+		$this->mark_sent( (int) $token_obj->id );
 
 		return true;
 	}
