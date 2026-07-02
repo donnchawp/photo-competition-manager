@@ -189,6 +189,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertTrue( $first['success'] );
 		$this->assertSame( 2, $first['sent_count'] );
 		$this->assertSame( 0, $first['skipped_count'] );
+		$this->assertSame( 0, $first['failed_count'] );
+		$this->assertEmpty( $first['errors'] );
 		$this->assertSame( 2, $first['total_count'] );
 
 		$second = $this->service->send_reminders( $competition_id );
