@@ -443,4 +443,62 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		delete_option( 'photo_comp_default_settings' );
 	}
+
+	// ---------------------------------------------------------------
+	// parse() auto-detects page URLs even for empty/invalid settings.
+	// ---------------------------------------------------------------
+
+	public function test_parse_empty_string_auto_detects_voting_page(): void {
+		$page_id = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_voting]',
+			)
+		);
+
+		$expected_url = get_permalink( $page_id );
+
+		$result = Competition_Settings::parse( '' );
+
+		$this->assertSame( $expected_url, $result['urls']['voting_page'] );
+	}
+
+	public function test_parse_empty_and_empty_object_return_same_urls(): void {
+		$page_id = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_voting]',
+			)
+		);
+
+		$empty_result       = Competition_Settings::parse( '' );
+		$empty_object_result = Competition_Settings::parse( '{}' );
+
+		$this->assertSame( $empty_object_result['urls'], $empty_result['urls'] );
+		$this->assertNotSame( '', $empty_result['urls']['voting_page'] );
+	}
+
+	public function test_parse_null_auto_detects_nothing_when_no_shortcode_page_exists(): void {
+		$result = Competition_Settings::parse( null );
+
+		$this->assertSame( '', $result['urls']['voting_page'] );
+	}
+
+	public function test_parse_invalid_json_auto_detects_voting_page(): void {
+		$page_id = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_voting]',
+			)
+		);
+
+		$expected_url = get_permalink( $page_id );
+
+		$result = Competition_Settings::parse( '{invalid json' );
+
+		$this->assertSame( $expected_url, $result['urls']['voting_page'] );
+	}
 }
