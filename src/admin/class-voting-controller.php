@@ -432,8 +432,16 @@ class Voting_Controller {
 		$active_settings    = Competition_Settings::parse( $active_competition->settings );
 		$global_settings    = Competition_Settings::global_settings();
 
-		// Check that required pages are configured.
-		$voting_page  = $active_settings['urls']['voting_page'] ?? $global_settings['urls']['voting_page'] ?? '';
+		// Check that required pages are configured. A competition that doesn't
+		// override the voting page has its urls.voting_page SET to '' (not
+		// unset), so `??` would return that empty string and shadow the
+		// populated global default. Use an empty-aware fallback instead.
+		$voting_page = '';
+		if ( ! empty( $active_settings['urls']['voting_page'] ) ) {
+			$voting_page = $active_settings['urls']['voting_page'];
+		} elseif ( ! empty( $global_settings['urls']['voting_page'] ) ) {
+			$voting_page = $global_settings['urls']['voting_page'];
+		}
 		$results_page = $global_settings['urls']['results_page'] ?? '';
 		if ( empty( $voting_page ) || empty( $results_page ) ) {
 			$missing = array();

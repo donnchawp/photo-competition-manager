@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Voting_Controller
@@ -156,5 +157,52 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			);
 		}
 		$this->assert_matches_snapshot( 'happy-path', array( $comp_id ) );
+	}
+
+	/**
+	 * Bug: a competition that doesn't override the voting page URL has
+	 * $active_settings['urls']['voting_page'] === '' (empty string, but SET).
+	 * The controller must fall through to the global default in that case,
+	 * not treat the empty string as an authoritative "no page configured".
+	 */
+	public function test_render_voting_page_not_missing_when_only_global_url_set(): void {
+		// Open competition with default (empty) settings: no per-competition
+		// urls override, so active_settings['urls']['voting_page'] === ''.
+		$this->seed_competition( array() );
+
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'urls' => array(
+						'voting_page'  => 'https://example.com/vote',
+						'results_page' => 'https://example.com/results',
+					),
+				)
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'Missing pages', $html );
+	}
+
+	/**
+	 * Guard: when neither the competition nor the global settings configure a
+	 * voting page, the missing-pages notice must still appear. The fix for
+	 * the bug above must not suppress a genuinely-missing page.
+	 */
+	public function test_render_missing_pages_notice_appears_when_no_urls_configured(): void {
+		// Open competition with default (empty) settings and no global
+		// default settings option saved at all.
+		$this->seed_competition( array() );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Missing pages', $html );
 	}
 }
