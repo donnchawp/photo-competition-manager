@@ -603,7 +603,8 @@ class Voting_Controller {
 		$is_ready        = $uploads_closed && ! $results_visible;
 
 		// Render category tabs (attached to the workflow card postbox).
-		$this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug, $voted_categories );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug, $voted_categories );
 
 		// Check completion: all categories must have completed critique (step 6).
 		$all_complete = true;
@@ -768,43 +769,23 @@ class Voting_Controller {
 	 * @param int|null    $open_competition_id  Competition ID with voting open.
 	 * @param string|null $open_category_slug   Category slug with voting open.
 	 * @param array       $voted_categories     Array of category keys that have been voted.
-	 * @return void
+	 * @return string
 	 */
-	private function render_category_tabs( array $all_categories, string $current_key, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $voted_categories = array() ): void {
+	private function render_category_tabs( array $all_categories, string $current_key, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $voted_categories = array() ): string {
 		if ( count( $all_categories ) < 2 ) {
-			return; // Single category: no tabs, heading rendered inside card.
+			return ''; // Single category: no tabs.
 		}
-		?>
-		<nav class="nav-tab-wrapper photo-comp-category-tabs">
-			<?php
-			foreach ( $all_categories as $cat_data ) :
-				$tab_key         = $cat_data['key'];
-				$tab_cat         = $cat_data['category'];
-				$tab_count       = $cat_data['image_count'];
-				$tab_is_active   = ( $tab_key === $current_key );
-				$tab_has_voting  = $voting_open_globally && (int) $cat_data['competition']->id === $open_competition_id && ( $tab_cat['slug'] ?? '' ) === $open_category_slug;
-				$tab_is_complete = ( $cat_data['current_step'] ?? 1 ) >= 6;
-				$tab_url         = add_query_arg(
-					array(
-						'page'  => 'photo-competition-manager-voting',
-						'focus' => $tab_key,
-					),
-					admin_url( 'admin.php' )
-				);
-				?>
-				<a href="<?php echo esc_url( $tab_url ); ?>" class="nav-tab <?php echo $tab_is_active ? 'nav-tab-active' : ''; ?>">
-					<?php if ( $tab_is_complete ) : ?>
-						<span class="dashicons dashicons-yes-alt" style="color: #00a32a; font-size: 14px; width: 14px; height: 14px; vertical-align: text-bottom;"></span>
-					<?php endif; ?>
-					<?php echo esc_html( $tab_cat['label'] ?? '' ); ?>
-					<span class="photo-comp-tab-count">(<?php echo (int) $tab_count; ?>)</span>
-					<?php if ( $tab_has_voting ) : ?>
-						<span class="photo-comp-voting-dot" title="<?php esc_attr_e( 'Voting open', 'photo-competition-manager' ); ?>"></span>
-					<?php endif; ?>
-				</a>
-			<?php endforeach; ?>
-		</nav>
-		<?php
+		return $this->render_template(
+			'admin/voting/category-tabs.php',
+			array(
+				'all_categories'       => $all_categories,
+				'current_key'          => $current_key,
+				'voting_open_globally' => $voting_open_globally,
+				'open_competition_id'  => $open_competition_id,
+				'open_category_slug'   => $open_category_slug,
+				'voted_categories'     => $voted_categories,
+			)
+		);
 	}
 
 	/**
