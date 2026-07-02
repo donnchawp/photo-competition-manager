@@ -65,6 +65,10 @@ class Setup_Wizard_Controller_Render_Test extends Admin_Controller_Test_Case {
 			// get_edit_post_link() default structure: post.php?post=<id>&action=edit.
 			$html = preg_replace( '/post=' . $id_pattern . '&(?:#0*38;)?action=edit/', 'post=ID&#038;action=edit', $html );
 		}
+		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
+		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
+		// &amp;; core has changed usage between releases).
+		$html = preg_replace( '/&#0*38;/', '&amp;', $html );
 		return $html;
 	}
 

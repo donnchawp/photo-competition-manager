@@ -54,6 +54,11 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// its value is the current REQUEST_URI, which is test-runner dependent.
 		$html = preg_replace( '/(name="_wp_http_referer" value=")[^"]*(")/', '$1REFERER$2', $html );
 
+		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
+		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
+		// &amp;; core has changed usage between releases).
+		$html = preg_replace( '/&#0*38;/', '&amp;', $html );
+
 		return $html;
 	}
 

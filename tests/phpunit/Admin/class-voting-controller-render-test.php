@@ -75,6 +75,10 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			// data-competition-id="<id>" attribute.
 			$html = preg_replace( '/data-competition-id="' . $id_pattern . '"/', 'data-competition-id="ID"', $html );
 		}
+		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
+		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
+		// &amp;; core has changed usage between releases).
+		$html = preg_replace( '/&#0*38;/', '&amp;', $html );
 		return $html;
 	}
 
