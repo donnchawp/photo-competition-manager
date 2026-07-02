@@ -20,7 +20,7 @@ use PhotoCompetitionManager\Support\Image_Processor;
  * Displays images in full-screen mode for in-person voting at meetings.
  * Automatically opens and closes voting windows for the selected category.
  *
- * @since 1.0.0
+ * @since 0.1.0
  */
 class Slideshow_Shortcode {
 

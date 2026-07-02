@@ -18,7 +18,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 /**
  * Export screen.
  *
- * @since 1.0.0
+ * @since 0.1.0
  */
 class Export_Screen {
 

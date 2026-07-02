@@ -26,7 +26,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 /**
  * Manage results dashboard page.
  *
- * @since 1.0.0
+ * @since 0.1.0
  */
 class Results_Controller {
 

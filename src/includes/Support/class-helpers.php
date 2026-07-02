@@ -64,7 +64,7 @@ function sanitize_csv_row( array $row ): array {
  *
  * @param int $offset_seconds Optional offset in seconds. Positive for future, negative for past.
  * @return string UTC datetime in 'Y-m-d H:i:s' format.
- * @since 1.0.0
+ * @since 0.1.0
  */
 function utc_time( int $offset_seconds = 0 ): string {
 	return gmdate( 'Y-m-d H:i:s', time() + $offset_seconds );

@@ -232,7 +232,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Record that an upload-link email was sent for a token.
 	 *
-	 * @since 1.2.0
+	 * @since 0.3.0
 	 * @param int $token_id Token row ID.
 	 * @return void
 	 */
@@ -254,7 +254,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 *
 	 * Finds existing token or creates one if needed. Does not update sent_at.
 	 *
-	 * @since 1.0.0
+	 * @since 0.1.0
 	 * @param int    $competition_id  Competition ID.
 	 * @param int    $member_id       Member ID.
 	 * @param string $upload_page_url Base URL of the upload page containing the [competition_upload] shortcode.
@@ -298,7 +298,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 	 *
 	 * Returns array indexed by member_id with link sent/opened status.
 	 *
-	 * @since 1.1.0
+	 * @since 0.1.0
 	 * @param int $competition_id Competition ID.
 	 * @return array<int, object> Array of tracking data indexed by member_id.
 	 */

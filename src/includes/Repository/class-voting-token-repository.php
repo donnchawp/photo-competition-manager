@@ -180,7 +180,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 	 *
 	 * Returns array indexed by member_id with link sent/opened status.
 	 *
-	 * @since 1.1.0
+	 * @since 0.1.0
 	 * @param int $competition_id Competition ID.
 	 * @return array<int, object> Array of tracking data indexed by member_id.
 	 */
