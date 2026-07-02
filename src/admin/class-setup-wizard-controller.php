@@ -216,9 +216,8 @@ class Setup_Wizard_Controller {
 
 		// Check if pages already configured.
 		if ( ! empty( $upload_url ) || ! empty( $voting_url ) ) {
-			echo '<div class="notice notice-info inline"><p>';
-			echo esc_html__( 'You have already configured some pages in Settings. Creating new pages will update those URLs.', 'photo-competition-manager' );
-			echo '</p></div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/setup-wizard/notice-pages-configured.php' );
 		}
 
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 720px; padding: 24px; margin-top: 20px;">';
@@ -229,71 +228,14 @@ class Setup_Wizard_Controller {
 		echo '<h2>' . esc_html__( 'Pages to Create', 'photo-competition-manager' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'Select which pages you want to create. Each page will be created with the appropriate shortcode.', 'photo-competition-manager' ) . '</p>';
 
-		// Upload page.
-		echo '<div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">';
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="create_upload_page" value="1" checked />';
-		echo ' <strong>' . esc_html__( 'Upload Page', 'photo-competition-manager' ) . '</strong>';
-		echo '</label>';
-		echo '</p>';
-		echo '<p>';
-		echo '<label for="upload_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="upload_page_title" name="upload_page_title" value="Photo Upload" class="regular-text" />';
-		echo '</p>';
-		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_upload] shortcode for members to submit photos.', 'photo-competition-manager' ) . '</p>';
-		echo '</div>';
-
-		// Voting page.
-		echo '<div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">';
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="create_voting_page" value="1" checked />';
-		echo ' <strong>' . esc_html__( 'Voting Page', 'photo-competition-manager' ) . '</strong>';
-		echo '</label>';
-		echo '</p>';
-		echo '<p>';
-		echo '<label for="voting_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="voting_page_title" name="voting_page_title" value="Vote on Photos" class="regular-text" />';
-		echo '</p>';
-		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_voting] shortcode for members to cast their votes.', 'photo-competition-manager' ) . '</p>';
-		echo '</div>';
-
-		// Results page.
-		echo '<div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">';
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="create_results_page" value="1" checked />';
-		echo ' <strong>' . esc_html__( 'Results Page', 'photo-competition-manager' ) . '</strong>';
-		echo '</label>';
-		echo '</p>';
-		echo '<p>';
-		echo '<label for="results_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="results_page_title" name="results_page_title" value="Competition Results" class="regular-text" />';
-		echo '</p>';
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="results_hide_names" value="1" checked />';
-		echo ' ' . esc_html__( 'Hide photographer names on results page', 'photo-competition-manager' );
-		echo '</label>';
-		echo '</p>';
-		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_results] shortcode to display competition winners.', 'photo-competition-manager' ) . '</p>';
-		echo '</div>';
-
-		// Top 3 page.
-		echo '<div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">';
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="create_top3_page" value="1" checked />';
-		echo ' <strong>' . esc_html__( 'Top 3 Page', 'photo-competition-manager' ) . '</strong>';
-		echo '</label>';
-		echo '</p>';
-		echo '<p>';
-		echo '<label for="top3_page_title">' . esc_html__( 'Page Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="top3_page_title" name="top3_page_title" value="Top 3 Winners" class="regular-text" />';
-		echo '</p>';
-		echo '<p class="description">' . esc_html__( 'Creates a page with the [competition_top3] shortcode to display the top 3 winners in each category and grade.', 'photo-competition-manager' ) . '</p>';
-		echo '</div>';
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_upload_page_card();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_voting_page_card();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_results_page_card();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_top3_page_card();
 
 		submit_button( __( 'Create Pages', 'photo-competition-manager' ), 'primary', 'submit', true );
 
@@ -303,6 +245,42 @@ class Setup_Wizard_Controller {
 		$this->render_existing_pages_info();
 
 		echo '</div>';
+	}
+
+	/**
+	 * Render the upload page option card.
+	 *
+	 * @return string
+	 */
+	private function render_upload_page_card(): string {
+		return $this->render_template( 'admin/setup-wizard/upload-page-card.php' );
+	}
+
+	/**
+	 * Render the voting page option card.
+	 *
+	 * @return string
+	 */
+	private function render_voting_page_card(): string {
+		return $this->render_template( 'admin/setup-wizard/voting-page-card.php' );
+	}
+
+	/**
+	 * Render the results page option card.
+	 *
+	 * @return string
+	 */
+	private function render_results_page_card(): string {
+		return $this->render_template( 'admin/setup-wizard/results-page-card.php' );
+	}
+
+	/**
+	 * Render the top 3 page option card.
+	 *
+	 * @return string
+	 */
+	private function render_top3_page_card(): string {
+		return $this->render_template( 'admin/setup-wizard/top3-page-card.php' );
 	}
 
 	/**
@@ -436,19 +414,27 @@ class Setup_Wizard_Controller {
 		echo '<p class="description">' . esc_html__( 'The following pages already contain competition shortcodes:', 'photo-competition-manager' ) . '</p>';
 
 		foreach ( $found_pages as $type => $pages ) {
-			echo '<h3>' . esc_html( $type ) . '</h3>';
-			echo '<ul>';
-			foreach ( $pages as $page ) {
-				echo '<li>';
-				echo '<a href="' . esc_url( get_permalink( $page->ID ) ) . '" target="_blank">';
-				echo esc_html( $page->post_title );
-				echo '</a>';
-				echo ' <span class="description">— <a href="' . esc_url( get_edit_post_link( $page->ID ) ) . '">Edit</a></span>';
-				echo '</li>';
-			}
-			echo '</ul>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_existing_pages_group( $type, $pages );
 		}
 
 		echo '</div>';
+	}
+
+	/**
+	 * Render a single existing-pages group (shortcode type + its pages).
+	 *
+	 * @param  string             $type  Shortcode type label.
+	 * @param  array<int, object> $pages Pages found for this shortcode type.
+	 * @return string
+	 */
+	private function render_existing_pages_group( string $type, array $pages ): string {
+		return $this->render_template(
+			'admin/setup-wizard/existing-pages-group.php',
+			array(
+				'type'  => $type,
+				'pages' => $pages,
+			)
+		);
 	}
 }
