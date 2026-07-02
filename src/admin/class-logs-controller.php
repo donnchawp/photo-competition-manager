@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
@@ -22,6 +23,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 class Logs_Controller {
 
 	use Date_Formatting;
+	use Form_Rendering;
 
 	/**
 	 * Logs repository.
@@ -212,7 +214,8 @@ class Logs_Controller {
 		echo '<h1>' . esc_html__( 'Competition Logs', 'photo-competition-manager' ) . '</h1>';
 
 		// Filters form.
-		$this->render_filters( $competitions, $event_categories, $event_types, $filters );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_filters( $competitions, $event_categories, $event_types, $filters );
 
 		// Log count.
 		echo '<p class="log-count" style="margin: 20px 0;">';
@@ -257,12 +260,14 @@ class Logs_Controller {
 		if ( empty( $logs ) ) {
 			echo '<p>' . esc_html__( 'No log entries found.', 'photo-competition-manager' ) . '</p>';
 		} else {
-			$this->render_logs_table( $logs, $competitions );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_logs_table( $logs, $competitions );
 		}
 
 		// Pagination.
 		if ( $total_pages > 1 ) {
-			$this->render_pagination( $current_page, $total_pages, $filters );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_pagination( $current_page, $total_pages, $filters );
 		}
 
 		echo '</div>';
@@ -275,80 +280,28 @@ class Logs_Controller {
 	 * @param array<int, string> $event_categories Event categories.
 	 * @param array<int, string> $event_types      Event types.
 	 * @param array              $filters          Active filters.
-	 * @return void
+	 * @return string
 	 */
-	private function render_filters( array $competitions, array $event_categories, array $event_types, array $filters ): void {
+	private function render_filters( array $competitions, array $event_categories, array $event_types, array $filters ): string {
 		$selected_competition = $filters['competition_id'] ?? 0;
 		$selected_category    = $filters['event_category'] ?? '';
 		$selected_type        = $filters['event_type'] ?? '';
 		$date_from            = isset( $filters['date_from'] ) ? gmdate( 'Y-m-d', strtotime( $filters['date_from'] ) ) : '';
 		$date_to              = isset( $filters['date_to'] ) ? gmdate( 'Y-m-d', strtotime( $filters['date_to'] ) ) : '';
 
-		echo '<form method="get" class="logs-filters" style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; margin: 20px 0;">';
-		echo '<input type="hidden" name="page" value="photo-competition-manager-logs" />';
-
-		echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
-
-		// Competition filter.
-		echo '<div>';
-		echo '<label for="competition-filter"><strong>' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</strong></label><br>';
-		echo '<select id="competition-filter" name="competition" style="width: 100%;">';
-		echo '<option value="0">' . esc_html__( 'All Competitions', 'photo-competition-manager' ) . '</option>';
-		foreach ( $competitions as $comp ) {
-			$selected = ( (int) $comp->id === $selected_competition ) ? ' selected' : '';
-			echo '<option value="' . esc_attr( $comp->id ) . '"' . esc_attr( $selected ) . '>' . esc_html( $comp->title ) . '</option>';
-		}
-		echo '</select>';
-		echo '</div>';
-
-		// Event category filter.
-		echo '<div>';
-		echo '<label for="event-category-filter"><strong>' . esc_html__( 'Category', 'photo-competition-manager' ) . '</strong></label><br>';
-		echo '<select id="event-category-filter" name="event_category" style="width: 100%;">';
-		echo '<option value="">' . esc_html__( 'All Categories', 'photo-competition-manager' ) . '</option>';
-		foreach ( $event_categories as $category ) {
-			$selected = ( $category === $selected_category ) ? ' selected' : '';
-			$label    = $this->get_category_label( $category );
-			echo '<option value="' . esc_attr( $category ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
-		}
-		echo '</select>';
-		echo '</div>';
-
-		// Event type filter.
-		echo '<div>';
-		echo '<label for="event-type-filter"><strong>' . esc_html__( 'Event Type', 'photo-competition-manager' ) . '</strong></label><br>';
-		echo '<select id="event-type-filter" name="event_type" style="width: 100%;">';
-		echo '<option value="">' . esc_html__( 'All Types', 'photo-competition-manager' ) . '</option>';
-		foreach ( $event_types as $type ) {
-			$selected = ( $type === $selected_type ) ? ' selected' : '';
-			$label    = $this->get_type_label( $type );
-			echo '<option value="' . esc_attr( $type ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
-		}
-		echo '</select>';
-		echo '</div>';
-
-		// Date from.
-		echo '<div>';
-		echo '<label for="date-from-filter"><strong>' . esc_html__( 'From Date', 'photo-competition-manager' ) . '</strong></label><br>';
-		echo '<input type="date" id="date-from-filter" name="date_from" value="' . esc_attr( $date_from ) . '" style="width: 100%;" />';
-		echo '</div>';
-
-		// Date to.
-		echo '<div>';
-		echo '<label for="date-to-filter"><strong>' . esc_html__( 'To Date', 'photo-competition-manager' ) . '</strong></label><br>';
-		echo '<input type="date" id="date-to-filter" name="date_to" value="' . esc_attr( $date_to ) . '" style="width: 100%;" />';
-		echo '</div>';
-
-		echo '</div>';
-
-		// Buttons.
-		echo '<div style="margin-top: 15px;">';
-		submit_button( __( 'Filter', 'photo-competition-manager' ), 'primary', 'submit', false );
-		echo ' ';
-		echo '<a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-logs' ) ) . '" class="button">' . esc_html__( 'Clear Filters', 'photo-competition-manager' ) . '</a>';
-		echo '</div>';
-
-		echo '</form>';
+		return $this->render_template(
+			'admin/logs/filters.php',
+			array(
+				'competitions'         => $competitions,
+				'event_categories'     => $event_categories,
+				'event_types'          => $event_types,
+				'selected_competition' => $selected_competition,
+				'selected_category'    => $selected_category,
+				'selected_type'        => $selected_type,
+				'date_from'            => $date_from,
+				'date_to'              => $date_to,
+			)
+		);
 	}
 
 	/**
@@ -356,84 +309,22 @@ class Logs_Controller {
 	 *
 	 * @param array<int, object> $logs         Log entries.
 	 * @param array<int, object> $competitions All competitions.
-	 * @return void
+	 * @return string
 	 */
-	private function render_logs_table( array $logs, array $competitions ): void {
+	private function render_logs_table( array $logs, array $competitions ): string {
 		// Build competition lookup.
 		$comp_lookup = array();
 		foreach ( $competitions as $comp ) {
 			$comp_lookup[ (int) $comp->id ] = $comp->title;
 		}
 
-		echo '<table class="wp-list-table widefat fixed striped">';
-		echo '<thead>';
-		echo '<tr>';
-		echo '<th style="width: 150px;">' . esc_html__( 'Date/Time', 'photo-competition-manager' ) . '</th>';
-		echo '<th style="width: 100px;">' . esc_html__( 'Category', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Description', 'photo-competition-manager' ) . '</th>';
-		echo '<th style="width: 150px;">' . esc_html__( 'Actor', 'photo-competition-manager' ) . '</th>';
-		echo '<th style="width: 200px;">' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</th>';
-		echo '<th style="width: 80px;">' . esc_html__( 'Details', 'photo-competition-manager' ) . '</th>';
-		echo '</tr>';
-		echo '</thead>';
-		echo '<tbody>';
-
-		foreach ( $logs as $log ) {
-			$icon              = $this->get_category_icon( $log->event_category );
-			$competition_title = $log->competition_id ? ( $comp_lookup[ (int) $log->competition_id ] ?? __( 'Unknown', 'photo-competition-manager' ) ) : __( 'Global', 'photo-competition-manager' );
-			$has_metadata      = ! empty( $log->metadata ) && 'null' !== $log->metadata;
-
-			echo '<tr>';
-
-			// Date/Time.
-			echo '<td>' . esc_html( $this->format_datetime( $log->created_at ) ) . '</td>';
-
-			// Category with icon.
-			echo '<td>';
-			echo '<span class="dashicons ' . esc_attr( $icon ) . '" style="color: #2271b1;"></span> ';
-			echo esc_html( $this->get_category_label( $log->event_category ) );
-			echo '</td>';
-
-			// Description.
-			echo '<td>' . esc_html( $log->description ) . '</td>';
-
-			// Actor.
-			echo '<td>' . esc_html( $log->actor_name ) . '</td>';
-
-			// Competition.
-			echo '<td>' . esc_html( $competition_title ) . '</td>';
-
-			// Details toggle.
-			echo '<td>';
-			if ( $has_metadata ) {
-				echo '<button type="button" class="button-link log-metadata-toggle" data-log-id="' . esc_attr( $log->id ) . '">';
-				echo esc_html__( 'View', 'photo-competition-manager' );
-				echo '</button>';
-				echo '<div id="log-metadata-' . esc_attr( $log->id ) . '" class="log-metadata" style="display: none; margin-top: 10px; padding: 10px; background: #f0f0f1; border: 1px solid #dcdcde;">';
-				echo '<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 11px;">' . esc_html( $log->metadata ) . '</pre>';
-				echo '</div>';
-			} else {
-				echo '—';
-			}
-			echo '</td>';
-
-			echo '</tr>';
-
-			// Metadata row (hidden by default).
-			if ( $has_metadata ) {
-				echo '<tr id="log-metadata-row-' . esc_attr( $log->id ) . '" class="log-metadata-row" style="display: none;">';
-				echo '<td colspan="6">';
-				echo '<div style="padding: 10px; background: #f0f0f1; border: 1px solid #dcdcde;">';
-				echo '<strong>' . esc_html__( 'Metadata:', 'photo-competition-manager' ) . '</strong>';
-				echo '<pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 11px; margin-top: 10px;">' . esc_html( $log->metadata ) . '</pre>';
-				echo '</div>';
-				echo '</td>';
-				echo '</tr>';
-			}
-		}
-
-		echo '</tbody>';
-		echo '</table>';
+		return $this->render_template(
+			'admin/logs/logs-table.php',
+			array(
+				'logs'        => $logs,
+				'comp_lookup' => $comp_lookup,
+			)
+		);
 	}
 
 	/**
@@ -442,12 +333,9 @@ class Logs_Controller {
 	 * @param int   $current_page Current page number.
 	 * @param int   $total_pages  Total pages.
 	 * @param array $filters      Active filters.
-	 * @return void
+	 * @return string
 	 */
-	private function render_pagination( int $current_page, int $total_pages, array $filters ): void {
-		echo '<div class="tablenav" style="margin: 20px 0;">';
-		echo '<div class="tablenav-pages">';
-
+	private function render_pagination( int $current_page, int $total_pages, array $filters ): string {
 		$base_url = add_query_arg(
 			array_merge(
 				array( 'page' => 'photo-competition-manager-logs' ),
@@ -464,40 +352,14 @@ class Logs_Controller {
 			admin_url( 'admin.php' )
 		);
 
-		echo '<span class="displaying-num">';
-		printf(
-			/* translators: %s: Number of pages */
-			esc_html__( 'Page %1$s of %2$s', 'photo-competition-manager' ),
-			esc_html( number_format( $current_page ) ),
-			esc_html( number_format( $total_pages ) )
+		return $this->render_template(
+			'admin/logs/pagination.php',
+			array(
+				'current_page' => $current_page,
+				'total_pages'  => $total_pages,
+				'base_url'     => $base_url,
+			)
 		);
-		echo '</span>';
-
-		echo '<span class="pagination-links">';
-
-		// First page.
-		if ( $current_page > 1 ) {
-			echo '<a class="button" href="' . esc_url( add_query_arg( 'paged', 1, $base_url ) ) . '">&laquo; ' . esc_html__( 'First', 'photo-competition-manager' ) . '</a> ';
-		}
-
-		// Previous page.
-		if ( $current_page > 1 ) {
-			echo '<a class="button" href="' . esc_url( add_query_arg( 'paged', $current_page - 1, $base_url ) ) . '">&lsaquo; ' . esc_html__( 'Previous', 'photo-competition-manager' ) . '</a> ';
-		}
-
-		// Next page.
-		if ( $current_page < $total_pages ) {
-			echo '<a class="button" href="' . esc_url( add_query_arg( 'paged', $current_page + 1, $base_url ) ) . '">' . esc_html__( 'Next', 'photo-competition-manager' ) . ' &rsaquo;</a> ';
-		}
-
-		// Last page.
-		if ( $current_page < $total_pages ) {
-			echo '<a class="button" href="' . esc_url( add_query_arg( 'paged', $total_pages, $base_url ) ) . '">' . esc_html__( 'Last', 'photo-competition-manager' ) . ' &raquo;</a>';
-		}
-
-		echo '</span>';
-		echo '</div>';
-		echo '</div>';
 	}
 
 	/**
