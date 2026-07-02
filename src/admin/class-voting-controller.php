@@ -594,7 +594,8 @@ class Voting_Controller {
 		}
 
 		// Render Competition Status Bar.
-		$this->render_competition_status_bar( $active_competition, $active_settings );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_competition_status_bar( $active_competition, $active_settings );
 
 		// Determine readiness.
 		$uploads_closed  = $active_settings['upload']['uploads_closed'] ?? false;
@@ -699,9 +700,9 @@ class Voting_Controller {
 	 *
 	 * @param object $competition The active competition object.
 	 * @param array  $settings    Parsed competition settings.
-	 * @return void
+	 * @return string
 	 */
-	private function render_competition_status_bar( object $competition, array $settings ): void {
+	private function render_competition_status_bar( object $competition, array $settings ): string {
 		$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
 		$results_visible = $settings['results']['results_visible'] ?? false;
 
@@ -743,36 +744,17 @@ class Voting_Controller {
 			'photo_competition_hide_results_' . (int) $competition->id
 		);
 
-		?>
-		<div class="postbox photo-comp-status-bar">
-			<div class="inside" style="margin: 0; padding: 10px 14px;">
-				<div class="status-bar-layout">
-					<strong class="status-bar-title"><?php echo esc_html( $competition->title ); ?></strong>
-					<div class="status-bar-controls">
-						<div class="status-control">
-							<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>
-							<?php if ( $uploads_closed ) : ?>
-								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $toggle_uploads_url ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
-							<?php else : ?>
-								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Open', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $toggle_uploads_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></a>
-							<?php endif; ?>
-						</div>
-						<div class="status-control">
-							<span class="status-control-label"><?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></span>
-							<?php if ( $results_visible ) : ?>
-								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Visible', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $hide_results_url ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Hide', 'photo-competition-manager' ); ?></a>
-							<?php else : ?>
-								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Hidden', 'photo-competition-manager' ); ?></span>
-							<?php endif; ?>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-		<?php
+		return $this->render_template(
+			'admin/voting/competition-status-bar.php',
+			array(
+				'competition'        => $competition,
+				'uploads_closed'     => $uploads_closed,
+				'results_visible'    => $results_visible,
+				'toggle_uploads_url' => $toggle_uploads_url,
+				'show_results_url'   => $show_results_url,
+				'hide_results_url'   => $hide_results_url,
+			)
+		);
 	}
 
 	/**
