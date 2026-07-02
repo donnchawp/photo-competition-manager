@@ -1,8 +1,21 @@
 #!/bin/bash
 # Start Mailpit for email testing with wp-env
 
-# Find the wp-env network (it has a hash in the name)
-WPENV_NETWORK=$(docker network ls --format '{{.Name}}' | grep -E '^[a-f0-9]{32}_default$' | head -n 1)
+# Find the network the running wp-env WordPress container is actually attached to.
+# Detecting it from the container is robust across wp-env versions, whose network
+# naming has changed over time (32-char hash prefix in older versions, the project
+# directory name in newer ones). Falling back to the old hash-based match keeps this
+# working if the container can't be inspected for some reason.
+WPENV_WP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E '^photo-competition-manager-wordpress-[0-9]+$' | head -n 1)
+
+if [ -n "$WPENV_WP_CONTAINER" ]; then
+    WPENV_NETWORK=$(docker inspect "$WPENV_WP_CONTAINER" \
+        --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' | head -n 1)
+fi
+
+if [ -z "$WPENV_NETWORK" ]; then
+    WPENV_NETWORK=$(docker network ls --format '{{.Name}}' | grep -E '^[a-f0-9]{32}_default$' | head -n 1)
+fi
 
 if [ -z "$WPENV_NETWORK" ]; then
     echo "Error: Could not find wp-env network. Make sure wp-env is running."
