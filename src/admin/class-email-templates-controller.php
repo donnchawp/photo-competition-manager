@@ -130,7 +130,8 @@ class Email_Templates_Controller {
 		echo '<input type="hidden" name="photo_competition_action" value="save_email_templates" />';
 
 		foreach ( $templates as $template_key => $template ) {
-			$this->render_template_section( $template_key, $template );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template_section( $template_key, $template );
 		}
 
 		submit_button( __( 'Save Email Templates', 'photo-competition-manager' ) );
@@ -144,62 +145,16 @@ class Email_Templates_Controller {
 	 *
 	 * @param string               $template_key Template key.
 	 * @param array<string, mixed> $template     Template data.
-	 * @return void
+	 * @return string
 	 */
-	private function render_template_section( string $template_key, array $template ): void {
-		echo '<div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;">';
-
-		echo '<h2 style="margin-top: 0;">' . esc_html( $template['name'] ) . '</h2>';
-		echo '<p class="description">' . esc_html( $template['description'] ) . '</p>';
-
-		// Enabled toggle.
-		echo '<p>';
-		echo '<label>';
-		echo '<input type="checkbox" name="templates[' . esc_attr( $template_key ) . '][enabled]" value="1" ' . checked( $template['enabled'], true, false ) . ' />';
-		echo ' <strong>' . esc_html__( 'Enable this email notification', 'photo-competition-manager' ) . '</strong>';
-		echo '</label>';
-		echo '</p>';
-
-		// Subject field.
-		echo '<table class="form-table"><tbody>';
-		echo '<tr>';
-		echo '<th scope="row"><label for="template-' . esc_attr( $template_key ) . '-subject">' . esc_html__( 'Subject Line', 'photo-competition-manager' ) . '</label></th>';
-		echo '<td>';
-		echo '<input type="text" id="template-' . esc_attr( $template_key ) . '-subject" name="templates[' . esc_attr( $template_key ) . '][subject]" value="' . esc_attr( $template['subject'] ) . '" class="large-text" />';
-		echo '</td>';
-		echo '</tr>';
-
-		// Body field.
-		echo '<tr>';
-		echo '<th scope="row"><label for="template-' . esc_attr( $template_key ) . '-body">' . esc_html__( 'Email Body', 'photo-competition-manager' ) . '</label></th>';
-		echo '<td>';
-
-		wp_editor(
-			$template['body'],
-			'template_' . $template_key . '_body',
+	private function render_template_section( string $template_key, array $template ): string {
+		return $this->render_template(
+			'admin/email-templates/template-card.php',
 			array(
-				'textarea_name' => 'templates[' . $template_key . '][body]',
-				'textarea_rows' => 12,
-				'media_buttons' => false,
-				'teeny'         => true,
+				'template_key' => $template_key,
+				'template'     => $template,
 			)
 		);
-
-		echo '<p class="description">' . esc_html__( 'Available merge tags:', 'photo-competition-manager' ) . ' ';
-		$merge_tags_html = array_map(
-			function ( $tag ) {
-				return '<code>' . esc_html( $tag ) . '</code>';
-			},
-			$template['merge_tags']
-		);
-		echo wp_kses_post( implode( ', ', $merge_tags_html ) );
-		echo '</p>';
-		echo '</td>';
-		echo '</tr>';
-
-		echo '</tbody></table>';
-
-		echo '</div>';
 	}
 
 	/**
