@@ -230,6 +230,26 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Record that an upload-link email was sent for a token.
+	 *
+	 * @since 1.2.0
+	 * @param int $token_id Token row ID.
+	 * @return void
+	 */
+	public function mark_sent( int $token_id ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->table(),
+			array( 'sent_at' => utc_time() ),
+			array( 'id' => $token_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
 	 * Generate an upload URL for a member using their existing or new token.
 	 *
 	 * Finds existing token or creates one if needed. Does not update sent_at.
@@ -271,123 +291,6 @@ class Upload_Token_Repository extends Abstract_Repository {
 		);
 
 		return $upload_url;
-	}
-
-	/**
-	 * Create a fresh upload token and email a magic link to a member.
-	 *
-	 * Treats recent token as success (rate-limited) to avoid spamming members.
-	 *
-	 * @since 1.0.0
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $upload_page_url Base URL of the upload page containing the [competition_upload] shortcode.
-	 * @param bool   $force_send     Whether to force sending even if a recent token exists.
-	 * @return bool|WP_Error True on success, WP_Error on hard failure (DB/email).
-	 */
-	public function send_upload_link_for_member( int $competition_id, int $member_id, string $upload_page_url, $force_send = false ) {
-		// Validate competition and member.
-		$competitions_repo = new Competitions_Repository();
-		$members_repo      = new Members_Repository();
-
-		$competition = $competitions_repo->find( $competition_id );
-		if ( ! $competition ) {
-			return new \WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
-		}
-
-		$member = $members_repo->find( $member_id );
-		if ( ! $member ) {
-			return new \WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
-		}
-
-		if ( empty( $member->email ) ) {
-			return new \WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
-		}
-
-		// Rate-limit: if an email was sent recently, skip unless forced.
-		if ( $this->has_recent_email_send( $member_id, $competition_id ) && ! $force_send ) {
-			return true;
-		}
-
-		// Get or create token for this member/competition.
-		$token_obj = $this->find_or_create( $member_id, $competition_id );
-		if ( is_wp_error( $token_obj ) ) {
-			return $token_obj;
-		}
-
-		// Generate upload URL.
-		$upload_url = $this->generate_upload_url( $competition_id, $member_id, $upload_page_url );
-		if ( is_wp_error( $upload_url ) ) {
-			return $upload_url;
-		}
-
-		// Get voting page URL from competition settings.
-		$settings        = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$voting_page_url = $settings['urls']['voting_page'] ?? null;
-
-		// Send email.
-		$email_service = new \PhotoCompetitionManager\Service\Email_Service();
-		$sent          = $email_service->send_upload_link(
-			$member->email,
-			$member->name ?? $member->email,
-			$competition->title,
-			$upload_url,
-			$competition_id,
-			$voting_page_url
-		);
-
-		if ( ! $sent ) {
-			return new \WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
-		}
-
-		// Update sent_at timestamp to track when email was sent.
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->update(
-			$this->table(),
-			array( 'sent_at' => utc_time() ),
-			array( 'id' => $token_obj->id ),
-			array( '%s' ),
-			array( '%d' )
-		);
-
-		return true;
-	}
-
-	/**
-	 * Email an upload link by member email without leaking existence (no enumeration).
-	 *
-	 * Always returns true unless there is a hard failure creating/sending.
-	 *
-	 * @since 1.0.0
-	 * @param int    $competition_id Competition ID.
-	 * @param string $member_email   Member email (unsanitized).
-	 * @param string $upload_page_url Base URL for upload page.
-	 * @return bool True if email was sent or intentionally suppressed; false only on hard failure.
-	 */
-	public function send_upload_link_by_email( int $competition_id, string $member_email, string $upload_page_url ): bool {
-		$member_email = sanitize_email( $member_email );
-		if ( empty( $member_email ) ) {
-			return false;
-		}
-
-		$members_repo = new Members_Repository();
-		$member       = $members_repo->find_by_email( $member_email );
-
-		// If member doesn't exist, pretend success to avoid enumeration.
-		if ( ! $member ) {
-			return true;
-		}
-
-		$result = $this->send_upload_link_for_member( $competition_id, (int) $member->id, $upload_page_url );
-
-		// Treat most errors as success to preserve privacy; only fail on hard send errors.
-		if ( is_wp_error( $result ) ) {
-			return 'send_failed' === $result->get_error_code() ? false : true;
-		}
-
-		return (bool) $result;
 	}
 
 	/**

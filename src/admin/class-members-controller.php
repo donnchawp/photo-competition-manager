@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -177,8 +178,8 @@ class Members_Controller {
 
 			$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
-			$token_repo = new Upload_Token_Repository();
-			$result     = $token_repo->send_upload_link_for_member(
+			$upload_link_service = new Upload_Link_Service();
+			$result              = $upload_link_service->send_to_member(
 				(int) $competition_id,
 				(int) $member_id,
 				$upload_page_url,
