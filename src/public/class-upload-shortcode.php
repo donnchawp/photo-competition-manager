@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Upload_Handler;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -74,26 +75,36 @@ class Upload_Shortcode {
 	private $email_service;
 
 	/**
+	 * Upload link service.
+	 *
+	 * @var Upload_Link_Service
+	 */
+	private $upload_link_service;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Upload_Handler|null          $upload_handler    Upload handler.
-	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
-	 * @param Members_Repository|null      $members_repo      Members repository.
-	 * @param Upload_Token_Repository|null $token_repo        Token repository.
-	 * @param Email_Service|null           $email_service     Email service.
+	 * @param Upload_Handler|null          $upload_handler      Upload handler.
+	 * @param Competitions_Repository|null $competitions_repo   Competitions repository.
+	 * @param Members_Repository|null      $members_repo        Members repository.
+	 * @param Upload_Token_Repository|null $token_repo          Token repository.
+	 * @param Email_Service|null           $email_service       Email service.
+	 * @param Upload_Link_Service|null     $upload_link_service  Upload link service.
 	 */
 	public function __construct(
 		?Upload_Handler $upload_handler = null,
 		?Competitions_Repository $competitions_repo = null,
 		?Members_Repository $members_repo = null,
 		?Upload_Token_Repository $token_repo = null,
-		?Email_Service $email_service = null
+		?Email_Service $email_service = null,
+		?Upload_Link_Service $upload_link_service = null
 	) {
-		$this->upload_handler    = $upload_handler ?? new Upload_Handler();
-		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
-		$this->members_repo      = $members_repo ?? new Members_Repository();
-		$this->token_repo        = $token_repo ?? new Upload_Token_Repository();
-		$this->email_service     = $email_service ?? new Email_Service();
+		$this->upload_handler      = $upload_handler ?? new Upload_Handler();
+		$this->competitions_repo   = $competitions_repo ?? new Competitions_Repository();
+		$this->members_repo        = $members_repo ?? new Members_Repository();
+		$this->token_repo          = $token_repo ?? new Upload_Token_Repository();
+		$this->email_service       = $email_service ?? new Email_Service();
+		$this->upload_link_service = $upload_link_service ?? new Upload_Link_Service();
 	}
 
 	/**
@@ -287,8 +298,8 @@ class Upload_Shortcode {
 		// Generic success message for security (prevents email enumeration).
 		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'photo-competition-manager' ) . '</p>';
 
-		// Delegate creation + email to the token repository.
-		$ok = $this->token_repo->send_upload_link_by_email(
+		// Delegate creation + email to the upload link service.
+		$ok = $this->upload_link_service->send_by_email(
 			(int) $competition->id,
 			$member_email,
 			get_permalink()

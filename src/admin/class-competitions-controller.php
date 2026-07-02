@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -328,7 +329,8 @@ class Competitions_Controller {
 			}
 
 			if ( 'send_emails' === $action ) {
-				$result = $this->competitions->send_submission_reminder_emails( $competition_id );
+				$upload_link_service = new Upload_Link_Service();
+				$result              = $upload_link_service->send_reminders( $competition_id );
 
 				if ( is_wp_error( $result ) ) {
 					add_settings_error(
