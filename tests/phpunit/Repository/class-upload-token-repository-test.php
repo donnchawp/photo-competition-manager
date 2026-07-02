@@ -7,6 +7,8 @@
 
 namespace PhotoCompetitionManager\Tests\Repository;
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -407,5 +409,118 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->repo->mark_sent( (int) $token_obj->id );
 
 		$this->assertTrue( $this->repo->has_recent_email_send( $member_id, $competition_id ) );
+	}
+
+	/**
+	 * Create an open competition and return its id.
+	 */
+	private function make_open_competition(): int {
+		$comps = new Competitions_Repository();
+		return (int) $comps->create(
+			array(
+				'title'     => 'Reminder Comp',
+				'slug'      => 'reminder-comp',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+	}
+
+	/**
+	 * Create a member with an email and return its id.
+	 */
+	private function make_member( string $email = 'alice@example.com' ): int {
+		$members = new Members_Repository();
+		return (int) $members->create(
+			array(
+				'name'   => 'Alice',
+				'email'  => $email,
+				'grade'  => 'beginner',
+				'active' => 1,
+			)
+		);
+	}
+
+	public function test_send_upload_link_for_member_missing_competition() {
+		$member_id = $this->make_member();
+		$result    = $this->repo->send_upload_link_for_member( 9999, $member_id, 'https://example.com/upload/' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_competition', $result->get_error_code() );
+	}
+
+	public function test_send_upload_link_for_member_missing_member() {
+		$competition_id = $this->make_open_competition();
+		$result         = $this->repo->send_upload_link_for_member( $competition_id, 9999, 'https://example.com/upload/' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_member', $result->get_error_code() );
+	}
+
+	public function test_send_upload_link_for_member_missing_email() {
+		global $wpdb;
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member();
+		$members        = new Members_Repository();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $members->table(), array( 'email' => '' ), array( 'id' => $member_id ), array( '%s' ), array( '%d' ) );
+
+		$result = $this->repo->send_upload_link_for_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_email', $result->get_error_code() );
+	}
+
+	public function test_send_upload_link_for_member_success_and_rate_limit() {
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member();
+
+		$mail_count = 0;
+		add_filter(
+			'wp_mail',
+			function ( $atts ) use ( &$mail_count ) {
+				++$mail_count;
+				return $atts;
+			}
+		);
+
+		$first = $this->repo->send_upload_link_for_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->assertTrue( $first );
+		$this->assertSame( 1, $mail_count );
+
+		// Second call is rate-limited: returns true, no additional mail.
+		$second = $this->repo->send_upload_link_for_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->assertTrue( $second );
+		$this->assertSame( 1, $mail_count );
+	}
+
+	public function test_send_upload_link_for_member_send_failed() {
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member();
+
+		add_filter( 'pre_wp_mail', '__return_false' );
+
+		$result = $this->repo->send_upload_link_for_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'send_failed', $result->get_error_code() );
+	}
+
+	public function test_send_upload_link_by_email_unknown_email_is_success() {
+		$competition_id = $this->make_open_competition();
+		$result         = $this->repo->send_upload_link_by_email( $competition_id, 'nobody@example.com', 'https://example.com/upload/' );
+		$this->assertTrue( $result );
+	}
+
+	public function test_send_upload_link_by_email_send_failure_returns_false() {
+		$competition_id = $this->make_open_competition();
+		$this->make_member( 'bob@example.com' );
+		add_filter( 'pre_wp_mail', '__return_false' );
+
+		$result = $this->repo->send_upload_link_by_email( $competition_id, 'bob@example.com', 'https://example.com/upload/' );
+		$this->assertFalse( $result );
+	}
+
+	public function test_send_upload_link_by_email_non_send_error_is_success() {
+		// Known member but bad competition → for_member returns missing_competition;
+		// wrapper hides it and returns true (privacy).
+		$this->make_member( 'carol@example.com' );
+		$result = $this->repo->send_upload_link_by_email( 9999, 'carol@example.com', 'https://example.com/upload/' );
+		$this->assertTrue( $result );
 	}
 }
