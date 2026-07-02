@@ -1,6 +1,6 @@
 <?php
 /**
- * Single grade row partial for the competition settings tab.
+ * Single grade row partial (shared by the settings and competition settings forms).
  *
  * Reads $data['index'] (int) and $data['label'] (string).
  *

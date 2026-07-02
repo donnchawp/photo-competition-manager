@@ -1,6 +1,6 @@
 <?php
 /**
- * Single category row partial for the admin settings page.
+ * Single category row partial (shared by the settings and competition settings forms).
  *
  * Reads $data['index'] (int), $data['label'] (string), $data['slug']
  * (string), and $data['quota'] (int|string).

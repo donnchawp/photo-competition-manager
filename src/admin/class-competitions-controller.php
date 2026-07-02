@@ -875,7 +875,7 @@ class Competitions_Controller {
 	 */
 	private function render_category_field( int $index, array $category ): string {
 		return $this->render_template(
-			'admin/competitions/category-field.php',
+			'admin/shared/category-field.php',
 			array(
 				'index' => $index,
 				'label' => $category['label'],
@@ -894,7 +894,7 @@ class Competitions_Controller {
 	 */
 	private function render_grade_field( int $index, array $grade ): string {
 		return $this->render_template(
-			'admin/competitions/grade-field.php',
+			'admin/shared/grade-field.php',
 			array(
 				'index' => $index,
 				'label' => $grade['label'],
