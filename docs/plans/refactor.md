@@ -127,3 +127,134 @@ graph LR
 Tier 1 and Tier 2 are each independent, small PRs — land them in any order. Nothing in
 Tier 3 starts before 3.1. Then 3.3→3.4 proceed one controller at a time so each PR is
 reviewable and revertable, rather than a single 5,000-line rewrite.
+
+## Template partials
+
+The 3.4 pattern, established on `Voting_Controller` (#10) and to be copied mechanically
+onto the other four controllers (Submissions, Results, Members, Competitions/Settings).
+Golden-master the controller's `render()` **before** touching it — see `class-voting-
+controller-render-test.php` for the shape (normalize per-run nonces and non-rollback
+auto-increment IDs, everything else byte-exact).
+
+### The seam
+
+`Form_Rendering` (`src/admin/Traits/trait-form-rendering.php`, `@since 0.3.0`) provides:
+
+```php
+protected function template_path( string $relative ): string;
+protected function render_template( string $relative, array $data = array() ): string;
+```
+
+`render_template()` is `ob_start()` + `include` + `ob_get_clean()`; it returns a string,
+it does not echo. Every controller already uses `Form_Rendering` for its POST/redirect
+helpers, so this seam is free to reach for.
+
+### Location and naming
+
+`src/templates/<area>/<controller>/<partial>.php`, kebab-case filenames — e.g.
+`src/templates/admin/voting/competition-status-bar.php`. One partial per logical chunk
+of markup (a card, a notice, a tab strip), not one partial per controller.
+
+### Contract
+
+- Partials receive exactly one variable in scope: `$data` (array). Read `$data['key']`
+  explicitly — never `extract()`. This keeps the partial's inputs greppable from the
+  call site.
+- **All escaping lives in the partial.** The controller method passes raw/prepared data;
+  `esc_html()`, `esc_attr()`, `esc_url()`, `esc_html_e()` etc. happen only inside the
+  template file, at the point of output.
+- Every partial starts with a file docblock and:
+  ```php
+  <?php
+  /**
+   * <One-line description> partial for the admin <area> page.
+   *
+   * @package PhotoCompetitionManager
+   */
+
+  defined( 'ABSPATH' ) || exit;
+  ?>
+  ```
+
+### Method conversion
+
+- Keep data-prep (queries, branching, computing view values) in the controller method —
+  only the markup moves to the partial.
+- Change the method's return type `: void` → `: string`.
+- Replace the trailing `echo`/inline markup with `return $this->render_template( '<path>', $data );`.
+- At the call site, change from a bare method call to `echo $this->render_<name>(...)`
+  (or `echo $this->render_template(...)` directly, for the notice partials that don't
+  need a wrapping method). Add
+  `// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.`
+  immediately above each such `echo` — phpcs cannot see that the string was escaped
+  inside the included partial, so it flags the `echo` itself.
+
+### Byte-identity discipline (hard-won)
+
+These are the failure modes that actually bit during the Voting_Controller extraction —
+read them before starting the next controller:
+
+- Move markup **verbatim**. Don't "clean up" indentation, quote style, or whitespace
+  while extracting; do that as a separate, reviewable pass afterward if at all.
+- Preserve trailing whitespace exactly. A source line like `\t\t<?php` (tabs before the
+  opening tag, nothing after it on the line) emits those leading tabs as literal output
+  before PHP mode starts — that's real bytes in the response, not incidental
+  formatting. Dropping or adding tabs there changes the snapshot.
+- PHP's closing `?>` swallows exactly one immediately-following newline. A partial that
+  ends `?>\n` vs one that ends without the trailing newline-after-tag renders
+  differently by one byte. `competition-complete.php` initially lost the controller's
+  trailing `\t\t<?php` (no closing `?>`, so PHP mode stays open to end-of-file) during
+  extraction and had to be restored (commit `73db21b`) once the golden-master test
+  caught the diff.
+- Partials that are pure `echo`-based (no inline HTML mixed with `<?php ... ?>` toggling)
+  sidestep this whole class of bug — there's no template-mode/PHP-mode boundary to get
+  wrong. Prefer that shape when the markup is simple enough.
+- For branches the fixture doesn't exercise (e.g. Voting_Controller's
+  all-categories-complete, members-without-grades, and missing-pages notices weren't all
+  covered by seeded test data), verify byte-identity **by inspection**, and include the
+  block's boundary bytes in that inspection — a line-range diff that stops one line short
+  of the boundary will miss exactly the trailing-whitespace drift described above.
+- **ID normalization is controller-specific:** the golden-master's `render_normalized()`
+  scopes ID replacement to voting's `competition=`/`focus=`/`data-competition-id=`
+  contexts. Each rollout controller has different ID-bearing markup and MUST rewrite
+  those contexts — do NOT do a document-wide bare-digit replace (it false-fails on small
+  IDs colliding with step numbers/counts).
+- **Snapshot self-write is a footgun:** `assert_matches_snapshot()` writes-then-skips when
+  a fixture is absent (a skip is not a CI failure), so deleting fixtures to "regenerate"
+  silently captures current output as truth. For rollout, consider gating self-write
+  behind an explicit env var and failing (not skipping) on a missing fixture.
+
+### phpcs: template partials and PrefixAllGlobals
+
+`WordPress.NamingConventions.PrefixAllGlobals` does not know a partial is `include`d
+into a method's scope — it sees top-level variable assignments in a file with no
+enclosing function/class and flags them as globals needing a `photo_comp_`/
+`PhotoCompetitionManager` prefix (e.g. `$cat_data`, `$step_num`, `$uploads_closed`).
+This did **not** fire before extraction, because the same variables lived inside a
+method body.
+
+The project's actual lint gate is bare `./vendor/bin/phpcs` (reads `phpcs.xml`), not
+`--standard=WordPress` — the latter does not apply this project's configured prefixes
+and will not surface this class of error at all. Always lint with bare
+`./vendor/bin/phpcs` when checking rollout work; `--standard=WordPress` gives a false
+"clean" result.
+
+`phpcs.xml` now excludes `*/src/templates/*` from the
+`WordPress.NamingConventions.PrefixAllGlobals` sniff only (all other WordPress checks
+still apply to templates), since partial-local variables there are legitimately
+include-scoped locals, not true globals. This was fixed alongside #10. Because the
+four remaining rollout controllers' partials will also live under `src/templates/`,
+the same exclusion covers them automatically — no further action needed per
+controller.
+
+### Reference implementation
+
+- `src/admin/class-voting-controller.php` — `render()` and its `render_*` helpers
+  (`render_competition_status_bar()`, `render_category_tabs()`, `render_workflow_steps()`,
+  `render_quick_actions()`, `render_competition_complete()`, `render_slideshow_container()`).
+- `src/templates/admin/voting/` — ten partials: the six above plus four standalone
+  notices (`notice-no-open-competitions.php`, `notice-members-without-grades.php`,
+  `notice-missing-pages.php`, `notice-no-images.php`) rendered directly via
+  `render_template()` with no wrapping method.
+- `tests/phpunit/Admin/class-voting-controller-render-test.php` — the golden-master
+  harness shape to copy for each of the other four controllers.

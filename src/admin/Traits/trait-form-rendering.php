@@ -98,4 +98,36 @@ trait Form_Rendering {
 		wp_safe_redirect( $url );
 		exit;
 	}
+
+	/**
+	 * Resolve a template partial path under src/templates/.
+	 *
+	 * @since 0.3.0
+	 * @param string $relative Relative path, e.g. 'admin/voting/category-tabs.php'.
+	 * @return string Absolute filesystem path.
+	 */
+	protected function template_path( string $relative ): string {
+		return PHOTO_COMPETITION_MANAGER_DIR . '/templates/' . ltrim( $relative, '/' );
+	}
+
+	/**
+	 * Render a template partial to a string.
+	 *
+	 * The partial receives a single variable, $data (array), in scope and is
+	 * responsible for its own output escaping.
+	 *
+	 * @since 0.3.0
+	 * @param string $relative Relative partial path under src/templates/.
+	 * @param array  $data     View data available to the partial as $data.
+	 * @return string Rendered HTML.
+	 */
+	protected function render_template( string $relative, array $data = array() ): string {
+		ob_start();
+		try {
+			include $this->template_path( $relative );
+		} finally {
+			$html = ob_get_clean();
+		}
+		return (string) $html;
+	}
 }

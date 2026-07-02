@@ -1,0 +1,137 @@
+<div class="wrap photo-comp-voting-controls"><h1>Voting Controls</h1><div class="notice notice-warning"><p>Missing pages: <strong>Voting, Results</strong>. Voting controls require these pages to be created. <a href="http://example.org/wp-admin/admin.php?page=photo-competition-manager-setup">Run Setup Wizard</a> | <a href="http://example.org/wp-admin/admin.php?page=photo-competition-manager-settings">Configure in Settings</a></p></div>		<div class="postbox photo-comp-status-bar">
+			<div class="inside" style="margin: 0; padding: 10px 14px;">
+				<div class="status-bar-layout">
+					<strong class="status-bar-title">Spring Show</strong>
+					<div class="status-bar-controls">
+						<div class="status-control">
+							<span class="status-control-label">Uploads</span>
+															<span class="photo-comp-badge photo-comp-badge-warning">Open</span>
+								<a href="http://example.org/wp-admin/admin.php?page=photo-competition-manager&#038;action=toggle_uploads&#038;competition=ID&#038;ref_page=voting&#038;_wpnonce=NONCE" class="button button-primary button-small">Close Uploads</a>
+													</div>
+						<div class="status-control">
+							<span class="status-control-label">Results</span>
+															<span class="photo-comp-badge photo-comp-badge-success">Hidden</span>
+													</div>
+					</div>
+				</div>
+			</div>
+		</div>
+				<nav class="nav-tab-wrapper photo-comp-category-tabs">
+							<a href="http://example.org/wp-admin/admin.php?page=photo-competition-manager-voting&#038;focus=ID_colour" class="nav-tab nav-tab-active">
+										Colour					<span class="photo-comp-tab-count">(1)</span>
+									</a>
+							<a href="http://example.org/wp-admin/admin.php?page=photo-competition-manager-voting&#038;focus=ID_mono" class="nav-tab ">
+										Mono					<span class="photo-comp-tab-count">(1)</span>
+									</a>
+					</nav>
+				<div id="focus-panel" class="postbox photo-comp-workflow-card"
+			data-competition-id="ID"
+			data-competition-slug="spring-show"
+			data-category="colour"
+			data-category-label="Colour">
+
+			<div class="inside photo-comp-workflow-disabled">
+				
+				
+									<div class="notice notice-warning inline photo-comp-prereq-notice">
+						<p>
+						Close uploads before starting the voting workflow.						</p>
+					</div>
+				
+				<div class="photo-comp-steps">
+											<div class="photo-comp-step   step-upcoming">
+							<div class="step-indicator">
+																	<span class="step-circle step-circle-upcoming">1</span>
+															</div>
+							<div class="step-content">
+								<div class="step-label">
+																			Preview Slideshow									
+																										</div>
+
+																	<span class="step-upcoming-desc">Show images to the room before opening voting</span>
+															</div>
+						</div>
+											<div class="photo-comp-step   step-upcoming">
+							<div class="step-indicator">
+																	<span class="step-circle step-circle-upcoming">2</span>
+															</div>
+							<div class="step-content">
+								<div class="step-label">
+																			Open Voting									
+																										</div>
+
+																	<span class="step-upcoming-desc">Members vote on their devices</span>
+															</div>
+						</div>
+											<div class="photo-comp-step   step-upcoming">
+							<div class="step-indicator">
+																	<span class="step-circle step-circle-upcoming">3</span>
+															</div>
+							<div class="step-content">
+								<div class="step-label">
+																			Show Slideshow									
+																										</div>
+
+																	<span class="step-upcoming-desc">Display images on projector while members vote on their phones</span>
+															</div>
+						</div>
+											<div class="photo-comp-step   step-upcoming">
+							<div class="step-indicator">
+																	<span class="step-circle step-circle-upcoming">4</span>
+															</div>
+							<div class="step-content">
+								<div class="step-label">
+																			Close Voting									
+																										</div>
+
+																	<span class="step-upcoming-desc">Lock in votes for this category</span>
+															</div>
+						</div>
+											<div class="photo-comp-step   step-upcoming">
+							<div class="step-indicator">
+																	<span class="step-circle step-circle-upcoming">5</span>
+															</div>
+							<div class="step-content">
+								<div class="step-label">
+																			Critique									
+																										</div>
+
+																	<span class="step-upcoming-desc">Manual slideshow for discussion</span>
+															</div>
+						</div>
+									</div>
+			</div>
+		</div>
+				<div class="quick-actions-bar" id="quick-actions">
+			<button type="button" class="quick-actions-toggle" aria-expanded="false" aria-controls="quick-actions-content">
+				<span class="dashicons dashicons-arrow-right-alt2"></span>
+				Quick Actions			</button>
+			<div class="quick-actions-content" id="quick-actions-content" style="display: none;">
+				<div class="quick-actions-buttons">
+																			</div>
+
+							</div>
+		</div>
+		<input type="hidden" id="slideshow-meter-type" value="bar" />		<div id="photo-comp-slideshow-modal" class="slideshow-display" style="display: none;">
+			<div class="slideshow-image-container">
+				<img src="" alt="" class="slideshow-current-image" />
+				<div class="slideshow-image-info">
+					<span class="image-number"></span>
+				</div>
+			</div>
+			<div class="slideshow-progress">
+				<div class="progress-bar" style="width: 0%;"></div>
+			</div>
+			<button type="button" class="slideshow-exit" aria-label="Exit slideshow">
+				<span class="dashicons dashicons-no-alt"></span>
+			</button>
+			<div class="slideshow-controls-overlay">
+				<button type="button" class="button button-large slideshow-pause">
+		Pause				</button>
+				<button type="button" class="button button-large slideshow-resume" style="display: none;">
+		Resume				</button>
+				<button type="button" class="button button-large button-primary slideshow-stop">
+		Stop Slideshow				</button>
+			</div>
+		</div>
+		</div>

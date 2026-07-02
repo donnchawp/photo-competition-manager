@@ -26,6 +26,8 @@
 				<element value="photo_competition_manager"/>
 			</property>
 		</properties>
+		<!-- Template partials hold include-scoped locals, not true globals. -->
+		<exclude-pattern>*/src/templates/*</exclude-pattern>
 	</rule>
 
 	<!-- Show progress and colors -->
