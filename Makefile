@@ -50,11 +50,15 @@ test: ## Execute the PHPUnit test suite
 	@set -e; \
 	DB_HOST="$$WP_ENV_TEST_DB_HOST"; \
 	if [ -z "$$DB_HOST" ]; then \
-		PORT_OUTPUT="$$( $(WP_ENV) start )"; \
-		printf '%s\n' "$$PORT_OUTPUT"; \
-		TEST_PORT="$$( printf '%s\n' "$$PORT_OUTPUT" | awk '/MySQL for automated testing is listening on port/ {print $$NF}' )"; \
+		$(WP_ENV) start >/dev/null; \
+		TEST_CONTAINER="$$( docker ps --format '{{.Names}}' | grep -E '$(PLUGIN_NAME)-tests-mysql' | head -1 )"; \
+		if [ -z "$$TEST_CONTAINER" ]; then \
+			echo "Unable to find the wp-env tests MySQL container. Run 'make up' first, or export WP_ENV_TEST_DB_HOST=\"127.0.0.1:<port>\"." >&2; \
+			exit 1; \
+		fi; \
+		TEST_PORT="$$( docker port "$$TEST_CONTAINER" 3306/tcp | head -1 | sed 's/.*://' )"; \
 		if [ -z "$$TEST_PORT" ]; then \
-			echo "Unable to determine MySQL automated test port. Run 'make up' and export WP_ENV_TEST_DB_HOST=\"127.0.0.1:<port>\"." >&2; \
+			echo "Found $$TEST_CONTAINER but could not read its published 3306 port from Docker." >&2; \
 			exit 1; \
 		fi; \
 		DB_HOST="127.0.0.1:$$TEST_PORT"; \
