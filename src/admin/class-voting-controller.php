@@ -413,36 +413,17 @@ class Voting_Controller {
 		);
 
 		if ( empty( $open_competitions ) ) {
-			echo '<div class="notice notice-warning inline">';
-			echo '<p>' . esc_html__( 'No open competitions found. Create a competition with open and close dates to enable voting controls.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/voting/notice-no-open-competitions.php' );
 			return;
 		}
 
 		// Check for members with submissions but no grades.
 		$members_without_grades = $this->check_members_without_grades( $open_competitions );
 		if ( ! empty( $members_without_grades ) ) {
-			echo '<div class="notice notice-error">';
-			echo '<p><strong>' . esc_html__( 'ERROR: Some members have submitted images but do not have grades assigned!', 'photo-competition-manager' ) . '</strong></p>';
-			echo '<p>' . esc_html__( 'The following members need grades assigned before voting can proceed. Results will not display correctly without grades.', 'photo-competition-manager' ) . '</p>';
-			echo '<ul style="list-style: disc; margin-left: 20px;">';
-			foreach ( $members_without_grades as $member_info ) {
-				echo '<li>';
-				echo esc_html( $member_info['name'] ) . ' (' . esc_html( $member_info['email'] ) . ')';
-				$image_count = isset( $member_info['image_count'] ) ? (int) $member_info['image_count'] : 0;
-				$image_text  = sprintf(
-					/* translators: %s: number of images */
-					_n( '%s image', '%s images', $image_count, 'photo-competition-manager' ),
-					number_format_i18n( $image_count )
-				);
-				echo ' - ' . esc_html( $image_text );
-				echo '</li>';
-			}
-			echo '</ul>';
-			echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-members' ) ) . '" class="button button-primary">' . esc_html__( 'Go to Members Page to Assign Grades', 'photo-competition-manager' ) . '</a></p>';
-			echo '</div>';
-			echo '</div>'; // Close wrap div.
+			$notice_data = array( 'members_without_grades' => $members_without_grades );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/voting/notice-members-without-grades.php', $notice_data );
 			return; // Stop rendering the rest of the page.
 		}
 
@@ -462,17 +443,8 @@ class Voting_Controller {
 			if ( empty( $results_page ) ) {
 				$missing[] = __( 'Results', 'photo-competition-manager' );
 			}
-			echo '<div class="notice notice-warning">';
-			echo '<p>';
-			printf(
-				/* translators: %s: comma-separated list of missing page types */
-				esc_html__( 'Missing pages: %s. Voting controls require these pages to be created.', 'photo-competition-manager' ),
-				'<strong>' . esc_html( implode( ', ', $missing ) ) . '</strong>'
-			);
-			echo ' <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-setup' ) ) . '">' . esc_html__( 'Run Setup Wizard', 'photo-competition-manager' ) . '</a>';
-			echo ' | <a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager-settings' ) ) . '">' . esc_html__( 'Configure in Settings', 'photo-competition-manager' ) . '</a>';
-			echo '</p>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
 		// Check if any category has voting open globally.
@@ -516,10 +488,8 @@ class Voting_Controller {
 		}
 
 		if ( empty( $all_categories ) ) {
-			echo '<div class="notice notice-warning inline">';
-			echo '<p>' . esc_html__( 'No images found in any category. Upload images before managing voting.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/voting/notice-no-images.php' );
 			return;
 		}
 
