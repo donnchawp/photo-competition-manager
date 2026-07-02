@@ -59,9 +59,20 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// Normalize per-run nonces: _wpnonce=<10 hex> and nonce field values.
 		$html = preg_replace( '/(_wpnonce=)[a-f0-9]{10}/', '$1NONCE', $html );
 		$html = preg_replace( '/(name="_wpnonce" value=")[a-f0-9]{10}/', '$1NONCE', $html );
-		// Normalize non-deterministic auto-increment IDs embedded in URLs/attributes.
+		// Normalize non-deterministic auto-increment IDs, scoped to the specific
+		// contexts where a competition ID legitimately appears in the markup:
+		// URL query args and data attributes. A document-wide digit replacement
+		// is too broad -- on a fresh DB the ID is a small integer (1-5) that
+		// collides with unrelated numbers (step-circle labels, tab counts),
+		// causing false snapshot failures.
 		foreach ( $dynamic_ids as $id ) {
-			$html = preg_replace( '/(?<!\d)' . preg_quote( (string) $id, '/' ) . '(?!\d)/', 'ID', $html );
+			$id_pattern = preg_quote( (string) $id, '/' );
+			// competition=<id> query arg, e.g. "...&competition=2884&...".
+			$html = preg_replace( '/competition=' . $id_pattern . '(?!\d)/', 'competition=ID', $html );
+			// focus=<id>_<slug> query arg, e.g. "...&focus=2884_colour".
+			$html = preg_replace( '/focus=' . $id_pattern . '_/', 'focus=ID_', $html );
+			// data-competition-id="<id>" attribute.
+			$html = preg_replace( '/data-competition-id="' . $id_pattern . '"/', 'data-competition-id="ID"', $html );
 		}
 		return $html;
 	}
@@ -78,8 +89,17 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_normalized( $dynamic_ids );
 
 		if ( ! file_exists( $file ) ) {
-			wp_mkdir_p( $dir );
-			file_put_contents( $file, $html );
+			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
+				// wp_mkdir_p() has been observed to fail silently in this test
+				// environment; fall back to a plain mkdir() before giving up.
+				mkdir( $dir, 0777, true );
+			}
+			if ( ! is_dir( $dir ) ) {
+				self::fail( "Could not create snapshot directory {$dir}." );
+			}
+			if ( false === file_put_contents( $file, $html ) ) {
+				self::fail( "Could not write snapshot file {$file}." );
+			}
 			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
 			return;
 		}
