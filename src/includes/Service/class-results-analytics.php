@@ -18,7 +18,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
 /**
  * Provides analytical methods for competition results.
  *
- * @since 1.0.0
+ * @since 0.1.0
  */
 class Results_Analytics {
 

@@ -18,7 +18,7 @@ use WP_Error;
 /**
  * Upload Link Service.
  *
- * @since 1.2.0
+ * @since 0.3.0
  */
 class Upload_Link_Service {
 
@@ -75,7 +75,7 @@ class Upload_Link_Service {
 	 *
 	 * Treats recent token as success (rate-limited) to avoid spamming members.
 	 *
-	 * @since 1.2.0
+	 * @since 0.3.0
 	 * @param int    $competition_id  Competition ID.
 	 * @param int    $member_id       Member ID.
 	 * @param string $upload_page_url Base URL of the upload page.
@@ -136,7 +136,7 @@ class Upload_Link_Service {
 	/**
 	 * Email an upload link by member email without leaking existence (no enumeration).
 	 *
-	 * @since 1.2.0
+	 * @since 0.3.0
 	 * @param int    $competition_id  Competition ID.
 	 * @param string $member_email    Member email (unsanitized).
 	 * @param string $upload_page_url Base URL for the upload page.
@@ -168,7 +168,7 @@ class Upload_Link_Service {
 	/**
 	 * Send submission reminder emails to all members for a competition.
 	 *
-	 * @since 1.2.0
+	 * @since 0.3.0
 	 * @param int $competition_id Competition ID.
 	 * @return array{success: bool, sent_count: int, skipped_count: int, failed_count: int, total_count: int, errors: array, message: string}|WP_Error
 	 */

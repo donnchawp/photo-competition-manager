@@ -24,7 +24,7 @@ use function PhotoCompetitionManager\Support\utc_time;
  *
  * Responsible for rendering forms, validating input, and recording votes.
  *
- * @since 1.0.0
+ * @since 0.1.0
  */
 class Voting_Shortcode {
 
