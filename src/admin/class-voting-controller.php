@@ -628,7 +628,8 @@ class Voting_Controller {
 		echo '<input type="hidden" id="slideshow-meter-type" value="' . esc_attr( $meter_type ) . '" />';
 
 		// Slideshow container (hidden by default).
-		$this->render_slideshow_container();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_slideshow_container();
 
 		echo '</div>';
 	}
@@ -636,36 +637,10 @@ class Voting_Controller {
 	/**
 	 * Render slideshow container for admin voting controls page.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	private function render_slideshow_container(): void {
-		?>
-		<div id="photo-comp-slideshow-modal" class="slideshow-display" style="display: none;">
-			<div class="slideshow-image-container">
-				<img src="" alt="" class="slideshow-current-image" />
-				<div class="slideshow-image-info">
-					<span class="image-number"></span>
-				</div>
-			</div>
-			<div class="slideshow-progress">
-				<div class="progress-bar" style="width: 0%;"></div>
-			</div>
-			<button type="button" class="slideshow-exit" aria-label="<?php esc_attr_e( 'Exit slideshow', 'photo-competition-manager' ); ?>">
-				<span class="dashicons dashicons-no-alt"></span>
-			</button>
-			<div class="slideshow-controls-overlay">
-				<button type="button" class="button button-large slideshow-pause">
-		<?php esc_html_e( 'Pause', 'photo-competition-manager' ); ?>
-				</button>
-				<button type="button" class="button button-large slideshow-resume" style="display: none;">
-		<?php esc_html_e( 'Resume', 'photo-competition-manager' ); ?>
-				</button>
-				<button type="button" class="button button-large button-primary slideshow-stop">
-		<?php esc_html_e( 'Stop Slideshow', 'photo-competition-manager' ); ?>
-				</button>
-			</div>
-		</div>
-		<?php
+	private function render_slideshow_container(): string {
+		return $this->render_template( 'admin/voting/slideshow-container.php', array() );
 	}
 
 
