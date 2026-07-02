@@ -682,7 +682,7 @@ class Competitions_Controller {
 		$competition_query = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
 		if ( 'edit' === $action_query && $competition_query ) {
-			$this->render_edit_screen( $competition_query );
+			echo $this->render_edit_screen( $competition_query ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			return;
 		}
 
@@ -704,9 +704,9 @@ class Competitions_Controller {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Photo Competition Manager Dashboard', 'photo-competition-manager' ) . '</h1>';
 
-		$this->render_competition_table( $competitions, $view );
+		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
-		$this->render_create_form();
+		echo $this->render_create_form(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		echo '</div>';
 	}
@@ -715,9 +715,9 @@ class Competitions_Controller {
 	 * Render the edit competition screen.
 	 *
 	 * @param  int $competition_id Competition ID.
-	 * @return void
+	 * @return string
 	 */
-	private function render_edit_screen( int $competition_id ): void {
+	private function render_edit_screen( int $competition_id ): string {
 		// Restore settings_errors from transient after redirect.
 		$transient_errors = get_transient( 'photo_competition_manager_settings_errors' );
 		if ( false !== $transient_errors ) {
@@ -731,38 +731,34 @@ class Competitions_Controller {
 
 		$competition = $this->competitions->find( $competition_id );
 
-		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Edit Competition', 'photo-competition-manager' ) . '</h1>';
-
 		if ( ! $competition ) {
-			echo '<p>' . esc_html__( 'Competition not found. Return to the list and try again.', 'photo-competition-manager' ) . '</p>';
-			printf(
-				'<a class="button" href="%s">%s</a>',
-				esc_url( $this->dashboard_url() ),
-				esc_html__( 'Back to competitions', 'photo-competition-manager' )
+			return $this->render_template(
+				'admin/competitions/edit-screen.php',
+				array(
+					'found'         => false,
+					'dashboard_url' => $this->dashboard_url(),
+				)
 			);
-			echo '</div>';
-			return;
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Query var used to switch tabs only.
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
 
-		$this->render_competition_tabs( $competition_id, $current_tab );
+		$tabs_html = $this->render_competition_tabs( $competition_id, $current_tab );
 
-		if ( 'settings' === $current_tab ) {
-			$this->render_competition_settings_form( $competition );
-		} else {
-			$this->render_competition_general_form( $competition );
-		}
+		$form_html = 'settings' === $current_tab
+			? $this->render_competition_settings_form( $competition )
+			: $this->render_competition_general_form( $competition );
 
-		printf(
-			'<p><a href="%s">%s</a></p>',
-			esc_url( $this->dashboard_url() ),
-			esc_html__( 'Back to competitions', 'photo-competition-manager' )
+		return $this->render_template(
+			'admin/competitions/edit-screen.php',
+			array(
+				'found'         => true,
+				'tabs_html'     => $tabs_html,
+				'form_html'     => $form_html,
+				'dashboard_url' => $this->dashboard_url(),
+			)
 		);
-
-		echo '</div>';
 	}
 
 	/**
@@ -770,85 +766,51 @@ class Competitions_Controller {
 	 *
 	 * @param  int    $competition_id Competition ID.
 	 * @param  string $current_tab    Current active tab.
-	 * @return void
+	 * @return string
 	 */
-	private function render_competition_tabs( int $competition_id, string $current_tab ): void {
+	private function render_competition_tabs( int $competition_id, string $current_tab ): string {
 		$tabs = array(
 			'general'  => __( 'General', 'photo-competition-manager' ),
 			'settings' => __( 'Settings', 'photo-competition-manager' ),
 		);
 
-		echo '<h2 class="nav-tab-wrapper">';
-
-		foreach ( $tabs as $slug => $label ) {
-			$url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager',
-					'action'      => 'edit',
-					'competition' => $competition_id,
-					'tab'         => $slug,
-				),
-				admin_url( 'admin.php' )
-			);
-
-			$active_class = $slug === $current_tab ? 'nav-tab-active' : '';
-
-			printf(
-				'<a href="%s" class="nav-tab %s">%s</a>',
-				esc_url( $url ),
-				esc_attr( $active_class ),
-				esc_html( $label )
-			);
-		}
-
-		echo '</h2>';
+		return $this->render_template(
+			'admin/competitions/competition-tabs.php',
+			array(
+				'competition_id' => $competition_id,
+				'current_tab'    => $current_tab,
+				'tabs'           => $tabs,
+			)
+		);
 	}
 
 	/**
 	 * Render general competition form.
 	 *
 	 * @param  object $competition Competition data.
-	 * @return void
+	 * @return string
 	 */
-	private function render_competition_general_form( object $competition ): void {
-		echo '<form method="post" class="card" style="max-width: 720px; padding: 16px;">';
-		wp_nonce_field( 'photo_competition_update_' . (int) $competition->id, 'photo_competition_nonce' );
-		echo '<input type="hidden" name="photo_competition_action" value="update_competition" />';
-		echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition->id ) . '" />';
-
-		echo '<p>';
-		echo '<label for="competition_title">' . esc_html__( 'Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="competition_title" name="competition_title" class="regular-text" required value="' . esc_attr( $competition->title ) . '" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_slug">' . esc_html__( 'Slug', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" value="' . esc_attr( $competition->slug ) . '" />';
-		echo '</p>';
-
-		$label_format = $this->get_ui_date_label();
-		echo '<p>';
-		echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'photo-competition-manager' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_open_date" name="competition_open_date" value="' . esc_attr( $this->format_date_for_input( $competition->open_date ) ) . '" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_close_date">' . esc_html__( 'Close Date', 'photo-competition-manager' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_close_date" name="competition_close_date" value="' . esc_attr( $this->format_date_for_input( $competition->close_date ) ) . '" />';
-		echo '</p>';
-
-		submit_button( __( 'Update Competition', 'photo-competition-manager' ) );
-
-		echo '</form>';
+	private function render_competition_general_form( object $competition ): string {
+		return $this->render_template(
+			'admin/competitions/general-form.php',
+			array(
+				'competition_id'   => (int) $competition->id,
+				'title'            => $competition->title,
+				'slug'             => $competition->slug,
+				'label_format'     => $this->get_ui_date_label(),
+				'open_date_value'  => $this->format_date_for_input( $competition->open_date ),
+				'close_date_value' => $this->format_date_for_input( $competition->close_date ),
+			)
+		);
 	}
 
 	/**
 	 * Render competition settings form.
 	 *
 	 * @param  object $competition Competition data.
-	 * @return void
+	 * @return string
 	 */
-	private function render_competition_settings_form( object $competition ): void {
+	private function render_competition_settings_form( object $competition ): string {
 		$settings            = Competition_Settings::parse( $competition->settings );
 		$categories          = Competition_Settings::get_categories( $settings );
 		$grades              = Competition_Settings::get_grades( $settings );
@@ -861,174 +823,47 @@ class Competitions_Controller {
 			$voting_ui_type = Competition_Settings::get_voting_ui_type( $settings );
 		}
 
-		echo '<form method="post" class="card" style="max-width: 720px; padding: 16px;">';
-		wp_nonce_field( 'photo_competition_update_settings_' . (int) $competition->id, 'photo_competition_nonce' );
-		echo '<input type="hidden" name="photo_competition_action" value="update_competition_settings" />';
-		echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition->id ) . '" />';
-
-		echo '<h3>' . esc_html__( 'Categories', 'photo-competition-manager' ) . '</h3>';
-		echo '<p class="description">' . esc_html__( 'Define competition categories and upload quotas. Members can upload up to the specified number of images per category.', 'photo-competition-manager' ) . '</p>';
-
-		echo '<div id="categories-container">';
+		$category_rows_html = '';
 		foreach ( $categories as $index => $category ) {
-			$this->render_category_field( $index, $category );
+			$category_rows_html .= $this->render_category_field( $index, $category );
 		}
-		echo '</div>';
 
-		echo '<p>';
-		echo '<button type="button" id="add-category" class="button">' . esc_html__( 'Add Category', 'photo-competition-manager' ) . '</button>';
-		echo '</p>';
-
-		echo '<h3>' . esc_html__( 'Grades', 'photo-competition-manager' ) . '</h3>';
-		echo '<p class="description">' . esc_html__( 'Define member grade levels for results grouping.', 'photo-competition-manager' ) . '</p>';
-
-		echo '<div id="grades-container">';
+		$grade_rows_html = '';
 		foreach ( $grades as $index => $grade ) {
-			$this->render_grade_field( $index, $grade );
+			$grade_rows_html .= $this->render_grade_field( $index, $grade );
 		}
-		echo '</div>';
-
-		echo '<p>';
-		echo '<button type="button" id="add-grade" class="button">' . esc_html__( 'Add Grade', 'photo-competition-manager' ) . '</button>';
-		echo '</p>';
-
-		echo '<h3>' . esc_html__( 'Upload Constraints', 'photo-competition-manager' ) . '</h3>';
-
-		echo '<p>';
-		echo '<label for="max_file_size_mb">' . esc_html__( 'Max File Size (MB)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="number" id="max_file_size_mb" name="max_file_size_mb" min="1" max="50" value="' . esc_attr( $upload['max_file_size_mb'] ) . '" class="small-text" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="max_width">' . esc_html__( 'Max Width (pixels)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="number" id="max_width" name="max_width" min="800" max="5000" step="10" value="' . esc_attr( $upload['max_width'] ) . '" class="small-text" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="max_height">' . esc_html__( 'Max Height (pixels)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="number" id="max_height" name="max_height" min="800" max="5000" step="10" value="' . esc_attr( $upload['max_height'] ) . '" class="small-text" />';
-		echo '</p>';
-
-		echo '<h3>' . esc_html__( 'Voting Configuration', 'photo-competition-manager' ) . '</h3>';
 
 		$auth_mode = $voting['auth_mode'] ?? 'password';
-
-		echo '<p>';
-		echo '<label for="voting_auth_mode">' . esc_html__( 'Voting Authentication Mode', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="voting_auth_mode" name="voting_auth_mode">';
-		echo '<option value="password"' . selected( $auth_mode, 'password', false ) . '>' . esc_html__( 'Password-based (traditional)', 'photo-competition-manager' ) . '</option>';
-		echo '<option value="token"' . selected( $auth_mode, 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'photo-competition-manager' ) . '</option>';
-		echo '</select><br />';
-		echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
 
 		$is_plaintext_password = ! empty( $voting['password'] ) && ! preg_match( '/^\$P\$|\$wp\$/', $voting['password'] );
 		$is_legacy_hash        = ! empty( $voting['password'] ) && ! $is_plaintext_password;
 		$password_value        = $is_plaintext_password ? $voting['password'] : '';
 
-		echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $password_value ) . '" class="regular-text" />';
-
-		if ( $is_legacy_hash ) {
-			echo '<br /><label>';
-			echo '<input type="checkbox" id="voting_password_clear" name="voting_password_clear" value="1" />';
-			echo ' ' . esc_html__( 'Remove password protection', 'photo-competition-manager' );
-			echo '</label>';
-			echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password. Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
-		} else {
-			echo '<br /><span class="description">' . esc_html__( 'Leave blank for no password. Passwords are case insensitive.', 'photo-competition-manager' ) . '</span>';
-		}
-		echo '</p>';
-
-		echo '<p>';
 		$click_to_zoom = isset( $voting['click_image_to_zoom'] ) ? (bool) $voting['click_image_to_zoom'] : false;
-		echo '<label for="click_image_to_zoom">';
-		echo '<input type="checkbox" id="click_image_to_zoom" name="click_image_to_zoom" value="1"' . checked( $click_to_zoom, true, false ) . ' />';
-		echo ' ' . esc_html__( 'Click image to zoom on voting form', 'photo-competition-manager' );
-		echo '</label><br />';
-		echo '<span class="description">' . esc_html__( 'When enabled, images in the voting form can be clicked to open full-size in a new tab. When disabled, images are not clickable to prevent accidental navigation. Recommended: off for touch devices.', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="voting_ui_type">' . esc_html__( 'Voting UI Type', 'photo-competition-manager' ) . '</label><br />';
-		echo '<select id="voting_ui_type" name="voting_ui_type">';
-		echo '<option value="buttons"' . selected( $voting_ui_type, 'buttons', false ) . '>' . esc_html__( 'Horizontal Score Buttons', 'photo-competition-manager' ) . '</option>';
-		echo '<option value="dropdown"' . selected( $voting_ui_type, 'dropdown', false ) . '>' . esc_html__( 'Dropdown', 'photo-competition-manager' ) . '</option>';
-		echo '</select><br />';
-		echo '<span class="description">' . esc_html__( 'Pick the layout voters use in this competition. Leave set to buttons for the quickest scoring experience.', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="score_matrix">' . esc_html__( 'Score Matrix (comma-separated)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="score_matrix" name="score_matrix" value="' . esc_attr( implode( ', ', $voting['score_matrix'] ) ) . '" class="regular-text" />';
-		echo '<span class="description">' . esc_html__( 'E.g., 9, 8, 7, 6, 5', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		echo '<h3>' . esc_html__( 'Slideshow', 'photo-competition-manager' ) . '</h3>';
-
-		echo '<p>';
-		echo '<label>' . esc_html__( 'Progress Meter Style', 'photo-competition-manager' ) . '</label>';
-		echo '</p>';
-
-		$meter_types = array(
-			'bar'    => __( 'Bar', 'photo-competition-manager' ),
-			'line'   => __( 'Thin Line', 'photo-competition-manager' ),
-			'dots'   => __( 'Dots', 'photo-competition-manager' ),
-			'radial' => __( 'Radial', 'photo-competition-manager' ),
-		);
-
-		echo '<div class="progress-meter-selector" style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">';
-
-		foreach ( $meter_types as $type => $label ) {
-			$is_active = ( $type === $progress_meter_type ) ? ' active' : '';
-			echo '<label class="progress-meter-card' . esc_attr( $is_active ) . '" style="cursor: pointer; border: 2px solid ' . ( $is_active ? '#0073aa' : '#ddd' ) . '; border-radius: 8px; padding: 12px; text-align: center; background: #1a1a1a; min-width: 140px; transition: border-color 0.2s;">';
-			echo '<input type="radio" name="progress_meter_type" value="' . esc_attr( $type ) . '"' . checked( $progress_meter_type, $type, false ) . ' style="display: none;" />';
-			echo '<div class="meter-preview" data-meter-type="' . esc_attr( $type ) . '" style="height: 50px; position: relative; margin-bottom: 8px; overflow: hidden; border-radius: 4px;"></div>';
-			echo '<span style="color: #666; font-size: 13px; font-weight: 600;">' . esc_html( $label ) . '</span>';
-			echo '</label>';
-		}
-
-		echo '</div>';
-		echo '<span class="description">' . esc_html__( 'Choose the progress indicator style shown during the slideshow.', 'photo-competition-manager' ) . '</span>';
-
-		echo '<h3>' . esc_html__( 'URLs', 'photo-competition-manager' ) . '</h3>';
 
 		$urls = $settings['urls'] ?? array(
 			'upload_page' => '',
 			'voting_page' => '',
 		);
 
-		echo '<p>';
-		echo '<label for="upload_page_url">' . esc_html__( 'Upload Page URL', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="url" id="upload_page_url" name="upload_page_url" value="' . esc_attr( $urls['upload_page'] ) . '" class="regular-text" placeholder="https://example.com/upload" />';
-		echo '<br /><span class="description">' . esc_html__( 'The page where members can upload their images. This URL will be included in email notifications with the member\'s upload token.', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="voting_page_url">' . esc_html__( 'Voting Page URL', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="url" id="voting_page_url" name="voting_page_url" value="' . esc_attr( $urls['voting_page'] ) . '" class="regular-text" placeholder="https://example.com/vote" />';
-		echo '<br /><span class="description">' . esc_html__( 'The page where members can vote on images. This URL will be included in voting notification emails.', 'photo-competition-manager' ) . '</span>';
-		echo '</p>';
-
-		$share_hash = $competition->share_hash ?? '';
-		if ( ! empty( $share_hash ) ) {
-			echo '<p>';
-			echo '<label>' . esc_html__( 'Results Share Hash', 'photo-competition-manager' ) . '</label><br />';
-			echo '<code>' . esc_html( $share_hash ) . '</code>';
-
-			$results_page_url = $urls['results_page'] ?? '';
-			if ( ! empty( $results_page_url ) ) {
-				$share_url = add_query_arg( 'share', $share_hash, $results_page_url );
-				echo '<br /><span class="description">' . esc_html__( 'Share link:', 'photo-competition-manager' ) . ' <a href="' . esc_url( $share_url ) . '" target="_blank">' . esc_html( $share_url ) . '</a></span>';
-			}
-			echo '</p>';
-		}
-
-		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );
-
-		echo '</form>';
+		return $this->render_template(
+			'admin/competitions/settings-form.php',
+			array(
+				'competition_id'      => (int) $competition->id,
+				'category_rows_html'  => $category_rows_html,
+				'grade_rows_html'     => $grade_rows_html,
+				'upload'              => $upload,
+				'auth_mode'           => $auth_mode,
+				'password_value'      => $password_value,
+				'is_legacy_hash'      => $is_legacy_hash,
+				'click_to_zoom'       => $click_to_zoom,
+				'voting_ui_type'      => $voting_ui_type,
+				'score_matrix_text'   => implode( ', ', $voting['score_matrix'] ),
+				'progress_meter_type' => $progress_meter_type,
+				'urls'                => $urls,
+				'share_hash'          => $competition->share_hash ?? '',
+			)
+		);
 	}
 
 	/**
@@ -1036,29 +871,18 @@ class Competitions_Controller {
 	 *
 	 * @param  int   $index    Category index.
 	 * @param  array $category Category data.
-	 * @return void
+	 * @return string
 	 */
-	private function render_category_field( int $index, array $category ): void {
-		echo '<div class="category-row" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;">';
-
-		echo '<p style="margin: 5px 0;">';
-		echo '<label>' . esc_html__( 'Label', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" name="categories[' . esc_attr( $index ) . '][label]" value="' . esc_attr( $category['label'] ) . '" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<p style="margin: 5px 0;">';
-		echo '<label>' . esc_html__( 'Slug', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" name="categories[' . esc_attr( $index ) . '][slug]" value="' . esc_attr( $category['slug'] ) . '" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<p style="margin: 5px 0;">';
-		echo '<label>' . esc_html__( 'Upload Quota', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="number" name="categories[' . esc_attr( $index ) . '][quota]" value="' . esc_attr( $category['quota'] ) . '" min="1" max="10" class="small-text" required />';
-		echo '</p>';
-
-		echo '<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_html__( 'Remove', 'photo-competition-manager' ) . '</button>';
-
-		echo '</div>';
+	private function render_category_field( int $index, array $category ): string {
+		return $this->render_template(
+			'admin/competitions/category-field.php',
+			array(
+				'index' => $index,
+				'label' => $category['label'],
+				'slug'  => $category['slug'],
+				'quota' => $category['quota'],
+			)
+		);
 	}
 
 	/**
@@ -1066,19 +890,16 @@ class Competitions_Controller {
 	 *
 	 * @param  int   $index Grade index.
 	 * @param  array $grade Grade data.
-	 * @return void
+	 * @return string
 	 */
-	private function render_grade_field( int $index, array $grade ): void {
-		echo '<div class="grade-row" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;">';
-
-		echo '<p style="margin: 5px 0;">';
-		echo '<label>' . esc_html__( 'Label', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" name="grades[' . esc_attr( $index ) . '][label]" value="' . esc_attr( $grade['label'] ) . '" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<button type="button" class="button remove-grade" style="color: #b32d2e;">' . esc_html__( 'Remove', 'photo-competition-manager' ) . '</button>';
-
-		echo '</div>';
+	private function render_grade_field( int $index, array $grade ): string {
+		return $this->render_template(
+			'admin/competitions/grade-field.php',
+			array(
+				'index' => $index,
+				'label' => $grade['label'],
+			)
+		);
 	}
 
 
@@ -1087,271 +908,191 @@ class Competitions_Controller {
 	 *
 	 * @param  array<int, object> $competitions Competitions.
 	 * @param  string             $view         Current view.
-	 * @return void
+	 * @return string
 	 */
-	private function render_competition_table( array $competitions, string $view ): void {
-		echo '<h2 class="screen-reader-text">' . esc_html__( 'Competition List', 'photo-competition-manager' ) . '</h2>';
-
+	private function render_competition_table( array $competitions, string $view ): string {
 		$total_active   = $this->competitions->count( false );
 		$total_archived = $this->competitions->count( true );
 
-		echo '<ul class="subsubsub">';
-		$views = array(
-			'active'   => array(
-				'label' => __( 'Active', 'photo-competition-manager' ),
-				'count' => $total_active,
-			),
-			'archived' => array(
-				'label' => __( 'Archived', 'photo-competition-manager' ),
-				'count' => max( 0, $total_archived ),
-			),
+		$view_defs = array(
+			'active'   => __( 'Active', 'photo-competition-manager' ),
+			'archived' => __( 'Archived', 'photo-competition-manager' ),
 		);
 
-		$index = 0;
-		foreach ( $views as $slug => $data ) {
-			$url = add_query_arg(
-				array(
-					'page' => 'photo-competition-manager',
-					'view' => $slug,
+		$view_counts = array(
+			'active'   => $total_active,
+			'archived' => max( 0, $total_archived ),
+		);
+
+		$views = array();
+		foreach ( $view_defs as $view_slug => $view_label ) {
+			$views[] = array(
+				'label'      => $view_label,
+				'count'      => $view_counts[ $view_slug ],
+				'url'        => add_query_arg(
+					array(
+						'page' => 'photo-competition-manager',
+						'view' => $view_slug,
+					),
+					admin_url( 'admin.php' )
 				),
-				admin_url( 'admin.php' )
+				'is_current' => $view_slug === $view,
 			);
-
-			echo '<li><a href="' . esc_url( $url ) . '"' . ( $slug === $view ? ' class="current"' : '' ) . '>' . esc_html( $data['label'] ) . ' <span class="count">(' . esc_html( (string) $data['count'] ) . ')</span></a>';
-			if ( ++$index < count( $views ) ) {
-				echo ' | ';
-			}
-			echo '</li>';
-		}
-		echo '</ul>';
-
-		if ( empty( $competitions ) ) {
-			echo '<p>' . esc_html__( 'No competitions found for this view.', 'photo-competition-manager' ) . '</p>';
-			return;
 		}
 
-		echo '<table class="widefat striped">';
-		echo '<thead><tr>';
-		echo '<th>' . esc_html__( 'Title', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Opens', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Closes', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Last Updated', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
-		echo '</tr></thead>';
-		echo '<tbody>';
-
+		$rows = array();
 		foreach ( $competitions as $competition ) {
 			$is_archived = ! empty( $competition->deleted_at );
+			$comp_id     = (int) $competition->id;
 
-			$edit_link = add_query_arg(
+			$edit_url = add_query_arg(
 				array(
 					'page'        => 'photo-competition-manager',
 					'action'      => 'edit',
-					'competition' => (int) $competition->id,
+					'competition' => $comp_id,
 				),
 				admin_url( 'admin.php' )
 			);
 
-			echo '<tr>';
-			echo '<td>' . esc_html( $competition->title ) . '</td>';
-			echo '<td>' . esc_html( $this->format_datetime( $competition->open_date ) ) . '</td>';
-			echo '<td>' . esc_html( $this->format_datetime( $competition->close_date ) ) . '</td>';
-			$last_updated = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
-			echo '<td>' . esc_html( $this->format_datetime( $last_updated ) ) . '</td>';
-
-			$actions = array(
-				sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
-			);
-
-			// Toggle uploads action.
+			$toggle_uploads_url = '';
+			$uploads_closed     = false;
 			if ( ! $is_archived ) {
-				$comp_settings  = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-				$uploads_closed = ! empty( $comp_settings['upload']['uploads_closed'] );
-
+				$comp_settings      = Competition_Settings::parse( $competition->settings );
+				$uploads_closed     = ! empty( $comp_settings['upload']['uploads_closed'] );
 				$toggle_uploads_url = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
 							'action'      => 'toggle_uploads',
-							'competition' => (int) $competition->id,
+							'competition' => $comp_id,
 						),
 						admin_url( 'admin.php' )
 					),
-					'photo_competition_toggle_uploads_' . (int) $competition->id
+					'photo_competition_toggle_uploads_' . $comp_id
 				);
-
-				$toggle_label = $uploads_closed
-					? __( 'Open Uploads', 'photo-competition-manager' )
-					: __( 'Close Uploads', 'photo-competition-manager' );
-
-				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $toggle_uploads_url ), esc_html( $toggle_label ) );
 			}
 
-			if ( $this->competitions->is_open( $competition ) && ! $is_archived ) {
-				$send_email_link = wp_nonce_url(
+			$is_open        = $this->competitions->is_open( $competition );
+			$send_email_url = '';
+			if ( $is_open && ! $is_archived ) {
+				$send_email_url = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
 							'action'      => 'send_emails',
-							'competition' => (int) $competition->id,
+							'competition' => $comp_id,
 						),
 						admin_url( 'admin.php' )
 					),
-					'photo_competition_send_emails_' . (int) $competition->id
+					'photo_competition_send_emails_' . $comp_id
 				);
-
-				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $send_email_link ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
-			} else {
-				$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 			}
 
-			// Generate Results Link action.
 			$generate_link_url = wp_nonce_url(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager',
 						'action'      => 'generate_results_link',
-						'competition' => (int) $competition->id,
+						'competition' => $comp_id,
 					),
 					admin_url( 'admin.php' )
 				),
-				'photo_competition_generate_results_link_' . (int) $competition->id
+				'photo_competition_generate_results_link_' . $comp_id
 			);
 
-			$actions[] = sprintf(
-				'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
-				esc_url( $generate_link_url ),
-				esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
-				esc_html__( 'Generate Results Link', 'photo-competition-manager' )
-			);
-
+			$restore_url = '';
+			$archive_url = '';
 			if ( $is_archived ) {
 				$restore_url = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
 							'action'      => 'restore',
-							'competition' => (int) $competition->id,
+							'competition' => $comp_id,
 						),
 						admin_url( 'admin.php' )
 					),
-					'photo_competition_restore_' . (int) $competition->id
+					'photo_competition_restore_' . $comp_id
 				);
-
-				$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $restore_url ), esc_html__( 'Restore', 'photo-competition-manager' ) );
 			} else {
 				$archive_url = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',
 							'action'      => 'archive',
-							'competition' => (int) $competition->id,
+							'competition' => $comp_id,
 						),
 						admin_url( 'admin.php' )
 					),
-					'photo_competition_archive_' . (int) $competition->id
+					'photo_competition_archive_' . $comp_id
 				);
-
-				$actions[] = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $archive_url ), esc_html__( 'Archive', 'photo-competition-manager' ) );
 			}
 
-			// Reset votes action.
 			$reset_votes_url = wp_nonce_url(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager',
 						'action'      => 'reset_votes',
-						'competition' => (int) $competition->id,
+						'competition' => $comp_id,
 					),
 					admin_url( 'admin.php' )
 				),
-				'photo_competition_reset_votes_' . (int) $competition->id
+				'photo_competition_reset_votes_' . $comp_id
 			);
 
-			$actions[] = sprintf(
-				'<a href="%s" class="photo-comp-reset-votes" data-confirm="%s">%s</a>',
-				esc_url( $reset_votes_url ),
-				esc_attr( __( 'Reset all voting progress? This deletes all votes, tokens, and resets the workflow to step 1. This cannot be undone.', 'photo-competition-manager' ) ),
-				esc_html__( 'Reset Voting', 'photo-competition-manager' )
-			);
-
-			// Delete competition action.
 			$delete_url = wp_nonce_url(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager',
 						'action'      => 'delete',
-						'competition' => (int) $competition->id,
+						'competition' => $comp_id,
 					),
 					admin_url( 'admin.php' )
 				),
-				'photo_competition_delete_' . (int) $competition->id
+				'photo_competition_delete_' . $comp_id
 			);
 
-			$actions[] = sprintf(
-				'<a href="%s" class="submitdelete photo-comp-delete" data-confirm="%s">%s</a>',
-				esc_url( $delete_url ),
-				esc_attr( __( 'Are you sure you want to permanently delete this competition? This will delete all images, votes, and tokens. This cannot be undone.', 'photo-competition-manager' ) ),
-				esc_html__( 'Delete', 'photo-competition-manager' )
-			);
+			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
-			$allowed_html = array(
-				'a'    => array(
-					'href'         => array(),
-					'class'        => array(),
-					'data-confirm' => array(),
-				),
-				'span' => array(
-					'title' => array(),
-					'style' => array(),
-					'class' => array(),
-				),
+			$rows[] = array(
+				'title'              => $competition->title,
+				'opens'              => $this->format_datetime( $competition->open_date ),
+				'closes'             => $this->format_datetime( $competition->close_date ),
+				'last_updated'       => $this->format_datetime( $last_updated_raw ),
+				'edit_url'           => $edit_url,
+				'is_archived'        => $is_archived,
+				'toggle_uploads_url' => $toggle_uploads_url,
+				'uploads_closed'     => $uploads_closed,
+				'is_open'            => $is_open,
+				'send_email_url'     => $send_email_url,
+				'generate_link_url'  => $generate_link_url,
+				'restore_url'        => $restore_url,
+				'archive_url'        => $archive_url,
+				'reset_votes_url'    => $reset_votes_url,
+				'delete_url'         => $delete_url,
 			);
-
-			echo '<td>' . wp_kses( implode( ' | ', $actions ), $allowed_html ) . '</td>';
-			echo '</tr>';
 		}
 
-		echo '</tbody>';
-		echo '</table>';
+		return $this->render_template(
+			'admin/competitions/competitions-table.php',
+			array(
+				'views' => $views,
+				'rows'  => $rows,
+			)
+		);
 	}
 
 	/**
 	 * Render the create competition form.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	private function render_create_form(): void {
-		$label_format = $this->get_ui_date_label();
-
-		echo '<form method="post" class="card" style="max-width: 720px; margin-bottom: 24px; padding: 16px;">';
-		echo '<h2>' . esc_html__( 'Create Competition', 'photo-competition-manager' ) . '</h2>';
-
-		wp_nonce_field( 'photo_competition_create', 'photo_competition_nonce' );
-		echo '<input type="hidden" name="photo_competition_action" value="create_competition" />';
-
-		echo '<p>';
-		echo '<label for="competition_title">' . esc_html__( 'Title', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="competition_title" name="competition_title" class="regular-text" required />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_slug">' . esc_html__( 'Slug (optional)', 'photo-competition-manager' ) . '</label><br />';
-		echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'photo-competition-manager' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_open_date" name="competition_open_date" />';
-		echo '</p>';
-
-		echo '<p>';
-		echo '<label for="competition_close_date">' . esc_html__( 'Close Date', 'photo-competition-manager' ) . ' (' . esc_html( $label_format ) . ')</label><br />';
-		echo '<input type="date" id="competition_close_date" name="competition_close_date" />';
-		echo '</p>';
-
-		submit_button( __( 'Create Competition', 'photo-competition-manager' ) );
-
-		echo '</form>';
+	private function render_create_form(): string {
+		return $this->render_template(
+			'admin/competitions/create-form.php',
+			array(
+				'label_format' => $this->get_ui_date_label(),
+			)
+		);
 	}
 }
