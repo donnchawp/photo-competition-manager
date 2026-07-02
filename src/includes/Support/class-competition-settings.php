@@ -127,18 +127,18 @@ class Competition_Settings {
 	/**
 	 * Parse stored settings JSON.
 	 *
+	 * Empty or invalid JSON is treated the same as an empty settings object
+	 * (`{}`): both flow through merge_with_defaults() and auto-detection of
+	 * page URLs, so "no settings" and "empty settings" behave identically.
+	 *
 	 * @param string|null $json Settings JSON string.
 	 * @return array<string, mixed>
 	 */
 	public static function parse( ?string $json ): array {
-		if ( empty( $json ) ) {
-			return self::defaults();
-		}
-
-		$decoded = json_decode( $json, true );
+		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
 
 		if ( ! is_array( $decoded ) ) {
-			return self::defaults();
+			$decoded = array();
 		}
 
 		$merged = self::merge_with_defaults( $decoded );

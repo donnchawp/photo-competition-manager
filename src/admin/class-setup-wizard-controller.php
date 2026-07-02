@@ -203,12 +203,14 @@ class Setup_Wizard_Controller {
 
 		settings_errors( 'photo_competition_setup' );
 
-		// Get current settings to check if pages already exist.
+		// Get current settings to check if pages were explicitly saved. Read
+		// the raw option directly (not Competition_Settings::parse()) so that
+		// auto-detected URLs don't trigger the "already configured" notice.
 		$settings   = get_option( 'photo_comp_default_settings', '' );
-		$parsed     = \PhotoCompetitionManager\Support\Competition_Settings::parse( $settings );
-		$urls       = $parsed['urls'] ?? array();
-		$upload_url = $urls['upload_page'] ?? '';
-		$voting_url = $urls['voting_page'] ?? '';
+		$saved      = is_string( $settings ) ? json_decode( $settings, true ) : $settings;
+		$saved_urls = ( is_array( $saved ) && isset( $saved['urls'] ) && is_array( $saved['urls'] ) ) ? $saved['urls'] : array();
+		$upload_url = $saved_urls['upload_page'] ?? '';
+		$voting_url = $saved_urls['voting_page'] ?? '';
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Setup Wizard', 'photo-competition-manager' ) . '</h1>';
