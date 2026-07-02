@@ -526,7 +526,8 @@ class Submissions_Controller {
 		echo '<h1>' . esc_html__( 'Submissions', 'photo-competition-manager' ) . '</h1>';
 
 		if ( empty( $competitions ) ) {
-			echo '<p>' . esc_html__( 'No competitions available yet. Create a competition first.', 'photo-competition-manager' ) . '</p>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/submissions/notice-no-competitions.php' );
 			echo '</div>';
 			return;
 		}
@@ -581,40 +582,8 @@ class Submissions_Controller {
 
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
 
-		echo '<form method="get" class="photo-comp-filters">';
-		echo '<input type="hidden" name="page" value="photo-competition-manager-submissions" />';
-		echo '<label for="competition_id" class="screen-reader-text">' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</label>';
-		echo '<select name="competition_id" id="competition_id">';
-		foreach ( $competitions as $competition ) {
-			$label = $competition->title;
-			if ( ! empty( $competition->deleted_at ) ) {
-				$label .= ' ' . esc_html__( '(Archived)', 'photo-competition-manager' );
-			}
-
-			printf(
-				'<option value="%1$d" %3$s>%2$s</option>',
-				(int) $competition->id,
-				esc_html( $label ),
-				selected( $competition_id, $competition->id, false )
-			);
-		}
-		echo '</select> ';
-
-		echo '<label for="member_id" class="screen-reader-text">' . esc_html__( 'Member', 'photo-competition-manager' ) . '</label>';
-		echo '<select name="member_id" id="member_id">';
-		echo '<option value="0">' . esc_html__( 'All Members', 'photo-competition-manager' ) . '</option>';
-		foreach ( $members as $member ) {
-			printf(
-				'<option value="%1$d" %3$s>%2$s</option>',
-				(int) $member->id,
-				esc_html( $member->name ),
-				selected( $member_id, $member->id, false )
-			);
-		}
-		echo '</select> ';
-
-		echo '<button type="submit" class="button">' . esc_html__( 'Filter', 'photo-competition-manager' ) . '</button>';
-		echo '</form>';
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
 		if ( $selected_competition ) {
 			printf(
@@ -623,35 +592,12 @@ class Submissions_Controller {
 			);
 
 			// Add regenerate numbers button.
-			echo '<form method="post" style="margin-bottom: 15px; display: inline-block; margin-right: 10px;">';
-			wp_nonce_field( 'photo_competition_regenerate_numbers_' . $competition_id, '_wpnonce' );
-			echo '<input type="hidden" name="action" value="regenerate_numbers" />';
-			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
-			echo '<button type="submit" class="button photo-comp-regenerate" data-confirm="' . esc_attr( __( 'Are you sure you want to regenerate random numbers? Each member will still have the same number across all their images, but the numbers will be reassigned.', 'photo-competition-manager' ) ) . '">';
-			echo esc_html__( 'Regenerate Random Numbers', 'photo-competition-manager' );
-			echo '</button>';
-			echo ' <span class="description">' . esc_html__( 'Reassign random numbers to members in this competition (each member keeps one consistent number).', 'photo-competition-manager' ) . '</span>';
-			echo '</form>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_regenerate_numbers_form( $competition_id );
 
 			// Add delete original images button.
-			echo '<form method="post" style="margin-bottom: 15px; display: inline-block;">';
-			wp_nonce_field( 'photo_competition_delete_originals_' . $competition_id, '_wpnonce' );
-			echo '<input type="hidden" name="action" value="delete_original_images" />';
-			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
-			echo '<button type="submit" class="button photo-comp-delete-originals" data-confirm="' . esc_attr( __( 'Are you sure you want to delete all original images from the media library for this competition? This will keep thumbnails and slideshow images, but remove the high-resolution originals to save space. This action cannot be undone.', 'photo-competition-manager' ) ) . '">';
-			echo esc_html__( 'Delete Original Images', 'photo-competition-manager' );
-			echo '</button>';
-			echo ' <span class="description">' . esc_html__( 'Remove high-resolution originals from media library (keeps thumbnails and slideshow images).', 'photo-competition-manager' ) . '</span>';
-			echo '</form>';
-
-			// Add admin upload form.
-			echo '<div style="background: #fff; border: 1px solid #ccd0d4; padding: 15px; margin-bottom: 20px;">';
-			echo '<h3 style="margin-top: 0;">' . esc_html__( 'Upload Image for Member', 'photo-competition-manager' ) . '</h3>';
-			echo '<p class="description">' . esc_html__( 'Upload an image on behalf of a member. This bypasses competition date and status restrictions.', 'photo-competition-manager' ) . '</p>';
-			echo '<form method="post" enctype="multipart/form-data" style="margin-top: 15px;">';
-			wp_nonce_field( 'photo_competition_admin_upload_' . $competition_id, '_wpnonce' );
-			echo '<input type="hidden" name="action" value="admin_upload" />';
-			echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_delete_originals_form( $competition_id );
 
 			// Get competition settings for categories.
 			$settings   = json_decode( $selected_competition->settings, true );
@@ -660,59 +606,9 @@ class Submissions_Controller {
 				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
 			}
 
-			echo '<table class="form-table"><tbody>';
-
-			// Member selection.
-			echo '<tr>';
-			echo '<th scope="row"><label for="admin-upload-member">' . esc_html__( 'Member', 'photo-competition-manager' ) . '</label></th>';
-			echo '<td>';
-			echo '<select name="member_id" id="admin-upload-member" required>';
-			echo '<option value="">' . esc_html__( 'Select a member...', 'photo-competition-manager' ) . '</option>';
-			foreach ( $members as $member ) {
-				printf(
-					'<option value="%1$d">%2$s</option>',
-					(int) $member->id,
-					esc_html( $member->name )
-				);
-			}
-			echo '</select>';
-			echo '</td>';
-			echo '</tr>';
-
-			// Category selection.
-			echo '<tr>';
-			echo '<th scope="row"><label for="admin-upload-category">' . esc_html__( 'Category', 'photo-competition-manager' ) . '</label></th>';
-			echo '<td>';
-			echo '<select name="category" id="admin-upload-category" required>';
-			echo '<option value="">' . esc_html__( 'Select a category...', 'photo-competition-manager' ) . '</option>';
-			foreach ( $categories as $cat ) {
-				printf(
-					'<option value="%1$s">%2$s</option>',
-					esc_attr( $cat['slug'] ),
-					esc_html( $cat['label'] )
-				);
-			}
-			echo '</select>';
-			echo '</td>';
-			echo '</tr>';
-
-			// File upload.
-			echo '<tr>';
-			echo '<th scope="row"><label for="admin-upload-file">' . esc_html__( 'Image File', 'photo-competition-manager' ) . '</label></th>';
-			echo '<td>';
-			echo '<input type="file" name="image_file" id="admin-upload-file" accept="image/jpeg,image/jpg" required />';
-			echo '<p class="description">' . esc_html__( 'Select a JPEG image to upload.', 'photo-competition-manager' ) . '</p>';
-			echo '</td>';
-			echo '</tr>';
-
-			echo '</tbody></table>';
-
-			echo '<p class="submit">';
-			echo '<button type="submit" class="button button-primary">' . esc_html__( 'Upload Image', 'photo-competition-manager' ) . '</button>';
-			echo '</p>';
-
-			echo '</form>';
-			echo '</div>';
+			// Add admin upload form.
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_admin_upload_form( $competition_id, $members, $categories );
 		}
 
 		// Add quota/status summary section.
@@ -752,119 +648,128 @@ class Submissions_Controller {
 						);
 					}
 
-					echo '<div style="background: #fff; border: 1px solid #ccd0d4; padding: 15px; margin-bottom: 20px;">';
-					echo '<h3 style="margin-top: 0;">' . esc_html__( 'Submission Status', 'photo-competition-manager' ) . '</h3>';
-					echo '<p class="description">' . esc_html__( 'Overview of submissions per member across all categories.', 'photo-competition-manager' ) . '</p>';
-
-					echo '<table class="widefat" style="margin-top: 10px;">';
-					echo '<thead><tr>';
-					echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
-					foreach ( $categories as $cat_config ) {
-						echo '<th>' . esc_html( $cat_config['label'] ) . '</th>';
-					}
-					echo '<th>' . esc_html__( 'Total', 'photo-competition-manager' ) . '</th>';
-					echo '<th>' . esc_html__( 'Upload Link Opened', 'photo-competition-manager' ) . '</th>';
-					echo '<th>' . esc_html__( 'Voting Link Opened', 'photo-competition-manager' ) . '</th>';
-					echo '</tr></thead>';
-					echo '<tbody>';
-
-					// If filtering by member, show only that member.
-					$members_to_show = $member_id > 0 ? array_filter( $members, fn( $m ) => (int) $m->id === $member_id ) : $members;
-
-					foreach ( $members_to_show as $member ) {
-						$mid         = (int) $member->id;
-						$total_count = 0;
-
-						echo '<tr>';
-						echo '<td><strong>' . esc_html( $member->name ) . '</strong></td>';
-
-						foreach ( $categories as $cat_config ) {
-							$cat_slug     = $cat_config['slug'];
-							$quota        = $cat_config['quota'];
-							$current      = $member_counts[ $mid ][ $cat_slug ] ?? 0;
-							$total_count += $current;
-
-							$status_text  = $current . '/' . $quota;
-							$status_color = '';
-
-							if ( 0 === $current ) {
-								$status_color = '#999';
-							} elseif ( $current >= $quota ) {
-								$status_color = '#46b450'; // Green - complete.
-							} else {
-								$status_color = '#ffb900'; // Yellow - partial.
-							}
-
-							echo '<td style="color: ' . esc_attr( $status_color ) . '; font-weight: bold;">';
-							echo esc_html( $status_text );
-							echo '</td>';
-						}
-
-						echo '<td><strong>' . esc_html( (string) $total_count ) . '</strong></td>';
-
-						// Upload link tracking.
-						$upload_opened = isset( $upload_tracking[ $mid ] ) && ! empty( $upload_tracking[ $mid ]->first_opened_at );
-						echo '<td style="text-align: center;">';
-						if ( $upload_opened ) {
-							echo '<span style="color: #46b450; font-size: 18px;" title="' . esc_attr__( 'Link opened', 'photo-competition-manager' ) . '">&#10003;</span>';
-						} else {
-							echo '<span style="color: #999; font-size: 18px;" title="' . esc_attr__( 'Not opened', 'photo-competition-manager' ) . '">&#10005;</span>';
-						}
-						echo '</td>';
-
-						// Voting link tracking.
-						$voting_opened = isset( $voting_tracking[ $mid ] ) && ! empty( $voting_tracking[ $mid ]->first_opened_at );
-						echo '<td style="text-align: center;">';
-						if ( $voting_opened ) {
-							echo '<span style="color: #46b450; font-size: 18px;" title="' . esc_attr__( 'Link opened', 'photo-competition-manager' ) . '">&#10003;</span>';
-						} else {
-							echo '<span style="color: #999; font-size: 18px;" title="' . esc_attr__( 'Not opened', 'photo-competition-manager' ) . '">&#10005;</span>';
-						}
-						echo '</td>';
-
-						echo '</tr>';
-					}
-
-					echo '</tbody>';
-					echo '</table>';
-					echo '</div>';
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+					echo $this->render_submission_status( $categories, $member_id, $members, $member_counts, $upload_tracking, $voting_tracking );
 				}
 			}
 		}
 
 		if ( empty( $submissions ) ) {
-			echo '<p>' . esc_html__( 'No submissions found for the selected filters.', 'photo-competition-manager' ) . '</p>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
 			echo '</div>';
 			return;
 		}
 
-		echo '<form method="post" id="bulk-delete-form">';
-		wp_nonce_field( 'photo_competition_bulk_delete_' . $competition_id, '_wpnonce' );
-		echo '<input type="hidden" name="action" value="bulk_delete_submissions" />';
-		echo '<input type="hidden" name="competition_id" value="' . esc_attr( $competition_id ) . '" />';
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_submissions_table( $competition_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup );
 
-		echo '<div class="tablenav top">';
-		echo '<div class="alignleft actions">';
-		echo '<button type="submit" class="button photo-comp-bulk-delete" data-confirm="' . esc_attr( __( 'Are you sure you want to delete the selected submissions? This will permanently delete the database records, all associated votes, and all associated files (slideshow images, thumbnails, and originals). This action cannot be undone.', 'photo-competition-manager' ) ) . '" data-no-selection="' . esc_attr( __( 'Please select at least one submission to delete.', 'photo-competition-manager' ) ) . '">';
-		echo esc_html__( 'Delete Selected', 'photo-competition-manager' );
-		echo '</button>';
 		echo '</div>';
-		echo '</div>';
+	}
 
-		echo '<table class="widefat striped">';
-		echo '<thead><tr>';
-		echo '<td class="check-column"><input type="checkbox" id="cb-select-all" /></td>';
-		echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Category', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Image', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Filename', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Random #', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Total Score', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Votes', 'photo-competition-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Submitted', 'photo-competition-manager' ) . '</th>';
-		echo '</tr></thead>';
-		echo '<tbody>';
+	/**
+	 * Render the competition/member filter form.
+	 *
+	 * @param array<int,object> $competitions   All competitions.
+	 * @param int               $competition_id Currently selected competition ID.
+	 * @param array<int,object> $members        All members.
+	 * @param int               $member_id      Currently selected member ID (0 = all).
+	 * @return string
+	 */
+	private function render_filters( array $competitions, int $competition_id, array $members, int $member_id ): string {
+		return $this->render_template(
+			'admin/submissions/filters.php',
+			array(
+				'competitions'   => $competitions,
+				'competition_id' => $competition_id,
+				'members'        => $members,
+				'member_id'      => $member_id,
+			)
+		);
+	}
 
+	/**
+	 * Render the regenerate-random-numbers form.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function render_regenerate_numbers_form( int $competition_id ): string {
+		return $this->render_template(
+			'admin/submissions/regenerate-numbers-form.php',
+			array( 'competition_id' => $competition_id )
+		);
+	}
+
+	/**
+	 * Render the delete-original-images form.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function render_delete_originals_form( int $competition_id ): string {
+		return $this->render_template(
+			'admin/submissions/delete-originals-form.php',
+			array( 'competition_id' => $competition_id )
+		);
+	}
+
+	/**
+	 * Render the admin upload-on-behalf-of-member form.
+	 *
+	 * @param int               $competition_id Competition ID.
+	 * @param array<int,object> $members        All members.
+	 * @param array<int,array>  $categories     Category config for the competition.
+	 * @return string
+	 */
+	private function render_admin_upload_form( int $competition_id, array $members, array $categories ): string {
+		return $this->render_template(
+			'admin/submissions/admin-upload-form.php',
+			array(
+				'competition_id' => $competition_id,
+				'members'        => $members,
+				'categories'     => $categories,
+			)
+		);
+	}
+
+	/**
+	 * Render the submission status/quota summary table.
+	 *
+	 * @param array<int,array>  $categories      Category config for the competition.
+	 * @param int               $member_id       Currently selected member ID (0 = all).
+	 * @param array<int,object> $members         All members.
+	 * @param array             $member_counts   Submission counts by member id then category slug.
+	 * @param array<int,object> $upload_tracking Upload-link tracking data by member id.
+	 * @param array<int,object> $voting_tracking Voting-link tracking data by member id.
+	 * @return string
+	 */
+	private function render_submission_status( array $categories, int $member_id, array $members, array $member_counts, array $upload_tracking, array $voting_tracking ): string {
+		return $this->render_template(
+			'admin/submissions/submission-status.php',
+			array(
+				'categories'      => $categories,
+				'member_id'       => $member_id,
+				'members'         => $members,
+				'member_counts'   => $member_counts,
+				'upload_tracking' => $upload_tracking,
+				'voting_tracking' => $voting_tracking,
+			)
+		);
+	}
+
+	/**
+	 * Render the submissions table (with its wrapping bulk-delete form).
+	 *
+	 * @param int               $competition_id       Competition ID.
+	 * @param array<int,object> $submissions          Submission records for the competition.
+	 * @param array<int,object> $member_map           Members indexed by member id.
+	 * @param array             $scores_data          Score/vote-count data indexed by image id.
+	 * @param object|null       $selected_competition Currently selected competition, if any.
+	 * @param array<int,object> $competition_lookup   Competitions indexed by competition id.
+	 * @return string
+	 */
+	private function render_submissions_table( int $competition_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
 		// Generate upload URLs for each member.
 		$upload_token_repo  = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
 		$member_upload_urls = array();
@@ -873,16 +778,17 @@ class Submissions_Controller {
 		$upload_page_url = home_url( '/photo-upload/' );
 
 		foreach ( $submissions as $submission ) {
-			$member_id = (int) $submission->member_id;
-			if ( ! isset( $member_upload_urls[ $member_id ] ) ) {
-				$upload_url = $upload_token_repo->generate_upload_url( $competition_id, $member_id, $upload_page_url );
+			$submission_member_id = (int) $submission->member_id;
+			if ( ! isset( $member_upload_urls[ $submission_member_id ] ) ) {
+				$upload_url = $upload_token_repo->generate_upload_url( $competition_id, $submission_member_id, $upload_page_url );
 				if ( ! is_wp_error( $upload_url ) ) {
-					$member_upload_urls[ $member_id ] = $upload_url;
+					$member_upload_urls[ $submission_member_id ] = $upload_url;
 				}
 			}
 		}
 
 		$current_member_id = null;
+		$rows              = array();
 
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
@@ -911,40 +817,29 @@ class Submissions_Controller {
 				$vote_count  = $score_info['vote_count'];
 			}
 
-			echo '<tr>';
-			echo '<th scope="row" class="check-column"><input type="checkbox" name="image_ids[]" value="' . esc_attr( $image_id ) . '" /></th>';
-			echo '<td>';
-			echo esc_html( $member_name );
-			// Add upload link for first submission of each member.
-			if ( $is_first_for_member && isset( $member_upload_urls[ $current_member_id ] ) ) {
-				echo '<br><a href="' . esc_url( $member_upload_urls[ $current_member_id ] ) . '" target="_blank" rel="noopener">';
-				echo esc_html__( 'View/Edit Uploads', 'photo-competition-manager' );
-				echo '</a>';
-			}
-			echo '</td>';
-
-			// Category as plain text.
-			echo '<td>' . esc_html( $submission->category ) . '</td>';
-			if ( $urls['full'] ) {
-				echo '<td class="photo-comp-thumbnail"><a href="' . esc_url( $urls['full'] ) . '" target="_blank" rel="noopener noreferrer">';
-				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $submission->filename ) . '" width="120" height="120" loading="lazy" />';
-				echo '</a></td>';
-			} else {
-				echo '<td>' . esc_html__( 'Unavailable', 'photo-competition-manager' ) . '</td>';
-			}
-			echo '<td>' . esc_html( $submission->filename ) . '</td>';
-			echo '<td>' . esc_html( (string) $submission->random_number ) . '</td>';
-			echo '<td>' . esc_html( $total_score ) . '</td>';
-			echo '<td>' . esc_html( (string) $vote_count ) . '</td>';
-			echo '<td>' . esc_html( $this->format_datetime( $submission->created_at ) ) . '</td>';
-			echo '</tr>';
+			$rows[] = (object) array(
+				'image_id'             => $image_id,
+				'member_name'          => $member_name,
+				'show_upload_link'     => $is_first_for_member && isset( $member_upload_urls[ $current_member_id ] ),
+				'member_upload_url'    => $member_upload_urls[ $current_member_id ] ?? '',
+				'category'             => $submission->category,
+				'full_url'             => $urls['full'],
+				'thumb_url'            => $thumb_url,
+				'filename'             => $submission->filename,
+				'random_number'        => $submission->random_number,
+				'total_score'          => $total_score,
+				'vote_count'           => $vote_count,
+				'formatted_created_at' => $this->format_datetime( $submission->created_at ),
+			);
 		}
 
-		echo '</tbody>';
-		echo '</table>';
-		echo '</form>';
-
-		echo '</div>';
+		return $this->render_template(
+			'admin/submissions/submissions-table.php',
+			array(
+				'competition_id' => $competition_id,
+				'rows'           => $rows,
+			)
+		);
 	}
 
 	/**
