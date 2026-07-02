@@ -393,10 +393,8 @@ class Results_Controller {
 		$competitions = $this->competitions->all( 100, false, false );
 
 		if ( empty( $competitions ) ) {
-			echo '<div class="wrap">';
-			echo '<h1>' . esc_html__( 'Results Dashboard', 'photo-competition-manager' ) . '</h1>';
-			echo '<p>' . esc_html__( 'No competitions found. Create a competition first.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/results/notice-no-competitions.php' );
 			return;
 		}
 
@@ -407,10 +405,8 @@ class Results_Controller {
 
 		$competition = $this->competitions->find( $competition_id );
 		if ( ! $competition ) {
-			echo '<div class="wrap">';
-			echo '<h1>' . esc_html__( 'Results Dashboard', 'photo-competition-manager' ) . '</h1>';
-			echo '<p>' . esc_html__( 'Competition not found.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/results/notice-competition-not-found.php' );
 			return;
 		}
 
@@ -418,11 +414,13 @@ class Results_Controller {
 		$image_id = isset( $_GET['image'] ) ? absint( wp_unslash( $_GET['image'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( $image_id > 0 ) {
-			$this->render_image_details( $image_id, $competition );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_image_details( $image_id, $competition );
 			return;
 		}
 
-		$this->render_overview( $competition, $competitions );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_overview( $competition, $competitions );
 	}
 
 	/**
@@ -430,9 +428,9 @@ class Results_Controller {
 	 *
 	 * @param object             $competition   Selected competition.
 	 * @param array<int, object> $competitions  All competitions.
-	 * @return void
+	 * @return string
 	 */
-	private function render_overview( object $competition, array $competitions ): void {
+	private function render_overview( object $competition, array $competitions ): string {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 		$grades     = Competition_Settings::get_grades( $settings );
@@ -446,89 +444,63 @@ class Results_Controller {
 			$selected_category = $categories[0]['slug'] ?? '';
 		}
 
-		echo '<div class="wrap photo-competition-manager-results-dashboard">';
-		echo '<h1>' . esc_html__( 'Results Dashboard', 'photo-competition-manager' ) . '</h1>';
-
-		// Competition selector.
-		echo '<div class="competition-selector" style="margin: 20px 0;">';
-		echo '<label for="competition-select" style="margin-right: 10px;"><strong>' . esc_html__( 'Competition:', 'photo-competition-manager' ) . '</strong></label>';
-		echo '<select id="competition-select">';
+		// Competition selector options.
+		$competition_options = array();
 		foreach ( $competitions as $comp ) {
-			$url      = add_query_arg(
+			$url = add_query_arg(
 				array(
 					'page'        => 'photo-competition-manager-results',
 					'competition' => (int) $comp->id,
 				),
 				admin_url( 'admin.php' )
 			);
-			$selected = ( (int) $comp->id === (int) $competition->id ) ? ' selected' : '';
-			echo '<option value="' . esc_url( $url ) . '"' . esc_attr( $selected ) . '>' . esc_html( $comp->title ) . '</option>';
+
+			$competition_options[] = array(
+				'url'      => $url,
+				'selected' => ( (int) $comp->id === (int) $competition->id ),
+				'title'    => $comp->title,
+			);
 		}
-		echo '</select>';
-		echo '</div>';
 
 		// Summary cards.
-		echo '<div class="photo-comp-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">';
-
-		$this->render_summary_card( __( 'Total Images', 'photo-competition-manager' ), number_format( $summary['total_images'], 0 ), 'dashicons-format-image' );
-		$this->render_summary_card( __( 'Total Votes', 'photo-competition-manager' ), number_format( $summary['total_votes'], 0 ), 'dashicons-yes' );
-		$this->render_summary_card( __( 'Participants', 'photo-competition-manager' ), number_format( $summary['total_members'], 0 ), 'dashicons-groups' );
-		$this->render_summary_card( __( 'Avg Score', 'photo-competition-manager' ), number_format( (float) $summary['average_score'], 2 ), 'dashicons-star-filled' );
-
-		echo '</div>';
+		$summary_cards_html  = $this->render_summary_card( __( 'Total Images', 'photo-competition-manager' ), number_format( $summary['total_images'], 0 ), 'dashicons-format-image' );
+		$summary_cards_html .= $this->render_summary_card( __( 'Total Votes', 'photo-competition-manager' ), number_format( $summary['total_votes'], 0 ), 'dashicons-yes' );
+		$summary_cards_html .= $this->render_summary_card( __( 'Participants', 'photo-competition-manager' ), number_format( $summary['total_members'], 0 ), 'dashicons-groups' );
+		$summary_cards_html .= $this->render_summary_card( __( 'Avg Score', 'photo-competition-manager' ), number_format( (float) $summary['average_score'], 2 ), 'dashicons-star-filled' );
 
 		// Category tabs.
-		if ( ! empty( $categories ) ) {
-			echo '<div class="nav-tab-wrapper" style="margin: 20px 0;">';
-			foreach ( $categories as $category ) {
-				$cat_slug  = $category['slug'] ?? '';
-				$cat_label = $category['label'] ?? $cat_slug;
+		$category_tabs = array();
+		foreach ( $categories as $category ) {
+			$cat_slug  = $category['slug'] ?? '';
+			$cat_label = $category['label'] ?? $cat_slug;
 
-				$cat_url = add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => (int) $competition->id,
-						'category'    => rawurlencode( $cat_slug ),
-					),
-					admin_url( 'admin.php' )
-				);
+			$cat_url = add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager-results',
+					'competition' => (int) $competition->id,
+					'category'    => rawurlencode( $cat_slug ),
+				),
+				admin_url( 'admin.php' )
+			);
 
-				$active_class = ( $cat_slug === $selected_category ) ? ' nav-tab-active' : '';
-
-				echo '<a href="' . esc_url( $cat_url ) . '" class="nav-tab' . esc_attr( $active_class ) . '">';
-				echo esc_html( $cat_label );
-
-				// Show count badge.
-				$cat_count = $summary['categories'][ $cat_slug ]['images'] ?? 0;
-				echo ' <span class="count">(' . absint( $cat_count ) . ')</span>';
-
-				echo '</a>';
-			}
-			echo '</div>';
+			$category_tabs[] = array(
+				'url'    => $cat_url,
+				'label'  => $cat_label,
+				'active' => ( $cat_slug === $selected_category ),
+				'count'  => $summary['categories'][ $cat_slug ]['images'] ?? 0,
+			);
 		}
 
-		// Category breakdown.
+		// Category breakdown + results table.
+		$breakdown          = array();
+		$results_table_html = '';
 		if ( ! empty( $selected_category ) ) {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
-			echo '<div class="photo-comp-category-stats" style="background: #f9f9f9; padding: 15px; margin: 20px 0; border-left: 4px solid #2271b1;">';
-			echo '<h3>' . esc_html__( 'Category Statistics', 'photo-competition-manager' ) . '</h3>';
-			echo '<p>';
-			echo '<strong>' . esc_html__( 'Images:', 'photo-competition-manager' ) . '</strong> ' . absint( $breakdown['images'] ) . ' | ';
-			echo '<strong>' . esc_html__( 'Votes:', 'photo-competition-manager' ) . '</strong> ' . absint( $breakdown['votes'] ) . ' | ';
-			echo '<strong>' . esc_html__( 'Avg Score:', 'photo-competition-manager' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['average_score'], 2 ) ) . ' | ';
-			echo '<strong>' . esc_html__( 'Range:', 'photo-competition-manager' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['min_score'], 0 ) ) . ' - ' . esc_html( number_format( (float) $breakdown['max_score'], 0 ) ) . ' | ';
-			echo '<strong>' . esc_html__( 'Participation:', 'photo-competition-manager' ) . '</strong> ' . esc_html( number_format( (float) $breakdown['participation_rate'], 1 ) ) . '%';
-			echo '</p>';
-			echo '</div>';
-
-			// Results table grouped by grade.
-			$this->render_results_table( (int) $competition->id, $selected_category, $grades );
+			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category, $grades );
 		}
 
 		// Action buttons.
-		echo '<div class="photo-comp-actions" style="margin: 20px 0;">';
-
 		$recalculate_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -540,11 +512,6 @@ class Results_Controller {
 			),
 			'photo_competition_recalculate_scores_' . (int) $competition->id
 		);
-
-		echo '<a href="' . esc_url( $recalculate_url ) . '" class="button button-secondary">';
-		echo '<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> ';
-		echo esc_html__( 'Recalculate Scores', 'photo-competition-manager' );
-		echo '</a> ';
 
 		$export_url = wp_nonce_url(
 			add_query_arg(
@@ -558,11 +525,6 @@ class Results_Controller {
 			'photo_competition_export_results_' . (int) $competition->id
 		);
 
-		echo '<a href="' . esc_url( $export_url ) . '" class="button button-primary">';
-		echo '<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> ';
-		echo esc_html__( 'Export Results (CSV)', 'photo-competition-manager' );
-		echo '</a> ';
-
 		$email_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -575,19 +537,13 @@ class Results_Controller {
 			'photo_competition_email_results_' . (int) $competition->id
 		);
 
-		echo '<a href="' . esc_url( $email_url ) . '" class="button button-secondary">';
-		echo '<span class="dashicons dashicons-email" style="margin-top: 3px;"></span> ';
-		echo esc_html__( 'Email Results', 'photo-competition-manager' );
-		echo '</a>';
-
-		echo '</div>';
-
 		// Share results section.
 		$share_hash   = $competition->share_hash ?? '';
 		$results_page = $settings['urls']['results_page'] ?? '';
 
-		echo '<div class="photo-comp-share-results" style="margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">';
-		echo '<h3 style="margin-top: 0;">' . esc_html__( 'Share Results', 'photo-competition-manager' ) . '</h3>';
+		$share_url          = '';
+		$send_committee_url = '';
+		$send_all_url       = '';
 
 		if ( ! empty( $share_hash ) && ! empty( $results_page ) ) {
 			$share_url = add_query_arg( 'share', $share_hash, $results_page );
@@ -615,38 +571,27 @@ class Results_Controller {
 				),
 				'photo_competition_send_results_all_' . (int) $competition->id
 			);
-
-			echo '<p class="description">';
-			echo esc_html__( 'Share link (bypasses visibility setting):', 'photo-competition-manager' );
-			echo '<br><code>' . esc_html( $share_url ) . '</code>';
-			echo '</p>';
-			echo '<p>';
-			echo '<a href="' . esc_url( $send_committee_url ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to all committee members. Continue?', 'photo-competition-manager' ) ) . '\');">';
-			echo '<span class="dashicons dashicons-groups" style="margin-top: 4px;"></span> ';
-			echo esc_html__( 'Send to Committee', 'photo-competition-manager' );
-			echo '</a> ';
-			echo '<a href="' . esc_url( $send_all_url ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' ) ) . '\');">';
-			echo '<span class="dashicons dashicons-email" style="margin-top: 4px;"></span> ';
-			echo esc_html__( 'Send to All Members', 'photo-competition-manager' );
-			echo '</a>';
-			echo '</p>';
-		} elseif ( empty( $share_hash ) ) {
-			echo '<p class="description">';
-			printf(
-				/* translators: %s: link to competitions page */
-				esc_html__( 'No share hash exists. %s on the Competitions page first.', 'photo-competition-manager' ),
-				'<a href="' . esc_url( admin_url( 'admin.php?page=photo-competition-manager' ) ) . '">' . esc_html__( 'Generate a results link', 'photo-competition-manager' ) . '</a>'
-			);
-			echo '</p>';
-		} else {
-			echo '<p class="description">';
-			echo esc_html__( 'No results page URL configured. Set one in competition settings.', 'photo-competition-manager' );
-			echo '</p>';
 		}
 
-		echo '</div>';
-
-		echo '</div>';
+		return $this->render_template(
+			'admin/results/overview.php',
+			array(
+				'competition_options' => $competition_options,
+				'summary_cards_html'  => $summary_cards_html,
+				'category_tabs'       => $category_tabs,
+				'selected_category'   => $selected_category,
+				'breakdown'           => $breakdown,
+				'results_table_html'  => $results_table_html,
+				'recalculate_url'     => $recalculate_url,
+				'export_url'          => $export_url,
+				'email_url'           => $email_url,
+				'share_hash'          => $share_hash,
+				'results_page'        => $results_page,
+				'share_url'           => $share_url,
+				'send_committee_url'  => $send_committee_url,
+				'send_all_url'        => $send_all_url,
+			)
+		);
 	}
 
 	/**
@@ -655,18 +600,17 @@ class Results_Controller {
 	 * @param string $label Label text.
 	 * @param mixed  $value Value to display.
 	 * @param string $icon  Dashicon class.
-	 * @return void
+	 * @return string
 	 */
-	private function render_summary_card( string $label, $value, string $icon ): void {
-		echo '<div class="photo-comp-summary-card" style="background: white; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px;">';
-		echo '<div style="display: flex; align-items: center; margin-bottom: 10px;">';
-		echo '<span class="dashicons ' . esc_attr( $icon ) . '" style="font-size: 32px; color: #2271b1; margin-right: 10px;"></span>';
-		echo '<div>';
-		echo '<div style="font-size: 28px; font-weight: bold; color: #1d2327;">' . esc_html( $value ) . '</div>';
-		echo '<div style="font-size: 13px; color: #646970;">' . esc_html( $label ) . '</div>';
-		echo '</div>';
-		echo '</div>';
-		echo '</div>';
+	private function render_summary_card( string $label, $value, string $icon ): string {
+		return $this->render_template(
+			'admin/results/summary-card.php',
+			array(
+				'label' => $label,
+				'value' => $value,
+				'icon'  => $icon,
+			)
+		);
 	}
 
 	/**
@@ -675,9 +619,9 @@ class Results_Controller {
 	 * @param int               $competition_id Competition ID.
 	 * @param string            $category       Category slug.
 	 * @param array<int, array> $grades         Grade definitions.
-	 * @return void
+	 * @return string
 	 */
-	private function render_results_table( int $competition_id, string $category, array $grades ): void {
+	private function render_results_table( int $competition_id, string $category, array $grades ): string {
 		$results        = $this->calculator->get_results( $competition_id, $category );
 		$members_lookup = array();
 
@@ -700,6 +644,8 @@ class Results_Controller {
 			$results_by_grade[ $grade ][] = $result;
 		}
 
+		$grade_tables = array();
+
 		foreach ( $grades as $grade ) {
 			$grade_slug  = $grade['slug'] ?? '';
 			$grade_label = $grade['label'] ?? $grade_slug;
@@ -710,24 +656,10 @@ class Results_Controller {
 				continue;
 			}
 
-			echo '<h3>' . esc_html( $grade_label ) . '</h3>';
-
-			echo '<table class="wp-list-table widefat fixed striped" style="margin-bottom: 30px;">';
-			echo '<thead>';
-			echo '<tr>';
-			echo '<th style="width: 60px;">' . esc_html__( 'Rank', 'photo-competition-manager' ) . '</th>';
-			echo '<th style="width: 80px;">' . esc_html__( 'Image', 'photo-competition-manager' ) . '</th>';
-			echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
-			echo '<th style="width: 100px;">' . esc_html__( 'Score', 'photo-competition-manager' ) . '</th>';
-			echo '<th style="width: 80px;">' . esc_html__( 'Votes', 'photo-competition-manager' ) . '</th>';
-			echo '<th style="width: 120px;">' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
-			echo '</tr>';
-			echo '</thead>';
-			echo '<tbody>';
-
 			// Assign ranks with tie handling (dense ranking).
 			$rank           = 0;
 			$previous_score = null;
+			$rows           = array();
 
 			foreach ( $grade_results as $result ) {
 				// Advance rank only when score changes.
@@ -739,30 +671,6 @@ class Results_Controller {
 				$member    = $members_lookup[ $result->member_id ] ?? null;
 				$image_url = $this->get_image_url( $competition_id, $category, $result->filename );
 
-				echo '<tr>';
-				echo '<td><strong>' . absint( $rank ) . '</strong></td>';
-
-				echo '<td>';
-				if ( $image_url ) {
-					echo '<img src="' . esc_url( $image_url ) . '" alt="' . esc_attr__( 'Image', 'photo-competition-manager' ) . '" style="max-width: 60px; height: auto; border: 1px solid #ddd;">';
-				} else {
-					echo '<span class="dashicons dashicons-format-image" style="font-size: 40px; color: #ddd;"></span>';
-				}
-				echo '</td>';
-
-				echo '<td>';
-				if ( $member ) {
-					echo esc_html( $member->name );
-				} else {
-					echo '<em>' . esc_html__( 'Unknown', 'photo-competition-manager' ) . '</em>';
-				}
-				echo '</td>';
-
-				// Display total score (sum of all votes).
-				echo '<td><strong>' . esc_html( number_format( $result->total_score, 0 ) ) . '</strong></td>';
-				echo '<td>' . absint( $result->vote_count ) . '</td>';
-
-				echo '<td>';
 				$detail_url = add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
@@ -772,15 +680,24 @@ class Results_Controller {
 					),
 					admin_url( 'admin.php' )
 				);
-				echo '<a href="' . esc_url( $detail_url ) . '" class="button button-small">' . esc_html__( 'View Details', 'photo-competition-manager' ) . '</a>';
-				echo '</td>';
 
-				echo '</tr>';
+				$rows[] = array(
+					'rank'        => $rank,
+					'image_url'   => $image_url,
+					'member_name' => $member ? $member->name : null,
+					'total_score' => $result->total_score,
+					'vote_count'  => $result->vote_count,
+					'detail_url'  => $detail_url,
+				);
 			}
 
-			echo '</tbody>';
-			echo '</table>';
+			$grade_tables[] = array(
+				'label' => $grade_label,
+				'rows'  => $rows,
+			);
 		}
+
+		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
 	}
 
 	/**
@@ -788,17 +705,13 @@ class Results_Controller {
 	 *
 	 * @param int    $image_id    Image ID.
 	 * @param object $competition Competition object.
-	 * @return void
+	 * @return string
 	 */
-	private function render_image_details( int $image_id, object $competition ): void {
+	private function render_image_details( int $image_id, object $competition ): string {
 		$details = $this->analytics->get_image_details( $image_id );
 
 		if ( ! $details['image'] ) {
-			echo '<div class="wrap">';
-			echo '<h1>' . esc_html__( 'Image Details', 'photo-competition-manager' ) . '</h1>';
-			echo '<p>' . esc_html__( 'Image not found.', 'photo-competition-manager' ) . '</p>';
-			echo '</div>';
-			return;
+			return $this->render_template( 'admin/results/notice-image-not-found.php' );
 		}
 
 		$image      = $details['image'];
@@ -818,80 +731,34 @@ class Results_Controller {
 			admin_url( 'admin.php' )
 		);
 
-		echo '<div class="wrap photo-competition-manager-image-details">';
-		echo '<h1>' . esc_html__( 'Image Details', 'photo-competition-manager' ) . '</h1>';
-
-		echo '<p><a href="' . esc_url( $back_url ) . '" class="button">&larr; ' . esc_html__( 'Back to Results', 'photo-competition-manager' ) . '</a></p>';
-
-		echo '<div style="display: grid; grid-template-columns: 300px 1fr; gap: 30px; margin: 20px 0;">';
-
-		// Left column - Image.
-		echo '<div>';
 		$image_url = $this->get_image_url( (int) $competition->id, $category, $image->filename );
-		if ( $image_url ) {
-			echo '<img src="' . esc_url( $image_url ) . '" alt="' . esc_attr__( 'Competition Image', 'photo-competition-manager' ) . '" style="max-width: 100%; height: auto; border: 1px solid #ddd;">';
+
+		$vote_rows = array();
+		foreach ( $votes as $vote ) {
+			$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+
+			$vote_rows[] = array(
+				'voter_name' => $voter_name,
+				'score'      => $vote->score,
+				'created_at' => $this->format_datetime( $vote->created_at ),
+			);
 		}
 
-		echo '<div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">';
-		echo '<p><strong>' . esc_html__( 'Member:', 'photo-competition-manager' ) . '</strong><br>' . esc_html( $member ? $member->name : __( 'Unknown', 'photo-competition-manager' ) ) . '</p>';
-		if ( $member && ! empty( $member->email ) ) {
-			echo '<p><strong>' . esc_html__( 'Email:', 'photo-competition-manager' ) . '</strong><br>' . esc_html( $member->email ) . '</p>';
-		}
-		if ( $member ) {
-			echo '<p><strong>' . esc_html__( 'Grade:', 'photo-competition-manager' ) . '</strong><br>' . esc_html( $member->grade ) . '</p>';
-		}
-		echo '<p><strong>' . esc_html__( 'Category:', 'photo-competition-manager' ) . '</strong><br>' . esc_html( $category_label ) . '</p>';
-		echo '<p><strong>' . esc_html__( 'Image #:', 'photo-competition-manager' ) . '</strong><br>' . absint( $image->random_number ) . '</p>';
-		echo '</div>';
-
-		echo '</div>';
-
-		// Right column - Statistics and votes.
-		echo '<div>';
-
-		echo '<h2>' . esc_html__( 'Statistics', 'photo-competition-manager' ) . '</h2>';
-		echo '<table class="widefat" style="margin-bottom: 30px;">';
-		echo '<tr><th>' . esc_html__( 'Total Votes', 'photo-competition-manager' ) . '</th><td>' . absint( $statistics['count'] ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Average Score', 'photo-competition-manager' ) . '</th><td>' . esc_html( number_format( $statistics['average'], 2 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Median Score', 'photo-competition-manager' ) . '</th><td>' . esc_html( number_format( $statistics['median'], 2 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Min Score', 'photo-competition-manager' ) . '</th><td>' . esc_html( number_format( $statistics['min'], 0 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Max Score', 'photo-competition-manager' ) . '</th><td>' . esc_html( number_format( $statistics['max'], 0 ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Std Deviation', 'photo-competition-manager' ) . '</th><td>' . esc_html( number_format( $statistics['std_dev'], 2 ) ) . '</td></tr>';
-		echo '</table>';
-
-		echo '<h2>' . esc_html__( 'Individual Votes', 'photo-competition-manager' ) . '</h2>';
-		if ( ! empty( $votes ) ) {
-			echo '<table class="wp-list-table widefat fixed striped">';
-			echo '<thead>';
-			echo '<tr>';
-			echo '<th>' . esc_html__( 'Voter', 'photo-competition-manager' ) . '</th>';
-			echo '<th>' . esc_html__( 'Score', 'photo-competition-manager' ) . '</th>';
-			echo '<th>' . esc_html__( 'Timestamp', 'photo-competition-manager' ) . '</th>';
-			echo '</tr>';
-			echo '</thead>';
-			echo '<tbody>';
-
-			foreach ( $votes as $vote ) {
-				$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
-
-				echo '<tr>';
-				echo '<td>' . esc_html( $voter_name ) . '</td>';
-				echo '<td><strong>' . esc_html( number_format( (float) $vote->score, 0 ) ) . '</strong></td>';
-				echo '<td>' . esc_html( $this->format_datetime( $vote->created_at ) ) . '</td>';
-				echo '</tr>';
-			}
-
-			echo '</tbody>';
-			echo '</table>';
-		} else {
-			echo '<p>' . esc_html__( 'No votes recorded for this image.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		echo '</div>';
-
-		echo '</div>'; // End grid.
-
-		echo '</div>';
+		return $this->render_template(
+			'admin/results/image-details.php',
+			array(
+				'back_url'       => $back_url,
+				'image_url'      => $image_url,
+				'member_name'    => $member ? $member->name : __( 'Unknown', 'photo-competition-manager' ),
+				'member_email'   => ( $member && ! empty( $member->email ) ) ? $member->email : '',
+				'member_grade'   => $member ? $member->grade : '',
+				'has_member'     => (bool) $member,
+				'category_label' => $category_label,
+				'image_number'   => $image->random_number,
+				'statistics'     => $statistics,
+				'vote_rows'      => $vote_rows,
+			)
+		);
 	}
 
 	/**
