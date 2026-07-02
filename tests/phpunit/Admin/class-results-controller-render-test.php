@@ -146,6 +146,11 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// symmetry with the other rollout suites but intentionally unused here.
 		unset( $member_ids );
 
+		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
+		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
+		// &amp;; core has changed usage between releases).
+		$html = preg_replace( '/&#0*38;/', '&amp;', $html );
+
 		return $html;
 	}
 

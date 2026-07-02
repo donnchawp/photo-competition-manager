@@ -81,6 +81,11 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$html       = preg_replace( '/id="log-metadata-row-' . $id_pattern . '"/', 'id="log-metadata-row-ID"', $html );
 		}
 
+		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
+		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
+		// &amp;; core has changed usage between releases).
+		$html = preg_replace( '/&#0*38;/', '&amp;', $html );
+
 		return $html;
 	}
 
