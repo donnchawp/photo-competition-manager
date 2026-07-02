@@ -463,16 +463,20 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'overview-share-hash-no-results-page', array( $comp_id ) );
 	}
 
-	public function test_render_overview_no_categories(): void {
-		// Empty categories array: the nav-tab-wrapper and the entire category
-		// breakdown/results-table section are both skipped (selected_category
-		// stays empty).
+	public function test_render_overview_empty_categories_falls_back_to_defaults(): void {
+		// Empty categories array in settings: Competition_Settings::get_categories()
+		// falls back to the global default categories, so the nav-tab-wrapper
+		// and category breakdown/results-table section still render (not
+		// skipped). The tabs-skipped / breakdown-skipped guards in overview.php
+		// are defensive and are not exercised by this fixture -- categories
+		// can't actually be empty at render time.
 		$comp_id = $this->seed_competition(
 			'No Categories Show',
 			'no-categories-show',
 			array( 'settings' => array( 'categories' => array() ) )
 		);
 
+		// Fixture filename retained; it captures the default-category fallback.
 		$this->assert_matches_snapshot( 'overview-no-categories', array( $comp_id ) );
 	}
 
