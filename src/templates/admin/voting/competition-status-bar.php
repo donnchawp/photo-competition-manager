@@ -2,6 +2,9 @@
 /**
  * Competition status bar partial for the admin voting controls page.
  *
+ * Reads $data keys: competition, uploads_closed, toggle_uploads_url,
+ * results_visible, hide_results_url.
+ *
  * @package PhotoCompetitionManager
  */
 

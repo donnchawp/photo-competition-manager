@@ -2,6 +2,11 @@
 /**
  * Workflow steps partial for the admin voting controls page.
  *
+ * Reads $data keys: comp_id, competition, category_slug, category_label,
+ * total_categories, image_count, is_ready, current_step, steps, settings,
+ * another_cat_voting, voting_open_here, open_voting_url, close_voting_url,
+ * reset_url.
+ *
  * @package PhotoCompetitionManager
  */
 
@@ -150,4 +155,4 @@ defined( 'ABSPATH' ) || exit;
 				</div>
 			</div>
 		</div>
-		
+		<?php

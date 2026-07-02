@@ -2,6 +2,10 @@
 /**
  * Competition complete partial for the admin voting controls page.
  *
+ * Reads $data keys: competition, all_categories, results_visible,
+ * show_results_url, results_url, top3_url, slideshow_replay_duration,
+ * critique_replay_duration.
+ *
  * @package PhotoCompetitionManager
  */
 

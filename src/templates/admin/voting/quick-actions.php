@@ -2,6 +2,8 @@
 /**
  * Quick actions partial for the admin voting controls page.
  *
+ * Reads $data keys: voting_page_url, voting_password, top3_url, results_url.
+ *
  * @package PhotoCompetitionManager
  */
 

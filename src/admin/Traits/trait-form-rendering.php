@@ -123,7 +123,11 @@ trait Form_Rendering {
 	 */
 	protected function render_template( string $relative, array $data = array() ): string {
 		ob_start();
-		include $this->template_path( $relative );
-		return (string) ob_get_clean();
+		try {
+			include $this->template_path( $relative );
+		} finally {
+			$html = ob_get_clean();
+		}
+		return (string) $html;
 	}
 }

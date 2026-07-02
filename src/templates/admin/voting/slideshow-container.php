@@ -2,6 +2,8 @@
 /**
  * Slideshow container partial for the admin voting controls page.
  *
+ * Takes no $data; markup is static and driven entirely by JS.
+ *
  * @package PhotoCompetitionManager
  */
 
@@ -32,4 +34,4 @@ defined( 'ABSPATH' ) || exit;
 				</button>
 			</div>
 		</div>
-		
+		<?php

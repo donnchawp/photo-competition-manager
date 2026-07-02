@@ -2,6 +2,9 @@
 /**
  * Category tabs partial for the admin voting controls page.
  *
+ * Reads $data keys: all_categories, current_key, open_category_slug,
+ * open_competition_id, voting_open_globally.
+ *
  * @package PhotoCompetitionManager
  */
 

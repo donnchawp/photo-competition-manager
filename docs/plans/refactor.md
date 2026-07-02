@@ -214,6 +214,15 @@ read them before starting the next controller:
   covered by seeded test data), verify byte-identity **by inspection**, and include the
   block's boundary bytes in that inspection — a line-range diff that stops one line short
   of the boundary will miss exactly the trailing-whitespace drift described above.
+- **ID normalization is controller-specific:** the golden-master's `render_normalized()`
+  scopes ID replacement to voting's `competition=`/`focus=`/`data-competition-id=`
+  contexts. Each rollout controller has different ID-bearing markup and MUST rewrite
+  those contexts — do NOT do a document-wide bare-digit replace (it false-fails on small
+  IDs colliding with step numbers/counts).
+- **Snapshot self-write is a footgun:** `assert_matches_snapshot()` writes-then-skips when
+  a fixture is absent (a skip is not a CI failure), so deleting fixtures to "regenerate"
+  silently captures current output as truth. For rollout, consider gating self-write
+  behind an explicit env var and failing (not skipping) on a missing fixture.
 
 ### phpcs: template partials and PrefixAllGlobals
 
