@@ -46,28 +46,10 @@ lint: ## Run PHP_CodeSniffer against the plugin
 fix: ## Auto-fix PHP coding standard violations
 	vendor/bin/phpcbf --standard=WordPress --extensions=php src
 
-test: ## Execute the PHPUnit test suite
-	@set -e; \
-	DB_HOST="$$WP_ENV_TEST_DB_HOST"; \
-	if [ -z "$$DB_HOST" ]; then \
-		$(WP_ENV) start >/dev/null; \
-		TEST_CONTAINER="$$( docker ps --format '{{.Names}}' | grep -E '$(PLUGIN_NAME)-tests-mysql' | head -1 )"; \
-		if [ -z "$$TEST_CONTAINER" ]; then \
-			echo "Unable to find the wp-env tests MySQL container. Run 'make up' first, or export WP_ENV_TEST_DB_HOST=\"127.0.0.1:<port>\"." >&2; \
-			exit 1; \
-		fi; \
-		TEST_PORT="$$( docker port "$$TEST_CONTAINER" 3306/tcp | head -1 | sed 's/.*://' )"; \
-		if [ -z "$$TEST_PORT" ]; then \
-			echo "Found $$TEST_CONTAINER but could not read its published 3306 port from Docker." >&2; \
-			exit 1; \
-		fi; \
-		DB_HOST="127.0.0.1:$$TEST_PORT"; \
-		echo "Using WP_ENV_TEST_DB_HOST=$$DB_HOST"; \
-		echo "Tip: export WP_ENV_TEST_DB_HOST=\"$$DB_HOST\" to reuse this setting for future test runs."; \
-	else \
-		echo "Using existing WP_ENV_TEST_DB_HOST=$$DB_HOST"; \
-	fi; \
-	WP_ENV_TEST_DB_HOST="$$DB_HOST" composer test
+test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI)
+	$(WP_ENV) start
+	$(WP_ENV) run tests-cli --env-cwd=wp-content/pcm \
+		bash -c 'WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
 
 test-js: ## Execute the JavaScript test suite
 	npm --prefix $(ASSETS_DIR) run test:js

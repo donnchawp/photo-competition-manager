@@ -1,5 +1,4 @@
 {
-  "core": "https://wordpress.org/wordpress-7.0.zip",
   "plugins": [
     "./src"
   ],
