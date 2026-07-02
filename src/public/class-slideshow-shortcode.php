@@ -158,10 +158,10 @@ class Slideshow_Shortcode {
 	/**
 	 * Render slideshow interface.
 	 *
-	 * @param object            $competition    Competition object.
-	 * @param string            $category       Category slug.
-	 * @param string            $category_label Category label.
-	 * @param array<int, array>   $image_data     Image data for JavaScript.
+	 * @param object               $competition    Competition object.
+	 * @param string               $category       Category slug.
+	 * @param string               $category_label Category label.
+	 * @param array<int, array>    $image_data     Image data for JavaScript.
 	 * @param array<string, mixed> $settings       Competition settings.
 	 * @return void
 	 */

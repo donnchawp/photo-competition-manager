@@ -11,6 +11,9 @@ phpcs.xml
 vendor/
 node_modules/
 
+# Dev-only CLI helpers (not part of the shipped plugin)
+src/scripts/
+
 # Source files (built assets will be copied separately)
 *.map
 *.scss
