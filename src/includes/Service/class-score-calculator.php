@@ -36,12 +36,12 @@ class Score_Calculator {
 	/**
 	 * Constructor.
 	 *
-	 * @param Images_Repository|null $images_repo Images repository.
-	 * @param Votes_Repository|null  $votes_repo  Votes repository.
+	 * @param Images_Repository $images_repo Images repository.
+	 * @param Votes_Repository  $votes_repo  Votes repository.
 	 */
-	public function __construct( ?Images_Repository $images_repo = null, ?Votes_Repository $votes_repo = null ) {
-		$this->images_repo = $images_repo ? $images_repo : new Images_Repository();
-		$this->votes_repo  = $votes_repo ? $votes_repo : new Votes_Repository();
+	public function __construct( Images_Repository $images_repo, Votes_Repository $votes_repo ) {
+		$this->images_repo = $images_repo;
+		$this->votes_repo  = $votes_repo;
 	}
 
 	/**

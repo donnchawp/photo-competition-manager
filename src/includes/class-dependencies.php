@@ -1,11 +1,11 @@
 <?php
 /**
- * Factory for admin controller dependencies.
+ * Factory for shared repository and service dependencies.
  *
- * @package PhotoCompetitionManager\Admin
+ * @package PhotoCompetitionManager
  */
 
-namespace PhotoCompetitionManager\Admin;
+namespace PhotoCompetitionManager;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
@@ -20,11 +20,11 @@ use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
 
 /**
- * Creates and provides dependencies for admin controllers.
+ * Creates and provides the shared dependency graph used across the plugin.
  *
  * @since 0.1.0
  */
-class Admin_Dependencies {
+class Dependencies {
 
 	/**
 	 * Competitions repository.
@@ -101,9 +101,9 @@ class Admin_Dependencies {
 		$this->logs         = new Logs_Repository();
 
 		// Services.
-		$this->analytics        = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
-		$this->score_calculator = new Score_Calculator( $this->images, $this->votes );
-		$this->email_service    = new Email_Service();
+		$this->analytics         = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
+		$this->score_calculator  = new Score_Calculator( $this->images, $this->votes );
+		$this->email_service     = new Email_Service();
 		$this->email_job_manager = new Email_Results_Job_Manager(
 			$this->competitions,
 			$this->images,

@@ -27,11 +27,9 @@ class Event_Logger {
 
 	/**
 	 * Constructor.
-	 *
-	 * @param Logs_Repository|null $logs_repository Logs repository instance.
 	 */
-	public function __construct( ?Logs_Repository $logs_repository = null ) {
-		$this->logs_repository = $logs_repository ?? new Logs_Repository();
+	public function __construct() {
+		$this->logs_repository = new Logs_Repository();
 	}
 
 	/**
