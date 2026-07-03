@@ -331,6 +331,47 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'no-submissions', array( $comp_id ) );
 	}
 
+	public function test_render_selected_competition_with_null_settings_does_not_deprecate(): void {
+		// Competitions created without a settings payload persist a literal NULL
+		// in the settings column. Selecting such a competition on the
+		// submissions screen previously passed that NULL straight to
+		// json_decode(), which is deprecated on PHP 8.1+.
+		global $wpdb;
+		$comp_id = $this->seed_competition( 'No Settings Show', 'no-settings-show' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $this->competitions->table(), array( 'settings' => null ), array( 'id' => $comp_id ), array( '%s' ), array( '%d' ) );
+
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		$json_decode_deprecations = array();
+		set_error_handler(
+			static function ( $errno, $errstr ) use ( &$json_decode_deprecations ) {
+				if ( false !== strpos( $errstr, 'json_decode' ) ) {
+					$json_decode_deprecations[] = $errstr;
+				}
+				return true;
+			},
+			E_DEPRECATED
+		);
+
+		try {
+			ob_start();
+			$this->controller->render();
+			$html = (string) ob_get_clean();
+		} finally {
+			restore_error_handler();
+		}
+
+		$this->assertSame( array(), $json_decode_deprecations, 'Rendering a null-settings competition must not emit a json_decode() deprecation.' );
+		// The selected competition still renders its admin action forms.
+		$this->assertStringContainsString( 'name="competition_id" value="' . $comp_id . '"', $html );
+	}
+
 	public function test_render_happy_path(): void {
 		// Two competitions, one archived (exercises the "(Archived)" label in
 		// the filter dropdown). Explicit, distinct created_at values keep the

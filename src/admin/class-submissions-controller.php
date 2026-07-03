@@ -600,10 +600,12 @@ class Submissions_Controller {
 			echo $this->render_delete_originals_form( $competition_id );
 
 			// Get competition settings for categories.
-			$settings   = json_decode( $selected_competition->settings, true );
 			$categories = array();
-			if ( is_array( $settings ) ) {
-				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+			if ( ! empty( $selected_competition->settings ) ) {
+				$settings = json_decode( $selected_competition->settings, true );
+				if ( is_array( $settings ) ) {
+					$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+				}
 			}
 
 			// Add admin upload form.
