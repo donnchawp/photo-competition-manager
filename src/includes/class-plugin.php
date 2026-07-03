@@ -20,13 +20,6 @@ use PhotoCompetitionManager\Frontend\Frontend;
 class Plugin {
 
 	/**
-	 * Singleton instance.
-	 *
-	 * @var Plugin|null
-	 */
-	private static $instance = null;
-
-	/**
 	 * Admin controller.
 	 *
 	 * @var Admin_Screen
@@ -39,19 +32,6 @@ class Plugin {
 	 * @var Frontend
 	 */
 	private $frontend;
-
-	/**
-	 * Access the singleton instance.
-	 *
-	 * @return Plugin
-	 */
-	public static function instance(): Plugin {
-		if ( null === self::$instance ) {
-			self::$instance = new self();
-		}
-
-		return self::$instance;
-	}
 
 	/**
 	 * Register WordPress hooks.
@@ -102,24 +82,7 @@ class Plugin {
 	 * @return void
 	 */
 	private function register_email_job_hooks(): void {
-		// Initialize repositories and services.
-		$competitions = new \PhotoCompetitionManager\Repository\Competitions_Repository();
-		$members      = new \PhotoCompetitionManager\Repository\Members_Repository();
-		$images       = new \PhotoCompetitionManager\Repository\Images_Repository();
-		$votes        = new \PhotoCompetitionManager\Repository\Votes_Repository();
-		$analytics    = new \PhotoCompetitionManager\Service\Results_Analytics( $competitions, $images, $members, $votes );
-		$calculator   = new \PhotoCompetitionManager\Service\Score_Calculator( $images, $votes );
-		$email        = new \PhotoCompetitionManager\Service\Email_Service();
-
-		$job_manager = new \PhotoCompetitionManager\Service\Email_Results_Job_Manager(
-			$competitions,
-			$images,
-			$members,
-			$votes,
-			$analytics,
-			$calculator,
-			$email
-		);
+		$job_manager = ( new Dependencies() )->email_job_manager;
 
 		// Register cron hook for processing batches.
 		add_action( 'photo_comp_send_results_batch', array( $job_manager, 'process_batch' ), 10, 1 );

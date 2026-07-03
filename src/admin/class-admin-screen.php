@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Admin;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Dependencies;
 
 /**
  * Orchestrate admin menus and delegate to specialized controllers.
@@ -90,10 +91,10 @@ class Admin_Screen {
 	/**
 	 * Constructor.
 	 *
-	 * @param Admin_Dependencies|null $deps Optional dependencies container.
+	 * @param Dependencies|null $deps Optional dependencies container.
 	 */
-	public function __construct( ?Admin_Dependencies $deps = null ) {
-		$deps = $deps ?? new Admin_Dependencies();
+	public function __construct( ?Dependencies $deps = null ) {
+		$deps = $deps ?? new Dependencies();
 
 		// Initialize controllers with their dependencies.
 		$this->competitions_controller    = new Competitions_Controller( $deps->competitions );

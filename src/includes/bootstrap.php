@@ -54,21 +54,12 @@ spl_autoload_register(
 			$class_file     = array_pop( $path_parts );
 			$path_prefix    = empty( $path_parts ) ? '' : implode( '/', $path_parts ) . '/';
 
-			$camel_case_variant = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_file ) );
-			$camel_case_variant = str_replace( '_', '-', $camel_case_variant );
-			$underscore_variant = strtolower( str_replace( '_', '-', $class_file ) );
-			$lower_variant      = strtolower( $class_file );
+			// Class/trait files follow WordPress naming: Foo_Bar => class-foo-bar.php.
+			$file_slug = strtolower( str_replace( '_', '-', $class_file ) );
 
-			$candidates = array_unique(
-				array(
-					$base_dir . $relative_path . '.php',
-					$base_dir . $path_prefix . 'class-' . $camel_case_variant . '.php',
-					$base_dir . $path_prefix . 'class-' . $underscore_variant . '.php',
-					$base_dir . $path_prefix . 'class-' . $lower_variant . '.php',
-					$base_dir . $path_prefix . 'trait-' . $camel_case_variant . '.php',
-					$base_dir . $path_prefix . 'trait-' . $underscore_variant . '.php',
-					$base_dir . $path_prefix . 'trait-' . $lower_variant . '.php',
-				)
+			$candidates = array(
+				$base_dir . $path_prefix . 'class-' . $file_slug . '.php',
+				$base_dir . $path_prefix . 'trait-' . $file_slug . '.php',
 			);
 
 			foreach ( $candidates as $file ) {
@@ -91,4 +82,4 @@ Mailpit_SMTP::init();
 // Initialize global email configuration.
 Email_Configuration::init();
 
-Plugin::instance()->register();
+( new Plugin() )->register();

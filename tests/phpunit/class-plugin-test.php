@@ -11,6 +11,9 @@ use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Plugin;
 use WP_UnitTestCase;
 
+/**
+ * Plugin bootstrap tests.
+ */
 class Plugin_Test extends WP_UnitTestCase {
 
 	/**
@@ -19,7 +22,7 @@ class Plugin_Test extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_plugin_registers_hooks(): void {
-		$this->assertInstanceOf( Plugin::class, Plugin::instance() );
+		$this->assertInstanceOf( Plugin::class, new Plugin() );
 	}
 
 	/**

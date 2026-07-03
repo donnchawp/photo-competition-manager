@@ -21,17 +21,15 @@ class Email_Service {
 	/**
 	 * Event logger.
 	 *
-	 * @var Event_Logger|null
+	 * @var Event_Logger
 	 */
 	private $event_logger;
 
 	/**
 	 * Constructor.
-	 *
-	 * @param Event_Logger|null $event_logger Optional event logger instance.
 	 */
-	public function __construct( ?Event_Logger $event_logger = null ) {
-		$this->event_logger = $event_logger ?? new Event_Logger();
+	public function __construct() {
+		$this->event_logger = new Event_Logger();
 	}
 
 	/**
