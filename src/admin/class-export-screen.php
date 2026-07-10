@@ -199,6 +199,10 @@ class Export_Screen {
 			return;
 		}
 
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
+			return;
+		}
+
 		$action = sanitize_key( $_POST['action'] );
 
 		if ( 'export_votes' === $action ) {
