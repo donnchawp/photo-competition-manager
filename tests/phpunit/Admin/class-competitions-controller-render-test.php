@@ -250,6 +250,45 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'More than one competition is open', $html );
 	}
 
+	/**
+	 * With the Competition Closed email enabled, closing a competition emails
+	 * every active member on the next cron run, so the confirmation says so.
+	 */
+	public function test_render_close_confirm_warns_when_closed_email_enabled(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'competition_closed' => array(
+					'enabled' => true,
+					'subject' => '{competition_title} has closed',
+					'body'    => '<p>Hi {member_name}</p>',
+				),
+			)
+		);
+		$this->seed_competition( 'Spring Show', 'spring-show' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '/class="photo-comp-close-competition" data-confirm="[^"]*every active member[^"]*"/', $html );
+	}
+
+	/**
+	 * With the Competition Closed email off, the confirmation doesn't mention it.
+	 */
+	public function test_render_close_confirm_no_email_warning_when_closed_email_disabled(): void {
+		delete_option( 'photo_comp_email_templates' );
+		$this->seed_competition( 'Spring Show', 'spring-show' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'class="photo-comp-close-competition"', $html );
+		$this->assertStringNotContainsString( 'every active member', $html );
+	}
+
 	public function test_render_list_archived_view(): void {
 		// A single archived competition, requested via view=archived: the
 		// Restore action replaces Archive, the toggle-uploads action is

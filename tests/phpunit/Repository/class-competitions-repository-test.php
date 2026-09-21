@@ -382,6 +382,132 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	// ---------------------------------------------------------------
+	// find_overlapping()
+	// ---------------------------------------------------------------
+
+	/**
+	 * A range that starts before another competition closes overlaps it.
+	 */
+	public function test_find_overlapping_returns_competition_whose_dates_overlap(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$september_id = $repository->create(
+			array(
+				'title'      => 'September',
+				'open_date'  => '2026-09-01 00:00:00',
+				'close_date' => '2026-09-30 00:00:00',
+			)
+		);
+
+		$overlap = $repository->find_overlapping( '2026-09-15 00:00:00', '2026-10-15 00:00:00' );
+
+		$this->assertNotNull( $overlap );
+		$this->assertSame( $september_id, (int) $overlap->id );
+	}
+
+	/**
+	 * A competition that closed before the range opens does not overlap it.
+	 */
+	public function test_find_overlapping_ignores_competition_that_ends_before_range(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'September',
+				'open_date'  => '2026-09-01 00:00:00',
+				'close_date' => '2026-09-30 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' ) );
+	}
+
+	/**
+	 * One competition closing on the day the next opens is the normal
+	 * month-to-month hand-over, not an overlap.
+	 */
+	public function test_find_overlapping_allows_range_starting_when_other_closes(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'September',
+				'open_date'  => '2026-09-01 00:00:00',
+				'close_date' => '2026-09-30 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( '2026-09-30 00:00:00', '2026-10-31 00:00:00' ) );
+	}
+
+	/**
+	 * A competition with no close date stays open for ever, so it overlaps
+	 * anything that opens after it.
+	 */
+	public function test_find_overlapping_treats_missing_close_date_as_open_ended(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$stale_id = $repository->create(
+			array(
+				'title'     => 'Stale',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+
+		$overlap = $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' );
+
+		$this->assertNotNull( $overlap );
+		$this->assertSame( $stale_id, (int) $overlap->id );
+	}
+
+	/**
+	 * A range with no open date is open from now, so it doesn't clash with
+	 * competitions that have already closed.
+	 */
+	public function test_find_overlapping_treats_missing_open_date_as_now(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Last Year',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( null, null ) );
+	}
+
+	/**
+	 * The competition being edited does not overlap itself.
+	 */
+	public function test_find_overlapping_excludes_given_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'September',
+				'open_date'  => '2026-09-01 00:00:00',
+				'close_date' => '2026-09-30 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( '2026-09-01 00:00:00', '2026-10-15 00:00:00', $id ) );
+	}
+
+	/**
+	 * Archived competitions are never open, so they never overlap.
+	 */
+	public function test_find_overlapping_ignores_archived_competitions(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create( array( 'title' => 'Archived' ) );
+		$repository->archive( $id );
+
+		$this->assertNull( $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' ) );
+	}
+
+	// ---------------------------------------------------------------
 	// is_accepting_uploads()
 	// ---------------------------------------------------------------
 

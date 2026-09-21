@@ -161,6 +161,45 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find a competition whose dates overlap the given range.
+	 *
+	 * Only one competition may be open at a time. A missing open date means
+	 * the range starts now; a missing close date means it never ends, so a
+	 * competition with no close date overlaps everything after it opens. A
+	 * range that starts at the moment another closes does not overlap it.
+	 * Archived competitions are ignored.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param string|null $open_date  Open date of the range, or null for now.
+	 * @param string|null $close_date Close date of the range, or null for unbounded.
+	 * @param int         $exclude_id Competition to leave out, e.g. the one being edited.
+	 * @return object|null The first overlapping competition, or null.
+	 */
+	public function find_overlapping( ?string $open_date, ?string $close_date, int $exclude_id = 0 ) {
+		global $wpdb;
+
+		$open_date  = $this->normalize_date( $open_date ) ?? utc_time();
+		$close_date = $this->normalize_date( $close_date );
+
+		$conditions = 'deleted_at IS NULL AND id <> %d AND (close_date IS NULL OR close_date > %s)';
+		$args       = array( $this->table(), $exclude_id, $open_date );
+
+		if ( null !== $close_date ) {
+			$conditions .= ' AND (open_date IS NULL OR open_date < %s)';
+			$args[]      = $close_date;
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare( 'SELECT * FROM %i WHERE ' . $conditions . ' ORDER BY created_at DESC LIMIT 1', ...$args )
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL
+	}
+
+	/**
 	 * Create a competition.
 	 *
 	 * @param array<string, mixed> $data Competition data.

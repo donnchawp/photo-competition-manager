@@ -163,7 +163,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * A duplicate slug surfaces the repository error code.
 	 */
 	public function test_create_competition_duplicate_slug_error(): void {
-		$this->create_competition( 'First', 'dupe-slug' );
+		$this->create_competition( 'First', 'dupe-slug', '2020-01-01 00:00:00', '2020-02-01 00:00:00' );
 
 		$this->set_request(
 			array(
@@ -182,6 +182,35 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertContains( 'duplicate_slug', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * Only one competition may be open at a time, so a new competition whose
+	 * dates overlap an existing one is refused.
+	 */
+	public function test_create_competition_overlapping_dates_error(): void {
+		$this->create_competition( 'Stale', 'stale', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'October',
+				'competition_slug'         => 'october',
+				'competition_open_date'    => '2026-10-01',
+				'competition_close_date'   => '2026-10-31',
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
+		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNull( $this->competitions->find_by_slug( 'october' ) );
 	}
 
 	/**
@@ -242,7 +271,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * A duplicate slug on update surfaces an error and redirects to the edit screen.
 	 */
 	public function test_update_competition_duplicate_slug_error(): void {
-		$this->create_competition( 'Alpha', 'alpha' );
+		$this->create_competition( 'Alpha', 'alpha', '2020-01-01 00:00:00', '2020-02-01 00:00:00' );
 		$id = $this->create_competition( 'Beta', 'beta' );
 
 		$this->set_request(
@@ -264,6 +293,37 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'action=edit', $location );
 		$this->assertStringContainsString( 'competition=' . $id, $location );
 		$this->assertContains( 'duplicate_slug', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * Changing a competition's dates so they overlap another is refused and
+	 * returns to the edit screen with the dates unchanged.
+	 */
+	public function test_update_competition_overlapping_dates_error(): void {
+		$this->create_competition( 'September', 'september', '2026-09-01 00:00:00', '2026-09-30 00:00:00' );
+		$id = $this->create_competition( 'October', 'october', '2026-10-01 00:00:00', '2026-10-31 00:00:00' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition',
+				'competition_id'           => $id,
+				'competition_title'        => 'October',
+				'competition_slug'         => 'october',
+				'competition_open_date'    => '2026-09-15',
+				'competition_close_date'   => '2026-10-31',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'action=edit', $location );
+		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( '2026-10-01 00:00:00', $this->competitions->find( $id )->open_date );
 	}
 
 	/**
@@ -375,7 +435,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'competition_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertGreaterThanOrEqual( $before - 1, $closed_at );
 		$this->assertLessThanOrEqual( time(), $closed_at );
-		$this->assertSame( gmdate( 'Y-m-d' ), substr( $competition->close_date, 0, 10 ) );
 		$this->assertFalse( $this->competitions->is_open( $competition ) );
 	}
 
@@ -430,6 +489,31 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'competition_not_found', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * Closing an already-closed competition (a replayed link) leaves its
+	 * close date alone.
+	 */
+	public function test_close_competition_already_closed(): void {
+		$id = $this->create_competition( 'Done', 'done', '2020-01-01 00:00:00', '2020-02-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_close_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'competition_already_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( '2020-02-01 00:00:00', $this->competitions->find( $id )->close_date );
 	}
 
 	/**
@@ -522,6 +606,33 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'view=archived', $location );
 		$this->assertContains( 'restored', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNotNull( $this->competitions->find( $id ), 'Restored competition should reappear in default find().' );
+	}
+
+	/**
+	 * Restoring a competition whose dates overlap another is refused, so
+	 * restore can't bring back a second open competition.
+	 */
+	public function test_restore_overlapping_dates_error(): void {
+		$id = $this->create_competition( 'Old', 'old' );
+		$this->competitions->archive( $id );
+		$this->create_competition( 'Current', 'current', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'action'      => 'restore',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_restore_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNull( $this->competitions->find( $id ), 'Competition should stay archived.' );
 	}
 
 	/*

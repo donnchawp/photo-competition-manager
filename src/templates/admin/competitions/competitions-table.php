@@ -2,7 +2,9 @@
 /**
  * Competitions list table partial for the admin dashboard page.
  *
- * Reads $data['views'] (array<int, array{label: string, count: int, url:
+ * Reads $data['closed_email_enabled'] (bool): whether the Competition Closed
+ * email is on, so the Close Competition confirmation warns that members will
+ * be emailed. $data['views'] (array<int, array{label: string, count: int, url:
  * string, is_current: bool}>): the Active/Archived view-switcher links.
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
  * string, last_updated: string, edit_url: string, is_archived: bool,
@@ -91,10 +93,14 @@ foreach ( $data['rows'] as $row ) {
 
 	// Close competition action: sets the close date to now and closes voting.
 	if ( '' !== $row['close_url'] ) {
+		$close_confirm = __( 'Close this competition? Its close date will be set to today and any open voting will be closed. You can change the date again from the Edit screen.', 'photo-competition-manager' );
+		if ( $data['closed_email_enabled'] ) {
+			$close_confirm .= "\n\n" . __( 'The Competition Closed email is enabled, so every active member will be emailed that this competition has closed when the daily email check next runs.', 'photo-competition-manager' );
+		}
 		$actions[] = sprintf(
 			'<a href="%s" class="photo-comp-close-competition" data-confirm="%s">%s</a>',
 			esc_url( $row['close_url'] ),
-			esc_attr( __( 'Close this competition? Its close date will be set to today and any open voting will be closed. You can change the date again from the Edit screen.', 'photo-competition-manager' ) ),
+			esc_attr( $close_confirm ),
 			esc_html__( 'Close Competition', 'photo-competition-manager' )
 		);
 	}
