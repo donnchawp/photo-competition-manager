@@ -97,6 +97,43 @@ class Email_Service_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * An enabled template with a subject and body counts as enabled.
+	 */
+	public function test_is_template_enabled_true_for_enabled_template() {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'competition_closed' => array(
+					'enabled' => true,
+					'subject' => '{competition_title} has closed',
+					'body'    => '<p>Hi {member_name}</p>',
+				),
+			)
+		);
+
+		$this->assertTrue( $this->service->is_template_enabled( 'competition_closed' ) );
+	}
+
+	/**
+	 * A disabled or never-saved template is not enabled.
+	 */
+	public function test_is_template_enabled_false_for_disabled_or_missing_template() {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'competition_closed' => array(
+					'enabled' => false,
+					'subject' => '{competition_title} has closed',
+					'body'    => '<p>Hi {member_name}</p>',
+				),
+			)
+		);
+
+		$this->assertFalse( $this->service->is_template_enabled( 'competition_closed' ) );
+		$this->assertFalse( $this->service->is_template_enabled( 'no_such_template' ) );
+	}
+
+	/**
 	 * When the results_detailed template is enabled, the subject comes from the
 	 * admin template with merge tags resolved (not the hardcoded fallback).
 	 */

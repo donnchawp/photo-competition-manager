@@ -8,6 +8,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use WP_UnitTestCase;
+use function PhotoCompetitionManager\Support\utc_time;
 
 class Competitions_Repository_Test extends WP_UnitTestCase {
 
@@ -336,6 +337,231 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$competition = $repository->find( $id );
 
 		$this->assertTrue( $repository->is_open( $competition ) );
+	}
+
+	// ---------------------------------------------------------------
+	// all_open()
+	// ---------------------------------------------------------------
+
+	public function test_all_open_returns_only_open_competitions(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$open_id     = $repository->create( array( 'title' => 'Open Comp' ) );
+		$closed_id   = $repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+		$future_id   = $repository->create(
+			array(
+				'title'     => 'Future Comp',
+				'open_date' => '2099-01-01 00:00:00',
+			)
+		);
+		$archived_id = $repository->create( array( 'title' => 'Archived Comp' ) );
+		$repository->archive( $archived_id );
+
+		$ids = array_map( 'intval', wp_list_pluck( $repository->all_open(), 'id' ) );
+
+		$this->assertSame( array( $open_id ), $ids );
+		$this->assertNotContains( $closed_id, $ids );
+		$this->assertNotContains( $future_id, $ids );
+	}
+
+	public function test_all_open_returns_empty_array_when_none_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertSame( array(), $repository->all_open() );
+	}
+
+	// ---------------------------------------------------------------
+	// find_overlapping()
+	// ---------------------------------------------------------------
+
+	/**
+	 * A range that starts before another competition closes overlaps it.
+	 */
+	public function test_find_overlapping_returns_competition_whose_dates_overlap(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$overlap = $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) );
+
+		$this->assertNotNull( $overlap );
+		$this->assertSame( $current_id, (int) $overlap->id );
+	}
+
+	/**
+	 * A competition that closes before the range opens does not overlap it.
+	 */
+	public function test_find_overlapping_ignores_competition_that_ends_before_range(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( utc_time( 21 * DAY_IN_SECONDS ), utc_time( 50 * DAY_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * One competition closing on the day the next opens is the normal
+	 * month-to-month hand-over, not an overlap.
+	 */
+	public function test_find_overlapping_allows_range_starting_when_other_closes(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => $hand_over,
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( $hand_over, utc_time( 50 * DAY_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * A competition with no close date stays open for ever, so it overlaps
+	 * anything that opens after it.
+	 */
+	public function test_find_overlapping_treats_missing_close_date_as_open_ended(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$stale_id = $repository->create(
+			array(
+				'title'     => 'Stale',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+
+		$overlap = $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) );
+
+		$this->assertNotNull( $overlap );
+		$this->assertSame( $stale_id, (int) $overlap->id );
+	}
+
+	/**
+	 * A range with no open date is open from now, so it doesn't clash with
+	 * competitions that have already closed.
+	 */
+	public function test_find_overlapping_treats_missing_open_date_as_now(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Last Year',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( null, null ) );
+	}
+
+	/**
+	 * Only one competition may be open at a time from now on. Two past
+	 * competitions whose dates overlapped don't block each other, so
+	 * either can still be edited.
+	 */
+	public function test_find_overlapping_ignores_overlap_in_the_past(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Last Year',
+				'open_date'  => '2025-01-01 00:00:00',
+				'close_date' => '2025-02-05 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( '2025-02-01 00:00:00', '2025-03-01 00:00:00' ) );
+	}
+
+	/**
+	 * Closing a competition sets its close date to the current time. The
+	 * next competition opening today is stored as midnight, which is
+	 * before that time, but it only clashes if both are open from now on.
+	 */
+	public function test_find_overlapping_allows_range_opening_today_after_close_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closed Today',
+				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( -1 ),
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( gmdate( 'Y-m-d 00:00:00' ), utc_time( 30 * DAY_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * A closed competition with no open date covers no time from now on,
+	 * so it overlaps nothing.
+	 */
+	public function test_find_overlapping_ignores_closed_range_with_missing_open_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'     => 'Stale',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( null, utc_time( -10 * DAY_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * The competition being edited does not overlap itself.
+	 */
+	public function test_find_overlapping_excludes_given_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( utc_time( -10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ), $id ) );
+	}
+
+	/**
+	 * Archived competitions are never open, so they never overlap.
+	 */
+	public function test_find_overlapping_ignores_archived_competitions(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create( array( 'title' => 'Archived' ) );
+		$repository->archive( $id );
+
+		$this->assertNull( $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) ) );
 	}
 
 	// ---------------------------------------------------------------

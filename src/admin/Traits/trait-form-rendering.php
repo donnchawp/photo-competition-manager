@@ -62,6 +62,48 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Competition edit screen URL.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function edit_url( int $competition_id ): string {
+		return add_query_arg(
+			array(
+				'page'        => 'photo-competition-manager',
+				'action'      => 'edit',
+				'competition' => $competition_id,
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * Warning shown when more than one competition is open.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param object[] $open_competitions Open competitions.
+	 * @param bool     $show_link         Whether to link to the Competitions page.
+	 * @return string Rendered HTML, or an empty string when at most one is open.
+	 */
+	private function render_multiple_open_notice( array $open_competitions, bool $show_link ): string {
+		if ( count( $open_competitions ) < 2 ) {
+			return '';
+		}
+
+		return $this->render_template(
+			'admin/notice-multiple-open-competitions.php',
+			array(
+				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
+				'show_link' => $show_link,
+			)
+		);
+	}
+
+	/**
 	 * Members page URL.
 	 *
 	 * @param bool $with_settings_updated Whether to add the settings-updated parameter to the URL.

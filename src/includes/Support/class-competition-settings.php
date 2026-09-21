@@ -419,6 +419,44 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Close voting for a category.
+	 *
+	 * Clears the open category, advances it to step 5, and records it as voted.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param array<string, mixed> $settings       Parsed settings.
+	 * @param int                  $competition_id Competition ID.
+	 * @param string               $category_slug  Category slug.
+	 * @return array<string, mixed> Updated settings.
+	 */
+	public static function close_category_voting( array $settings, int $competition_id, string $category_slug ): array {
+		$settings['voting']['open_categories']                  = array();
+		$settings['voting']['category_steps'][ $category_slug ] = 5;
+
+		return self::mark_category_voted( $settings, $competition_id, $category_slug );
+	}
+
+	/**
+	 * Record a category as voted, once.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param array<string, mixed> $settings       Parsed settings.
+	 * @param int                  $competition_id Competition ID.
+	 * @param string               $category_slug  Category slug.
+	 * @return array<string, mixed> Updated settings.
+	 */
+	public static function mark_category_voted( array $settings, int $competition_id, string $category_slug ): array {
+		$category_key = $competition_id . '_' . $category_slug;
+		if ( ! in_array( $category_key, $settings['voting']['voted_categories'] ?? array(), true ) ) {
+			$settings['voting']['voted_categories'][] = $category_key;
+		}
+
+		return $settings;
+	}
+
+	/**
 	 * Auto-detect page URLs by searching for shortcodes if URLs are not set.
 	 *
 	 * @param array<string, mixed> $settings Settings array.

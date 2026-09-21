@@ -767,6 +767,18 @@ class Email_Service {
 	}
 
 	/**
+	 * Whether an email template is enabled and has content to send.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param string $template_key Template key.
+	 * @return bool
+	 */
+	public function is_template_enabled( string $template_key ): bool {
+		return null !== $this->get_template( $template_key );
+	}
+
+	/**
 	 * Get a specific email template.
 	 *
 	 * @param string $template_key Template key.

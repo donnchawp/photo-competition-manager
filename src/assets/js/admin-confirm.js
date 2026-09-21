@@ -12,7 +12,8 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		if (
 			e.target.classList.contains( 'photo-comp-delete' ) ||
 			e.target.classList.contains( 'photo-comp-reset-votes' ) ||
-			e.target.classList.contains( 'photo-comp-regenerate-hash' )
+			e.target.classList.contains( 'photo-comp-regenerate-hash' ) ||
+			e.target.classList.contains( 'photo-comp-close-competition' )
 		) {
 			var confirmMessage = e.target.getAttribute( 'data-confirm' );
 			if ( confirmMessage && ! confirm( confirmMessage ) ) {

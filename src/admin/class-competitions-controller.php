@@ -12,8 +12,10 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Manage competitions dashboard and CRUD operations.
@@ -134,7 +136,7 @@ class Competitions_Controller {
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
-			$result = $this->competitions->create( $data );
+			$result = $this->overlap_error( $data['open_date'], $data['close_date'] ) ?? $this->competitions->create( $data );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -175,7 +177,7 @@ class Competitions_Controller {
 				'close_date' => $this->parse_date_input( $close_date_raw ),
 			);
 
-			$result = $this->competitions->update( $competition_id, $data );
+			$result = $this->overlap_error( $data['open_date'], $data['close_date'], $competition_id ) ?? $this->competitions->update( $competition_id, $data );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -185,16 +187,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager',
-							'action'      => 'edit',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $this->edit_url( $competition_id ) );
 			}
 
 			add_settings_error(
@@ -258,6 +251,63 @@ class Competitions_Controller {
 						'updated'
 					);
 				}
+			}
+
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
+			return;
+		}
+
+		if ( 'close_competition' === $action && isset( $_GET['competition'] ) ) {
+			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
+
+			check_admin_referer( 'photo_competition_close_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+
+			// A replayed link must not move an existing close date forward.
+			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					$competition ? 'competition_already_closed' : 'competition_not_found',
+					$competition
+						? __( 'Competition is already closed.', 'photo-competition-manager' )
+						: __( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
+				return;
+			}
+
+			$settings = Competition_Settings::parse( $competition->settings );
+			foreach ( Competition_Settings::get_open_voting_categories( $settings ) as $category_slug ) {
+				$settings = Competition_Settings::close_category_voting( $settings, $competition_id, $category_slug );
+			}
+
+			// Close as of a second ago: is_open() needs close_date < now, and a
+			// date-only "today" is stored as midnight UTC, which is still in the
+			// future just after midnight on sites ahead of UTC.
+			$result = $this->competitions->update(
+				$competition_id,
+				array(
+					'close_date' => utc_time( -1 ),
+					'settings'   => $settings,
+				)
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_manager',
+					'competition_closed',
+					__( 'Competition closed.', 'photo-competition-manager' ),
+					'updated'
+				);
 			}
 
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
@@ -404,9 +454,16 @@ class Competitions_Controller {
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
 
-			$result = 'archive' === $action
-			? $this->competitions->archive( $competition_id )
-			: $this->competitions->restore( $competition_id );
+			if ( 'archive' === $action ) {
+				$result = $this->competitions->archive( $competition_id );
+			} else {
+				$archived = $this->competitions->find( $competition_id, true );
+				$result   = $archived ? $this->overlap_error( $archived->open_date, $archived->close_date, $competition_id ) : null;
+
+				if ( null === $result ) {
+					$result = $this->competitions->restore( $competition_id );
+				}
+			}
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -671,6 +728,37 @@ class Competitions_Controller {
 	}
 
 	/**
+	 * Refuse dates that overlap another competition.
+	 *
+	 * Only one competition may be open at a time. The error names the
+	 * competition in the way and links to its edit screen, since it may be
+	 * too old to appear in the dashboard list.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param string|null $open_date  Open date, or null for now.
+	 * @param string|null $close_date Close date, or null for unbounded.
+	 * @param int         $exclude_id Competition being saved, if it already exists.
+	 * @return \WP_Error|null Error when the dates overlap, otherwise null.
+	 */
+	private function overlap_error( ?string $open_date, ?string $close_date, int $exclude_id = 0 ): ?\WP_Error {
+		$other = $this->competitions->find_overlapping( $open_date, $close_date, $exclude_id );
+
+		if ( ! $other ) {
+			return null;
+		}
+
+		return new \WP_Error(
+			'competition_overlap',
+			sprintf(
+				/* translators: %s: linked title of the overlapping competition */
+				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
+				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
+			)
+		);
+	}
+
+	/**
 	 * Render admin dashboard overview.
 	 *
 	 * @return void
@@ -703,6 +791,9 @@ class Competitions_Controller {
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Photo Competition Manager Dashboard', 'photo-competition-manager' ) . '</h1>';
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_multiple_open_notice( $this->competitions->all_open(), false );
 
 		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
@@ -945,14 +1036,7 @@ class Competitions_Controller {
 			$is_archived = ! empty( $competition->deleted_at );
 			$comp_id     = (int) $competition->id;
 
-			$edit_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager',
-					'action'      => 'edit',
-					'competition' => $comp_id,
-				),
-				admin_url( 'admin.php' )
-			);
+			$edit_url = $this->edit_url( $comp_id );
 
 			$toggle_uploads_url = '';
 			$uploads_closed     = false;
@@ -974,7 +1058,8 @@ class Competitions_Controller {
 
 			$is_open        = $this->competitions->is_open( $competition );
 			$send_email_url = '';
-			if ( $is_open && ! $is_archived ) {
+			$close_url      = '';
+			if ( $is_open ) {
 				$send_email_url = wp_nonce_url(
 					add_query_arg(
 						array(
@@ -985,6 +1070,17 @@ class Competitions_Controller {
 						admin_url( 'admin.php' )
 					),
 					'photo_competition_send_emails_' . $comp_id
+				);
+				$close_url      = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager',
+							'action'      => 'close_competition',
+							'competition' => $comp_id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_close_' . $comp_id
 				);
 			}
 
@@ -1065,6 +1161,7 @@ class Competitions_Controller {
 				'uploads_closed'     => $uploads_closed,
 				'is_open'            => $is_open,
 				'send_email_url'     => $send_email_url,
+				'close_url'          => $close_url,
 				'generate_link_url'  => $generate_link_url,
 				'restore_url'        => $restore_url,
 				'archive_url'        => $archive_url,
@@ -1073,11 +1170,14 @@ class Competitions_Controller {
 			);
 		}
 
+		$email_service = new Email_Service();
+
 		return $this->render_template(
 			'admin/competitions/competitions-table.php',
 			array(
-				'views' => $views,
-				'rows'  => $rows,
+				'closed_email_enabled' => $email_service->is_template_enabled( 'competition_closed' ),
+				'views'                => $views,
+				'rows'                 => $rows,
 			)
 		);
 	}

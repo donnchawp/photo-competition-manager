@@ -57,7 +57,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Categories (e.g., Colour, Black & White)
   - Grades (e.g., Beginner, Intermediate, Advanced)
   - Upload start/end dates
-- Only one competition can be active at a time.
+- Only one competition can be active at a time. Creating, editing or restoring a competition is refused if its dates overlap another competition's from now on (past overlaps are ignored); a missing open date means "from now" and a missing close date means "never closes". An open competition can be closed early with **Close Competition**.
 - Past competitions automatically archived.
 
 ### 4.2 Member & Image Upload
