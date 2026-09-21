@@ -50,6 +50,40 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		) {$charset_collate};";
 
 		dbDelta( $sql );
+
+		// find_valid_token() only returns tokens belonging to active members.
+		foreach ( array( 1, 2, 3 ) as $member_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->insert(
+				$wpdb->prefix . 'photocomp_members',
+				array(
+					'id'    => $member_id,
+					'name'  => "Member {$member_id}",
+					'email' => "member{$member_id}@example.com",
+					'grade' => 'beginner',
+				)
+			);
+		}
+	}
+
+	/**
+	 * Tokens belonging to deactivated members are not valid, and work again on reactivation.
+	 *
+	 * @return void
+	 */
+	public function test_find_valid_token_ignores_inactive_member(): void {
+		global $wpdb;
+		$members    = $wpdb->prefix . 'photocomp_members';
+		$token_hash = hash( 'sha256', 'inactive-member-token' );
+		$this->repository->create( 1, 2, 'colour', $token_hash, gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $members, array( 'active' => 0 ), array( 'id' => 1 ) );
+		$this->assertNull( $this->repository->find_valid_token( $token_hash ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $members, array( 'active' => 1 ), array( 'id' => 1 ) );
+		$this->assertNotNull( $this->repository->find_valid_token( $token_hash ) );
 	}
 
 	/**

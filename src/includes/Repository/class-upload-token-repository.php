@@ -123,6 +123,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Find a valid token by token string.
 	 *
+	 * Tokens belonging to deactivated members are treated as invalid.
 	 * Records the first access timestamp if this is the first time the token is used.
 	 *
 	 * @param string $token_string Token string.
@@ -138,11 +139,13 @@ class Upload_Token_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$token = $wpdb->get_row(
 			$wpdb->prepare(
-				'SELECT * FROM %i
-				WHERE token = %s
-				AND expires_at > %s
+				'SELECT t.* FROM %i AS t
+				INNER JOIN %i AS m ON m.id = t.member_id AND m.active = 1
+				WHERE t.token = %s
+				AND t.expires_at > %s
 				LIMIT 1',
 				$this->table(),
+				$wpdb->prefix . 'photocomp_members',
 				$token_string,
 				utc_time()
 			)

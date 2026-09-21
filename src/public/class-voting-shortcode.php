@@ -332,7 +332,7 @@ class Voting_Shortcode {
 
 		// Find member by email silently.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member ) {
+		if ( ! $member || ! $member->active ) {
 			// Return success message but don't send email.
 			return $generic_success;
 		}
