@@ -77,6 +77,27 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A site-timezone date, as typed into the competition form, the given
+	 * number of days from now.
+	 *
+	 * @param int $days Days from now; negative for the past.
+	 * @return string Y-m-d date.
+	 */
+	private function form_date( int $days ): string {
+		return wp_date( 'Y-m-d', time() + $days * DAY_IN_SECONDS );
+	}
+
+	/**
+	 * A UTC datetime the given number of days from now.
+	 *
+	 * @param int $days Days from now; negative for the past.
+	 * @return string
+	 */
+	private function days_from_now( int $days ): string {
+		return gmdate( 'Y-m-d H:i:s', time() + $days * DAY_IN_SECONDS );
+	}
+
+	/**
 	 * Parsed settings for a competition.
 	 *
 	 * @param int $competition_id Competition ID.
@@ -196,8 +217,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 				'photo_competition_action' => 'create_competition',
 				'competition_title'        => 'October',
 				'competition_slug'         => 'october',
-				'competition_open_date'    => '2026-10-01',
-				'competition_close_date'   => '2026-10-31',
+				'competition_open_date'    => $this->form_date( 10 ),
+				'competition_close_date'   => $this->form_date( 40 ),
 			)
 		);
 		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
@@ -211,6 +232,47 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNull( $this->competitions->find_by_slug( 'october' ) );
+	}
+
+	/**
+	 * After Close Competition, the next competition can open today. Close
+	 * Competition stores the current time, which is later than the next
+	 * competition's midnight open date, but they are never open together.
+	 */
+	public function test_create_competition_opening_today_after_close_competition(): void {
+		$id = $this->create_competition( 'This Month', 'this-month', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_close_' . $id );
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'Next Month',
+				'competition_slug'         => 'next-month',
+				'competition_open_date'    => $this->form_date( 0 ),
+				'competition_close_date'   => $this->form_date( 30 ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertNotContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotNull( $this->competitions->find_by_slug( 'next-month' ) );
 	}
 
 	/**
@@ -300,17 +362,18 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * returns to the edit screen with the dates unchanged.
 	 */
 	public function test_update_competition_overlapping_dates_error(): void {
-		$this->create_competition( 'September', 'september', '2026-09-01 00:00:00', '2026-09-30 00:00:00' );
-		$id = $this->create_competition( 'October', 'october', '2026-10-01 00:00:00', '2026-10-31 00:00:00' );
+		$this->create_competition( 'Current', 'current', $this->days_from_now( -10 ), $this->days_from_now( 20 ) );
+		$next_open = $this->days_from_now( 20 );
+		$id        = $this->create_competition( 'Next', 'next', $next_open, $this->days_from_now( 50 ) );
 
 		$this->set_request(
 			array(
 				'photo_competition_action' => 'update_competition',
 				'competition_id'           => $id,
-				'competition_title'        => 'October',
-				'competition_slug'         => 'october',
-				'competition_open_date'    => '2026-09-15',
-				'competition_close_date'   => '2026-10-31',
+				'competition_title'        => 'Next',
+				'competition_slug'         => 'next',
+				'competition_open_date'    => $this->form_date( 10 ),
+				'competition_close_date'   => $this->form_date( 50 ),
 			)
 		);
 		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
@@ -323,7 +386,37 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'action=edit', $location );
 		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
-		$this->assertSame( '2026-10-01 00:00:00', $this->competitions->find( $id )->open_date );
+		$this->assertSame( $next_open, $this->competitions->find( $id )->open_date );
+	}
+
+	/**
+	 * Two past competitions whose dates overlapped can still be edited,
+	 * because only one competition has to be open from now on.
+	 */
+	public function test_update_competition_allows_overlap_in_the_past(): void {
+		$this->create_competition( 'January', 'january', '2025-01-01 00:00:00', '2025-02-05 00:00:00' );
+		$id = $this->create_competition( 'February', 'february', '2025-02-01 00:00:00', '2025-03-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition',
+				'competition_id'           => $id,
+				'competition_title'        => 'February 2025',
+				'competition_slug'         => 'february',
+				'competition_open_date'    => '2025-02-01',
+				'competition_close_date'   => '2025-03-01',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( 'February 2025', $this->competitions->find( $id )->title );
 	}
 
 	/**
@@ -633,6 +726,33 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNull( $this->competitions->find( $id ), 'Competition should stay archived.' );
+	}
+
+	/**
+	 * An old competition can be restored even if its dates overlapped
+	 * another old one, since neither is open now.
+	 */
+	public function test_restore_allows_overlap_in_the_past(): void {
+		$this->create_competition( 'January', 'january', '2025-01-01 00:00:00', '2025-02-05 00:00:00' );
+		$id = $this->create_competition( 'February', 'february', '2025-02-01 00:00:00', '2025-03-01 00:00:00' );
+		$this->competitions->archive( $id );
+
+		$this->set_request(
+			array(
+				'action'      => 'restore',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_restore_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertNotContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotNull( $this->competitions->find( $id ), 'Competition should be restored.' );
 	}
 
 	/*

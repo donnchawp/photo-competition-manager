@@ -423,6 +423,8 @@ class Competition_Settings {
 	 *
 	 * Clears the open category, advances it to step 5, and records it as voted.
 	 *
+	 * @since 0.3.0
+	 *
 	 * @param array<string, mixed> $settings       Parsed settings.
 	 * @param int                  $competition_id Competition ID.
 	 * @param string               $category_slug  Category slug.

@@ -386,40 +386,50 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	// ---------------------------------------------------------------
 
 	/**
+	 * A UTC datetime the given number of days from now.
+	 *
+	 * @param int $days Days from now; negative for the past.
+	 * @return string
+	 */
+	private function days_from_now( int $days ): string {
+		return gmdate( 'Y-m-d H:i:s', time() + $days * DAY_IN_SECONDS );
+	}
+
+	/**
 	 * A range that starts before another competition closes overlaps it.
 	 */
 	public function test_find_overlapping_returns_competition_whose_dates_overlap(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$september_id = $repository->create(
+		$current_id = $repository->create(
 			array(
-				'title'      => 'September',
-				'open_date'  => '2026-09-01 00:00:00',
-				'close_date' => '2026-09-30 00:00:00',
+				'title'      => 'Current',
+				'open_date'  => $this->days_from_now( -10 ),
+				'close_date' => $this->days_from_now( 20 ),
 			)
 		);
 
-		$overlap = $repository->find_overlapping( '2026-09-15 00:00:00', '2026-10-15 00:00:00' );
+		$overlap = $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) );
 
 		$this->assertNotNull( $overlap );
-		$this->assertSame( $september_id, (int) $overlap->id );
+		$this->assertSame( $current_id, (int) $overlap->id );
 	}
 
 	/**
-	 * A competition that closed before the range opens does not overlap it.
+	 * A competition that closes before the range opens does not overlap it.
 	 */
 	public function test_find_overlapping_ignores_competition_that_ends_before_range(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
 		$repository->create(
 			array(
-				'title'      => 'September',
-				'open_date'  => '2026-09-01 00:00:00',
-				'close_date' => '2026-09-30 00:00:00',
+				'title'      => 'Current',
+				'open_date'  => $this->days_from_now( -10 ),
+				'close_date' => $this->days_from_now( 20 ),
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' ) );
+		$this->assertNull( $repository->find_overlapping( $this->days_from_now( 21 ), $this->days_from_now( 50 ) ) );
 	}
 
 	/**
@@ -428,16 +438,17 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	 */
 	public function test_find_overlapping_allows_range_starting_when_other_closes(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = $this->days_from_now( 20 );
 
 		$repository->create(
 			array(
-				'title'      => 'September',
-				'open_date'  => '2026-09-01 00:00:00',
-				'close_date' => '2026-09-30 00:00:00',
+				'title'      => 'Current',
+				'open_date'  => $this->days_from_now( -10 ),
+				'close_date' => $hand_over,
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( '2026-09-30 00:00:00', '2026-10-31 00:00:00' ) );
+		$this->assertNull( $repository->find_overlapping( $hand_over, $this->days_from_now( 50 ) ) );
 	}
 
 	/**
@@ -454,7 +465,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$overlap = $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' );
+		$overlap = $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) );
 
 		$this->assertNotNull( $overlap );
 		$this->assertSame( $stale_id, (int) $overlap->id );
@@ -479,6 +490,61 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Only one competition may be open at a time from now on. Two past
+	 * competitions whose dates overlapped don't block each other, so
+	 * either can still be edited.
+	 */
+	public function test_find_overlapping_ignores_overlap_in_the_past(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Last Year',
+				'open_date'  => '2025-01-01 00:00:00',
+				'close_date' => '2025-02-05 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( '2025-02-01 00:00:00', '2025-03-01 00:00:00' ) );
+	}
+
+	/**
+	 * Closing a competition sets its close date to the current time. The
+	 * next competition opening today is stored as midnight, which is
+	 * before that time, but it only clashes if both are open from now on.
+	 */
+	public function test_find_overlapping_allows_range_opening_today_after_close_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closed Today',
+				'open_date'  => $this->days_from_now( -30 ),
+				'close_date' => gmdate( 'Y-m-d H:i:s', time() - 1 ),
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( gmdate( 'Y-m-d 00:00:00' ), $this->days_from_now( 30 ) ) );
+	}
+
+	/**
+	 * A closed competition with no open date covers no time from now on,
+	 * so it overlaps nothing.
+	 */
+	public function test_find_overlapping_ignores_closed_range_with_missing_open_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'     => 'Stale',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( null, $this->days_from_now( -10 ) ) );
+	}
+
+	/**
 	 * The competition being edited does not overlap itself.
 	 */
 	public function test_find_overlapping_excludes_given_competition(): void {
@@ -486,13 +552,13 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
-				'title'      => 'September',
-				'open_date'  => '2026-09-01 00:00:00',
-				'close_date' => '2026-09-30 00:00:00',
+				'title'      => 'Current',
+				'open_date'  => $this->days_from_now( -10 ),
+				'close_date' => $this->days_from_now( 20 ),
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( '2026-09-01 00:00:00', '2026-10-15 00:00:00', $id ) );
+		$this->assertNull( $repository->find_overlapping( $this->days_from_now( -10 ), $this->days_from_now( 40 ), $id ) );
 	}
 
 	/**
@@ -504,7 +570,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$id = $repository->create( array( 'title' => 'Archived' ) );
 		$repository->archive( $id );
 
-		$this->assertNull( $repository->find_overlapping( '2026-10-01 00:00:00', '2026-10-31 00:00:00' ) );
+		$this->assertNull( $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) ) );
 	}
 
 	// ---------------------------------------------------------------

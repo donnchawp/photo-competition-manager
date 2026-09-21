@@ -163,11 +163,13 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Find a competition whose dates overlap the given range.
 	 *
-	 * Only one competition may be open at a time. A missing open date means
-	 * the range starts now; a missing close date means it never ends, so a
-	 * competition with no close date overlaps everything after it opens. A
-	 * range that starts at the moment another closes does not overlap it.
-	 * Archived competitions are ignored.
+	 * Only one competition may be open at a time from now on, so only the
+	 * part of the range from now onwards is checked: competitions whose
+	 * dates overlapped in the past don't block each other. A missing open
+	 * date means the range starts now; a missing close date means it never
+	 * ends, so a competition with no close date overlaps everything after it
+	 * opens. A range that starts at the moment another closes does not
+	 * overlap it. Archived competitions are ignored.
 	 *
 	 * @since 0.3.0
 	 *
@@ -179,8 +181,13 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find_overlapping( ?string $open_date, ?string $close_date, int $exclude_id = 0 ) {
 		global $wpdb;
 
-		$open_date  = $this->normalize_date( $open_date ) ?? utc_time();
+		$now        = utc_time();
+		$open_date  = max( $this->normalize_date( $open_date ) ?? $now, $now );
 		$close_date = $this->normalize_date( $close_date );
+
+		if ( null !== $close_date && $close_date <= $open_date ) {
+			return null;
+		}
 
 		$conditions = 'deleted_at IS NULL AND id <> %d AND (close_date IS NULL OR close_date > %s)';
 		$args       = array( $this->table(), $exclude_id, $open_date );
