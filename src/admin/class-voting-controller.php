@@ -400,14 +400,8 @@ class Voting_Controller {
 			return;
 		}
 
-		if ( count( $open_competitions ) > 1 ) {
-			$notice_data = array(
-				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
-				'show_link' => true,
-			);
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_template( 'admin/notice-multiple-open-competitions.php', $notice_data );
-		}
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_multiple_open_notice( $open_competitions, true );
 
 		// Check for members with submissions but no grades.
 		$members_without_grades = $this->check_members_without_grades( $open_competitions );
@@ -1055,10 +1049,7 @@ class Voting_Controller {
 
 		// Step 6 = category complete. Also write to voted_categories for backward compat.
 		if ( 6 === $step ) {
-			$category_key = $competition_id . '_' . $category_slug;
-			if ( ! in_array( $category_key, $settings['voting']['voted_categories'] ?? array(), true ) ) {
-				$settings['voting']['voted_categories'][] = $category_key;
-			}
+			$settings = Competition_Settings::mark_category_voted( $settings, $competition_id, $category_slug );
 		}
 
 		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );

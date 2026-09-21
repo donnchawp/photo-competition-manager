@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Characterization tests for the competitions controller.
@@ -85,16 +86,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	private function form_date( int $days ): string {
 		return wp_date( 'Y-m-d', time() + $days * DAY_IN_SECONDS );
-	}
-
-	/**
-	 * A UTC datetime the given number of days from now.
-	 *
-	 * @param int $days Days from now; negative for the past.
-	 * @return string
-	 */
-	private function days_from_now( int $days ): string {
-		return gmdate( 'Y-m-d H:i:s', time() + $days * DAY_IN_SECONDS );
 	}
 
 	/**
@@ -362,9 +353,9 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * returns to the edit screen with the dates unchanged.
 	 */
 	public function test_update_competition_overlapping_dates_error(): void {
-		$this->create_competition( 'Current', 'current', $this->days_from_now( -10 ), $this->days_from_now( 20 ) );
-		$next_open = $this->days_from_now( 20 );
-		$id        = $this->create_competition( 'Next', 'next', $next_open, $this->days_from_now( 50 ) );
+		$this->create_competition( 'Current', 'current', utc_time( -10 * DAY_IN_SECONDS ), utc_time( 20 * DAY_IN_SECONDS ) );
+		$next_open = utc_time( 20 * DAY_IN_SECONDS );
+		$id        = $this->create_competition( 'Next', 'next', $next_open, utc_time( 50 * DAY_IN_SECONDS ) );
 
 		$this->set_request(
 			array(

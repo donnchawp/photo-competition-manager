@@ -187,16 +187,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager',
-							'action'      => 'edit',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $this->edit_url( $competition_id ) );
 			}
 
 			add_settings_error(
@@ -272,23 +263,15 @@ class Competitions_Controller {
 			check_admin_referer( 'photo_competition_close_' . $competition_id );
 
 			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_manager',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->dashboard_url() );
-				return;
-			}
 
 			// A replayed link must not move an existing close date forward.
-			if ( ! $this->competitions->is_open( $competition ) ) {
+			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
 				add_settings_error(
 					'photo_competition_manager',
-					'competition_already_closed',
-					__( 'Competition is already closed.', 'photo-competition-manager' ),
+					$competition ? 'competition_already_closed' : 'competition_not_found',
+					$competition
+						? __( 'Competition is already closed.', 'photo-competition-manager' )
+						: __( 'Competition not found.', 'photo-competition-manager' ),
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
@@ -475,8 +458,11 @@ class Competitions_Controller {
 				$result = $this->competitions->archive( $competition_id );
 			} else {
 				$archived = $this->competitions->find( $competition_id, true );
-				$result   = ( $archived ? $this->overlap_error( $archived->open_date, $archived->close_date, $competition_id ) : null )
-					?? $this->competitions->restore( $competition_id );
+				$result   = $archived ? $this->overlap_error( $archived->open_date, $archived->close_date, $competition_id ) : null;
+
+				if ( null === $result ) {
+					$result = $this->competitions->restore( $competition_id );
+				}
 			}
 
 			if ( is_wp_error( $result ) ) {
@@ -762,21 +748,12 @@ class Competitions_Controller {
 			return null;
 		}
 
-		$edit_url = add_query_arg(
-			array(
-				'page'        => 'photo-competition-manager',
-				'action'      => 'edit',
-				'competition' => (int) $other->id,
-			),
-			admin_url( 'admin.php' )
-		);
-
 		return new \WP_Error(
 			'competition_overlap',
 			sprintf(
 				/* translators: %s: linked title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
-				'<a href="' . esc_url( $edit_url ) . '">' . esc_html( $other->title ) . '</a>'
+				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
 			)
 		);
 	}
@@ -815,15 +792,8 @@ class Competitions_Controller {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Photo Competition Manager Dashboard', 'photo-competition-manager' ) . '</h1>';
 
-		$open_competitions = $this->competitions->all_open();
-		if ( count( $open_competitions ) > 1 ) {
-			$notice_data = array(
-				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
-				'show_link' => false,
-			);
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_template( 'admin/notice-multiple-open-competitions.php', $notice_data );
-		}
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_multiple_open_notice( $this->competitions->all_open(), false );
 
 		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
@@ -1066,14 +1036,7 @@ class Competitions_Controller {
 			$is_archived = ! empty( $competition->deleted_at );
 			$comp_id     = (int) $competition->id;
 
-			$edit_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager',
-					'action'      => 'edit',
-					'competition' => $comp_id,
-				),
-				admin_url( 'admin.php' )
-			);
+			$edit_url = $this->edit_url( $comp_id );
 
 			$toggle_uploads_url = '';
 			$uploads_closed     = false;
@@ -1095,7 +1058,8 @@ class Competitions_Controller {
 
 			$is_open        = $this->competitions->is_open( $competition );
 			$send_email_url = '';
-			if ( $is_open && ! $is_archived ) {
+			$close_url      = '';
+			if ( $is_open ) {
 				$send_email_url = wp_nonce_url(
 					add_query_arg(
 						array(
@@ -1107,11 +1071,7 @@ class Competitions_Controller {
 					),
 					'photo_competition_send_emails_' . $comp_id
 				);
-			}
-
-			$close_url = '';
-			if ( $is_open && ! $is_archived ) {
-				$close_url = wp_nonce_url(
+				$close_url      = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager',

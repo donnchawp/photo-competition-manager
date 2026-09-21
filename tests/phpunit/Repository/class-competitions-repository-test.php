@@ -8,6 +8,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use WP_UnitTestCase;
+use function PhotoCompetitionManager\Support\utc_time;
 
 class Competitions_Repository_Test extends WP_UnitTestCase {
 
@@ -386,16 +387,6 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	// ---------------------------------------------------------------
 
 	/**
-	 * A UTC datetime the given number of days from now.
-	 *
-	 * @param int $days Days from now; negative for the past.
-	 * @return string
-	 */
-	private function days_from_now( int $days ): string {
-		return gmdate( 'Y-m-d H:i:s', time() + $days * DAY_IN_SECONDS );
-	}
-
-	/**
 	 * A range that starts before another competition closes overlaps it.
 	 */
 	public function test_find_overlapping_returns_competition_whose_dates_overlap(): void {
@@ -404,12 +395,12 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$current_id = $repository->create(
 			array(
 				'title'      => 'Current',
-				'open_date'  => $this->days_from_now( -10 ),
-				'close_date' => $this->days_from_now( 20 ),
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
 			)
 		);
 
-		$overlap = $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) );
+		$overlap = $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) );
 
 		$this->assertNotNull( $overlap );
 		$this->assertSame( $current_id, (int) $overlap->id );
@@ -424,12 +415,12 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository->create(
 			array(
 				'title'      => 'Current',
-				'open_date'  => $this->days_from_now( -10 ),
-				'close_date' => $this->days_from_now( 20 ),
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( $this->days_from_now( 21 ), $this->days_from_now( 50 ) ) );
+		$this->assertNull( $repository->find_overlapping( utc_time( 21 * DAY_IN_SECONDS ), utc_time( 50 * DAY_IN_SECONDS ) ) );
 	}
 
 	/**
@@ -438,17 +429,17 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	 */
 	public function test_find_overlapping_allows_range_starting_when_other_closes(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
-		$hand_over  = $this->days_from_now( 20 );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
 
 		$repository->create(
 			array(
 				'title'      => 'Current',
-				'open_date'  => $this->days_from_now( -10 ),
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => $hand_over,
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( $hand_over, $this->days_from_now( 50 ) ) );
+		$this->assertNull( $repository->find_overlapping( $hand_over, utc_time( 50 * DAY_IN_SECONDS ) ) );
 	}
 
 	/**
@@ -465,7 +456,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$overlap = $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) );
+		$overlap = $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) );
 
 		$this->assertNotNull( $overlap );
 		$this->assertSame( $stale_id, (int) $overlap->id );
@@ -519,12 +510,12 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository->create(
 			array(
 				'title'      => 'Closed Today',
-				'open_date'  => $this->days_from_now( -30 ),
-				'close_date' => gmdate( 'Y-m-d H:i:s', time() - 1 ),
+				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( -1 ),
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( gmdate( 'Y-m-d 00:00:00' ), $this->days_from_now( 30 ) ) );
+		$this->assertNull( $repository->find_overlapping( gmdate( 'Y-m-d 00:00:00' ), utc_time( 30 * DAY_IN_SECONDS ) ) );
 	}
 
 	/**
@@ -541,7 +532,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( null, $this->days_from_now( -10 ) ) );
+		$this->assertNull( $repository->find_overlapping( null, utc_time( -10 * DAY_IN_SECONDS ) ) );
 	}
 
 	/**
@@ -553,12 +544,12 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$id = $repository->create(
 			array(
 				'title'      => 'Current',
-				'open_date'  => $this->days_from_now( -10 ),
-				'close_date' => $this->days_from_now( 20 ),
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
 			)
 		);
 
-		$this->assertNull( $repository->find_overlapping( $this->days_from_now( -10 ), $this->days_from_now( 40 ), $id ) );
+		$this->assertNull( $repository->find_overlapping( utc_time( -10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ), $id ) );
 	}
 
 	/**
@@ -570,7 +561,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$id = $repository->create( array( 'title' => 'Archived' ) );
 		$repository->archive( $id );
 
-		$this->assertNull( $repository->find_overlapping( $this->days_from_now( 10 ), $this->days_from_now( 40 ) ) );
+		$this->assertNull( $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) ) );
 	}
 
 	// ---------------------------------------------------------------

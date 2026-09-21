@@ -434,11 +434,23 @@ class Competition_Settings {
 		$settings['voting']['open_categories']                  = array();
 		$settings['voting']['category_steps'][ $category_slug ] = 5;
 
-		$category_key     = $competition_id . '_' . $category_slug;
-		$voted_categories = $settings['voting']['voted_categories'] ?? array();
-		if ( ! in_array( $category_key, $voted_categories, true ) ) {
-			$voted_categories[]                     = $category_key;
-			$settings['voting']['voted_categories'] = $voted_categories;
+		return self::mark_category_voted( $settings, $competition_id, $category_slug );
+	}
+
+	/**
+	 * Record a category as voted, once.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param array<string, mixed> $settings       Parsed settings.
+	 * @param int                  $competition_id Competition ID.
+	 * @param string               $category_slug  Category slug.
+	 * @return array<string, mixed> Updated settings.
+	 */
+	public static function mark_category_voted( array $settings, int $competition_id, string $category_slug ): array {
+		$category_key = $competition_id . '_' . $category_slug;
+		if ( ! in_array( $category_key, $settings['voting']['voted_categories'] ?? array(), true ) ) {
+			$settings['voting']['voted_categories'][] = $category_key;
 		}
 
 		return $settings;
