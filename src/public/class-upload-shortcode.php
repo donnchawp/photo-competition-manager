@@ -221,6 +221,11 @@ class Upload_Shortcode {
 			$token_record = $this->token_repo->find_valid_token( $token_string );
 			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
 				$member = $this->members_repo->find( (int) $token_record->member_id );
+
+				// Deactivated members fall back to the token request form.
+				if ( $member && ! $member->active ) {
+					$member = null;
+				}
 			}
 		}
 
