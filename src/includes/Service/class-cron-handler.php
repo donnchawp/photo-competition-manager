@@ -35,14 +35,23 @@ class Cron_Handler {
 	private $members_repo;
 
 	/**
+	 * Email job queue.
+	 *
+	 * @var Email_Job_Manager
+	 */
+	private $email_jobs;
+
+	/**
 	 * Cron_Handler constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Members_Repository|null      $members_repo      Members repository.
+	 * @param Email_Job_Manager|null       $email_jobs        Email job queue.
 	 */
-	public function __construct( ?Competitions_Repository $competitions_repo = null, ?Members_Repository $members_repo = null ) {
+	public function __construct( ?Competitions_Repository $competitions_repo = null, ?Members_Repository $members_repo = null, ?Email_Job_Manager $email_jobs = null ) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->members_repo      = $members_repo ?? new Members_Repository();
+		$this->email_jobs        = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 	}
 
 	/**
@@ -90,29 +99,23 @@ class Cron_Handler {
 	}
 
 	/**
-	 * Send competition closed notifications to all active members.
+	 * Queue competition closed notifications to all active members.
 	 *
 	 * @param object $competition Competition object.
 	 * @return void
 	 */
 	private function send_competition_closed_notifications( object $competition ): void {
-		// Get all active members.
-		$members = $this->members_repo->all( 10000, true );
-
-		if ( empty( $members ) ) {
+		if ( ! ( new Email_Service() )->is_template_enabled( 'competition_closed' ) ) {
 			return;
 		}
 
-		$email_service = new Email_Service();
-
-		foreach ( $members as $member ) {
+		$member_ids = array();
+		foreach ( $this->members_repo->all( 10000, true ) as $member ) {
 			if ( ! empty( $member->email ) ) {
-				$email_service->send_competition_closed_notification(
-					$member->email,
-					$member->name,
-					$competition->title
-				);
+				$member_ids[] = (int) $member->id;
 			}
 		}
+
+		$this->email_jobs->queue( 'competition_closed', (int) $competition->id, $member_ids );
 	}
 }

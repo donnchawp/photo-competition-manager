@@ -21,7 +21,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Email_Results_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
@@ -57,14 +57,14 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		parent::set_up();
 
 		$this->competitions = new Competitions_Repository();
-		$this->images        = new Images_Repository();
-		$this->members       = new Members_Repository();
-		$this->votes          = new Votes_Repository();
+		$this->images       = new Images_Repository();
+		$this->members      = new Members_Repository();
+		$this->votes        = new Votes_Repository();
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
 		$calculator  = new Score_Calculator( $this->images, $this->votes );
 		$email       = new Email_Service();
-		$job_manager = new Email_Results_Job_Manager(
+		$job_manager = new Email_Job_Manager(
 			$this->competitions,
 			$this->images,
 			$this->members,
@@ -379,7 +379,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$dave  = $this->seed_member( 'Dave Evans', 'dave@example.com', array( 'grade' => 'intermediate' ) );
 
 		$this->write_thumbnail_file( 'spring-show', 'colour', 'ada-sunset.jpg' );
-		$ada_img = $this->seed_image(
+		$ada_img   = $this->seed_image(
 			$spring_id,
 			array(
 				'member_id'     => $ada,
@@ -387,7 +387,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'random_number' => 1,
 			)
 		);
-		$bob_img = $this->seed_image(
+		$bob_img   = $this->seed_image(
 			$spring_id,
 			array(
 				'member_id'     => $bob,
@@ -403,7 +403,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'random_number' => 3,
 			)
 		);
-		$dave_img = $this->seed_image(
+		$dave_img  = $this->seed_image(
 			$spring_id,
 			array(
 				'member_id'     => $dave,

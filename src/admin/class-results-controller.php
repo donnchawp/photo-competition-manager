@@ -10,12 +10,13 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Email_Results_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
@@ -31,6 +32,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 class Results_Controller {
 
 	use Date_Formatting;
+	use Email_Job_Notice;
 	use Form_Rendering;
 
 	/**
@@ -85,21 +87,21 @@ class Results_Controller {
 	/**
 	 * Email job manager.
 	 *
-	 * @var Email_Results_Job_Manager
+	 * @var Email_Job_Manager
 	 */
 	private $email_job_manager;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository   $competitions      Competitions repository.
-	 * @param Images_Repository         $images            Images repository.
-	 * @param Members_Repository        $members           Members repository.
-	 * @param Votes_Repository          $votes             Votes repository.
-	 * @param Results_Analytics         $analytics         Results analytics service.
-	 * @param Score_Calculator          $calculator        Score calculator service.
-	 * @param Email_Service             $email_service     Email service.
-	 * @param Email_Results_Job_Manager $email_job_manager Email job manager.
+	 * @param Competitions_Repository $competitions      Competitions repository.
+	 * @param Images_Repository       $images            Images repository.
+	 * @param Members_Repository      $members           Members repository.
+	 * @param Votes_Repository        $votes             Votes repository.
+	 * @param Results_Analytics       $analytics         Results analytics service.
+	 * @param Score_Calculator        $calculator        Score calculator service.
+	 * @param Email_Service           $email_service     Email service.
+	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -109,7 +111,7 @@ class Results_Controller {
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
 		Email_Service $email_service,
-		Email_Results_Job_Manager $email_job_manager
+		Email_Job_Manager $email_job_manager
 	) {
 		$this->competitions      = $competitions;
 		$this->images            = $images;
@@ -226,8 +228,8 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
-			// Create background job for email sending.
-			$job_id = $this->email_job_manager->create_job( $competition_id );
+			// Queue a background job for email sending.
+			$job_id = $this->email_job_manager->queue_results( $competition_id );
 
 			if ( ! $job_id ) {
 				add_settings_error(
@@ -247,9 +249,6 @@ class Results_Controller {
 					)
 				);
 			}
-
-			// Schedule first batch immediately.
-			$this->email_job_manager->schedule_next_batch( $job_id, 0 );
 
 			// Redirect to results page with job status.
 			wp_safe_redirect(
@@ -325,41 +324,33 @@ class Results_Controller {
 				$recipients = $this->members->find_active_members();
 			}
 
-			$sent_count = 0;
-
+			$member_ids = array();
 			foreach ( $recipients as $member ) {
 				if ( ! empty( $member->email ) ) {
-					$sent = $this->email_service->send_results_share_link(
-						$member->email,
-						$member->name,
-						$competition->title,
-						$share_url,
-						$competition_id
-					);
-					if ( $sent ) {
-						++$sent_count;
-					}
+					$member_ids[] = (int) $member->id;
 				}
 			}
 
-			$audience_label = 'send_results_committee' === $action
-				? __( 'committee members', 'photo-competition-manager' )
-				: __( 'active members', 'photo-competition-manager' );
-
-			add_settings_error(
-				'photo_competition_results',
-				'results_link_sent',
-				sprintf(
-					/* translators: 1: number of emails sent, 2: audience label */
-					__( 'Results link sent to %1$d %2$s.', 'photo-competition-manager' ),
-					$sent_count,
-					$audience_label
-				),
-				'updated'
+			$job_id = $this->email_job_manager->queue(
+				'results_share',
+				$competition_id,
+				$member_ids,
+				array( 'share_url' => $share_url )
 			);
 
-			$this->redirect_with_settings_errors( $redirect_url );
-			return;
+			if ( ! $job_id ) {
+				add_settings_error(
+					'photo_competition_results',
+					'no_recipients',
+					__( 'No members with an email address to send the results link to.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
+			}
+
+			wp_safe_redirect( add_query_arg( 'job_id', $job_id, $redirect_url ) );
+			exit;
 		}
 
 		if ( 'export_results_csv' === $action ) {
@@ -385,7 +376,8 @@ class Results_Controller {
 		settings_errors( 'photo_competition_results' );
 
 		// Display email job progress if present.
-		$this->display_email_job_notice();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_email_job_notice( $this->email_job_manager );
 
 		// Get selected competition or default to most recent.
 		$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -971,83 +963,5 @@ class Results_Controller {
 				$total_count
 			),
 		);
-	}
-
-	/**
-	 * Display email job progress notice.
-	 *
-	 * @return void
-	 */
-	private function display_email_job_notice(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( ! isset( $_GET['job_id'] ) ) {
-			return;
-		}
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$job_id = sanitize_text_field( wp_unslash( $_GET['job_id'] ) );
-		$job    = $this->email_job_manager->get_job_status( $job_id );
-
-		if ( ! $job ) {
-			return;
-		}
-
-		if ( 'processing' === $job['status'] || 'pending' === $job['status'] ) {
-			$progress_percent = $job['total_count'] > 0 ? ( count( $job['processed_ids'] ) / $job['total_count'] ) * 100 : 0;
-
-			echo '<div class="notice notice-info">';
-			echo '<p><strong>' . esc_html__( 'Sending results emails...', 'photo-competition-manager' ) . '</strong></p>';
-			echo '<p>';
-			printf(
-				/* translators: 1: Sent count, 2: Total count, 3: Progress percentage */
-				esc_html__( 'Progress: %1$d of %2$d emails sent (%3$d%%)', 'photo-competition-manager' ),
-				esc_html( count( $job['processed_ids'] ) ),
-				esc_html( $job['total_count'] ),
-				absint( $progress_percent )
-			);
-			echo '</p>';
-			echo '<p><em>' . esc_html__( 'This page will refresh automatically every 5 seconds.', 'photo-competition-manager' ) . '</em> ';
-			echo '<a href="' . esc_url( remove_query_arg( array( 'job_id', 'status' ) ) ) . '">' . esc_html__( 'Refresh now', 'photo-competition-manager' ) . '</a></p>';
-			echo '</div>';
-
-			// Auto-refresh every 5 seconds.
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			echo '<meta http-equiv="refresh" content="5">';
-		} elseif ( 'completed' === $job['status'] ) {
-			echo '<div class="notice notice-success is-dismissible">';
-			echo '<p><strong>' . esc_html__( 'Email results sent successfully!', 'photo-competition-manager' ) . '</strong></p>';
-			echo '<p>';
-			printf(
-				/* translators: 1: Sent count, 2: Total count */
-				esc_html__( 'Sent %1$d of %2$d emails.', 'photo-competition-manager' ),
-				esc_html( $job['sent_count'] ),
-				esc_html( $job['total_count'] )
-			);
-
-			if ( $job['failed_count'] > 0 ) {
-				echo ' ';
-				printf(
-					/* translators: %d: Failed count */
-					esc_html__( '%d emails failed to send.', 'photo-competition-manager' ),
-					esc_html( $job['failed_count'] )
-				);
-			}
-
-			echo '</p>';
-			echo '</div>';
-		} elseif ( 'failed' === $job['status'] ) {
-			echo '<div class="notice notice-error is-dismissible">';
-			echo '<p><strong>' . esc_html__( 'Email job failed.', 'photo-competition-manager' ) . '</strong></p>';
-
-			if ( ! empty( $job['error_log'] ) ) {
-				echo '<ul>';
-				foreach ( array_slice( $job['error_log'], 0, 5 ) as $error ) {
-					echo '<li>' . esc_html( $error ) . '</li>';
-				}
-				echo '</ul>';
-			}
-
-			echo '</div>';
-		}
 	}
 }

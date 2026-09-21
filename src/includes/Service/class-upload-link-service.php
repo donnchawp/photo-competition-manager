@@ -170,13 +170,35 @@ class Upload_Link_Service {
 	}
 
 	/**
-	 * Send submission reminder emails to all active members for a competition.
+	 * Send one member a submission reminder, reporting rate-limited sends as skipped.
 	 *
 	 * @since 0.3.0
-	 * @param int $competition_id Competition ID.
-	 * @return array{success: bool, sent_count: int, skipped_count: int, failed_count: int, total_count: int, errors: array, message: string}|WP_Error
+	 * @param int    $competition_id  Competition ID.
+	 * @param int    $member_id       Member ID.
+	 * @param string $upload_page_url Base URL of the upload page.
+	 * @return string|WP_Error 'sent', 'skipped', or the send error.
 	 */
-	public function send_reminders( $competition_id ) {
+	public function send_reminder( int $competition_id, int $member_id, string $upload_page_url ) {
+		$has_recent = $this->token_repo->has_recent_email_send( $member_id, $competition_id );
+
+		$result = $this->send_to_member( $competition_id, $member_id, $upload_page_url );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return $has_recent ? 'skipped' : 'sent';
+	}
+
+	/**
+	 * Queue submission reminder emails to all active members for a competition.
+	 *
+	 * @since 0.3.0
+	 * @param int               $competition_id Competition ID.
+	 * @param Email_Job_Manager $email_jobs     Email job queue.
+	 * @return string|WP_Error Job ID, or why nothing was queued.
+	 */
+	public function queue_reminders( int $competition_id, Email_Job_Manager $email_jobs ) {
 		if ( $competition_id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
@@ -190,8 +212,14 @@ class Upload_Link_Service {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 
-		$members = $this->members_repo->find_active_members();
-		if ( empty( $members ) ) {
+		$member_ids = array();
+		foreach ( $this->members_repo->find_active_members() as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$member_ids[] = (int) $member->id;
+			}
+		}
+
+		if ( empty( $member_ids ) ) {
 			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );
 		}
 
@@ -202,50 +230,11 @@ class Upload_Link_Service {
 		}
 		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
-		$sent_count    = 0;
-		$skipped_count = 0;
-		$failed_count  = 0;
-		$total_count   = count( $members );
-		$errors        = array();
-
-		foreach ( $members as $member ) {
-			if ( empty( $member->email ) ) {
-				continue;
-			}
-
-			$has_recent = $this->token_repo->has_recent_email_send( (int) $member->id, (int) $competition_id );
-
-			$result = $this->send_to_member( (int) $competition_id, (int) $member->id, $upload_page_url );
-
-			if ( is_wp_error( $result ) ) {
-				++$failed_count;
-				$errors[] = sprintf(
-					'%s: %s',
-					$member->name ?? $member->email,
-					$result->get_error_message()
-				);
-			} elseif ( true === $result ) {
-				if ( $has_recent ) {
-					++$skipped_count;
-				} else {
-					++$sent_count;
-				}
-			}
-		}
-
-		return array(
-			'success'       => true,
-			'sent_count'    => $sent_count,
-			'skipped_count' => $skipped_count,
-			'failed_count'  => $failed_count,
-			'total_count'   => $total_count,
-			'errors'        => $errors,
-			'message'       => sprintf(
-				/* translators: 1: Number of emails sent, 2: Total number of members */
-				__( 'Sent %1$d of %2$d submission reminder emails.', 'photo-competition-manager' ),
-				$sent_count,
-				$total_count
-			),
+		return $email_jobs->queue(
+			'upload_link',
+			$competition_id,
+			$member_ids,
+			array( 'upload_page_url' => $upload_page_url )
 		);
 	}
 }

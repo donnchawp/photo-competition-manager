@@ -56,10 +56,12 @@ class Plugin {
 		$this->admin->register();
 		$this->frontend->register();
 
-		$cron_handler = new \PhotoCompetitionManager\Service\Cron_Handler();
+		$email_jobs = ( new Dependencies() )->email_job_manager;
+
+		$cron_handler = new \PhotoCompetitionManager\Service\Cron_Handler( null, null, $email_jobs );
 		$cron_handler->register();
 
-		$this->register_email_job_hooks();
+		$this->register_email_job_hooks( $email_jobs );
 		$this->register_rest_api();
 	}
 
@@ -81,12 +83,13 @@ class Plugin {
 	/**
 	 * Register email job background processing hooks.
 	 *
+	 * @param \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager Email job queue.
 	 * @return void
 	 */
-	private function register_email_job_hooks(): void {
-		$job_manager = ( new Dependencies() )->email_job_manager;
-
-		// Register cron hook for processing batches.
+	private function register_email_job_hooks( \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager ): void {
+		// Register cron hook for processing batches. The old hook name keeps
+		// batches scheduled before the rename running.
+		add_action( \PhotoCompetitionManager\Service\Email_Job_Manager::BATCH_HOOK, array( $job_manager, 'process_batch' ), 10, 1 );
 		add_action( 'photo_comp_send_results_batch', array( $job_manager, 'process_batch' ), 10, 1 );
 
 		// Register daily cleanup hook.

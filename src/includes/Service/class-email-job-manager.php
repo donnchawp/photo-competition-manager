@@ -1,8 +1,9 @@
 <?php
 /**
- * Email Results Job Manager.
+ * Email Job Manager.
  *
- * Manages background processing of email results to avoid timeouts.
+ * Sends bulk member emails in small WP-Cron batches so no single request
+ * risks a timeout.
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -16,14 +17,23 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Image_Processor;
+use WP_Error;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
- * Class Email_Results_Job_Manager
+ * Class Email_Job_Manager
+ *
+ * A job is one bulk send of one email type to a list of members. Job types:
+ * results, upload_link, voting_opened, results_share, competition_closed.
  *
  * @package PhotoCompetitionManager\Service
  */
-class Email_Results_Job_Manager {
+class Email_Job_Manager {
+
+	/**
+	 * WP-Cron hook that processes one batch of a job.
+	 */
+	const BATCH_HOOK = 'photo_comp_send_email_batch';
 
 	/**
 	 * Get batch size for email sending.
@@ -109,16 +119,24 @@ class Email_Results_Job_Manager {
 	private $image_processor;
 
 	/**
+	 * Upload link service.
+	 *
+	 * @var Upload_Link_Service
+	 */
+	private $upload_links;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository $competitions    Competitions repository.
-	 * @param Images_Repository       $images          Images repository.
-	 * @param Members_Repository      $members         Members repository.
-	 * @param Votes_Repository        $votes           Votes repository.
-	 * @param Results_Analytics       $analytics       Results analytics service.
-	 * @param Score_Calculator        $calculator      Score calculator service.
-	 * @param Email_Service           $email_service   Email service.
-	 * @param Image_Processor|null    $image_processor Image processor (optional).
+	 * @param Competitions_Repository  $competitions    Competitions repository.
+	 * @param Images_Repository        $images          Images repository.
+	 * @param Members_Repository       $members         Members repository.
+	 * @param Votes_Repository         $votes           Votes repository.
+	 * @param Results_Analytics        $analytics       Results analytics service.
+	 * @param Score_Calculator         $calculator      Score calculator service.
+	 * @param Email_Service            $email_service   Email service.
+	 * @param Image_Processor|null     $image_processor Image processor (optional).
+	 * @param Upload_Link_Service|null $upload_links    Upload link service (optional).
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -128,7 +146,8 @@ class Email_Results_Job_Manager {
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
 		Email_Service $email_service,
-		?Image_Processor $image_processor = null
+		?Image_Processor $image_processor = null,
+		?Upload_Link_Service $upload_links = null
 	) {
 		$this->competitions    = $competitions;
 		$this->images          = $images;
@@ -138,15 +157,16 @@ class Email_Results_Job_Manager {
 		$this->calculator      = $calculator;
 		$this->email_service   = $email_service;
 		$this->image_processor = $image_processor ?? new Image_Processor();
+		$this->upload_links    = $upload_links ?? new Upload_Link_Service( null, $competitions, $members, $email_service );
 	}
 
 	/**
-	 * Create a new email results job.
+	 * Queue results emails to every active member who entered a competition.
 	 *
 	 * @param int $competition_id Competition ID.
-	 * @return string|false Job ID on success, false on failure.
+	 * @return string|false Job ID on success, false if there is nobody to email.
 	 */
-	public function create_job( int $competition_id ) {
+	public function queue_results( int $competition_id ) {
 		$competition = $this->competitions->find( $competition_id );
 		if ( ! $competition ) {
 			return false;
@@ -184,18 +204,59 @@ class Email_Results_Job_Manager {
 			return false;
 		}
 
+		return $this->queue( 'results', $competition_id, $member_ids );
+	}
+
+	/**
+	 * Queue an email job and schedule its first batch.
+	 *
+	 * @param string              $type           Job type.
+	 * @param int                 $competition_id Competition ID.
+	 * @param array<int, int>     $member_ids     Recipient member IDs.
+	 * @param array<string,mixed> $args           Type-specific send arguments.
+	 * @return string|false Job ID on success, false if there are no recipients.
+	 */
+	public function queue( string $type, int $competition_id, array $member_ids, array $args = array() ) {
+		$job_id = $this->create_job( $type, $competition_id, $member_ids, $args );
+
+		if ( $job_id ) {
+			$this->schedule_next_batch( $job_id, 0 );
+		}
+
+		return $job_id;
+	}
+
+	/**
+	 * Store a new email job without scheduling it.
+	 *
+	 * @param string              $type           Job type.
+	 * @param int                 $competition_id Competition ID.
+	 * @param array<int, int>     $member_ids     Recipient member IDs.
+	 * @param array<string,mixed> $args           Type-specific send arguments.
+	 * @return string|false Job ID on success, false if there are no recipients.
+	 */
+	public function create_job( string $type, int $competition_id, array $member_ids, array $args = array() ) {
+		$member_ids = array_values( array_unique( array_map( 'intval', $member_ids ) ) );
+
+		if ( empty( $member_ids ) ) {
+			return false;
+		}
+
 		// Generate unique job ID.
 		$job_id = uniqid( 'email_job_', true );
 
 		// Create job data.
 		$job_data = array(
 			'job_id'         => $job_id,
+			'type'           => $type,
+			'args'           => $args,
 			'competition_id' => $competition_id,
 			'member_ids'     => $member_ids,
 			'processed_ids'  => array(),
 			'status'         => 'pending',
 			'total_count'    => count( $member_ids ),
 			'sent_count'     => 0,
+			'skipped_count'  => 0,
 			'failed_count'   => 0,
 			'error_log'      => array(),
 			'started_at'     => utc_time(),
@@ -217,7 +278,7 @@ class Email_Results_Job_Manager {
 	 */
 	public function schedule_next_batch( string $job_id, int $delay = 0 ): bool {
 		$timestamp = time() + $delay;
-		return wp_schedule_single_event( $timestamp, 'photo_comp_send_results_batch', array( $job_id ) ) !== false;
+		return wp_schedule_single_event( $timestamp, self::BATCH_HOOK, array( $job_id ) ) !== false;
 	}
 
 	/**
@@ -253,9 +314,6 @@ class Email_Results_Job_Manager {
 		$remaining = array_diff( $job['member_ids'], $job['processed_ids'] );
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
 			// Avoid duplicate processing.
@@ -278,91 +336,15 @@ class Email_Results_Job_Manager {
 				continue;
 			}
 
-			// Build member results data.
-			$member_results = array(
-				'images' => array(),
-			);
+			$outcome = $this->send_to_member( $job, $competition, $member );
 
-			// Get the member's grade.
-			$member_grade = ! empty( $member->grade ) ? $member->grade : '';
-
-			foreach ( $categories as $category ) {
-				$category_slug  = $category['slug'] ?? '';
-				$category_label = $category['label'] ?? $category_slug;
-
-				if ( empty( $category_slug ) ) {
-					continue;
-				}
-
-				$results = $this->calculator->get_results( $competition_id, $category_slug );
-
-				// Build a members lookup for grade filtering.
-				$members_lookup = array();
-				foreach ( $results as $result ) {
-					$result_member_id = (int) $result->member_id;
-					if ( ! isset( $members_lookup[ $result_member_id ] ) ) {
-						$members_lookup[ $result_member_id ] = $this->members->find( $result_member_id );
-					}
-				}
-
-				// Filter results to only include images from the member's grade.
-				$grade_results = array();
-				if ( ! empty( $member_grade ) ) {
-					foreach ( $results as $result ) {
-						$result_member_id = (int) $result->member_id;
-						$result_member    = $members_lookup[ $result_member_id ] ?? null;
-						if ( $result_member && $result_member->grade === $member_grade ) {
-							$grade_results[] = $result;
-						}
-					}
-				} else {
-					// If member has no grade, fall back to all results.
-					$grade_results = $results;
-				}
-
-				$total_in_grade = count( $grade_results );
-
-				// Find this member's images in the grade results.
-				$rank = 1;
-				foreach ( $grade_results as $result ) {
-					if ( (int) $result->member_id === (int) $member_id ) {
-						$image_details = $this->analytics->get_image_details( (int) $result->id );
-
-						// Get thumbnail URL.
-						$thumbnail_url = $this->image_processor->get_thumbnail_url(
-							$competition->slug,
-							$category_slug,
-							$result->filename
-						);
-
-						$member_results['images'][] = array(
-							'category_label' => $category_label,
-							'image_number'   => $result->random_number,
-							'rank'           => $rank,
-							'total_in_grade' => $total_in_grade,
-							'grade'          => $member_grade,
-							'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
-							'statistics'     => $image_details['statistics'],
-							'votes'          => $image_details['votes'],
-						);
-					}
-					++$rank;
-				}
-			}
-
-			// Send email to member.
-			$sent = $this->email_service->send_results_email(
-				$member->email,
-				$member->name,
-				$competition->title,
-				$member_results
-			);
-
-			if ( $sent ) {
+			if ( 'sent' === $outcome ) {
 				++$job['sent_count'];
+			} elseif ( 'skipped' === $outcome ) {
+				$job['skipped_count'] = ( $job['skipped_count'] ?? 0 ) + 1;
 			} else {
 				++$job['failed_count'];
-				$job['error_log'][] = sprintf( 'Failed to send email to %s (%s)', $member->name, $member->email );
+				$job['error_log'][] = sprintf( 'Failed to send email to %s (%s): %s', $member->name, $member->email, $outcome->get_error_message() );
 			}
 
 			$job['processed_ids'][] = $member_id;
@@ -377,6 +359,153 @@ class Email_Results_Job_Manager {
 		} else {
 			$this->mark_job_complete( $job_id );
 		}
+	}
+
+	/**
+	 * Send one member their email for a job.
+	 *
+	 * @param array  $job         Job data.
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @return string|WP_Error 'sent', 'skipped' (e.g. rate limited), or an error.
+	 */
+	private function send_to_member( array $job, object $competition, object $member ) {
+		$args = $job['args'] ?? array();
+
+		switch ( $job['type'] ?? 'results' ) {
+			case 'results':
+				$sent = $this->send_results( $competition, $member );
+				break;
+
+			case 'upload_link':
+				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id, (string) $args['upload_page_url'] );
+
+			case 'voting_opened':
+				$sent = $this->email_service->send_voting_opened_notification(
+					$member->email,
+					$member->name,
+					$competition->title,
+					(string) $args['voting_page_url'],
+					(string) $args['close_date']
+				);
+				break;
+
+			case 'results_share':
+				$sent = $this->email_service->send_results_share_link(
+					$member->email,
+					$member->name,
+					$competition->title,
+					(string) $args['share_url'],
+					(int) $competition->id
+				);
+				break;
+
+			case 'competition_closed':
+				$sent = $this->email_service->send_competition_closed_notification(
+					$member->email,
+					$member->name,
+					$competition->title
+				);
+				break;
+
+			default:
+				return new WP_Error( 'unknown_email_job_type', sprintf( 'Unknown email job type "%s"', $job['type'] ) );
+		}
+
+		return $sent ? 'sent' : new WP_Error( 'send_failed', 'wp_mail() failed' );
+	}
+
+	/**
+	 * Build and send one member's detailed results email.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @return bool Whether the email was sent.
+	 */
+	private function send_results( object $competition, object $member ): bool {
+		$competition_id = (int) $competition->id;
+		$member_id      = (int) $member->id;
+
+		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
+		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+
+		$member_results = array(
+			'images' => array(),
+		);
+
+		// Get the member's grade.
+		$member_grade = ! empty( $member->grade ) ? $member->grade : '';
+
+		foreach ( $categories as $category ) {
+			$category_slug  = $category['slug'] ?? '';
+			$category_label = $category['label'] ?? $category_slug;
+
+			if ( empty( $category_slug ) ) {
+				continue;
+			}
+
+			$results = $this->calculator->get_results( $competition_id, $category_slug );
+
+			// Build a members lookup for grade filtering.
+			$members_lookup = array();
+			foreach ( $results as $result ) {
+				$result_member_id = (int) $result->member_id;
+				if ( ! isset( $members_lookup[ $result_member_id ] ) ) {
+					$members_lookup[ $result_member_id ] = $this->members->find( $result_member_id );
+				}
+			}
+
+			// Filter results to only include images from the member's grade.
+			$grade_results = array();
+			if ( ! empty( $member_grade ) ) {
+				foreach ( $results as $result ) {
+					$result_member_id = (int) $result->member_id;
+					$result_member    = $members_lookup[ $result_member_id ] ?? null;
+					if ( $result_member && $result_member->grade === $member_grade ) {
+						$grade_results[] = $result;
+					}
+				}
+			} else {
+				// If member has no grade, fall back to all results.
+				$grade_results = $results;
+			}
+
+			$total_in_grade = count( $grade_results );
+
+			// Find this member's images in the grade results.
+			$rank = 1;
+			foreach ( $grade_results as $result ) {
+				if ( (int) $result->member_id === (int) $member_id ) {
+					$image_details = $this->analytics->get_image_details( (int) $result->id );
+
+					// Get thumbnail URL.
+					$thumbnail_url = $this->image_processor->get_thumbnail_url(
+						$competition->slug,
+						$category_slug,
+						$result->filename
+					);
+
+					$member_results['images'][] = array(
+						'category_label' => $category_label,
+						'image_number'   => $result->random_number,
+						'rank'           => $rank,
+						'total_in_grade' => $total_in_grade,
+						'grade'          => $member_grade,
+						'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
+						'statistics'     => $image_details['statistics'],
+						'votes'          => $image_details['votes'],
+					);
+				}
+				++$rank;
+			}
+		}
+
+		return $this->email_service->send_results_email(
+			$member->email,
+			$member->name,
+			$competition->title,
+			$member_results
+		);
 	}
 
 	/**
@@ -439,8 +568,7 @@ class Email_Results_Job_Manager {
 	public function cleanup_old_jobs(): int {
 		global $wpdb;
 
-		$option_name_pattern = 'photo_comp_email_job_%';
-		$cutoff_time         = time() - $this->get_job_retention();
+		$cutoff_time = time() - $this->get_job_retention();
 
 		// Get all email job options.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -448,7 +576,7 @@ class Email_Results_Job_Manager {
 			$wpdb->prepare(
 				'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s',
 				$wpdb->options,
-				$wpdb->esc_like( $option_name_pattern )
+				$wpdb->esc_like( 'photo_comp_email_job_' ) . '%'
 			)
 		);
 

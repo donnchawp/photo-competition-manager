@@ -250,6 +250,32 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'More than one competition is open', $html );
 	}
 
+	public function test_render_upload_link_job_notice_reports_skipped_members(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_upload_test',
+			array(
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2, 3 ),
+				'status'         => 'completed',
+				'total_count'    => 3,
+				'sent_count'     => 1,
+				'skipped_count'  => 2,
+				'failed_count'   => 0,
+				'error_log'      => array(),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'upload_test' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Upload link emails sent.', $html );
+		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because they were emailed in the last 5 minutes.', $html );
+	}
+
 	/**
 	 * With the Competition Closed email enabled, closing a competition emails
 	 * every active member on the next cron run, so the confirmation says so.

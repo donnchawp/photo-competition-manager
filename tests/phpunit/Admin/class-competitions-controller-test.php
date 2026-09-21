@@ -529,9 +529,9 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_close_competition_closes_open_voting(): void {
 		$id = $this->create_competition( 'Mid Vote', 'mid-vote', '2020-01-01 00:00:00' );
 
-		$settings                                        = $this->settings( $id );
-		$settings['voting']['open_categories']           = array( 'colour' );
-		$settings['voting']['category_steps']['colour']  = 3;
+		$settings                                       = $this->settings( $id );
+		$settings['voting']['open_categories']          = array( 'colour' );
+		$settings['voting']['category_steps']['colour'] = 3;
 		$this->competitions->update( $id, array( 'settings' => $settings ) );
 
 		$this->set_request(
@@ -868,7 +868,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 
 	/**
-	 * Sending reminder emails on an open competition with members reports success.
+	 * Sending reminder emails on an open competition queues a background job
+	 * and redirects to the dashboard, which shows its progress.
 	 */
 	public function test_send_emails_success(): void {
 		// Open competition: null open/close dates make is_open() true.
@@ -896,7 +897,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
-		$this->assertContains( 'emails_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**
