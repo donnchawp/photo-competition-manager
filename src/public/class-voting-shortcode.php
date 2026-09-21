@@ -223,6 +223,11 @@ class Voting_Shortcode {
 			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
 				$member   = $this->members_repo->find( (int) $token_record->member_id );
 				$category = $token_record->category;
+
+				// Deactivated members fall back to the token request form.
+				if ( $member && ! $member->active ) {
+					$member = null;
+				}
 			}
 		}
 
@@ -332,7 +337,7 @@ class Voting_Shortcode {
 
 		// Find member by email silently.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member ) {
+		if ( ! $member || ! $member->active ) {
 			// Return success message but don't send email.
 			return $generic_success;
 		}

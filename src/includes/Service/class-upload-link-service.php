@@ -93,6 +93,10 @@ class Upload_Link_Service {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
+		if ( ! $member->active ) {
+			return new WP_Error( 'inactive_member', __( 'Member account is not active.', 'photo-competition-manager' ) );
+		}
+
 		if ( empty( $member->email ) ) {
 			return new WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
 		}
@@ -166,7 +170,7 @@ class Upload_Link_Service {
 	}
 
 	/**
-	 * Send submission reminder emails to all members for a competition.
+	 * Send submission reminder emails to all active members for a competition.
 	 *
 	 * @since 0.3.0
 	 * @param int $competition_id Competition ID.
@@ -186,7 +190,7 @@ class Upload_Link_Service {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 
-		$members = $this->members_repo->all( 10000, false );
+		$members = $this->members_repo->find_active_members();
 		if ( empty( $members ) ) {
 			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );
 		}
