@@ -623,7 +623,7 @@ class Voting_Shortcode {
 		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
-		$check_open_url      = $token_string ? add_query_arg( 'token', $token_string, get_permalink() ) : get_permalink();
+		$check_open_url      = $token_string ? add_query_arg( 'token', rawurlencode( $token_string ), get_permalink() ) : get_permalink();
 
 		?>
 		<div class="photo-comp-voting">

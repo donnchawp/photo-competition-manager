@@ -68,6 +68,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
+		unset( $GLOBALS['post'] );
 		parent::tearDown();
 	}
 
@@ -117,6 +118,16 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$settings['voting']['open_categories'] = $open_categories;
 		$competitions->update( (int) $this->competition->id, array( 'settings' => $settings ) );
 		$this->competition = $competitions->find( (int) $this->competition->id );
+	}
+
+	/**
+	 * Make a page the current post so get_permalink() has something to return.
+	 *
+	 * @return string The page's permalink.
+	 */
+	private function view_page(): string {
+		$GLOBALS['post'] = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+		return get_permalink();
 	}
 
 	/**
@@ -247,30 +258,43 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_check_open_button_keeps_token_when_no_category_open(): void {
 		$this->set_open_categories( array() );
+		$permalink     = $this->view_page();
 		$token         = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 		$_GET['token'] = $token;
 
 		$url = $this->check_open_url( $this->shortcode->render() );
 
-		$this->assertStringContainsString( 'token=' . $token, $url );
+		$this->assertSame( add_query_arg( 'token', $token, $permalink ), $url );
 	}
 
 	public function test_check_open_button_keeps_token_when_token_category_closed(): void {
 		$this->set_open_categories( array( 'mono' ) );
+		$permalink     = $this->view_page();
 		$token         = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 		$_GET['token'] = $token;
 
 		$html = $this->shortcode->render();
 
 		$this->assertStringContainsString( 'Voting is no longer open for this category.', $html );
-		$this->assertStringContainsString( 'token=' . $token, $this->check_open_url( $html ) );
+		$this->assertSame( add_query_arg( 'token', $token, $permalink ), $this->check_open_url( $html ) );
 	}
 
 	public function test_check_open_button_has_no_token_without_one(): void {
 		$this->set_open_categories( array() );
+		$permalink = $this->view_page();
 
 		$url = $this->check_open_url( $this->shortcode->render() );
 
-		$this->assertStringNotContainsString( 'token=', $url );
+		$this->assertSame( $permalink, $url );
+	}
+
+	public function test_check_open_button_encodes_token(): void {
+		$this->set_open_categories( array() );
+		$permalink     = $this->view_page();
+		$_GET['token'] = 'abc&foo=bar';
+
+		$url = $this->check_open_url( $this->shortcode->render() );
+
+		$this->assertSame( add_query_arg( 'token', 'abc%26foo%3Dbar', $permalink ), $url );
 	}
 }
