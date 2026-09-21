@@ -15,8 +15,10 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -194,6 +196,57 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$settings = $this->settings();
 		$this->assertSame( array( 'colour' ), $settings['voting']['open_categories'] );
 		$this->assertSame( 3, $settings['voting']['category_steps']['colour'] );
+	}
+
+	/**
+	 * With the voting-opened email enabled, opening voting queues the emails
+	 * instead of sending them during the request.
+	 */
+	public function test_open_category_voting_queues_voting_opened_emails(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_opened' => array(
+					'enabled' => true,
+					'subject' => 'Voting is open',
+					'body'    => '<p>Go vote.</p>',
+				),
+			)
+		);
+		( new Members_Repository() )->create(
+			array(
+				'name'  => 'Voter',
+				'email' => 'voter@example.com',
+			)
+		);
+		$mail_count = 0;
+		add_filter(
+			'pre_wp_mail',
+			function () use ( &$mail_count ) {
+				++$mail_count;
+				return true;
+			}
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'open_category_voting',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'voting_emails_queued', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertSame( 0, $mail_count );
+		$this->assertContains( Email_Job_Manager::BATCH_HOOK, $this->scheduled_hooks() );
 	}
 
 	/**
@@ -470,5 +523,18 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertFalse( $json['success'] );
 		$this->assertStringContainsString( 'Invalid parameters', $json['data']['message'] );
+	}
+
+	/**
+	 * Hook names of every scheduled WP-Cron event, whatever their args.
+	 *
+	 * @return string[]
+	 */
+	private function scheduled_hooks(): array {
+		$hooks = array();
+		foreach ( _get_cron_array() as $events ) {
+			$hooks = array_merge( $hooks, array_keys( $events ) );
+		}
+		return $hooks;
 	}
 }

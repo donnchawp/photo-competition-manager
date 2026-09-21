@@ -7,8 +7,10 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
+use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use WP_UnitTestCase;
 
@@ -175,72 +177,80 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertTrue( $result );
 	}
 
-	// --- send_reminders ---
+	// --- send_reminder ---
+
+	public function test_send_reminder_reports_sent_then_skipped() {
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->assertSame( 'sent', $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' ) );
+		$this->assertSame( 'skipped', $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' ) );
+		$this->assertSame( 1, $this->mail_count );
+	}
+
+	public function test_send_reminder_returns_send_error() {
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com', false );
+
+		$result = $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'inactive_member', $result->get_error_code() );
+	}
+
+	// --- queue_reminders ---
+
+	private function jobs(): Email_Job_Manager {
+		return ( new Dependencies() )->email_job_manager;
+	}
 
 	public function test_reminders_invalid_competition_id() {
-		$result = $this->service->send_reminders( 0 );
+		$result = $this->service->queue_reminders( 0, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'invalid_competition', $result->get_error_code() );
 	}
 
 	public function test_reminders_missing_competition() {
-		$result = $this->service->send_reminders( 9999 );
+		$result = $this->service->queue_reminders( 9999, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_competition', $result->get_error_code() );
 	}
 
 	public function test_reminders_competition_not_open() {
 		$competition_id = $this->make_closed_competition();
-		$result         = $this->service->send_reminders( $competition_id );
+		$result         = $this->service->queue_reminders( $competition_id, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'competition_not_open', $result->get_error_code() );
 	}
 
 	public function test_reminders_no_members() {
 		$competition_id = $this->make_open_competition();
-		$result         = $this->service->send_reminders( $competition_id );
+		$result         = $this->service->queue_reminders( $competition_id, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'no_members', $result->get_error_code() );
 	}
 
-	public function test_reminders_sends_then_skips_on_rate_limit() {
+	public function test_reminders_queue_active_members_without_sending() {
 		$competition_id = $this->make_open_competition();
-		$this->make_member( 'Alice', 'alice@example.com' );
-		$this->make_member( 'Bob', 'bob@example.com' );
-
-		$first = $this->service->send_reminders( $competition_id );
-		$this->assertIsArray( $first );
-		$this->assertTrue( $first['success'] );
-		$this->assertSame( 2, $first['sent_count'] );
-		$this->assertSame( 0, $first['skipped_count'] );
-		$this->assertSame( 0, $first['failed_count'] );
-		$this->assertEmpty( $first['errors'] );
-		$this->assertSame( 2, $first['total_count'] );
-
-		$second = $this->service->send_reminders( $competition_id );
-		$this->assertIsArray( $second );
-		$this->assertSame( 0, $second['sent_count'] );
-		$this->assertSame( 2, $second['skipped_count'] );
-	}
-
-	public function test_reminders_skip_inactive_members() {
-		$competition_id = $this->make_open_competition();
-		$this->make_member( 'Alice', 'alice@example.com' );
+		$alice          = $this->make_member( 'Alice', 'alice@example.com' );
 		$this->make_member( 'Bob', 'bob@example.com', false );
+		$jobs = $this->jobs();
 
-		$result = $this->service->send_reminders( $competition_id );
-		$this->assertIsArray( $result );
-		$this->assertSame( 1, $result['sent_count'] );
-		$this->assertSame( 0, $result['failed_count'] );
-		$this->assertSame( 1, $result['total_count'] );
-		$this->assertSame( 1, $this->mail_count );
+		$job_id = $this->service->queue_reminders( $competition_id, $jobs );
+
+		$this->assertIsString( $job_id );
+		$job = $jobs->get_job( $job_id );
+		$this->assertSame( 'upload_link', $job['type'] );
+		$this->assertSame( array( $alice ), $job['member_ids'] );
+		$this->assertNotEmpty( $job['args']['upload_page_url'] );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertNotFalse( wp_next_scheduled( Email_Job_Manager::BATCH_HOOK, array( $job_id ) ) );
 	}
 
 	public function test_reminders_only_inactive_members_is_no_members() {
 		$competition_id = $this->make_open_competition();
 		$this->make_member( 'Bob', 'bob@example.com', false );
 
-		$result = $this->service->send_reminders( $competition_id );
+		$result = $this->service->queue_reminders( $competition_id, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'no_members', $result->get_error_code() );
 	}
