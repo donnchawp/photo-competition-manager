@@ -31,7 +31,7 @@ class Email_Results_Job_Manager {
 	 * @return int
 	 */
 	private function get_batch_size(): int {
-		return defined( 'CLUB_COMPETE_EMAIL_BATCH_SIZE' ) ? CLUB_COMPETE_EMAIL_BATCH_SIZE : 5;
+		return defined( 'CLUB_COMPETE_EMAIL_BATCH_SIZE' ) ? CLUB_COMPETE_EMAIL_BATCH_SIZE : 10;
 	}
 
 	/**
