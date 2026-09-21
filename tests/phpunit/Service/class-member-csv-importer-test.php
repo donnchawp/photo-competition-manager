@@ -177,6 +177,29 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( 'Alice', $alice->name );
 	}
 
+	public function test_import_reactivates_deactivated_member_by_original_address(): void {
+		$id = $this->members_repo->create(
+			array(
+				'name'   => 'Alice',
+				'email'  => 'alice@example.com',
+				'grade'  => 'beginner',
+				'active' => 0,
+			)
+		);
+
+		$csv  = "name,email,grade,active\n";
+		$csv .= "Alice,alice@example.com,beginner,1\n";
+
+		$result = $this->importer->import( $this->make_file( $csv ) );
+
+		$this->assertSame( 0, $result['imported'] );
+		$this->assertSame( 1, $result['updated'] );
+
+		$alice = $this->members_repo->find( $id );
+		$this->assertSame( 'alice@example.com', $alice->email );
+		$this->assertEquals( 1, $alice->active );
+	}
+
 	// ---------------------------------------------------------------
 	// import() — active/committee normalization
 	// ---------------------------------------------------------------

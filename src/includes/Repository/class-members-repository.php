@@ -20,6 +20,47 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Members_Repository extends Abstract_Repository {
 
 	/**
+	 * Prefix added to a deactivated member's email address.
+	 */
+	const DEACTIVATED_PREFIX = 'deactivated-';
+
+	/**
+	 * Suffix added to a deactivated member's email address. `.invalid` never resolves, so mail to it always bounces.
+	 */
+	const DEACTIVATED_SUFFIX = '.invalid';
+
+	/**
+	 * Mark an email address as belonging to a deactivated member.
+	 *
+	 * @param string $email Email address, marked or not.
+	 * @return string
+	 */
+	public static function mark_deactivated_email( string $email ): string {
+		return self::DEACTIVATED_PREFIX . self::unmark_deactivated_email( $email ) . self::DEACTIVATED_SUFFIX;
+	}
+
+	/**
+	 * Remove the deactivated marker from an email address.
+	 *
+	 * @param string $email Email address, marked or not.
+	 * @return string
+	 */
+	public static function unmark_deactivated_email( string $email ): string {
+		$prefix_length = strlen( self::DEACTIVATED_PREFIX );
+		$suffix_length = strlen( self::DEACTIVATED_SUFFIX );
+
+		if (
+			strlen( $email ) > $prefix_length + $suffix_length
+			&& str_starts_with( $email, self::DEACTIVATED_PREFIX )
+			&& str_ends_with( $email, self::DEACTIVATED_SUFFIX )
+		) {
+			return substr( $email, $prefix_length, -$suffix_length );
+		}
+
+		return $email;
+	}
+
+	/**
 	 * Fetch members.
 	 *
 	 * @param int  $limit       Number of records to return.
@@ -73,6 +114,8 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Locate a member by email address.
 	 *
+	 * Matches a deactivated member by their original address too.
+	 *
 	 * @param string $email Member email.
 	 * @return object|null
 	 */
@@ -83,14 +126,17 @@ class Members_Repository extends Abstract_Repository {
 			return null;
 		}
 
+		$email = self::unmark_deactivated_email( $email );
+
 		// phpcs:disable WordPress.DB.PreparedSQL
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $wpdb->get_row(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				'SELECT * FROM %i WHERE email = %s',
+				'SELECT * FROM %i WHERE email IN (%s, %s) LIMIT 1',
 				$this->table(),
-				$email
+				$email,
+				self::mark_deactivated_email( $email )
 			)
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL
@@ -133,7 +179,7 @@ class Members_Repository extends Abstract_Repository {
 		global $wpdb;
 
 		$name  = isset( $data['name'] ) ? sanitize_text_field( (string) $data['name'] ) : '';
-		$email = isset( $data['email'] ) ? sanitize_email( (string) $data['email'] ) : '';
+		$email = isset( $data['email'] ) ? self::unmark_deactivated_email( sanitize_email( (string) $data['email'] ) ) : '';
 
 		if ( '' === $name ) {
 			return new WP_Error( 'invalid_name', __( 'Member name is required.', 'photo-competition-manager' ) );
@@ -154,7 +200,7 @@ class Members_Repository extends Abstract_Repository {
 
 		$payload = array(
 			'name'       => $name,
-			'email'      => $email,
+			'email'      => $active ? $email : self::mark_deactivated_email( $email ),
 			'grade'      => $grade,
 			'active'     => $active,
 			'committee'  => $committee,
@@ -200,7 +246,7 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_name', __( 'Member name is required.', 'photo-competition-manager' ) );
 		}
 
-		$email = isset( $data['email'] ) ? sanitize_email( (string) $data['email'] ) : $current->email;
+		$email = self::unmark_deactivated_email( isset( $data['email'] ) ? sanitize_email( (string) $data['email'] ) : $current->email );
 
 		if ( ! is_email( $email ) ) {
 			return new WP_Error( 'invalid_email', __( 'A valid email address is required.', 'photo-competition-manager' ) );
@@ -216,7 +262,7 @@ class Members_Repository extends Abstract_Repository {
 
 		$payload = array(
 			'name'       => $name,
-			'email'      => $email,
+			'email'      => $active ? $email : self::mark_deactivated_email( $email ),
 			'grade'      => $grade,
 			'active'     => $active,
 			'committee'  => $committee,
@@ -408,16 +454,38 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Determine whether an email already exists.
+	 * Mark the email of every inactive member that isn't marked yet.
 	 *
-	 * @param string   $email      Member email.
+	 * Used to upgrade members deactivated before the marker existed.
+	 *
+	 * @return int Number of members marked.
+	 */
+	public function mark_inactive_emails(): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET email = CONCAT(%s, email, %s) WHERE active = 0 AND email NOT LIKE %s',
+				$this->table(),
+				self::DEACTIVATED_PREFIX,
+				self::DEACTIVATED_SUFFIX,
+				$wpdb->esc_like( self::DEACTIVATED_PREFIX ) . '%' . $wpdb->esc_like( self::DEACTIVATED_SUFFIX )
+			)
+		);
+	}
+
+	/**
+	 * Determine whether an email already exists, marked or not.
+	 *
+	 * @param string   $email      Member email, unmarked.
 	 * @param int|null $exclude_id Optional member ID to exclude.
 	 * @return bool
 	 */
 	private function email_exists( string $email, ?int $exclude_id = null ): bool {
 		global $wpdb;
 
-		$params     = array( $email );
+		$params     = array( $email, self::mark_deactivated_email( $email ) );
 		$conditions = '';
 
 		if ( $exclude_id ) {
@@ -425,16 +493,16 @@ class Members_Repository extends Abstract_Repository {
 			$params[]    = $exclude_id;
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is "field != %d" string.
+		// phpcs:disable WordPress.DB.PreparedSQL,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions is "field != %d" string; replacement count matches at runtime.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return (int) $wpdb->get_var(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM %i WHERE email=%s{$conditions}",
+				"SELECT COUNT(*) FROM %i WHERE email IN (%s, %s){$conditions}",
 				$this->table(),
 				...$params
 			)
 		) > 0;
-		// phpcs:enable WordPress.DB.PreparedSQL,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// phpcs:enable WordPress.DB.PreparedSQL,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter
 	}
 }

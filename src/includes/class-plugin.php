@@ -51,6 +51,8 @@ class Plugin {
 	 * @return void
 	 */
 	public function bootstrap(): void {
+		\PhotoCompetitionManager\Install\Activator::maybe_upgrade();
+
 		$this->admin->register();
 		$this->frontend->register();
 

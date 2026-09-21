@@ -84,6 +84,7 @@ Bob Johnson,bob.johnson@example.com
 
 - **New Members**: Email doesn't exist → new member created
 - **Existing Members**: Email exists → member information updated
+- **Deactivated Members**: A deactivated member's email is stored as `deactivated-<email>.invalid`. A row with their original email still matches them, and `active` = 1 reactivates them and restores the email.
 - **Validation**: Each row validated for required fields and email format
 - **Error Handling**: Invalid rows skipped with detailed error messages
 

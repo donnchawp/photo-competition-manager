@@ -63,6 +63,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 ### 4.2 Member & Image Upload
 - Members are managed internally (custom table).
   - Fields: Name, Email, Grade, Active status.
+  - Deactivating a member rewrites their email as `deactivated-<email>.invalid` so it can't be mailed or reused from an export; reactivating restores it.
 - Each member receives a unique upload link via email.
 - Upload rules per competition:
   - Max number of images per category defined by admin.
