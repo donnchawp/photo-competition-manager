@@ -26,6 +26,38 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 		$this->repo = new Upload_Token_Repository();
+
+		// find_valid_token() only returns tokens belonging to active members.
+		global $wpdb;
+		foreach ( array( 1, 2, 3, 10, 11 ) as $member_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->insert(
+				$wpdb->prefix . 'photocomp_members',
+				array(
+					'id'    => $member_id,
+					'name'  => "Member {$member_id}",
+					'email' => "member{$member_id}@example.com",
+					'grade' => 'beginner',
+				)
+			);
+		}
+	}
+
+	/**
+	 * Tokens belonging to deactivated members are not valid, and work again on reactivation.
+	 */
+	public function test_find_valid_token_ignores_inactive_member() {
+		global $wpdb;
+		$members   = $wpdb->prefix . 'photocomp_members';
+		$token_obj = $this->repo->find_or_create( 1, 2 );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $members, array( 'active' => 0 ), array( 'id' => 1 ) );
+		$this->assertNull( $this->repo->find_valid_token( $token_obj->token ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $members, array( 'active' => 1 ), array( 'id' => 1 ) );
+		$this->assertNotNull( $this->repo->find_valid_token( $token_obj->token ) );
 	}
 
 	/**

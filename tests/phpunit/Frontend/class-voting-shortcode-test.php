@@ -13,7 +13,6 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
-use ReflectionMethod;
 use WP_UnitTestCase;
 
 /**
@@ -87,7 +86,9 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function tearDown(): void {
-		unset( $_GET['token'], $_POST['photo_competition_vote'], $_POST['photo_competition_vote_nonce'], $_POST['votes'], $_REQUEST['photo_competition_vote_nonce'] );
+		$_GET     = array();
+		$_POST    = array();
+		$_REQUEST = array();
 		parent::tearDown();
 	}
 
@@ -103,18 +104,15 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	private function request_token( string $email ): string {
-		$method = new ReflectionMethod( Voting_Shortcode::class, 'handle_token_request' );
-		$method->setAccessible( true );
+		$nonce = wp_create_nonce( 'photo_competition_request_voting_token' );
 
-		return $method->invoke(
-			$this->shortcode,
-			$this->competition,
-			\PhotoCompetitionManager\Support\Competition_Settings::parse( $this->competition->settings ),
-			array(
-				'member_email' => $email,
-				'category'     => 'colour',
-			)
-		);
+		$_POST['photo_competition_request_voting_token'] = '1';
+		$_POST['photo_competition_voting_nonce']         = $nonce;
+		$_REQUEST['photo_competition_voting_nonce']      = $nonce;
+		$_POST['member_email']                           = $email;
+		$_POST['category']                               = 'colour';
+
+		return $this->shortcode->render();
 	}
 
 	private function issue_token( int $member_id ): string {

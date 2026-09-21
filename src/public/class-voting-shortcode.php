@@ -223,11 +223,6 @@ class Voting_Shortcode {
 			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
 				$member   = $this->members_repo->find( (int) $token_record->member_id );
 				$category = $token_record->category;
-
-				// Deactivated members fall back to the token request form.
-				if ( $member && ! $member->active ) {
-					$member = null;
-				}
 			}
 		}
 

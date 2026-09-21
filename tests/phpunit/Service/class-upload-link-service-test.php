@@ -29,11 +29,25 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	 */
 	private $members;
 
+	/**
+	 * @var int
+	 */
+	private $mail_count = 0;
+
 	public function setUp(): void {
 		parent::setUp();
 		$this->service = new Upload_Link_Service();
 		$this->comps   = new Competitions_Repository();
 		$this->members = new Members_Repository();
+
+		$this->mail_count = 0;
+		add_filter(
+			'wp_mail',
+			function ( $atts ) {
+				++$this->mail_count;
+				return $atts;
+			}
+		);
 	}
 
 	private function make_open_competition(): int {
@@ -68,19 +82,6 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		);
 	}
 
-	private function count_mail(): \stdClass {
-		$counter        = new \stdClass();
-		$counter->count = 0;
-		add_filter(
-			'wp_mail',
-			function ( $atts ) use ( $counter ) {
-				++$counter->count;
-				return $atts;
-			}
-		);
-		return $counter;
-	}
-
 	// --- send_to_member ---
 
 	public function test_send_to_member_missing_competition() {
@@ -112,34 +113,24 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	public function test_send_to_member_inactive_member() {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com', false );
-		$mail           = $this->count_mail();
 
 		$result = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/', true );
 		$this->assertWPError( $result );
 		$this->assertSame( 'inactive_member', $result->get_error_code() );
-		$this->assertSame( 0, $mail->count );
+		$this->assertSame( 0, $this->mail_count );
 	}
 
 	public function test_send_to_member_success_and_rate_limit() {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 
-		$mail_count = 0;
-		add_filter(
-			'wp_mail',
-			function ( $atts ) use ( &$mail_count ) {
-				++$mail_count;
-				return $atts;
-			}
-		);
-
 		$first = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
 		$this->assertTrue( $first );
-		$this->assertSame( 1, $mail_count );
+		$this->assertSame( 1, $this->mail_count );
 
 		$second = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
 		$this->assertTrue( $second );
-		$this->assertSame( 1, $mail_count );
+		$this->assertSame( 1, $this->mail_count );
 	}
 
 	public function test_send_to_member_send_failed() {
@@ -172,11 +163,10 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	public function test_send_by_email_inactive_member_is_silent_success() {
 		$competition_id = $this->make_open_competition();
 		$this->make_member( 'Dave', 'dave@example.com', false );
-		$mail = $this->count_mail();
 
 		$result = $this->service->send_by_email( $competition_id, 'dave@example.com', 'https://example.com/upload/' );
 		$this->assertTrue( $result );
-		$this->assertSame( 0, $mail->count );
+		$this->assertSame( 0, $this->mail_count );
 	}
 
 	public function test_send_by_email_non_send_error_is_success() {
@@ -237,14 +227,13 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$this->make_member( 'Alice', 'alice@example.com' );
 		$this->make_member( 'Bob', 'bob@example.com', false );
-		$mail = $this->count_mail();
 
 		$result = $this->service->send_reminders( $competition_id );
 		$this->assertIsArray( $result );
 		$this->assertSame( 1, $result['sent_count'] );
 		$this->assertSame( 0, $result['failed_count'] );
 		$this->assertSame( 1, $result['total_count'] );
-		$this->assertSame( 1, $mail->count );
+		$this->assertSame( 1, $this->mail_count );
 	}
 
 	public function test_reminders_only_inactive_members_is_no_members() {

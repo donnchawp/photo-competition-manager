@@ -52,7 +52,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$result = ( new Upload_API() )->validate_token_permission( $this->request_for_member( false ) );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'inactive_member', $result->get_error_code() );
-		$this->assertSame( 403, $result->get_error_data()['status'] );
+		$this->assertSame( 'invalid_token', $result->get_error_code() );
+		$this->assertSame( 401, $result->get_error_data()['status'] );
 	}
 }

@@ -162,16 +162,6 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		$member = $this->members_repo->find( (int) $token_record->member_id );
-
-		if ( ! $member || ! $member->active ) {
-			return new WP_Error(
-				'inactive_member',
-				__( 'Member account is not active.', 'photo-competition-manager' ),
-				array( 'status' => 403 )
-			);
-		}
-
 		// Store token record in request for later use.
 		$request->set_param( '_token_record', $token_record );
 

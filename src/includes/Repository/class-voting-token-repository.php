@@ -64,6 +64,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 	/**
 	 * Find a valid token by hash.
 	 *
+	 * Tokens belonging to deactivated members are treated as invalid.
 	 * Records the first access timestamp if this is the first time the token is used.
 	 *
 	 * @param string $token_hash Hashed token.
@@ -80,12 +81,14 @@ class Voting_Token_Repository extends Abstract_Repository {
 		$token = $wpdb->get_row(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				'SELECT * FROM %i
-				WHERE token_hash = %s
-				AND used_at IS NULL
-				AND expires_at > %s
+				'SELECT t.* FROM %i AS t
+				INNER JOIN %i AS m ON m.id = t.member_id AND m.active = 1
+				WHERE t.token_hash = %s
+				AND t.used_at IS NULL
+				AND t.expires_at > %s
 				LIMIT 1',
 				$this->table(),
+				$wpdb->prefix . 'photocomp_members',
 				$token_hash,
 				utc_time()
 			)
