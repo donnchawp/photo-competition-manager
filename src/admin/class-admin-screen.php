@@ -231,7 +231,7 @@ class Admin_Screen {
 			'photo-competition-manager',
 			__( 'Email Templates', 'photo-competition-manager' ),
 			__( 'Email Templates', 'photo-competition-manager' ),
-			'manage_options',
+			'manage_photo_competitions',
 			'photo-competition-manager-email-templates',
 			array( $this->email_templates_controller, 'render' )
 		);
