@@ -196,13 +196,10 @@ function photo_competition_manager_drop_tables( $wpdb ) {
 /**
  * Delete any plugin-specific options from wp_options table.
  *
- * Currently the plugin doesn't store options, but this is here for future-proofing.
- *
  * @return void
  */
 function photo_competition_manager_delete_options() {
-	// If you add any options in the future, delete them here.
-	// Example: delete_option( 'photo_competition_manager_version' ).
+	delete_option( 'photo_comp_db_version' );
 }
 
 // Execute the uninstall.

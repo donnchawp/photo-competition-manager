@@ -447,6 +447,24 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( 'deactivated-jo@example.com.invalid', $repository->find( $id )->email );
 	}
 
+	public function test_marker_is_recognised_in_any_case(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'   => 'Mo Typed',
+				'email'  => 'Deactivated-Mo@example.com.INVALID',
+				'active' => 0,
+			)
+		);
+
+		$this->assertSame( 'deactivated-Mo@example.com.invalid', $repository->find( $id )->email );
+
+		$repository->set_active( $id, true );
+
+		$this->assertSame( 'Mo@example.com', $repository->find( $id )->email );
+	}
+
 	public function test_find_by_email_matches_deactivated_member_by_original_address(): void {
 		$repository = new Members_Repository( $GLOBALS['wpdb'] );
 
@@ -516,7 +534,21 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
+		// Too long to mark without overflowing the column; left alone rather than truncated.
+		$long_email = str_repeat( 'a', 160 ) . '@example.com';
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'name'   => 'Long Address',
+				'email'  => $long_email,
+				'grade'  => '',
+				'active' => 0,
+			)
+		);
+		$long_id = (int) $wpdb->insert_id;
+
 		$this->assertSame( 1, $repository->mark_inactive_emails() );
+		$this->assertSame( $long_email, $repository->find( $long_id )->email );
 
 		$this->assertSame( 'deactivated-old@example.com.invalid', $repository->find( $old_id )->email );
 		$this->assertSame( 'active@example.com', $repository->find( $active_id )->email );

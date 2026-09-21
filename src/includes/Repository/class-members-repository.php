@@ -30,6 +30,11 @@ class Members_Repository extends Abstract_Repository {
 	const DEACTIVATED_SUFFIX = '.invalid';
 
 	/**
+	 * Length of the email column.
+	 */
+	const EMAIL_MAX_LENGTH = 191;
+
+	/**
 	 * Mark an email address as belonging to a deactivated member.
 	 *
 	 * @param string $email Email address, marked or not.
@@ -42,6 +47,8 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Remove the deactivated marker from an email address.
 	 *
+	 * The marker matches in any case, as it does in MySQL's case-insensitive comparisons.
+	 *
 	 * @param string $email Email address, marked or not.
 	 * @return string
 	 */
@@ -51,8 +58,8 @@ class Members_Repository extends Abstract_Repository {
 
 		if (
 			strlen( $email ) > $prefix_length + $suffix_length
-			&& str_starts_with( $email, self::DEACTIVATED_PREFIX )
-			&& str_ends_with( $email, self::DEACTIVATED_SUFFIX )
+			&& 0 === strncasecmp( $email, self::DEACTIVATED_PREFIX, $prefix_length )
+			&& 0 === substr_compare( $email, self::DEACTIVATED_SUFFIX, -$suffix_length, $suffix_length, true )
 		) {
 			return substr( $email, $prefix_length, -$suffix_length );
 		}
@@ -133,7 +140,7 @@ class Members_Repository extends Abstract_Repository {
 		return $wpdb->get_row(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				'SELECT * FROM %i WHERE email IN (%s, %s) LIMIT 1',
+				'SELECT * FROM %i WHERE email IN (%s, %s) ORDER BY active DESC, id ASC LIMIT 1',
 				$this->table(),
 				$email,
 				self::mark_deactivated_email( $email )
@@ -456,23 +463,27 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Mark the email of every inactive member that isn't marked yet.
 	 *
-	 * Used to upgrade members deactivated before the marker existed.
+	 * Used to upgrade members deactivated before the marker existed. Addresses too long to mark
+	 * without overflowing the column are left alone rather than truncated.
 	 *
-	 * @return int Number of members marked.
+	 * @return int|false Number of members marked, or false if the update failed.
 	 */
-	public function mark_inactive_emails(): int {
+	public function mark_inactive_emails() {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return (int) $wpdb->query(
+		$marked = $wpdb->query(
 			$wpdb->prepare(
-				'UPDATE %i SET email = CONCAT(%s, email, %s) WHERE active = 0 AND email NOT LIKE %s',
+				'UPDATE %i SET email = CONCAT(%s, email, %s) WHERE active = 0 AND email NOT LIKE %s AND CHAR_LENGTH(email) <= %d',
 				$this->table(),
 				self::DEACTIVATED_PREFIX,
 				self::DEACTIVATED_SUFFIX,
-				$wpdb->esc_like( self::DEACTIVATED_PREFIX ) . '%' . $wpdb->esc_like( self::DEACTIVATED_SUFFIX )
+				$wpdb->esc_like( self::DEACTIVATED_PREFIX ) . '%' . $wpdb->esc_like( self::DEACTIVATED_SUFFIX ),
+				self::EMAIL_MAX_LENGTH - strlen( self::DEACTIVATED_PREFIX . self::DEACTIVATED_SUFFIX )
 			)
 		);
+
+		return false === $marked ? false : (int) $marked;
 	}
 
 	/**

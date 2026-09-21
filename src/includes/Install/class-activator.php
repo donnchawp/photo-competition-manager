@@ -52,8 +52,9 @@ class Activator {
 			return;
 		}
 
-		if ( $installed < 1 ) {
-			( new Members_Repository() )->mark_inactive_emails();
+		// Leave the version alone on failure so the step runs again on the next request.
+		if ( $installed < 1 && false === ( new Members_Repository() )->mark_inactive_emails() ) {
+			return;
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );

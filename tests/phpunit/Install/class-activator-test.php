@@ -40,6 +40,26 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_maybe_upgrade_keeps_old_version_when_marking_fails(): void {
+		global $wpdb;
+		delete_option( 'photo_comp_db_version' );
+
+		$break_update = function ( $query ) {
+			return 0 === strpos( $query, 'UPDATE' ) && false !== strpos( $query, 'photocomp_members' )
+				? 'UPDATE photocomp_no_such_table SET email = email'
+				: $query;
+		};
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
+
+		$this->assertFalse( get_option( 'photo_comp_db_version' ) );
+	}
+
 	public function test_maybe_upgrade_skips_when_current(): void {
 		global $wpdb;
 		$repository = new Members_Repository( $wpdb );

@@ -169,7 +169,16 @@ class Email_Results_Job_Manager {
 			}
 		}
 
-		$member_ids = array_keys( $member_ids );
+		// Deactivated members don't get results.
+		$members    = $this->members->find_many( array_keys( $member_ids ) );
+		$member_ids = array_values(
+			array_filter(
+				array_keys( $member_ids ),
+				function ( $member_id ) use ( $members ) {
+					return ! isset( $members[ (int) $member_id ] ) || (int) $members[ (int) $member_id ]->active;
+				}
+			)
+		);
 
 		if ( empty( $member_ids ) ) {
 			return false;
@@ -258,6 +267,13 @@ class Email_Results_Job_Manager {
 			if ( ! $member || empty( $member->email ) ) {
 				++$job['failed_count'];
 				$job['error_log'][]     = sprintf( 'Member %d has no email address', $member_id );
+				$job['processed_ids'][] = $member_id;
+				continue;
+			}
+
+			// Deactivated since the job was created.
+			if ( ! (int) $member->active ) {
+				--$job['total_count'];
 				$job['processed_ids'][] = $member_id;
 				continue;
 			}
