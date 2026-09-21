@@ -241,7 +241,7 @@ class Voting_Shortcode {
 		}
 
 		ob_start();
-		$this->render_voting_interface( $competition, $message, $token_record, $member, $settings, $category, $submitted_votes );
+		$this->render_voting_interface( $competition, $message, $token_record, $member, $settings, $category, $submitted_votes, $token_string );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -603,9 +603,10 @@ class Voting_Shortcode {
 	 * @param array            $settings        Competition settings.
 	 * @param string           $category        Category slug from token.
 	 * @param array<int,float> $submitted_votes Previously submitted vote selections.
+	 * @param string           $token_string    Raw voting token from the URL, kept on the "Check If Voting Is Open" link.
 	 * @return void
 	 */
-	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes ): void {
+	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes, string $token_string ): void {
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$categories    = Competition_Settings::get_categories( $settings );
 
@@ -639,7 +640,7 @@ class Voting_Shortcode {
 			<?php if ( empty( $voting_categories ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
-					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ); ?>">
+					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( $token_string ? add_query_arg( 'token', rawurlencode( $token_string ), get_permalink() ) : get_permalink() ); ?>">
 						<?php esc_html_e( 'Check If Voting Is Open', 'photo-competition-manager' ); ?>
 					</button>
 				</p>
@@ -696,8 +697,9 @@ class Voting_Shortcode {
 				<?php
 				// Verify voting is still open for this category.
 				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
+					// Another category is open, so drop the token: the bare page lets the voter request a link for it.
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
-					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( add_query_arg( 'token', $token_string, get_permalink() ) ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
 

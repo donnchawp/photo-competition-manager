@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 /**
@@ -52,28 +53,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->members   = new Members_Repository();
 		$this->tokens    = new Voting_Token_Repository();
 
-		$competitions      = new Competitions_Repository();
-		$competition_id    = $competitions->create(
-			array(
-				'title'     => 'Token Comp',
-				'slug'      => 'token-comp',
-				'open_date' => '2020-01-01 00:00:00',
-				'settings'  => array(
-					'categories' => array(
-						array(
-							'slug'  => 'colour',
-							'label' => 'Colour',
-							'quota' => 1,
-						),
-					),
-					'voting'     => array(
-						'auth_mode'       => 'token',
-						'open_categories' => array( 'colour' ),
-					),
-				),
-			)
-		);
-		$this->competition = $competitions->find( (int) $competition_id );
+		$this->create_competition();
 
 		$this->mail_count = 0;
 		add_filter(
@@ -89,7 +69,75 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
+		unset( $GLOBALS['post'] );
 		parent::tearDown();
+	}
+
+	/**
+	 * Create the open token-voting competition under test, with voting open for colour.
+	 */
+	private function create_competition(): void {
+		$competitions      = new Competitions_Repository();
+		$competition_id    = $competitions->create(
+			array(
+				'title'     => 'Token Comp',
+				'slug'      => 'token-comp',
+				'open_date' => '2020-01-01 00:00:00',
+				'settings'  => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Mono',
+							'quota' => 1,
+						),
+					),
+					'voting'     => array(
+						'auth_mode'       => 'token',
+						'open_categories' => array( 'colour' ),
+					),
+				),
+			)
+		);
+		$this->competition = $competitions->find( (int) $competition_id );
+	}
+
+	/**
+	 * Replace the categories open for voting on the competition under test.
+	 *
+	 * @param array<string> $open_categories Category slugs open for voting.
+	 */
+	private function set_open_categories( array $open_categories ): void {
+		$competitions                          = new Competitions_Repository();
+		$settings                              = Competition_Settings::parse( $this->competition->settings );
+		$settings['voting']['open_categories'] = $open_categories;
+		$competitions->update( (int) $this->competition->id, array( 'settings' => $settings ) );
+		$this->competition = $competitions->find( (int) $this->competition->id );
+	}
+
+	/**
+	 * Make a page the current post so get_permalink() has something to return.
+	 *
+	 * @return string The page's permalink.
+	 */
+	private function view_page(): string {
+		$GLOBALS['post'] = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+		return get_permalink();
+	}
+
+	/**
+	 * Extract the "Check If Voting Is Open" redirect URL from rendered output.
+	 *
+	 * @param string $html Rendered shortcode output.
+	 * @return string
+	 */
+	private function check_open_url( string $html ): string {
+		$this->assertSame( 1, preg_match( '/photo-comp-redirect-btn" data-redirect-url="([^"]*)"/', $html, $matches ) );
+		return html_entity_decode( $matches[1] );
 	}
 
 	private function make_member( string $email, bool $active ): int {
@@ -204,5 +252,49 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->submit_vote( $this->issue_token( $this->make_member( 'inactive@example.com', false ) ), $image_id );
 
 		$this->assertSame( 0, $this->vote_count() );
+	}
+
+	public function test_check_open_button_keeps_token_when_no_category_open(): void {
+		$this->set_open_categories( array() );
+		$permalink     = $this->view_page();
+		$token         = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$_GET['token'] = $token;
+
+		$url = $this->check_open_url( $this->shortcode->render() );
+
+		$this->assertSame( add_query_arg( 'token', $token, $permalink ), $url );
+	}
+
+	public function test_check_open_button_drops_token_when_token_category_closed(): void {
+		$this->set_open_categories( array( 'mono' ) );
+		$permalink     = $this->view_page();
+		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+
+		$html = $this->shortcode->render();
+
+		$this->assertStringContainsString( 'Voting is no longer open for this category.', $html );
+		$this->assertSame( $permalink, $this->check_open_url( $html ) );
+
+		unset( $_GET['token'] );
+		$this->assertStringContainsString( '<option value="mono">', $this->shortcode->render() );
+	}
+
+	public function test_check_open_button_has_no_token_without_one(): void {
+		$this->set_open_categories( array() );
+		$permalink = $this->view_page();
+
+		$url = $this->check_open_url( $this->shortcode->render() );
+
+		$this->assertSame( $permalink, $url );
+	}
+
+	public function test_check_open_button_encodes_token(): void {
+		$this->set_open_categories( array() );
+		$permalink     = $this->view_page();
+		$_GET['token'] = 'abc&foo=bar';
+
+		$url = $this->check_open_url( $this->shortcode->render() );
+
+		$this->assertSame( add_query_arg( 'token', 'abc%26foo%3Dbar', $permalink ), $url );
 	}
 }
