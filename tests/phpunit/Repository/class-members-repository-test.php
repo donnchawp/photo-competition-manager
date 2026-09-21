@@ -156,7 +156,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$member = $repository->find( $id );
 
 		$this->assertSame( 'Evan Artist II', $member->name );
-		$this->assertSame( 'evan.ii@example.com', $member->email );
+		$this->assertSame( 'deactivated-evan.ii@example.com.invalid', $member->email );
 		$this->assertSame( 'Advanced', $member->grade );
 		$this->assertSame( 0, (int) $member->active );
 	}
@@ -372,5 +372,186 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$result = $repository->delete( 9999 );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_member', $result->get_error_code() );
+	}
+
+	// ---------------------------------------------------------------
+	// Deactivated email marker
+	// ---------------------------------------------------------------
+
+	public function test_deactivating_marks_email(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'  => 'Gil Leaver',
+				'email' => 'gil@example.com',
+			)
+		);
+
+		$this->assertTrue( $repository->set_active( $id, false ) );
+
+		$this->assertSame( 'deactivated-gil@example.com.invalid', $repository->find( $id )->email );
+	}
+
+	public function test_reactivating_removes_marker(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'  => 'Hal Returner',
+				'email' => 'hal@example.com',
+			)
+		);
+		$repository->set_active( $id, false );
+
+		$this->assertTrue( $repository->set_active( $id, true ) );
+
+		$this->assertSame( 'hal@example.com', $repository->find( $id )->email );
+	}
+
+	public function test_create_inactive_member_marks_email(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'   => 'Ivy Inactive',
+				'email'  => 'ivy@example.com',
+				'active' => 0,
+			)
+		);
+
+		$this->assertSame( 'deactivated-ivy@example.com.invalid', $repository->find( $id )->email );
+	}
+
+	public function test_resaving_marked_email_does_not_double_marker(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'   => 'Jo Edited',
+				'email'  => 'jo@example.com',
+				'active' => 0,
+			)
+		);
+
+		// The edit form submits the marked address back.
+		$repository->update(
+			$id,
+			array(
+				'email'  => 'deactivated-jo@example.com.invalid',
+				'grade'  => 'advanced',
+				'active' => 0,
+			)
+		);
+
+		$this->assertSame( 'deactivated-jo@example.com.invalid', $repository->find( $id )->email );
+	}
+
+	public function test_marker_is_recognised_in_any_case(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'   => 'Mo Typed',
+				'email'  => 'Deactivated-Mo@example.com.INVALID',
+				'active' => 0,
+			)
+		);
+
+		$this->assertSame( 'deactivated-Mo@example.com.invalid', $repository->find( $id )->email );
+
+		$repository->set_active( $id, true );
+
+		$this->assertSame( 'Mo@example.com', $repository->find( $id )->email );
+	}
+
+	public function test_find_by_email_matches_deactivated_member_by_original_address(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'   => 'Kit Gone',
+				'email'  => 'kit@example.com',
+				'active' => 0,
+			)
+		);
+
+		$this->assertSame( $id, (int) $repository->find_by_email( 'kit@example.com' )->id );
+	}
+
+	public function test_create_rejects_original_address_of_deactivated_member(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'name'   => 'Lee Gone',
+				'email'  => 'lee@example.com',
+				'active' => 0,
+			)
+		);
+
+		$result = $repository->create(
+			array(
+				'name'  => 'Lee Again',
+				'email' => 'lee@example.com',
+			)
+		);
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'duplicate_email', $result->get_error_code() );
+	}
+
+	public function test_mark_inactive_emails_marks_only_unmarked_inactive_members(): void {
+		global $wpdb;
+		$repository = new Members_Repository( $wpdb );
+
+		// Rows written before the marker existed.
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'name'   => 'Old Inactive',
+				'email'  => 'old@example.com',
+				'grade'  => '',
+				'active' => 0,
+			)
+		);
+		$old_id = (int) $wpdb->insert_id;
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'name'   => 'Still Active',
+				'email'  => 'active@example.com',
+				'grade'  => '',
+				'active' => 1,
+			)
+		);
+		$active_id = (int) $wpdb->insert_id;
+		$marked_id = $repository->create(
+			array(
+				'name'   => 'Already Marked',
+				'email'  => 'marked@example.com',
+				'active' => 0,
+			)
+		);
+
+		// Too long to mark without overflowing the column; left alone rather than truncated.
+		$long_email = str_repeat( 'a', 160 ) . '@example.com';
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'name'   => 'Long Address',
+				'email'  => $long_email,
+				'grade'  => '',
+				'active' => 0,
+			)
+		);
+		$long_id = (int) $wpdb->insert_id;
+
+		$this->assertSame( 1, $repository->mark_inactive_emails() );
+		$this->assertSame( $long_email, $repository->find( $long_id )->email );
+
+		$this->assertSame( 'deactivated-old@example.com.invalid', $repository->find( $old_id )->email );
+		$this->assertSame( 'active@example.com', $repository->find( $active_id )->email );
+		$this->assertSame( 'deactivated-marked@example.com.invalid', $repository->find( $marked_id )->email );
 	}
 }

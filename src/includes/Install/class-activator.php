@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Members_Repository;
 use wpdb;
 
 /**
@@ -19,6 +20,16 @@ use wpdb;
 class Activator {
 
 	/**
+	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
+	 */
+	const DB_VERSION = 1;
+
+	/**
+	 * Option holding the installed data version.
+	 */
+	const DB_VERSION_OPTION = 'photo_comp_db_version';
+
+	/**
 	 * Run installation routines.
 	 *
 	 * @return void
@@ -26,6 +37,27 @@ class Activator {
 	public static function activate(): void {
 		self::create_tables();
 		self::add_capabilities();
+		self::maybe_upgrade();
+	}
+
+	/**
+	 * Migrate existing data when the installed data version is behind.
+	 *
+	 * @return void
+	 */
+	public static function maybe_upgrade(): void {
+		$installed = (int) get_option( self::DB_VERSION_OPTION, 0 );
+
+		if ( $installed >= self::DB_VERSION ) {
+			return;
+		}
+
+		// Leave the version alone on failure so the step runs again on the next request.
+		if ( $installed < 1 && false === ( new Members_Repository() )->mark_inactive_emails() ) {
+			return;
+		}
+
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 	}
 
 	/**
