@@ -8,8 +8,9 @@ MAILPIT_CONTAINER := photo-competition-manager-mailpit
 PLUGIN_NAME := photo-competition-manager
 WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
+PLUGIN_CHECK_CSV ?= plugin-check.csv
 
-.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition
+.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release seed-competition plugin-check
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -86,7 +87,11 @@ release: clean-release build ## Build production release zip file
 	@rm -fr $(RELEASE_DIR)/$(PLUGIN_NAME)
 
 seed-competition: ## Seed 12 members, a competition, and test images for voting
-	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/plugins/src/scripts/seed-voting-data.php
+	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/plugins/photo-competition-manager/scripts/seed-voting-data.php
+
+plugin-check: ## Run Plugin Check into plugin-check.csv (override: PLUGIN_CHECK_CSV=path)
+	$(WP_ENV) run cli -- wp plugin check $(PLUGIN_NAME) --format=strict-csv --fields=file,line,column,type,code,message,docs > $(PLUGIN_CHECK_CSV)
+	@echo "✓ $$(($$(wc -l < $(PLUGIN_CHECK_CSV)) - 1)) results written to $(PLUGIN_CHECK_CSV)"
 
 clean-release: ## Remove release build artifacts
 	@echo "Cleaning release artifacts..."

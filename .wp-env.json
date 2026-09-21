@@ -1,8 +1,6 @@
 {
-  "plugins": [
-    "./src"
-  ],
   "mappings": {
+    "wp-content/plugins/photo-competition-manager": "./src",
     "wp-content/mu-plugins": "./mu-plugins",
     "wp-content/pcm": "."
   },
