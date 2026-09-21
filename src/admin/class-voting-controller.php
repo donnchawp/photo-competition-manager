@@ -132,12 +132,7 @@ class Voting_Controller {
 		$category_slug  = $this->query_text( 'category' );
 
 		// Global constraint: no other ACTIVE competition may have a category open.
-		$all_competitions = $this->competitions->all( 100, false, false );
-		foreach ( $all_competitions as $comp ) {
-			if ( ! $this->competitions->is_open( $comp ) ) {
-				continue;
-			}
-
+		foreach ( $this->competitions->all_open() as $comp ) {
 			$comp_settings = Competition_Settings::parse( $comp->settings );
 			if ( ! empty( Competition_Settings::get_open_voting_categories( $comp_settings ) ) ) {
 				$this->fail_voting(
@@ -179,17 +174,11 @@ class Voting_Controller {
 
 		$competition = $this->load_competition_or_fail( $competition_id );
 
-		$settings                              = Competition_Settings::parse( $competition->settings );
-		$settings['voting']['open_categories'] = array();
-		$settings['voting']['category_steps'][ $category_slug ] = 5;
-
-		// Track voted categories - add this category to the list if not already there.
-		$category_key     = $competition_id . '_' . $category_slug;
-		$voted_categories = $settings['voting']['voted_categories'] ?? array();
-		if ( ! in_array( $category_key, $voted_categories, true ) ) {
-			$voted_categories[]                     = $category_key;
-			$settings['voting']['voted_categories'] = $voted_categories;
-		}
+		$settings = Competition_Settings::close_category_voting(
+			Competition_Settings::parse( $competition->settings ),
+			$competition_id,
+			$category_slug
+		);
 
 		$this->finish_voting_update(
 			$competition_id,
@@ -403,19 +392,21 @@ class Voting_Controller {
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
 
-		// Get all open competitions.
-		$all_competitions  = $this->competitions->all( 100, false, false );
-		$open_competitions = array_filter(
-			$all_competitions,
-			function ( $comp ) {
-				return $this->competitions->is_open( $comp );
-			}
-		);
+		$open_competitions = $this->competitions->all_open();
 
 		if ( empty( $open_competitions ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/voting/notice-no-open-competitions.php' );
 			return;
+		}
+
+		if ( count( $open_competitions ) > 1 ) {
+			$notice_data = array(
+				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
+				'show_link' => true,
+			);
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/notice-multiple-open-competitions.php', $notice_data );
 		}
 
 		// Check for members with submissions but no grades.

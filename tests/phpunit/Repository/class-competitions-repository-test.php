@@ -339,6 +339,49 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	// ---------------------------------------------------------------
+	// all_open()
+	// ---------------------------------------------------------------
+
+	public function test_all_open_returns_only_open_competitions(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$open_id     = $repository->create( array( 'title' => 'Open Comp' ) );
+		$closed_id   = $repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+		$future_id   = $repository->create(
+			array(
+				'title'     => 'Future Comp',
+				'open_date' => '2099-01-01 00:00:00',
+			)
+		);
+		$archived_id = $repository->create( array( 'title' => 'Archived Comp' ) );
+		$repository->archive( $archived_id );
+
+		$ids = array_map( 'intval', wp_list_pluck( $repository->all_open(), 'id' ) );
+
+		$this->assertSame( array( $open_id ), $ids );
+		$this->assertNotContains( $closed_id, $ids );
+		$this->assertNotContains( $future_id, $ids );
+	}
+
+	public function test_all_open_returns_empty_array_when_none_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closed Comp',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertSame( array(), $repository->all_open() );
+	}
+
+	// ---------------------------------------------------------------
 	// is_accepting_uploads()
 	// ---------------------------------------------------------------
 

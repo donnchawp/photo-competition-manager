@@ -226,6 +226,30 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-active-with-rows', array( $spring_id, $winter_id ) );
 	}
 
+	public function test_render_warns_when_multiple_competitions_open(): void {
+		$this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_competition( 'Autumn Show', 'autumn-show' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'More than one competition is open', $html );
+		$this->assertMatchesRegularExpression( '/More than one competition is open: <strong>[^<]*Spring Show[^<]*<\/strong>/', $html );
+		$this->assertMatchesRegularExpression( '/More than one competition is open: <strong>[^<]*Autumn Show[^<]*<\/strong>/', $html );
+	}
+
+	public function test_render_no_multiple_competitions_warning_for_one_open(): void {
+		$this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_competition( 'Winter Show', 'winter-show', array( 'close_date' => '2020-01-01 00:00:00' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'More than one competition is open', $html );
+	}
+
 	public function test_render_list_archived_view(): void {
 		// A single archived competition, requested via view=archived: the
 		// Restore action replaces Archive, the toggle-uploads action is

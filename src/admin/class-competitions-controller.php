@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Manage competitions dashboard and CRUD operations.
@@ -258,6 +259,59 @@ class Competitions_Controller {
 						'updated'
 					);
 				}
+			}
+
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
+			return;
+		}
+
+		if ( 'close_competition' === $action && isset( $_GET['competition'] ) ) {
+			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
+
+			check_admin_referer( 'photo_competition_close_' . $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_manager',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $this->dashboard_url() );
+				return;
+			}
+
+			$settings = Competition_Settings::parse( $competition->settings );
+			foreach ( Competition_Settings::get_open_voting_categories( $settings ) as $category_slug ) {
+				$settings = Competition_Settings::close_category_voting( $settings, $competition_id, $category_slug );
+			}
+
+			// Close as of a second ago: is_open() needs close_date < now, and a
+			// date-only "today" is stored as midnight UTC, which is still in the
+			// future just after midnight on sites ahead of UTC.
+			$result = $this->competitions->update(
+				$competition_id,
+				array(
+					'close_date' => utc_time( -1 ),
+					'settings'   => $settings,
+				)
+			);
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_manager',
+					'competition_closed',
+					__( 'Competition closed.', 'photo-competition-manager' ),
+					'updated'
+				);
 			}
 
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
@@ -704,6 +758,16 @@ class Competitions_Controller {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Photo Competition Manager Dashboard', 'photo-competition-manager' ) . '</h1>';
 
+		$open_competitions = $this->competitions->all_open();
+		if ( count( $open_competitions ) > 1 ) {
+			$notice_data = array(
+				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
+				'show_link' => false,
+			);
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/notice-multiple-open-competitions.php', $notice_data );
+		}
+
 		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		echo $this->render_create_form(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -988,6 +1052,21 @@ class Competitions_Controller {
 				);
 			}
 
+			$close_url = '';
+			if ( $is_open && ! $is_archived ) {
+				$close_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager',
+							'action'      => 'close_competition',
+							'competition' => $comp_id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_close_' . $comp_id
+				);
+			}
+
 			$generate_link_url = wp_nonce_url(
 				add_query_arg(
 					array(
@@ -1065,6 +1144,7 @@ class Competitions_Controller {
 				'uploads_closed'     => $uploads_closed,
 				'is_open'            => $is_open,
 				'send_email_url'     => $send_email_url,
+				'close_url'          => $close_url,
 				'generate_link_url'  => $generate_link_url,
 				'restore_url'        => $restore_url,
 				'archive_url'        => $archive_url,

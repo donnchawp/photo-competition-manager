@@ -194,6 +194,42 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * More than one open competition is a setup mistake: the page merges their
+	 * categories into one tab bar, so warn and name the competitions.
+	 */
+	public function test_render_warns_when_multiple_competitions_open(): void {
+		$this->seed_competition( array() );
+		$this->competitions->create(
+			array(
+				'title'    => 'Autumn Show',
+				'slug'     => 'autumn-show',
+				'settings' => array(),
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'More than one competition is open', $html );
+		$this->assertStringContainsString( 'Spring Show', $html );
+		$this->assertStringContainsString( 'Autumn Show', $html );
+	}
+
+	/**
+	 * A single open competition shows no multiple-competitions warning.
+	 */
+	public function test_render_no_multiple_competitions_warning_for_one_open(): void {
+		$this->seed_competition( array() );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'More than one competition is open', $html );
+	}
+
+	/**
 	 * Guard: when neither the competition nor the global settings configure a
 	 * voting page, the missing-pages notice must still appear. The fix for
 	 * the bug above must not suppress a genuinely-missing page.

@@ -342,6 +342,115 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 	/*
 	 * -----------------------------------------------------------------
+	 * close_competition.
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Closing sets the close date to now so the competition is no longer open.
+	 */
+	public function test_close_competition_sets_close_date_to_now(): void {
+		$id = $this->create_competition( 'To Close', 'to-close', '2020-01-01 00:00:00' );
+		$this->assertTrue( $this->competitions->is_open( $this->competitions->find( $id ) ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_close_' . $id );
+
+		$before   = time();
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$competition = $this->competitions->find( $id );
+		$closed_at   = strtotime( $competition->close_date . ' UTC' );
+
+		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
+		$this->assertContains( 'competition_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertGreaterThanOrEqual( $before - 1, $closed_at );
+		$this->assertLessThanOrEqual( time(), $closed_at );
+		$this->assertSame( gmdate( 'Y-m-d' ), substr( $competition->close_date, 0, 10 ) );
+		$this->assertFalse( $this->competitions->is_open( $competition ) );
+	}
+
+	/**
+	 * Closing a competition with a category open for voting closes that
+	 * voting the same way the Voting Controls "Close Voting" step does.
+	 */
+	public function test_close_competition_closes_open_voting(): void {
+		$id = $this->create_competition( 'Mid Vote', 'mid-vote', '2020-01-01 00:00:00' );
+
+		$settings                                        = $this->settings( $id );
+		$settings['voting']['open_categories']           = array( 'colour' );
+		$settings['voting']['category_steps']['colour']  = 3;
+		$this->competitions->update( $id, array( 'settings' => $settings ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_close_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$after = $this->settings( $id );
+		$this->assertSame( array(), $after['voting']['open_categories'] );
+		$this->assertSame( 5, $after['voting']['category_steps']['colour'] );
+		$this->assertContains( $id . '_colour', $after['voting']['voted_categories'] );
+	}
+
+	/**
+	 * Closing a missing competition reports competition_not_found.
+	 */
+	public function test_close_competition_not_found(): void {
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => 999999,
+			)
+		);
+		$this->set_nonce( 'photo_competition_close_999999' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'competition_not_found', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * A missing/invalid nonce aborts close via wp_die().
+	 */
+	public function test_close_competition_bad_nonce_dies(): void {
+		$id = $this->create_competition( 'Guarded Close', 'guarded-close', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'action'      => 'close_competition',
+				'competition' => $id,
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -----------------------------------------------------------------
 	 * archive / restore (shared group).
 	 * -----------------------------------------------------------------
 	 */

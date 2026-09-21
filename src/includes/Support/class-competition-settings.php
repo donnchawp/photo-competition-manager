@@ -419,6 +419,30 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Close voting for a category.
+	 *
+	 * Clears the open category, advances it to step 5, and records it as voted.
+	 *
+	 * @param array<string, mixed> $settings       Parsed settings.
+	 * @param int                  $competition_id Competition ID.
+	 * @param string               $category_slug  Category slug.
+	 * @return array<string, mixed> Updated settings.
+	 */
+	public static function close_category_voting( array $settings, int $competition_id, string $category_slug ): array {
+		$settings['voting']['open_categories']                  = array();
+		$settings['voting']['category_steps'][ $category_slug ] = 5;
+
+		$category_key     = $competition_id . '_' . $category_slug;
+		$voted_categories = $settings['voting']['voted_categories'] ?? array();
+		if ( ! in_array( $category_key, $voted_categories, true ) ) {
+			$voted_categories[]                     = $category_key;
+			$settings['voting']['voted_categories'] = $voted_categories;
+		}
+
+		return $settings;
+	}
+
+	/**
 	 * Auto-detect page URLs by searching for shortcodes if URLs are not set.
 	 *
 	 * @param array<string, mixed> $settings Settings array.

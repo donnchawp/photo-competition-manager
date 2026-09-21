@@ -7,7 +7,8 @@
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
  * string, last_updated: string, edit_url: string, is_archived: bool,
  * toggle_uploads_url: string, uploads_closed: bool, is_open: bool,
- * send_email_url: string, generate_link_url: string, restore_url: string,
+ * send_email_url: string, close_url: string, generate_link_url: string,
+ * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
  *
@@ -86,6 +87,16 @@ foreach ( $data['rows'] as $row ) {
 		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 	} else {
 		$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+	}
+
+	// Close competition action: sets the close date to now and closes voting.
+	if ( '' !== $row['close_url'] ) {
+		$actions[] = sprintf(
+			'<a href="%s" class="photo-comp-close-competition" data-confirm="%s">%s</a>',
+			esc_url( $row['close_url'] ),
+			esc_attr( __( 'Close this competition? Its close date will be set to today and any open voting will be closed. You can change the date again from the Edit screen.', 'photo-competition-manager' ) ),
+			esc_html__( 'Close Competition', 'photo-competition-manager' )
+		);
 	}
 
 	// Generate Results Link action.

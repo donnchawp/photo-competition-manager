@@ -45,6 +45,15 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Fetch open competitions, newest first.
+	 *
+	 * @return array<int, object>
+	 */
+	public function all_open(): array {
+		return array_values( array_filter( $this->all( 100 ), array( $this, 'is_open' ) ) );
+	}
+
+	/**
 	 * Count competitions.
 	 *
 	 * @param bool $only_archived Whether to count only archived records.
