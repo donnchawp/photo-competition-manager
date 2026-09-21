@@ -267,16 +267,18 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( add_query_arg( 'token', $token, $permalink ), $url );
 	}
 
-	public function test_check_open_button_keeps_token_when_token_category_closed(): void {
+	public function test_check_open_button_drops_token_when_token_category_closed(): void {
 		$this->set_open_categories( array( 'mono' ) );
 		$permalink     = $this->view_page();
-		$token         = $this->issue_token( $this->make_member( 'active@example.com', true ) );
-		$_GET['token'] = $token;
+		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 
 		$html = $this->shortcode->render();
 
 		$this->assertStringContainsString( 'Voting is no longer open for this category.', $html );
-		$this->assertSame( add_query_arg( 'token', $token, $permalink ), $this->check_open_url( $html ) );
+		$this->assertSame( $permalink, $this->check_open_url( $html ) );
+
+		unset( $_GET['token'] );
+		$this->assertStringContainsString( '<option value="mono">', $this->shortcode->render() );
 	}
 
 	public function test_check_open_button_has_no_token_without_one(): void {

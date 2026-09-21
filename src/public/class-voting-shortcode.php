@@ -698,8 +698,9 @@ class Voting_Shortcode {
 				<?php
 				// Verify voting is still open for this category.
 				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
+					// Another category is open, so drop the token: the bare page lets the voter request a link for it.
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
-					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $check_open_url ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
+					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
 
