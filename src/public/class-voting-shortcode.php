@@ -623,7 +623,6 @@ class Voting_Shortcode {
 		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
-		$check_open_url      = $token_string ? add_query_arg( 'token', rawurlencode( $token_string ), get_permalink() ) : get_permalink();
 
 		?>
 		<div class="photo-comp-voting">
@@ -641,7 +640,7 @@ class Voting_Shortcode {
 			<?php if ( empty( $voting_categories ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
-					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( $check_open_url ); ?>">
+					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( $token_string ? add_query_arg( 'token', rawurlencode( $token_string ), get_permalink() ) : get_permalink() ); ?>">
 						<?php esc_html_e( 'Check If Voting Is Open', 'photo-competition-manager' ); ?>
 					</button>
 				</p>

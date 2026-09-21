@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 /**
@@ -52,7 +53,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->members   = new Members_Repository();
 		$this->tokens    = new Voting_Token_Repository();
 
-		$this->create_competition( array( 'colour' ) );
+		$this->create_competition();
 
 		$this->mail_count = 0;
 		add_filter(
@@ -73,11 +74,9 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create the open token-voting competition under test.
-	 *
-	 * @param array<string> $open_categories Category slugs open for voting.
+	 * Create the open token-voting competition under test, with voting open for colour.
 	 */
-	private function create_competition( array $open_categories ): void {
+	private function create_competition(): void {
 		$competitions      = new Competitions_Repository();
 		$competition_id    = $competitions->create(
 			array(
@@ -99,7 +98,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 					),
 					'voting'     => array(
 						'auth_mode'       => 'token',
-						'open_categories' => $open_categories,
+						'open_categories' => array( 'colour' ),
 					),
 				),
 			)
@@ -113,8 +112,8 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	 * @param array<string> $open_categories Category slugs open for voting.
 	 */
 	private function set_open_categories( array $open_categories ): void {
-		$competitions                         = new Competitions_Repository();
-		$settings                             = json_decode( $this->competition->settings, true );
+		$competitions                          = new Competitions_Repository();
+		$settings                              = Competition_Settings::parse( $this->competition->settings );
 		$settings['voting']['open_categories'] = $open_categories;
 		$competitions->update( (int) $this->competition->id, array( 'settings' => $settings ) );
 		$this->competition = $competitions->find( (int) $this->competition->id );
@@ -137,8 +136,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	 * @return string
 	 */
 	private function check_open_url( string $html ): string {
-		$this->assertMatchesRegularExpression( '/photo-comp-redirect-btn" data-redirect-url="([^"]*)"/', $html );
-		preg_match( '/photo-comp-redirect-btn" data-redirect-url="([^"]*)"/', $html, $matches );
+		$this->assertSame( 1, preg_match( '/photo-comp-redirect-btn" data-redirect-url="([^"]*)"/', $html, $matches ) );
 		return html_entity_decode( $matches[1] );
 	}
 
