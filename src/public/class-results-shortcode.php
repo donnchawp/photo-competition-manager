@@ -297,10 +297,10 @@ class Results_Shortcode {
 															<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
 														</td>
 														<?php if ( ! $hide_names ) : ?>
-															<td class="member-name"><?php echo esc_html( $member->name ); ?></td>
+															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member->name ); ?></td>
 														<?php endif; ?>
-														<td class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
-														<td class="vote-count"><?php echo esc_html( $vote_count ); ?></td>
+														<td class="score" data-label="<?php esc_attr_e( 'Score', 'photo-competition-manager' ); ?>"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
+														<td class="vote-count" data-label="<?php esc_attr_e( 'Votes', 'photo-competition-manager' ); ?>"><?php echo esc_html( $vote_count ); ?></td>
 													</tr>
 												<?php endforeach; ?>
 											</tbody>
