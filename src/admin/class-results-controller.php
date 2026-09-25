@@ -622,54 +622,14 @@ class Results_Controller {
 	 * @return string
 	 */
 	private function render_results_table( int $competition_id, string $category, array $grades ): string {
-		$results        = $this->calculator->get_results( $competition_id, $category );
-		$members_lookup = array();
-
-		// Build members lookup.
-		$all_members = $this->members->all( 10000, false );
-		foreach ( $all_members as $member ) {
-			$members_lookup[ $member->id ] = $member;
-		}
-
-		// Group by grade.
-		$results_by_grade = array();
-		foreach ( $results as $result ) {
-			$member = $members_lookup[ $result->member_id ] ?? null;
-			$grade  = $member ? $member->grade : 'unknown';
-
-			if ( ! isset( $results_by_grade[ $grade ] ) ) {
-				$results_by_grade[ $grade ] = array();
-			}
-
-			$results_by_grade[ $grade ][] = $result;
-		}
-
+		$results      = $this->calculator->get_results( $competition_id, $category );
 		$grade_tables = array();
 
-		foreach ( $grades as $grade ) {
-			$grade_slug  = $grade['slug'] ?? '';
-			$grade_label = $grade['label'] ?? $grade_slug;
+		foreach ( $this->rank_results_by_grade( $results, $grades, $this->get_members_lookup() ) as $group ) {
+			$rows = array();
 
-			$grade_results = $results_by_grade[ $grade_slug ] ?? array();
-
-			if ( empty( $grade_results ) ) {
-				continue;
-			}
-
-			// Assign ranks with tie handling (dense ranking).
-			$rank           = 0;
-			$previous_score = null;
-			$rows           = array();
-
-			foreach ( $grade_results as $result ) {
-				// Advance rank only when score changes.
-				if ( null === $previous_score || (int) $result->total_score !== $previous_score ) {
-					++$rank;
-					$previous_score = (int) $result->total_score;
-				}
-
-				$member    = $members_lookup[ $result->member_id ] ?? null;
-				$image_url = $this->get_image_url( $competition_id, $category, $result->filename );
+			foreach ( $group['entries'] as $entry ) {
+				$result = $entry['result'];
 
 				$detail_url = add_query_arg(
 					array(
@@ -682,9 +642,9 @@ class Results_Controller {
 				);
 
 				$rows[] = array(
-					'rank'        => $rank,
-					'image_url'   => $image_url,
-					'member_name' => $member ? $member->name : null,
+					'rank'        => $entry['rank'],
+					'image_url'   => $this->get_image_url( $competition_id, $category, $result->filename ),
+					'member_name' => $entry['member'] ? $entry['member']->name : null,
 					'total_score' => $result->total_score,
 					'vote_count'  => $result->vote_count,
 					'detail_url'  => $detail_url,
@@ -692,12 +652,99 @@ class Results_Controller {
 			}
 
 			$grade_tables[] = array(
-				'label' => $grade_label,
+				'label' => $group['label'],
 				'rows'  => $rows,
 			);
 		}
 
 		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+	}
+
+	/**
+	 * Build a member ID => member lookup table.
+	 *
+	 * @return array<int, object>
+	 */
+	private function get_members_lookup(): array {
+		$lookup = array();
+		foreach ( $this->members->all( 10000, false ) as $member ) {
+			$lookup[ $member->id ] = $member;
+		}
+
+		return $lookup;
+	}
+
+	/**
+	 * Group a category's results by the entrant's grade and rank them within each grade.
+	 *
+	 * Groups follow the configured grade order; entrants whose grade is missing
+	 * or not configured are collected in a trailing "Ungraded" group so no
+	 * entry is dropped. Ranking is dense: tied scores share a rank.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param array<int, object> $results        Results sorted by score, highest first.
+	 * @param array<int, array>  $grades         Grade definitions.
+	 * @param array<int, object> $members_lookup Member ID => member.
+	 * @return array<int, array{slug: string, label: string, entries: array<int, array{rank: int, result: object, member: object|null}>}>
+	 */
+	private function rank_results_by_grade( array $results, array $grades, array $members_lookup ): array {
+		$groups = array();
+		foreach ( $grades as $grade ) {
+			$slug            = (string) ( $grade['slug'] ?? '' );
+			$groups[ $slug ] = array(
+				'slug'    => $slug,
+				'label'   => (string) ( $grade['label'] ?? $slug ),
+				'entries' => array(),
+			);
+		}
+
+		$ungraded = array(
+			'slug'    => '',
+			'label'   => __( 'Ungraded', 'photo-competition-manager' ),
+			'entries' => array(),
+		);
+
+		foreach ( $results as $result ) {
+			$member = $members_lookup[ $result->member_id ] ?? null;
+			$slug   = $member ? (string) $member->grade : '';
+			$entry  = array(
+				'rank'   => 0,
+				'result' => $result,
+				'member' => $member,
+			);
+
+			if ( '' !== $slug && isset( $groups[ $slug ] ) ) {
+				$groups[ $slug ]['entries'][] = $entry;
+			} else {
+				$ungraded['entries'][] = $entry;
+			}
+		}
+
+		$groups[] = $ungraded;
+
+		$ranked = array();
+		foreach ( $groups as $group ) {
+			if ( empty( $group['entries'] ) ) {
+				continue;
+			}
+
+			// Advance rank only when score changes.
+			$rank           = 0;
+			$previous_score = null;
+			foreach ( $group['entries'] as $index => $entry ) {
+				$score = (int) $entry['result']->total_score;
+				if ( null === $previous_score || $score !== $previous_score ) {
+					++$rank;
+					$previous_score = $score;
+				}
+				$group['entries'][ $index ]['rank'] = $rank;
+			}
+
+			$ranked[] = $group;
+		}
+
+		return $ranked;
 	}
 
 	/**
@@ -773,9 +820,6 @@ class Results_Controller {
 			wp_die( esc_html__( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
 		$filename = 'results-' . sanitize_title( $competition->slug ) . '.csv';
 
 		header( 'Content-Type: text/csv; charset=utf-8' );
@@ -784,65 +828,74 @@ class Results_Controller {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$output = fopen( 'php://output', 'w' );
 
-		// CSV header.
-		fputcsv(
-			$output,
-			sanitize_csv_row(
-				array(
-					'Competition',
-					'Category',
-					'Rank',
-					'Image Number',
-					'Member Name',
-					'Member Email',
-					'Grade',
-					'Score',
-					'Vote Count',
-					'Filename',
-				)
-			)
-		);
-
-		$members_lookup = array();
-		$all_members    = $this->members->all( 10000, false );
-		foreach ( $all_members as $member ) {
-			$members_lookup[ $member->id ] = $member;
+		foreach ( $this->get_export_rows( $competition ) as $row ) {
+			fputcsv( $output, sanitize_csv_row( $row ) );
 		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		fclose( $output );
+	}
+
+	/**
+	 * Build the results CSV rows, header first.
+	 *
+	 * Rows are ordered by category, then grade, then rank; the rank restarts
+	 * for each grade within each category, matching the results screen.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return array<int, array<int, string|int>>
+	 */
+	public function get_export_rows( object $competition ): array {
+		$settings       = Competition_Settings::parse( $competition->settings );
+		$categories     = Competition_Settings::get_categories( $settings );
+		$grades         = Competition_Settings::get_grades( $settings );
+		$members_lookup = $this->get_members_lookup();
+
+		$rows = array(
+			array(
+				'Competition',
+				'Category',
+				'Grade',
+				'Rank',
+				'Image Number',
+				'Member Name',
+				'Member Email',
+				'Score',
+				'Vote Count',
+				'Filename',
+			),
+		);
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
 			$category_label = $category['label'] ?? $category_slug;
 
-			$results = $this->calculator->get_results( $competition_id, $category_slug );
+			$results = $this->calculator->get_results( (int) $competition->id, $category_slug );
 
-			$rank = 1;
-			foreach ( $results as $result ) {
-				$member = $members_lookup[ $result->member_id ] ?? null;
+			foreach ( $this->rank_results_by_grade( $results, $grades, $members_lookup ) as $group ) {
+				foreach ( $group['entries'] as $entry ) {
+					$result = $entry['result'];
+					$member = $entry['member'];
 
-				fputcsv(
-					$output,
-					sanitize_csv_row(
-						array(
-							$competition->title,
-							$category_label,
-							$rank,
-							$result->random_number,
-							$member ? $member->name : '',
-							$member ? $member->email : '',
-							$member ? $member->grade : '',
-							number_format( $result->total_score, 0 ),
-							$result->vote_count,
-							$result->filename,
-						)
-					)
-				);
-
-				++$rank;
+					$rows[] = array(
+						$competition->title,
+						$category_label,
+						$group['label'],
+						$entry['rank'],
+						$result->random_number,
+						$member ? $member->name : '',
+						$member ? $member->email : '',
+						number_format( $result->total_score, 0 ),
+						$result->vote_count,
+						$result->filename,
+					);
+				}
 			}
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-		fclose( $output );
+		return $rows;
 	}
 
 	/**
