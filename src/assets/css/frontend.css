@@ -658,12 +658,6 @@
 	text-align: center;
 }
 
-.results-table .vote-count {
-	text-align: center;
-	color: #666;
-	font-size: 0.9em;
-}
-
 /* Top 3 Podium */
 .top3-podium {
 	display: flex;
@@ -790,11 +784,6 @@
 	color: #00a32a;
 }
 
-.vote-count {
-	color: #666;
-	font-size: 0.9em;
-}
-
 /* Messages for results */
 .photo-comp-results .error,
 .photo-comp-results .success,
@@ -874,7 +863,7 @@
 
 	/*
 	 * Stack each result as a card: position on the left, then the image and
-	 * labelled name/score/votes below each other, so nothing is clipped
+	 * labelled name and score below each other, so nothing is clipped
 	 * off the right edge of a phone screen.
 	 */
 	.results-table {
@@ -912,7 +901,7 @@
 	}
 
 	.results-table .position {
-		grid-row: span 4;
+		grid-row: span 3;
 		width: auto;
 	}
 
@@ -928,8 +917,7 @@
 		max-height: none;
 	}
 
-	.results-table .score,
-	.results-table .vote-count {
+	.results-table .score {
 		text-align: left;
 	}
 
