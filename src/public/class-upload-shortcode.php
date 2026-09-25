@@ -165,26 +165,14 @@ class Upload_Shortcode {
 			);
 		}
 
-		// Enqueue delete confirmation handler.
-		wp_register_script( 'photo-comp-delete-confirm', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
-		wp_enqueue_script( 'photo-comp-delete-confirm' );
-
-		$delete_confirm_message = esc_js( __( 'Are you sure you want to delete this image?', 'photo-competition-manager' ) );
-		$inline_script          = "
-		document.addEventListener('DOMContentLoaded', function() {
-			var deleteForms = document.querySelectorAll('.photo-comp-delete-form');
-			deleteForms.forEach(function(form) {
-				form.addEventListener('submit', function(e) {
-					if (!confirm('{$delete_confirm_message}')) {
-						e.preventDefault();
-						return false;
-					}
-				});
-			});
-		});
-		";
-
-		wp_add_inline_script( 'photo-comp-delete-confirm', $inline_script );
+		// Enqueue the two-tap delete confirmation handler.
+		wp_enqueue_script(
+			'photo-comp-delete-confirm',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/delete-confirm.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -554,10 +542,13 @@ class Upload_Shortcode {
 									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
+										<?php // Hidden field, not the button's name: the button is disabled on submit, which drops it from the POST. ?>
+										<input type="hidden" name="photo_competition_delete" value="1" />
 										<button
 											type="submit"
-											name="photo_competition_delete"
-											class="button button-small button-link-delete"
+											class="button button-small button-link-delete photo-comp-delete-button"
+											data-confirm-label="<?php esc_attr_e( 'Tap again to delete', 'photo-competition-manager' ); ?>"
+											data-busy-label="<?php esc_attr_e( 'Deleting…', 'photo-competition-manager' ); ?>"
 										>
 											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
 										</button>

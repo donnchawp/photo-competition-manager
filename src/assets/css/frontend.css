@@ -153,6 +153,8 @@
 	background: none;
 	color: #d63638;
 	padding: 0.5em;
+	min-height: 44px;
+	min-width: 44px;
 	font-size: 0.9em;
 	text-decoration: underline;
 }
@@ -160,6 +162,17 @@
 .submission-item .button-link-delete:hover {
 	background: none;
 	color: #a00;
+}
+
+.submission-item .button-link-delete.is-armed {
+	background: #d63638;
+	color: #fff;
+	text-decoration: none;
+}
+
+.submission-item .button-link-delete:disabled {
+	opacity: 0.6;
+	cursor: wait;
 }
 
 /* Voting Interface */
