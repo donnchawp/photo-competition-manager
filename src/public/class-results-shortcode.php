@@ -216,7 +216,6 @@ class Results_Shortcode {
 				'image'       => $image,
 				'member'      => $member,
 				'total_score' => $total_score,
-				'vote_count'  => null !== $score_data ? $score_data['vote_count'] : 0,
 			);
 		}
 
@@ -268,7 +267,6 @@ class Results_Shortcode {
 														<th><?php esc_html_e( 'Member', 'photo-competition-manager' ); ?></th>
 													<?php endif; ?>
 													<th><?php esc_html_e( 'Score', 'photo-competition-manager' ); ?></th>
-													<th><?php esc_html_e( 'Votes', 'photo-competition-manager' ); ?></th>
 												</tr>
 											</thead>
 											<tbody>
@@ -277,7 +275,6 @@ class Results_Shortcode {
 													$image       = $result['image'];
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
-													$vote_count  = $result['vote_count'];
 													$position    = $result['position'];
 													$image_urls  = $this->get_image_urls( $competition, $image );
 													$thumb_url   = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
@@ -300,7 +297,6 @@ class Results_Shortcode {
 															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member->name ); ?></td>
 														<?php endif; ?>
 														<td class="score" data-label="<?php esc_attr_e( 'Score', 'photo-competition-manager' ); ?>"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
-														<td class="vote-count" data-label="<?php esc_attr_e( 'Votes', 'photo-competition-manager' ); ?>"><?php echo esc_html( $vote_count ); ?></td>
 													</tr>
 												<?php endforeach; ?>
 											</tbody>
@@ -326,8 +322,8 @@ class Results_Shortcode {
 	 * When scores are tied, entries share the same position. The next different
 	 * score gets the next position (e.g., two 1st places, next is 2nd place).
 	 *
-	 * @param array<int, array{image: object, member: object, total_score: float, vote_count: int}> $results Sorted results array.
-	 * @return array<int, array{image: object, member: object, total_score: float, vote_count: int, position: int}> Results with positions assigned.
+	 * @param array<int, array{image: object, member: object, total_score: float}> $results Sorted results array.
+	 * @return array<int, array{image: object, member: object, total_score: float, position: int}> Results with positions assigned.
 	 */
 	private function assign_positions( array $results ): array {
 		if ( empty( $results ) ) {

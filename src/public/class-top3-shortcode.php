@@ -212,7 +212,6 @@ class Top3_Shortcode {
 				'image'       => $image,
 				'member'      => $member,
 				'total_score' => $total_score,
-				'vote_count'  => $score_data ? $score_data['vote_count'] : 0,
 			);
 		}
 
@@ -274,7 +273,6 @@ class Top3_Shortcode {
 											$image          = $result['image'];
 											$member         = $result['member'];
 											$total_score    = $result['total_score'];
-											$vote_count     = $result['vote_count'];
 											$position_num   = $result['position'];
 											$image_urls     = $this->get_image_urls( $competition, $image );
 											$thumb_url      = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
@@ -300,7 +298,6 @@ class Top3_Shortcode {
 													<div class="member-name"><?php echo esc_html( $member->name ); ?></div>
 													<div class="score-info">
 														<span class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></span>
-														<span class="vote-count">(<?php echo esc_html( $vote_count ); ?> <?php esc_html_e( 'votes', 'photo-competition-manager' ); ?>)</span>
 													</div>
 												</div>
 											</div>
@@ -333,9 +330,9 @@ class Top3_Shortcode {
 	 * - Position 3: 80
 	 * Returns all 4 entries.
 	 *
-	 * @param array<int, array{image: object, member: object, total_score: float, vote_count: int}> $results       Sorted results array (highest score first).
+	 * @param array<int, array{image: object, member: object, total_score: float}> $results       Sorted results array (highest score first).
 	 * @param int                                                                                   $top_positions Number of positions to include (default 3).
-	 * @return array<int, array{image: object, member: object, total_score: float, vote_count: int, position: int}> Results with positions assigned.
+	 * @return array<int, array{image: object, member: object, total_score: float, position: int}> Results with positions assigned.
 	 */
 	private function get_top_positions( array $results, int $top_positions = 3 ): array {
 		if ( empty( $results ) ) {

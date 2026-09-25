@@ -1,22 +1,22 @@
 <?php
 /**
- * Tests for Results_Shortcode table markup.
+ * Tests for Top3_Shortcode podium markup.
  *
  * @package PhotoCompetitionManager\Tests\Frontend
  */
 
 namespace PhotoCompetitionManager\Tests\Frontend;
 
-use PhotoCompetitionManager\Frontend\Results_Shortcode;
+use PhotoCompetitionManager\Frontend\Top3_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_UnitTestCase;
 
 /**
- * Result cells carry the labels the stacked mobile layout shows in place of the table header.
+ * The podium shows each winner's name and score but no vote count.
  */
-class Results_Shortcode_Test extends WP_UnitTestCase {
+class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 	/**
 	 * Create a competition with visible results and one graded entry.
@@ -27,8 +27,8 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$competitions   = new Competitions_Repository();
 		$competition_id = (int) $competitions->create(
 			array(
-				'title'     => 'Results Comp',
-				'slug'      => 'results-comp',
+				'title'     => 'Top3 Comp',
+				'slug'      => 'top3-comp',
 				'open_date' => '2020-01-01 00:00:00',
 				'settings'  => array(
 					'categories' => array(
@@ -68,28 +68,14 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Member and score cells expose data-label captions for the mobile card layout, and no votes column is shown.
+	 * Winners show name and score, and no vote count.
 	 */
-	public function test_result_cells_have_data_labels_and_no_votes_column(): void {
-		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+	public function test_podium_shows_score_without_vote_count(): void {
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
 
-		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
-		$this->assertStringContainsString( '<td class="score" data-label="Score">0</td>', $html );
+		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
+		$this->assertStringContainsString( '<span class="score">0</span>', $html );
 		$this->assertStringNotContainsString( 'vote-count', $html );
-	}
-
-	/**
-	 * With names hidden, no member cell (and so no Member caption) is rendered.
-	 */
-	public function test_hidden_names_omit_member_cell(): void {
-		$html = ( new Results_Shortcode() )->render(
-			array(
-				'competition' => 'results-comp',
-				'hide_names'  => 'true',
-			)
-		);
-
-		$this->assertStringNotContainsString( 'data-label="Member"', $html );
-		$this->assertStringContainsString( 'data-label="Score"', $html );
+		$this->assertStringNotContainsString( 'votes)', $html );
 	}
 }
