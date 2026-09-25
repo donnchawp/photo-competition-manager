@@ -550,13 +550,13 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Map export rows to "category|grade|rank|member" strings, dropping the header.
+	 * Map export rows to "grade|category|rank|member" strings, dropping the header.
 	 *
 	 * @param array<int, array<int, mixed>> $rows Export rows.
 	 * @return array<int, string>
 	 */
 	private function summarize_export_rows( array $rows ): array {
-		$this->assertSame( array( 'Competition', 'Category', 'Grade', 'Rank' ), array_slice( $rows[0], 0, 4 ) );
+		$this->assertSame( array( 'Competition', 'Grade', 'Category', 'Rank' ), array_slice( $rows[0], 0, 4 ) );
 
 		return array_map(
 			static function ( array $row ): string {
@@ -567,7 +567,8 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Ranks restart for each grade within each category, in configured grade order.
+	 * Rows are grouped by grade (configured order), then category; ranks restart
+	 * for each grade within each category.
 	 */
 	public function test_export_rows_rank_within_grade_and_category(): void {
 		$this->competition_id = $this->create_competition(
@@ -607,11 +608,11 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertSame(
 			array(
-				'Open|Beginner|1|Beg High',
-				'Open|Beginner|2|Beg Low',
-				'Open|Advanced|1|Adv High',
-				'Open|Advanced|2|Adv Low',
-				'Mono|Advanced|1|Mono Adv',
+				'Beginner|Open|1|Beg High',
+				'Beginner|Open|2|Beg Low',
+				'Advanced|Open|1|Adv High',
+				'Advanced|Open|2|Adv Low',
+				'Advanced|Mono|1|Mono Adv',
 			),
 			$this->summarize_export_rows( $rows )
 		);
@@ -650,10 +651,10 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertSame(
 			array(
-				'Open|Beginner|1|Tie One',
-				'Open|Beginner|1|Tie Two',
-				'Open|Beginner|2|Third',
-				'Open|Ungraded|1|Orphan',
+				'Beginner|Open|1|Tie One',
+				'Beginner|Open|1|Tie Two',
+				'Beginner|Open|2|Third',
+				'Ungraded|Open|1|Orphan',
 			),
 			$this->summarize_export_rows( $rows )
 		);

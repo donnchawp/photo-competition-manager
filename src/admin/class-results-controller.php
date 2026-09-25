@@ -839,7 +839,7 @@ class Results_Controller {
 	/**
 	 * Build the results CSV rows, header first.
 	 *
-	 * Rows are ordered by category, then grade, then rank; the rank restarts
+	 * Rows are ordered by grade, then category, then rank; the rank restarts
 	 * for each grade within each category, matching the results screen.
 	 *
 	 * @since 0.3.0
@@ -856,8 +856,8 @@ class Results_Controller {
 		$rows = array(
 			array(
 				'Competition',
-				'Category',
 				'Grade',
+				'Category',
 				'Rank',
 				'Image Number',
 				'Member Name',
@@ -867,6 +867,10 @@ class Results_Controller {
 				'Filename',
 			),
 		);
+
+		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
+		$rows_by_grade = array_fill_keys( array_column( $grades, 'slug' ), array() );
+		$rows_by_grade['']     = array();
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
@@ -879,10 +883,10 @@ class Results_Controller {
 					$result = $entry['result'];
 					$member = $entry['member'];
 
-					$rows[] = array(
+					$rows_by_grade[ $group['slug'] ][] = array(
 						$competition->title,
-						$category_label,
 						$group['label'],
+						$category_label,
 						$entry['rank'],
 						$result->random_number,
 						$member ? $member->name : '',
@@ -893,6 +897,10 @@ class Results_Controller {
 					);
 				}
 			}
+		}
+
+		foreach ( $rows_by_grade as $grade_rows ) {
+			array_push( $rows, ...$grade_rows );
 		}
 
 		return $rows;
