@@ -517,4 +517,146 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
 	}
+
+	/**
+	 * Seed a graded member with one scored image in a category.
+	 *
+	 * @param string $name     Member name.
+	 * @param string $grade    Grade slug.
+	 * @param string $category Category slug.
+	 * @param int    $score    Cached image score (used when there are no votes).
+	 * @return void
+	 */
+	private function seed_scored_entry( string $name, string $grade, string $category, int $score ): void {
+		$member_id = $this->members->create(
+			array(
+				'name'   => $name,
+				'email'  => sanitize_title( $name ) . '@example.com',
+				'grade'  => $grade,
+				'active' => 1,
+			)
+		);
+
+		$image_id = $this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member_id,
+				'category'       => $category,
+				'filename'       => sanitize_title( $name ) . '.jpg',
+			)
+		);
+
+		$this->images->update_score( (int) $image_id, $score );
+	}
+
+	/**
+	 * Map export rows to "grade|category|rank|member" strings, dropping the header.
+	 *
+	 * @param array<int, array<int, mixed>> $rows Export rows.
+	 * @return array<int, string>
+	 */
+	private function summarize_export_rows( array $rows ): array {
+		$this->assertSame( array( 'Competition', 'Grade', 'Category', 'Rank' ), array_slice( $rows[0], 0, 4 ) );
+
+		return array_map(
+			static function ( array $row ): string {
+				return implode( '|', array( $row[1], $row[2], $row[3], $row[5] ) );
+			},
+			array_slice( $rows, 1 )
+		);
+	}
+
+	/**
+	 * Rows are grouped by grade (configured order), then category; ranks restart
+	 * for each grade within each category.
+	 */
+	public function test_export_rows_rank_within_grade_and_category(): void {
+		$this->competition_id = $this->create_competition(
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'open',
+							'label' => 'Open',
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Mono',
+						),
+					),
+					'grades'     => array(
+						array(
+							'slug'  => 'beginner',
+							'label' => 'Beginner',
+						),
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				),
+			)
+		);
+
+		$this->seed_scored_entry( 'Adv High', 'advanced', 'open', 50 );
+		$this->seed_scored_entry( 'Beg High', 'beginner', 'open', 40 );
+		$this->seed_scored_entry( 'Adv Low', 'advanced', 'open', 30 );
+		$this->seed_scored_entry( 'Beg Low', 'beginner', 'open', 20 );
+		$this->seed_scored_entry( 'Mono Adv', 'advanced', 'mono', 10 );
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Open|1|Beg High',
+				'Beginner|Open|2|Beg Low',
+				'Advanced|Open|1|Adv High',
+				'Advanced|Open|2|Adv Low',
+				'Advanced|Mono|1|Mono Adv',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+	}
+
+	/**
+	 * Tied scores share a rank, and entrants with an unconfigured grade are
+	 * exported under "Ungraded" rather than dropped.
+	 */
+	public function test_export_rows_ties_share_rank_and_unknown_grade_kept(): void {
+		$this->competition_id = $this->create_competition(
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'open',
+							'label' => 'Open',
+						),
+					),
+					'grades'     => array(
+						array(
+							'slug'  => 'beginner',
+							'label' => 'Beginner',
+						),
+					),
+				),
+			)
+		);
+
+		$this->seed_scored_entry( 'Tie One', 'beginner', 'open', 40 );
+		$this->seed_scored_entry( 'Tie Two', 'beginner', 'open', 40 );
+		$this->seed_scored_entry( 'Third', 'beginner', 'open', 10 );
+		$this->seed_scored_entry( 'Orphan', 'retired-grade', 'open', 99 );
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Open|1|Tie One',
+				'Beginner|Open|1|Tie Two',
+				'Beginner|Open|2|Third',
+				'Ungraded|Open|1|Orphan',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+	}
 }
