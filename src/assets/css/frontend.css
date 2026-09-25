@@ -872,6 +872,74 @@
 		padding: 0.5em;
 	}
 
+	/*
+	 * Stack each result as a card: position on the left, then the image and
+	 * labelled name/score/votes below each other, so nothing is clipped
+	 * off the right edge of a phone screen.
+	 */
+	.results-table {
+		overflow-x: visible;
+	}
+
+	.results-table table,
+	.results-table tbody,
+	.results-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.results-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.results-table tr {
+		display: grid;
+		grid-template-columns: 2.5em minmax(0, 1fr);
+		column-gap: 0.75em;
+		padding: 0.75em 0;
+		border-bottom: 1px solid #ddd;
+	}
+
+	.results-table td {
+		padding: 0.2em 0;
+		border-bottom: 0;
+		text-align: left;
+	}
+
+	.results-table .position {
+		grid-row: span 4;
+		width: auto;
+	}
+
+	.results-table .image-cell {
+		width: auto;
+		text-align: left;
+	}
+
+	.results-table .result-thumbnail {
+		width: 100%;
+		max-width: 100%;
+		height: auto;
+		max-height: none;
+	}
+
+	.results-table .score,
+	.results-table .vote-count {
+		text-align: left;
+	}
+
+	.results-table td[data-label]::before {
+		content: attr(data-label) ": ";
+		font-weight: 400;
+		font-size: 0.9rem;
+		color: #666;
+	}
+
 	.top3-podium {
 		flex-direction: column;
 		align-items: stretch;
