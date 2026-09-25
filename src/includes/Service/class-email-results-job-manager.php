@@ -256,6 +256,22 @@ class Email_Results_Job_Manager {
 		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
 		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
 
+		// Results and their uploaders are the same for every member in the batch, so load them once.
+		$category_results  = array();
+		$result_member_ids = array();
+		foreach ( $categories as $category ) {
+			$category_slug = $category['slug'] ?? '';
+			if ( empty( $category_slug ) ) {
+				continue;
+			}
+
+			$category_results[ $category_slug ] = $this->calculator->get_results( $competition_id, $category_slug );
+			foreach ( $category_results[ $category_slug ] as $result ) {
+				$result_member_ids[] = (int) $result->member_id;
+			}
+		}
+		$members_lookup = $this->members->find_many( $result_member_ids );
+
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
 			// Avoid duplicate processing.
@@ -294,16 +310,7 @@ class Email_Results_Job_Manager {
 					continue;
 				}
 
-				$results = $this->calculator->get_results( $competition_id, $category_slug );
-
-				// Build a members lookup for grade filtering.
-				$members_lookup = array();
-				foreach ( $results as $result ) {
-					$result_member_id = (int) $result->member_id;
-					if ( ! isset( $members_lookup[ $result_member_id ] ) ) {
-						$members_lookup[ $result_member_id ] = $this->members->find( $result_member_id );
-					}
-				}
+				$results = $category_results[ $category_slug ];
 
 				// Filter results to only include images from the member's grade.
 				$grade_results = array();

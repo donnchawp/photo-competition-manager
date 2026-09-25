@@ -382,6 +382,8 @@ class Export_Screen {
 			$images_by_category[ $category ][] = $image;
 		}
 
+		$members = $this->members_repository->find_many( array_column( $images, 'member_id' ) );
+
 		// Write each category as a separate section.
 		foreach ( $images_by_category as $category => $category_images ) {
 			// Write category header.
@@ -391,7 +393,7 @@ class Export_Screen {
 			// Build user list for this category.
 			$users = array();
 			foreach ( $category_images as $image ) {
-				$member  = $this->members_repository->find( $image->member_id );
+				$member  = $members[ (int) $image->member_id ] ?? null;
 				$users[] = array(
 					'random_number' => $image->random_number,
 					'name'          => $member ? $member->name : '',

@@ -337,6 +337,23 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Find a category's configuration by slug.
+	 *
+	 * @param array<string, mixed> $settings Parsed settings.
+	 * @param string               $slug     Category slug.
+	 * @return array<string, mixed>|null Category config, or null if the slug is not configured.
+	 */
+	public static function find_category( array $settings, string $slug ): ?array {
+		foreach ( self::get_categories( $settings ) as $category ) {
+			if ( $category['slug'] === $slug ) {
+				return $category;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Get grades from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.

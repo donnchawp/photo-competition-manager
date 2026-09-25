@@ -388,8 +388,9 @@ class Voting_Shortcode {
 	 */
 	private function handle_vote_submission_token( object $competition, object $token_record, array $settings, array $submitted_votes ): string {
 		// Get all images for this category to validate all have been voted for.
-		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
-		$image_count = count( $images );
+		$images       = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
+		$images_by_id = array_column( $images, null, 'id' );
+		$image_count  = count( $images );
 
 		if ( empty( $submitted_votes ) ) {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>';
@@ -429,9 +430,8 @@ class Voting_Shortcode {
 		// Process votes.
 		$success_count = 0;
 		foreach ( $submitted_votes as $image_id => $score ) {
-			// Verify image belongs to this competition and category.
-			$image = $this->images_repo->find( $image_id );
-			if ( ! $image || (int) $image->competition_id !== (int) $competition->id || $image->category !== $token_record->category ) {
+			// Only accept votes for images in this competition and category.
+			if ( ! isset( $images_by_id[ $image_id ] ) ) {
 				continue;
 			}
 
@@ -520,8 +520,9 @@ class Voting_Shortcode {
 		}
 
 		// Get all images for this category to validate all have been voted for.
-		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $category );
-		$image_count = count( $images );
+		$images       = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$images_by_id = array_column( $images, null, 'id' );
+		$image_count  = count( $images );
 
 		if ( empty( $votes ) ) {
 			return array(
@@ -564,9 +565,8 @@ class Voting_Shortcode {
 		// Process votes.
 		$success_count = 0;
 		foreach ( $votes as $image_id => $score ) {
-			// Verify image belongs to this competition and category.
-			$image = $this->images_repo->find( $image_id );
-			if ( ! $image || (int) $image->competition_id !== (int) $competition->id || $image->category !== $category ) {
+			// Only accept votes for images in this competition and category.
+			if ( ! isset( $images_by_id[ $image_id ] ) ) {
 				continue;
 			}
 
@@ -842,44 +842,6 @@ class Voting_Shortcode {
 			<?php endif; ?>
 		</div>
 		<?php
-	}
-
-	/**
-	 * Render image gallery (for voters who have already voted).
-	 *
-	 * @param object $competition Competition object.
-	 * @param string $category    Category slug.
-	 * @return void
-	 */
-	private function render_image_gallery( object $competition, string $category ): void {
-		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
-		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
-
-		if ( empty( $images ) ) {
-			return;
-		}
-
-		echo '<div class="images-grid gallery-view">';
-		foreach ( $images as $image ) {
-			$image_url = $this->image_processor->get_image_url( $competition->slug, $image->category, $image->filename );
-			$thumb_url = $this->image_processor->get_thumbnail_url( $competition->slug, $image->category, $image->filename );
-
-			echo '<div class="voting-image-item">';
-			echo '<div class="image-wrapper">';
-			if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) {
-				echo '<a href="' . esc_url( $image_url ) . '" target="_blank" rel="noopener noreferrer" class="image-link">';
-				// translators: %d: image random number.
-				$alt = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
-				echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $alt ) . '" loading="lazy" />';
-				echo '</a>';
-			} else {
-				echo '<div class="image-unavailable">' . esc_html__( 'Image unavailable', 'photo-competition-manager' ) . '</div>';
-			}
-			echo '<div class="image-number">#' . esc_html( $image->random_number ) . '</div>';
-			echo '</div>';
-			echo '</div>';
-		}
-		echo '</div>';
 	}
 
 	/**

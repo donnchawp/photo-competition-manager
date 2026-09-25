@@ -774,15 +774,6 @@ class Competitions_Controller {
 			return;
 		}
 
-		// Restore settings_errors from transient after redirect.
-		$transient_errors = get_transient( 'photo_competition_manager_settings_errors' );
-		if ( false !== $transient_errors ) {
-			foreach ( $transient_errors as $error ) {
-				add_settings_error( $error['setting'], $error['code'], $error['message'], $error['type'] );
-			}
-			delete_transient( 'photo_competition_manager_settings_errors' );
-		}
-
 		settings_errors( 'photo_competition_manager' );
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars for filtering only; no data mutation.
@@ -809,15 +800,6 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function render_edit_screen( int $competition_id ): string {
-		// Restore settings_errors from transient after redirect.
-		$transient_errors = get_transient( 'photo_competition_manager_settings_errors' );
-		if ( false !== $transient_errors ) {
-			foreach ( $transient_errors as $error ) {
-				add_settings_error( $error['setting'], $error['code'], $error['message'], $error['type'] );
-			}
-			delete_transient( 'photo_competition_manager_settings_errors' );
-		}
-
 		settings_errors( 'photo_competition_manager' );
 
 		$competition = $this->competitions->find( $competition_id );
