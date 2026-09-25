@@ -869,8 +869,8 @@ class Results_Controller {
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
-		$rows_by_grade = array_fill_keys( array_column( $grades, 'slug' ), array() );
-		$rows_by_grade['']     = array();
+		$rows_by_grade     = array_fill_keys( array_column( $grades, 'slug' ), array() );
+		$rows_by_grade[''] = array();
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
@@ -930,108 +930,6 @@ class Results_Controller {
 
 		// Return thumbnail URL if it exists, otherwise null.
 		return file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : null;
-	}
-
-	/**
-	 * Email results to all members who submitted images.
-	 *
-	 * @param int $competition_id Competition ID.
-	 * @return array{success: bool, sent_count: int, total_count: int, message: string}
-	 */
-	private function email_results_to_members( int $competition_id ): array {
-		$competition = $this->competitions->find( $competition_id );
-		if ( ! $competition ) {
-			return array(
-				'success'     => false,
-				'sent_count'  => 0,
-				'total_count' => 0,
-				'message'     => __( 'Competition not found.', 'photo-competition-manager' ),
-			);
-		}
-
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-
-		// Collect all members who submitted images.
-		$member_ids = array();
-		foreach ( $categories as $category ) {
-			$category_slug = $category['slug'] ?? '';
-			if ( empty( $category_slug ) ) {
-				continue;
-			}
-
-			$images = $this->images->find_by_competition( $competition_id, $category_slug );
-			foreach ( $images as $image ) {
-				$member_ids[ $image->member_id ] = true;
-			}
-		}
-
-		$sent_count  = 0;
-		$total_count = count( $member_ids );
-
-		foreach ( array_keys( $member_ids ) as $member_id ) {
-			$member = $this->members->find( (int) $member_id );
-			if ( ! $member || empty( $member->email ) ) {
-				continue;
-			}
-
-			// Build member results data.
-			$member_results = array(
-				'images' => array(),
-			);
-
-			foreach ( $categories as $category ) {
-				$category_slug  = $category['slug'] ?? '';
-				$category_label = $category['label'] ?? $category_slug;
-
-				if ( empty( $category_slug ) ) {
-					continue;
-				}
-
-				$results = $this->calculator->get_results( $competition_id, $category_slug );
-
-				// Find this member's images in the results.
-				$rank = 1;
-				foreach ( $results as $result ) {
-					if ( (int) $result->member_id === (int) $member_id ) {
-						$image_details = $this->analytics->get_image_details( (int) $result->id );
-
-						$member_results['images'][] = array(
-							'category_label' => $category_label,
-							'image_number'   => $result->random_number,
-							'rank'           => $rank,
-							'statistics'     => $image_details['statistics'],
-							'votes'          => $image_details['votes'],
-						);
-					}
-					++$rank;
-				}
-			}
-
-			// Send email to member.
-			$sent = $this->email_service->send_results_email(
-				$member->email,
-				$member->name,
-				$competition->title,
-				$member_results
-			);
-
-			if ( $sent ) {
-				++$sent_count;
-			}
-		}
-
-		return array(
-			'success'     => true,
-			'sent_count'  => $sent_count,
-			'total_count' => $total_count,
-			'message'     => sprintf(
-				/* translators: %1$d: number of emails sent, %2$d: total number of members */
-				__( 'Sent results to %1$d of %2$d members.', 'photo-competition-manager' ),
-				$sent_count,
-				$total_count
-			),
-		);
 	}
 
 	/**

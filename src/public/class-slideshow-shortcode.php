@@ -107,19 +107,9 @@ class Slideshow_Shortcode {
 		$settings = Competition_Settings::parse( $competition->settings );
 
 		// Verify category exists in competition settings.
-		$categories      = Competition_Settings::get_categories( $settings );
-		$category_exists = false;
-		$category_label  = $category;
+		$category_config = Competition_Settings::find_category( $settings, $category );
 
-		foreach ( $categories as $cat ) {
-			if ( $cat['slug'] === $category ) {
-				$category_exists = true;
-				$category_label  = $cat['label'];
-				break;
-			}
-		}
-
-		if ( ! $category_exists ) {
+		if ( ! $category_config ) {
 			return '<p class="error">' . esc_html__( 'Invalid category specified.', 'photo-competition-manager' ) . '</p>';
 		}
 
@@ -149,7 +139,7 @@ class Slideshow_Shortcode {
 
 		// Output slideshow interface.
 		ob_start();
-		$this->render_slideshow_interface( $competition, $category, $category_label, $image_data, $settings );
+		$this->render_slideshow_interface( $competition, $category, $category_config['label'], $image_data, $settings );
 		$output = ob_get_clean();
 
 		return $output ? $output : '';

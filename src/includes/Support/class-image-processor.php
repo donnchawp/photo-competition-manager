@@ -349,12 +349,6 @@ class Image_Processor {
 		$safe_username = sanitize_title( $username );
 		$safe_category = sanitize_title( $category_slug );
 
-		// Security: Explicitly check for path traversal sequences after sanitization.
-		if ( strpos( $safe_username, '..' ) !== false || strpos( $safe_category, '..' ) !== false ) {
-			$safe_username = str_replace( '..', '', $safe_username );
-			$safe_category = str_replace( '..', '', $safe_category );
-		}
-
 		if ( $counter > 0 ) {
 			return sprintf( '%s-%s-%d.jpg', $safe_username, $safe_category, $counter );
 		}
@@ -380,7 +374,7 @@ class Image_Processor {
 		$image->resize( $thumb_width, $thumb_height, false );
 
 		$filename       = basename( $source_path );
-		$thumb_filename = $this->generate_thumbnail_filename( $filename );
+		$thumb_filename = self::get_thumbnail_filename( $filename );
 		$thumb_path     = trailingslashit( $target_dir ) . $thumb_filename;
 
 		$saved = $image->save( $thumb_path );
@@ -393,24 +387,11 @@ class Image_Processor {
 	}
 
 	/**
-	 * Derive thumbnail filename for an image.
-	 *
-	 * @param string $filename Original filename.
-	 * @return string
-	 */
-	public function generate_thumbnail_filename( string $filename ): string {
-		$info = pathinfo( $filename );
-		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . strtolower( $info['extension'] ) : '';
-
-		return $base . '-thumb' . $ext;
-	}
-
-	/**
 	 * Determine the thumbnail filename for a stored image filename.
 	 *
-	 * Appends a `-thumb` suffix before the file extension while preserving the
-	 * original extension casing (e.g. `photo.jpg` becomes `photo-thumb.jpg`).
+	 * Appends a `-thumb` suffix before the lowercased file extension
+	 * (e.g. `photo.jpg` becomes `photo-thumb.jpg`). This is the single naming
+	 * rule used both when thumbnails are written and when they are looked up.
 	 *
 	 * @param string $filename Base filename.
 	 * @return string
@@ -418,7 +399,7 @@ class Image_Processor {
 	public static function get_thumbnail_filename( string $filename ): string {
 		$info = pathinfo( $filename );
 		$base = $info['filename'] ?? $filename;
-		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . $info['extension'] : '';
+		$ext  = isset( $info['extension'] ) && '' !== $info['extension'] ? '.' . strtolower( $info['extension'] ) : '';
 
 		return $base . '-thumb' . $ext;
 	}
@@ -439,7 +420,7 @@ class Image_Processor {
 		}
 
 		$image_path = trailingslashit( $upload_dir['path'] ) . $filename;
-		$thumb_name = $this->generate_thumbnail_filename( $filename );
+		$thumb_name = self::get_thumbnail_filename( $filename );
 		$thumb_path = trailingslashit( $upload_dir['path'] ) . $thumb_name;
 
 		$deleted = true;
@@ -458,22 +439,6 @@ class Image_Processor {
 		}
 
 		return $deleted;
-	}
-
-	/**
-	 * Delete only the original attachment from media library.
-	 *
-	 * Keeps the slideshow image and thumbnail intact.
-	 *
-	 * @param int $attachment_id Attachment ID to delete.
-	 * @return bool True on success, false on failure.
-	 */
-	public function delete_original_attachment( int $attachment_id ): bool {
-		if ( $attachment_id <= 0 ) {
-			return false;
-		}
-
-		return false !== wp_delete_attachment( $attachment_id, true );
 	}
 
 	/**
@@ -502,21 +467,18 @@ class Image_Processor {
 	 * @return string|WP_Error
 	 */
 	public function get_thumbnail_url( string $competition_slug, string $category_slug, string $filename ) {
-		$thumb_filename = str_replace( '.jpg', '-thumb.jpg', $filename );
-		$url            = $this->get_image_url( $competition_slug, $category_slug, $thumb_filename );
-
-		if ( is_wp_error( $url ) ) {
-			return $url;
+		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
+		if ( is_wp_error( $upload_dir ) ) {
+			return $upload_dir;
 		}
 
+		$thumb_filename = self::get_thumbnail_filename( $filename );
+		$url            = trailingslashit( $upload_dir['url'] ) . $thumb_filename;
+
 		// Add cache-busting parameter based on file modification time.
-		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
-		if ( ! is_wp_error( $upload_dir ) ) {
-			$file_path = trailingslashit( $upload_dir['path'] ) . $thumb_filename;
-			if ( file_exists( $file_path ) ) {
-				$mtime = filemtime( $file_path );
-				$url   = add_query_arg( 'v', $mtime, $url );
-			}
+		$file_path = trailingslashit( $upload_dir['path'] ) . $thumb_filename;
+		if ( file_exists( $file_path ) ) {
+			$url = add_query_arg( 'v', filemtime( $file_path ), $url );
 		}
 
 		return $url;
@@ -561,7 +523,7 @@ class Image_Processor {
 		}
 
 		// Move thumbnail.
-		$thumb_filename = str_replace( '.jpg', '-thumb.jpg', $filename );
+		$thumb_filename = self::get_thumbnail_filename( $filename );
 		$source_thumb   = $source_path . $thumb_filename;
 		$dest_thumb     = $dest_path . $thumb_filename;
 

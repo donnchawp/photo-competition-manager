@@ -212,8 +212,7 @@ class Upload_Shortcode {
 		$settings = Competition_Settings::parse( $competition->settings );
 
 		// Check for upload token in URL.
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Magic-link token read only; actions require POST + nonce.
-		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+		$token_string = $this->token_param();
 		$token_record = null;
 		$member       = null;
 
@@ -263,7 +262,7 @@ class Upload_Shortcode {
 			$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $_FILES cannot be sanitized; validated in Upload_Handler::handle_upload().
 			$image_file = isset( $_FILES['image'] ) ? $_FILES['image'] : null;
-			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $token_record, $category, $image_file );
+			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file );
 		}
 
 		// Handle deletion with token (redirects, doesn't return).
@@ -274,7 +273,7 @@ class Upload_Shortcode {
 		) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
 			$image_id = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
-			$this->handle_token_deletion( (int) $competition->id, (int) $member->id, $token_record, $image_id );
+			$this->handle_token_deletion( (int) $competition->id, (int) $member->id, $image_id );
 		}
 
 		ob_start();
@@ -317,12 +316,11 @@ class Upload_Shortcode {
 	 *
 	 * @param int        $competition_id Competition ID.
 	 * @param int        $member_id      Member ID.
-	 * @param object     $token_record   Token record.
 	 * @param string     $category       Selected category (sanitized).
 	 * @param array|null $image_file     Uploaded file array from $_FILES or null.
 	 * @return void Redirects after processing.
 	 */
-	private function handle_token_upload( int $competition_id, int $member_id, $token_record, string $category, $image_file ): void {
+	private function handle_token_upload( int $competition_id, int $member_id, string $category, $image_file ): void {
 		if ( empty( $category ) ) {
 			$this->redirect_with_message( 'error', 'category_missing' );
 			return;
@@ -348,13 +346,12 @@ class Upload_Shortcode {
 	/**
 	 * Handle deletion with valid token.
 	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param object $token_record   Token record.
-	 * @param int    $image_id       Image ID to delete.
+	 * @param int $competition_id Competition ID.
+	 * @param int $member_id      Member ID.
+	 * @param int $image_id       Image ID to delete.
 	 * @return void Redirects after processing.
 	 */
-	private function handle_token_deletion( int $competition_id, int $member_id, $token_record, int $image_id ): void {
+	private function handle_token_deletion( int $competition_id, int $member_id, int $image_id ): void {
 		if ( ! $image_id ) {
 			$this->redirect_with_message( 'error', 'invalid_deletion' );
 			return;
@@ -371,6 +368,16 @@ class Upload_Shortcode {
 	}
 
 	/**
+	 * Read the magic-link upload token from the query string.
+	 *
+	 * @return string Sanitized token, or empty string if absent.
+	 */
+	private function token_param(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Magic-link token read only; actions require POST + nonce.
+		return isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+	}
+
+	/**
 	 * Redirect with a message using query parameters (Post/Redirect/Get pattern).
 	 *
 	 * @param string $type        Message type (success or error).
@@ -378,8 +385,7 @@ class Upload_Shortcode {
 	 * @return void
 	 */
 	private function redirect_with_message( string $type, string $message_key ): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
-		$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+		$token_param = $this->token_param();
 
 		$redirect_url = add_query_arg(
 			array(
@@ -497,8 +503,7 @@ class Upload_Shortcode {
 				<!-- Member is authenticated with valid token, show submissions and upload form -->
 				<?php
 				// Pass configuration to JavaScript for category update functionality.
-				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth.
-				$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+				$token_param = $this->token_param();
 
 				// Build category quota data for validation.
 				$categories_data = array();
@@ -547,8 +552,7 @@ class Upload_Shortcode {
 									<img src="<?php echo esc_url( $image->thumbnail_url ); ?>" alt="" />
 									<?php
 									// Build form action URL with token to preserve it across submissions.
-									// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
-									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+									$token_param        = $this->token_param();
 									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
 									?>
 									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
@@ -671,8 +675,7 @@ class Upload_Shortcode {
 
 						<?php
 						// Build form action URL with token to preserve it across submissions.
-						// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token is read-only for magic-link auth; sanitized below.
-						$token_param = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+						$token_param = $this->token_param();
 						$form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
 						?>
 						<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">

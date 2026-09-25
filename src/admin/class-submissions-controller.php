@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Frontend\Image_Urls;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -27,6 +28,7 @@ class Submissions_Controller {
 
 	use Date_Formatting;
 	use Form_Rendering;
+	use Image_Urls;
 
 	/**
 	 * Competitions repository.
@@ -467,16 +469,9 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
-					// Set transient flag to allow admin bypass of competition date/status checks.
-					// This flag expires in 5 minutes to allow for large file uploads.
-					$transient_key = 'photo_comp_admin_upload_' . $competition_id . '_' . $member_id . '_' . get_current_user_id();
-					set_transient( $transient_key, true, 300 );
-
+					// Admins may upload on a member's behalf regardless of competition dates/status.
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Upload_Handler.
-					$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
-
-					// Delete transient immediately after upload attempt.
-					delete_transient( $transient_key );
+					$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ), true );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(
@@ -805,7 +800,12 @@ class Submissions_Controller {
 			$current_member_id   = (int) $submission->member_id;
 
 			$current_competition = $selected_competition ?? ( $competition_lookup[ $submission->competition_id ] ?? null );
-			$urls                = $this->get_submission_urls( $current_competition, $submission );
+			$urls                = $current_competition
+				? $this->get_image_urls( $current_competition, $submission )
+				: array(
+					'full'  => '',
+					'thumb' => '',
+				);
 			$thumb_url           = ! empty( $urls['thumb'] ) ? $urls['thumb'] : $urls['full'];
 
 			// Get score data for this submission.
@@ -841,51 +841,6 @@ class Submissions_Controller {
 				'competition_id' => $competition_id,
 				'rows'           => $rows,
 			)
-		);
-	}
-
-	/**
-	 * Build URLs for submission assets.
-	 *
-	 * @param  object|null $competition Competition object.
-	 * @param  object      $submission  Submission record.
-	 * @return array{full:string,thumb:string}
-	 */
-	private function get_submission_urls( ?object $competition, object $submission ): array {
-		if ( ! $competition || empty( $competition->slug ) || empty( $submission->filename ) ) {
-			return array(
-				'full'  => '',
-				'thumb' => '',
-			);
-		}
-
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return array(
-				'full'  => '',
-				'thumb' => '',
-			);
-		}
-
-		$base = trailingslashit( $uploads['baseurl'] ) . 'competitions/';
-		$slug = sanitize_file_name( (string) $competition->slug );
-		$cat  = sanitize_file_name( (string) $submission->category );
-
-		$folder_url  = trailingslashit( $base . rawurlencode( $slug ) . '/' . rawurlencode( $cat ) );
-		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
-
-		$filename   = $submission->filename;
-		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
-
-		$full_path  = $folder_path . $filename;
-		$thumb_path = $folder_path . $thumb_name;
-
-		$full_url  = file_exists( $full_path ) ? $folder_url . rawurlencode( $filename ) : '';
-		$thumb_url = file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : '';
-
-		return array(
-			'full'  => $full_url,
-			'thumb' => $thumb_url,
 		);
 	}
 
