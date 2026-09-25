@@ -331,7 +331,7 @@ class Top3_Shortcode {
 	 * Returns all 4 entries.
 	 *
 	 * @param array<int, array{image: object, member: object, total_score: float}> $results       Sorted results array (highest score first).
-	 * @param int                                                                                   $top_positions Number of positions to include (default 3).
+	 * @param int                                                                  $top_positions Number of positions to include (default 3).
 	 * @return array<int, array{image: object, member: object, total_score: float, position: int}> Results with positions assigned.
 	 */
 	private function get_top_positions( array $results, int $top_positions = 3 ): array {
