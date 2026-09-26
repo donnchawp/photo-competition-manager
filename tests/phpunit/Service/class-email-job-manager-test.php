@@ -199,6 +199,40 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->recipients, 'Nothing is sent until the batch runs.' );
 	}
 
+	public function test_queue_returns_running_job_instead_of_duplicating_it(): void {
+		// A second click while the first send is still running must not email everyone twice.
+		$this->enable_template( 'competition_closed' );
+		$member_id = $this->seed_member( 'a@example.com' );
+
+		$first  = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+		$second = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+
+		$this->assertSame( $first, $second );
+
+		$this->manager->process_batch( $first );
+		$this->assertSame( array( 'a@example.com' ), $this->recipients );
+	}
+
+	public function test_queue_starts_new_job_once_previous_one_finished(): void {
+		$this->enable_template( 'competition_closed' );
+		$member_id = $this->seed_member( 'a@example.com' );
+
+		$first = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+		$this->manager->process_batch( $first );
+		$second = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+
+		$this->assertNotSame( $first, $second );
+	}
+
+	public function test_queue_with_different_args_is_not_a_duplicate(): void {
+		$member_id = $this->seed_member( 'a@example.com' );
+
+		$first  = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=a' ) );
+		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=b' ) );
+
+		$this->assertNotSame( $first, $second );
+	}
+
 	public function test_queue_with_no_recipients_returns_false(): void {
 		$this->assertFalse( $this->manager->queue( 'competition_closed', $this->competition_id, array() ) );
 	}

@@ -78,7 +78,7 @@ trait Email_Job_Notice {
 				'skipped_count'   => $job['skipped_count'] ?? 0,
 				'failed_count'    => $job['failed_count'],
 				'errors'          => array_slice( $job['error_log'], 0, 5 ),
-				'refresh_url'     => remove_query_arg( array( 'job_id', 'status' ) ),
+				'refresh_url'     => remove_query_arg( 'status' ),
 			)
 		);
 	}

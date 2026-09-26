@@ -96,7 +96,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$votes,
 			$analytics,
 			$calculator,
-			$email,
 			$job_manager
 		);
 

@@ -210,6 +210,9 @@ class Email_Job_Manager {
 	/**
 	 * Queue an email job and schedule its first batch.
 	 *
+	 * If the same send is already queued or running, that job is returned
+	 * instead, so a second click doesn't email every member twice.
+	 *
 	 * @param string              $type           Job type.
 	 * @param int                 $competition_id Competition ID.
 	 * @param array<int, int>     $member_ids     Recipient member IDs.
@@ -217,6 +220,11 @@ class Email_Job_Manager {
 	 * @return string|false Job ID on success, false if there are no recipients.
 	 */
 	public function queue( string $type, int $competition_id, array $member_ids, array $args = array() ) {
+		$running = $this->find_unfinished_job( $type, $competition_id, $args );
+		if ( $running ) {
+			return $running;
+		}
+
 		$job_id = $this->create_job( $type, $competition_id, $member_ids, $args );
 
 		if ( $job_id ) {
@@ -566,29 +574,11 @@ class Email_Job_Manager {
 	 * @return int Number of jobs cleaned up.
 	 */
 	public function cleanup_old_jobs(): int {
-		global $wpdb;
-
 		$cutoff_time = time() - $this->get_job_retention();
-
-		// Get all email job options.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$job_options = $wpdb->get_results(
-			$wpdb->prepare(
-				'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s',
-				$wpdb->options,
-				$wpdb->esc_like( 'photo_comp_email_job_' ) . '%'
-			)
-		);
 
 		$cleaned = 0;
 
-		foreach ( $job_options as $option ) {
-			$job_data = maybe_unserialize( $option->option_value );
-
-			if ( ! is_array( $job_data ) ) {
-				continue;
-			}
-
+		foreach ( $this->get_all_jobs() as $option_name => $job_data ) {
 			// Only clean up completed or failed jobs.
 			if ( ! in_array( $job_data['status'], array( 'completed', 'failed' ), true ) ) {
 				continue;
@@ -600,11 +590,62 @@ class Email_Job_Manager {
 			$job_time     = $completed_at ? $completed_at : $started_at;
 
 			if ( $job_time && $job_time < $cutoff_time ) {
-				delete_option( $option->option_name );
+				delete_option( $option_name );
 				++$cleaned;
 			}
 		}
 
 		return $cleaned;
+	}
+
+	/**
+	 * Find a job for the same send that hasn't finished yet.
+	 *
+	 * @param string              $type           Job type.
+	 * @param int                 $competition_id Competition ID.
+	 * @param array<string,mixed> $args           Type-specific send arguments.
+	 * @return string|null Job ID, or null if there is no unfinished match.
+	 */
+	private function find_unfinished_job( string $type, int $competition_id, array $args ): ?string {
+		foreach ( $this->get_all_jobs() as $option_name => $job ) {
+			if (
+				in_array( $job['status'] ?? '', array( 'pending', 'processing' ), true )
+				&& ( $job['type'] ?? 'results' ) === $type
+				&& (int) $job['competition_id'] === $competition_id
+				&& ( $job['args'] ?? array() ) === $args
+			) {
+				return substr( $option_name, strlen( 'photo_comp_email_job_' ) );
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Load every stored email job.
+	 *
+	 * @return array<string, array> Job data keyed by option name.
+	 */
+	private function get_all_jobs(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$job_options = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s',
+				$wpdb->options,
+				$wpdb->esc_like( 'photo_comp_email_job_' ) . '%'
+			)
+		);
+
+		$jobs = array();
+		foreach ( $job_options as $option ) {
+			$job_data = maybe_unserialize( $option->option_value );
+			if ( is_array( $job_data ) ) {
+				$jobs[ $option->option_name ] = $job_data;
+			}
+		}
+
+		return $jobs;
 	}
 }
