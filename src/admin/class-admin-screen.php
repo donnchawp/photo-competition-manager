@@ -110,7 +110,6 @@ class Admin_Screen {
 			$deps->votes,
 			$deps->analytics,
 			$deps->score_calculator,
-			$deps->email_service,
 			$deps->email_job_manager
 		);
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();

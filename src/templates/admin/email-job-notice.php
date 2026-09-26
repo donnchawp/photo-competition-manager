@@ -76,6 +76,15 @@ if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
 	}
 
 	echo '</p>';
+
+	if ( $data['failed_count'] > 0 && ! empty( $data['errors'] ) ) {
+		echo '<ul>';
+		foreach ( $data['errors'] as $job_error ) {
+			echo '<li>' . esc_html( $job_error ) . '</li>';
+		}
+		echo '</ul>';
+	}
+
 	echo '</div>';
 } elseif ( 'failed' === $data['status'] ) {
 	echo '<div class="notice notice-error is-dismissible">';

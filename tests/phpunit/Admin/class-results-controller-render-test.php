@@ -81,7 +81,6 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$this->votes,
 			$analytics,
 			$calculator,
-			$email,
 			$job_manager
 		);
 	}

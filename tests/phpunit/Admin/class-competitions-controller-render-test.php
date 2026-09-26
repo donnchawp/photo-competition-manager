@@ -276,6 +276,62 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because they were emailed in the last 5 minutes.', $html );
 	}
 
+	public function test_render_completed_job_notice_lists_failures(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_upload_failed_test',
+			array(
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2 ),
+				'status'         => 'completed',
+				'total_count'    => 2,
+				'sent_count'     => 1,
+				'skipped_count'  => 0,
+				'failed_count'   => 1,
+				'error_log'      => array( 'Failed to send email to Bob (bob@example.com): wp_mail() failed' ),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'upload_failed_test' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '1 emails failed to send.', $html );
+		$this->assertStringContainsString( '<li>Failed to send email to Bob (bob@example.com): wp_mail() failed</li>', $html );
+	}
+
+	public function test_render_running_job_notice_refresh_link_keeps_job_id(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_upload_running_test',
+			array(
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1 ),
+				'status'         => 'processing',
+				'total_count'    => 2,
+				'sent_count'     => 1,
+				'skipped_count'  => 0,
+				'failed_count'   => 0,
+				'error_log'      => array(),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'upload_running_test' ) );
+		$request_uri            = $_SERVER['REQUEST_URI'] ?? null;
+		$_SERVER['REQUEST_URI'] = '/wp-admin/admin.php?page=photo-competition-manager&job_id=upload_running_test&status=processing';
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$_SERVER['REQUEST_URI'] = $request_uri;
+
+		$this->assertMatchesRegularExpression( '#<a href="[^"]*job_id=upload_running_test[^"]*">Refresh now</a>#', $html );
+		$this->assertDoesNotMatchRegularExpression( '#<a href="[^"]*status=processing[^"]*">Refresh now</a>#', $html );
+	}
+
 	/**
 	 * With the Competition Closed email enabled, closing a competition emails
 	 * every active member on the next cron run, so the confirmation says so.
