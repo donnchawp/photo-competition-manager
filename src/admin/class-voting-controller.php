@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -53,20 +54,30 @@ class Voting_Controller {
 	private $members;
 
 	/**
+	 * Email job queue.
+	 *
+	 * @var Email_Job_Manager
+	 */
+	private $email_jobs;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
 	 * @param Images_Repository       $images       Images repository.
 	 * @param Members_Repository|null $members      Members repository.
+	 * @param Email_Job_Manager|null  $email_jobs   Email job queue.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
 		Images_Repository $images,
-		?Members_Repository $members = null
+		?Members_Repository $members = null,
+		?Email_Job_Manager $email_jobs = null
 	) {
 		$this->competitions = $competitions;
 		$this->images       = $images;
 		$this->members      = $members ?? new Members_Repository();
+		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 	}
 
 	/**
@@ -614,12 +625,16 @@ class Voting_Controller {
 
 
 	/**
-	 * Send voting opened notifications to all active members.
+	 * Queue voting opened notifications to all active members.
 	 *
 	 * @param object $competition Competition object.
 	 * @return void
 	 */
 	private function send_voting_opened_notifications( object $competition ): void {
+		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
+			return;
+		}
+
 		// Get voting page URL from global settings.
 		$global_settings = Competition_Settings::global_settings();
 		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
@@ -628,11 +643,11 @@ class Voting_Controller {
 			return; // No voting page URL configured, skip sending.
 		}
 
-		// Get all active members.
-		$members = $this->members->all( 10000, true );
-
-		if ( empty( $members ) ) {
-			return;
+		$member_ids = array();
+		foreach ( $this->members->all( 10000, true ) as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$member_ids[] = (int) $member->id;
+			}
 		}
 
 		// Format close date.
@@ -641,18 +656,32 @@ class Voting_Controller {
 			$close_date = wp_date( get_option( 'date_format' ), strtotime( $competition->close_date ) );
 		}
 
-		$email_service = new Email_Service();
+		$job_id = $this->email_jobs->queue(
+			'voting_opened',
+			(int) $competition->id,
+			$member_ids,
+			array(
+				'voting_page_url' => $voting_page_url,
+				'close_date'      => $close_date,
+			)
+		);
 
-		foreach ( $members as $member ) {
-			if ( ! empty( $member->email ) ) {
-				$email_service->send_voting_opened_notification(
-					$member->email,
-					$member->name,
-					$competition->title,
-					$voting_page_url,
-					$close_date
-				);
-			}
+		if ( $job_id ) {
+			add_settings_error(
+				'photo_competition_voting',
+				'voting_emails_queued',
+				sprintf(
+					/* translators: %d: number of members */
+					_n(
+						'Emailing %d member that voting is open, in the background.',
+						'Emailing %d members that voting is open, in the background.',
+						count( $member_ids ),
+						'photo-competition-manager'
+					),
+					count( $member_ids )
+				),
+				'info'
+			);
 		}
 	}
 

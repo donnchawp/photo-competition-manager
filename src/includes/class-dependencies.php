@@ -14,7 +14,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Email_Results_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
@@ -85,9 +85,9 @@ class Dependencies {
 	/**
 	 * Email job manager.
 	 *
-	 * @var Email_Results_Job_Manager
+	 * @var Email_Job_Manager
 	 */
-	public Email_Results_Job_Manager $email_job_manager;
+	public Email_Job_Manager $email_job_manager;
 
 	/**
 	 * Constructor - initializes all dependencies.
@@ -104,7 +104,7 @@ class Dependencies {
 		$this->analytics         = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
 		$this->score_calculator  = new Score_Calculator( $this->images, $this->votes );
 		$this->email_service     = new Email_Service();
-		$this->email_job_manager = new Email_Results_Job_Manager(
+		$this->email_job_manager = new Email_Job_Manager(
 			$this->competitions,
 			$this->images,
 			$this->members,

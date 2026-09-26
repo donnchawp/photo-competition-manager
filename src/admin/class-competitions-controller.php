@@ -10,8 +10,10 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -25,6 +27,7 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Competitions_Controller {
 
 	use Date_Formatting;
+	use Email_Job_Notice;
 	use Form_Rendering;
 
 	/**
@@ -35,12 +38,21 @@ class Competitions_Controller {
 	private $competitions;
 
 	/**
+	 * Email job queue.
+	 *
+	 * @var Email_Job_Manager
+	 */
+	private $email_jobs;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
+	 * @param Email_Job_Manager|null  $email_jobs   Email job queue.
 	 */
-	public function __construct( Competitions_Repository $competitions ) {
+	public function __construct( Competitions_Repository $competitions, ?Email_Job_Manager $email_jobs = null ) {
 		$this->competitions = $competitions;
+		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 	}
 
 	/**
@@ -380,78 +392,20 @@ class Competitions_Controller {
 
 			if ( 'send_emails' === $action ) {
 				$upload_link_service = new Upload_Link_Service();
-				$result              = $upload_link_service->send_reminders( $competition_id );
+				$job_id              = $upload_link_service->queue_reminders( $competition_id, $this->email_jobs );
 
-				if ( is_wp_error( $result ) ) {
+				if ( is_wp_error( $job_id ) ) {
 					add_settings_error(
 						'photo_competition_manager',
-						$result->get_error_code(),
-						$result->get_error_message(),
+						$job_id->get_error_code(),
+						$job_id->get_error_message(),
 						'error'
 					);
-				} else {
-					$sent_count    = is_array( $result ) ? $result['sent_count'] : ( is_int( $result ) ? $result : 0 );
-					$skipped_count = is_array( $result ) && isset( $result['skipped_count'] ) ? $result['skipped_count'] : 0;
-					$failed_count  = is_array( $result ) && isset( $result['failed_count'] ) ? $result['failed_count'] : 0;
-					$total_count   = is_array( $result ) ? $result['total_count'] : $sent_count;
-					$errors        = is_array( $result ) && isset( $result['errors'] ) ? $result['errors'] : array();
-
-					$message = sprintf(
-						/* translators: 1: Number of emails sent, 2: Total number of members */
-						_n(
-							'%1$d of %2$d reminder email sent to members.',
-							'%1$d of %2$d reminder emails sent to members.',
-							$sent_count,
-							'photo-competition-manager'
-						),
-						$sent_count,
-						$total_count
-					);
-
-					// Add rate limit notice if some emails were skipped.
-					if ( $skipped_count > 0 ) {
-						$message .= ' ' . sprintf(
-							/* translators: %d: Number of members skipped */
-							_n(
-								'%d member was skipped due to rate limiting (emails are not resent within 5 minutes).',
-								'%d members were skipped due to rate limiting (emails are not resent within 5 minutes).',
-								$skipped_count,
-								'photo-competition-manager'
-							),
-							$skipped_count
-						);
-					} else {
-						$message .= ' ' . __( 'Note: Emails will not be resent to the same members within 5 minutes.', 'photo-competition-manager' );
-					}
-
-					// Add failed count notice if some emails failed.
-					if ( $failed_count > 0 ) {
-						$message .= ' ' . sprintf(
-							/* translators: %d: Number of members that failed */
-							_n(
-								'%d email failed to send.',
-								'%d emails failed to send.',
-								$failed_count,
-								'photo-competition-manager'
-							),
-							$failed_count
-						);
-
-						// Show detailed errors.
-						if ( ! empty( $errors ) ) {
-							$message .= ' ' . __( 'Errors:', 'photo-competition-manager' ) . ' ' . implode( '; ', $errors );
-						}
-					}
-
-					add_settings_error(
-						'photo_competition_manager',
-						'emails_sent',
-						$message,
-						$failed_count > 0 ? 'error' : 'updated'
-					);
+					$this->redirect_with_settings_errors( $this->dashboard_url() );
 				}
 
-				$this->redirect_with_settings_errors( $this->dashboard_url() );
+				wp_safe_redirect( add_query_arg( 'job_id', $job_id, $this->dashboard_url() ) );
+				exit;
 			}
 
 			if ( 'archive' === $action ) {
@@ -784,6 +738,9 @@ class Competitions_Controller {
 		}
 
 		settings_errors( 'photo_competition_manager' );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_email_job_notice( $this->email_jobs );
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading query vars for filtering only; no data mutation.
 		$view         = isset( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : 'active';
