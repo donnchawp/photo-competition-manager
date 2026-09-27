@@ -115,6 +115,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		// Normalize per-run nonces embedded via wp_nonce_url() query args.
 		$html = preg_replace( '/_wpnonce=[a-f0-9]{10}/', '_wpnonce=NONCE', $html );
+		$html = preg_replace( '/data-nonce="[a-f0-9]{10}"/', 'data-nonce="NONCE"', $html );
 
 		// Normalize the individual-votes table's "Timestamp" column:
 		// Votes_Repository::create()/create_anonymous() always stamp created_at
@@ -552,7 +553,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_email_job_notice_processing(): void {
-		// A pending/processing job: progress notice + the auto-refresh meta tag.
+		// A pending/processing job: progress notice the script sends batches from.
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 
 		$this->seed_job(

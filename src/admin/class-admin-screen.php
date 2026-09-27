@@ -89,6 +89,13 @@ class Admin_Screen {
 	private $logs_controller;
 
 	/**
+	 * Email job controller.
+	 *
+	 * @var Email_Job_Controller
+	 */
+	private $email_job_controller;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Dependencies|null $deps Optional dependencies container.
@@ -115,6 +122,7 @@ class Admin_Screen {
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
 		$this->email_templates_controller = new Email_Templates_Controller();
 		$this->logs_controller            = new Logs_Controller( $deps->logs, $deps->competitions );
+		$this->email_job_controller       = new Email_Job_Controller( $deps->email_job_manager );
 	}
 
 	/**
@@ -137,6 +145,7 @@ class Admin_Screen {
 		$this->setup_wizard_controller->register();
 		$this->email_templates_controller->register();
 		$this->logs_controller->register();
+		$this->email_job_controller->register();
 	}
 
 	/**

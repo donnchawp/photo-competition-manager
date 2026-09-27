@@ -22,7 +22,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 1;
+	const DB_VERSION = 2;
 
 	/**
 	 * Option holding the installed data version.
@@ -55,6 +55,14 @@ class Activator {
 		// Leave the version alone on failure so the step runs again on the next request.
 		if ( $installed < 1 && false === ( new Members_Repository() )->mark_inactive_emails() ) {
 			return;
+		}
+
+		// Email jobs are sent from the admin page now, and the competition
+		// closed email is gone, so these WP-Cron events have no handler.
+		if ( $installed < 2 ) {
+			wp_unschedule_hook( 'photo_competition_daily_cron' );
+			wp_unschedule_hook( 'photo_comp_send_email_batch' );
+			wp_unschedule_hook( 'photo_comp_send_results_batch' );
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );

@@ -1,6 +1,6 @@
 <?php
 /**
- * Background email job progress notice for admin screens.
+ * Email job progress notice for admin screens.
  *
  * @package PhotoCompetitionManager\Admin\Traits
  */
@@ -9,10 +9,12 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Admin\Email_Job_Controller;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 
 /**
- * Renders the progress of the email job named by the `job_id` query arg.
+ * Renders the progress of an email job. While the job is unfinished, the
+ * notice's script sends it batch by batch and swaps in the updated notice.
  *
  * Requires the Form_Rendering trait.
  *
@@ -33,10 +35,30 @@ trait Email_Job_Notice {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$job = $email_jobs->get_job_status( sanitize_text_field( wp_unslash( $_GET['job_id'] ) ) );
+		$job_id = sanitize_text_field( wp_unslash( $_GET['job_id'] ) );
+		$job    = $email_jobs->get_job_status( $job_id );
 
-		if ( ! $job ) {
-			return '';
+		return $job ? $this->render_job_notice( $job_id, $job ) : '';
+	}
+
+	/**
+	 * Render the progress notice for a job.
+	 *
+	 * @param string $job_id Job ID.
+	 * @param array  $job    Job data.
+	 * @return string Notice HTML.
+	 */
+	private function render_job_notice( string $job_id, array $job ): string {
+		$running = in_array( $job['status'], array( 'pending', 'processing' ), true );
+
+		if ( $running ) {
+			wp_enqueue_script(
+				'photo-comp-email-job',
+				PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-email-job.js',
+				array(),
+				PHOTO_COMPETITION_MANAGER_VERSION,
+				true
+			);
 		}
 
 		$labels = array(
@@ -74,7 +96,10 @@ trait Email_Job_Notice {
 				'skipped_count'   => $job['skipped_count'] ?? 0,
 				'failed_count'    => $job['failed_count'],
 				'errors'          => array_slice( $job['error_log'], 0, 5 ),
-				'refresh_url'     => remove_query_arg( 'status' ),
+				'job_id'          => $job_id,
+				'ajax_url'        => admin_url( 'admin-ajax.php' ),
+				'ajax_action'     => Email_Job_Controller::AJAX_ACTION,
+				'nonce'           => $running ? wp_create_nonce( Email_Job_Controller::AJAX_ACTION ) : '',
 			)
 		);
 	}

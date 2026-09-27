@@ -1,6 +1,6 @@
 <?php
 /**
- * Background email job progress notice for admin pages.
+ * Email job progress notice for admin pages.
  *
  * @package PhotoCompetitionManager
  *
@@ -15,14 +15,23 @@
  *     @type int      $skipped_count   Members skipped (e.g. rate limited).
  *     @type int      $failed_count    Emails that failed to send.
  *     @type string[] $errors          First few error log entries.
- *     @type string   $refresh_url     URL for the "Refresh now" link.
+ *     @type string   $job_id          Job ID.
+ *     @type string   $ajax_url        admin-ajax.php URL.
+ *     @type string   $ajax_action     AJAX action that sends the next batch.
+ *     @type string   $nonce           Nonce for the AJAX action, empty once the job has finished.
  * }
  */
 
 defined( 'ABSPATH' ) || exit;
 
 if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
-	echo '<div class="notice notice-info">';
+	printf(
+		'<div class="notice notice-info photo-comp-email-job" data-job-id="%s" data-ajax-url="%s" data-action="%s" data-nonce="%s">',
+		esc_attr( $data['job_id'] ),
+		esc_url( $data['ajax_url'] ),
+		esc_attr( $data['ajax_action'] ),
+		esc_attr( $data['nonce'] )
+	);
 	echo '<p><strong>' . esc_html( $data['sending_label'] ) . '</strong></p>';
 	echo '<p>';
 	printf(
@@ -33,12 +42,12 @@ if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
 		absint( $data['percent'] )
 	);
 	echo '</p>';
-	echo '<p><em>' . esc_html__( 'This page will refresh automatically every 5 seconds.', 'photo-competition-manager' ) . '</em> ';
-	echo '<a href="' . esc_url( $data['refresh_url'] ) . '">' . esc_html__( 'Refresh now', 'photo-competition-manager' ) . '</a></p>';
+	echo '<p><em>' . esc_html__( 'Keep this page open until sending finishes. If you leave, send again to carry on from where it stopped.', 'photo-competition-manager' ) . '</em></p>';
+	echo '<p class="photo-comp-email-job-error" hidden>';
+	echo esc_html__( 'Sending stopped:', 'photo-competition-manager' ) . ' <span>' . esc_html__( 'the server returned an error. Your login may have expired; reload the page to carry on.', 'photo-competition-manager' ) . '</span> ';
+	echo '<button type="button" class="button">' . esc_html__( 'Try again', 'photo-competition-manager' ) . '</button>';
+	echo '</p>';
 	echo '</div>';
-
-	// Auto-refresh every 5 seconds.
-	echo '<meta http-equiv="refresh" content="5">';
 } elseif ( 'completed' === $data['status'] ) {
 	echo '<div class="notice notice-success is-dismissible">';
 	echo '<p><strong>' . esc_html( $data['sent_label'] ) . '</strong></p>';

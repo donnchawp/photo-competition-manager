@@ -2,8 +2,9 @@
 /**
  * Email Job Manager.
  *
- * Sends bulk member emails in small WP-Cron batches so no single request
- * risks a timeout.
+ * Sends bulk member emails in small batches, one batch per admin-ajax request
+ * from the admin page showing the job's progress, so no single request risks
+ * a timeout.
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -31,9 +32,9 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Email_Job_Manager {
 
 	/**
-	 * WP-Cron hook that processes one batch of a job.
+	 * Seconds after which a batch lock is treated as abandoned.
 	 */
-	const BATCH_HOOK = 'photo_comp_send_email_batch';
+	const LOCK_TIMEOUT = 120;
 
 	/**
 	 * Get batch size for email sending.
@@ -42,15 +43,6 @@ class Email_Job_Manager {
 	 */
 	private function get_batch_size(): int {
 		return defined( 'CLUB_COMPETE_EMAIL_BATCH_SIZE' ) ? CLUB_COMPETE_EMAIL_BATCH_SIZE : 10;
-	}
-
-	/**
-	 * Get delay between batches in seconds.
-	 *
-	 * @return int
-	 */
-	private function get_batch_delay(): int {
-		return defined( 'CLUB_COMPETE_EMAIL_BATCH_DELAY' ) ? CLUB_COMPETE_EMAIL_BATCH_DELAY : 1;
 	}
 
 	/**
@@ -208,7 +200,7 @@ class Email_Job_Manager {
 	}
 
 	/**
-	 * Queue an email job and schedule its first batch.
+	 * Queue an email job.
 	 *
 	 * If the same send is already queued or running, that job is returned
 	 * instead, so a second click doesn't email every member twice.
@@ -225,17 +217,11 @@ class Email_Job_Manager {
 			return $running;
 		}
 
-		$job_id = $this->create_job( $type, $competition_id, $member_ids, $args );
-
-		if ( $job_id ) {
-			$this->schedule_next_batch( $job_id, 0 );
-		}
-
-		return $job_id;
+		return $this->create_job( $type, $competition_id, $member_ids, $args );
 	}
 
 	/**
-	 * Store a new email job without scheduling it.
+	 * Store a new email job.
 	 *
 	 * @param string              $type           Job type.
 	 * @param int                 $competition_id Competition ID.
@@ -278,30 +264,41 @@ class Email_Job_Manager {
 	}
 
 	/**
-	 * Schedule the next batch to be processed.
+	 * Send the next batch of a job.
+	 *
+	 * If another request is already sending a batch of this job, nothing is
+	 * sent and the job is returned as it stands.
 	 *
 	 * @param string $job_id Job ID.
-	 * @param int    $delay  Delay in seconds before processing.
-	 * @return bool Whether the event was scheduled.
+	 * @return array|null Job data after the batch, or null if there is no such job.
 	 */
-	public function schedule_next_batch( string $job_id, int $delay = 0 ): bool {
-		$timestamp = time() + $delay;
-		return wp_schedule_single_event( $timestamp, self::BATCH_HOOK, array( $job_id ) ) !== false;
+	public function process_batch( string $job_id ): ?array {
+		if ( ! $this->acquire_lock( $job_id ) ) {
+			return $this->get_job( $job_id );
+		}
+
+		try {
+			// Read the job only once the lock is held, so its progress is current.
+			$job = $this->get_job( $job_id );
+
+			if ( $job && in_array( $job['status'], array( 'pending', 'processing' ), true ) ) {
+				$this->send_batch( $job_id, $job );
+			}
+		} finally {
+			$this->release_lock( $job_id );
+		}
+
+		return $this->get_job( $job_id );
 	}
 
 	/**
-	 * Process a batch of emails.
+	 * Send the next batch of a job and save its progress.
 	 *
 	 * @param string $job_id Job ID.
+	 * @param array  $job    Job data.
 	 * @return void
 	 */
-	public function process_batch( string $job_id ): void {
-		$job = $this->get_job( $job_id );
-
-		if ( ! $job || ( 'pending' !== $job['status'] && 'processing' !== $job['status'] ) ) {
-			return;
-		}
-
+	private function send_batch( string $job_id, array $job ): void {
 		// Mark as processing.
 		if ( 'pending' === $job['status'] ) {
 			$job['status'] = 'processing';
@@ -361,12 +358,71 @@ class Email_Job_Manager {
 		// Update job progress.
 		$this->update_job( $job_id, $job );
 
-		// Schedule next batch or mark complete.
-		if ( count( $job['processed_ids'] ) < count( $job['member_ids'] ) ) {
-			$this->schedule_next_batch( $job_id, $this->get_batch_delay() );
-		} else {
+		if ( count( $job['processed_ids'] ) >= count( $job['member_ids'] ) ) {
 			$this->mark_job_complete( $job_id );
 		}
+	}
+
+	/**
+	 * Take the batch lock for a job.
+	 *
+	 * INSERT IGNORE rather than add_option(), which overwrites an existing
+	 * row and so can't tell two requests apart. Same approach as
+	 * WP_Upgrader::create_lock().
+	 *
+	 * @param string $job_id Job ID.
+	 * @return bool Whether the lock was taken.
+	 */
+	private function acquire_lock( string $job_id ): bool {
+		global $wpdb;
+
+		$lock = 'photo_comp_email_lock_' . $job_id;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$taken = $wpdb->query(
+			$wpdb->prepare(
+				'INSERT IGNORE INTO %i (option_name, option_value, autoload) VALUES (%s, %s, %s)',
+				$wpdb->options,
+				$lock,
+				time(),
+				'off'
+			)
+		);
+
+		if ( $taken ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$locked_at = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $lock ) );
+
+		if ( $locked_at > time() - self::LOCK_TIMEOUT ) {
+			return false;
+		}
+
+		// The request holding the lock died. Take it over.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->update(
+			$wpdb->options,
+			array( 'option_value' => time() ),
+			array(
+				'option_name'  => $lock,
+				'option_value' => $locked_at,
+			)
+		);
+	}
+
+	/**
+	 * Release the batch lock for a job.
+	 *
+	 * @param string $job_id Job ID.
+	 * @return void
+	 */
+	private function release_lock( string $job_id ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete( $wpdb->options, array( 'option_name' => 'photo_comp_email_lock_' . $job_id ) );
 	}
 
 	/**

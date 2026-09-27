@@ -76,17 +76,12 @@ class Plugin {
 	}
 
 	/**
-	 * Register email job background processing hooks.
+	 * Register email job cleanup hooks.
 	 *
 	 * @param \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager Email job queue.
 	 * @return void
 	 */
 	private function register_email_job_hooks( \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager ): void {
-		// Register cron hook for processing batches. The old hook name keeps
-		// batches scheduled before the rename running.
-		add_action( \PhotoCompetitionManager\Service\Email_Job_Manager::BATCH_HOOK, array( $job_manager, 'process_batch' ), 10, 1 );
-		add_action( 'photo_comp_send_results_batch', array( $job_manager, 'process_batch' ), 10, 1 );
-
 		// Register daily cleanup hook.
 		add_action( 'photo_comp_cleanup_email_jobs', array( $job_manager, 'cleanup_old_jobs' ) );
 

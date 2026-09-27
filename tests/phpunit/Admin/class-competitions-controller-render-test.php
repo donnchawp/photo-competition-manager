@@ -302,7 +302,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( '<li>Failed to send email to Bob (bob@example.com): wp_mail() failed</li>', $html );
 	}
 
-	public function test_render_running_job_notice_refresh_link_keeps_job_id(): void {
+	public function test_render_running_job_notice_is_driven_by_ajax(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 		update_option(
 			'photo_comp_email_job_upload_running_test',
@@ -319,17 +319,15 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$this->set_request( array( 'job_id' => 'upload_running_test' ) );
-		$request_uri            = $_SERVER['REQUEST_URI'] ?? null;
-		$_SERVER['REQUEST_URI'] = '/wp-admin/admin.php?page=photo-competition-manager&job_id=upload_running_test&status=processing';
 
 		ob_start();
 		$this->controller->render();
 		$html = (string) ob_get_clean();
 
-		$_SERVER['REQUEST_URI'] = $request_uri;
-
-		$this->assertMatchesRegularExpression( '#<a href="[^"]*job_id=upload_running_test[^"]*">Refresh now</a>#', $html );
-		$this->assertDoesNotMatchRegularExpression( '#<a href="[^"]*status=processing[^"]*">Refresh now</a>#', $html );
+		$this->assertStringContainsString( 'class="notice notice-info photo-comp-email-job" data-job-id="upload_running_test"', $html );
+		$this->assertStringContainsString( 'data-action="photo_comp_send_email_batch"', $html );
+		$this->assertStringNotContainsString( 'http-equiv="refresh"', $html );
+		$this->assertTrue( wp_script_is( 'photo-comp-email-job', 'enqueued' ) );
 	}
 
 	public function test_render_list_archived_view(): void {

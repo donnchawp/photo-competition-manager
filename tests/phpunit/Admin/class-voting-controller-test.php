@@ -18,7 +18,6 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
-use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -200,7 +199,8 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 	/**
 	 * With the voting-opened email enabled, opening voting queues the emails
-	 * instead of sending them during the request.
+	 * instead of sending them during the request, and the page it lands on
+	 * shows the job's progress.
 	 */
 	public function test_open_category_voting_queues_voting_opened_emails(): void {
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
@@ -238,15 +238,14 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
 
-		$this->capture_redirect(
+		$location = $this->capture_redirect(
 			function () {
 				$this->controller->handle_actions();
 			}
 		);
 
-		$this->assertContains( 'voting_emails_queued', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertMatchesRegularExpression( '/[?&]job_id=email_job_/', $location );
 		$this->assertSame( 0, $mail_count );
-		$this->assertContains( Email_Job_Manager::BATCH_HOOK, $this->scheduled_hooks() );
 	}
 
 	/**
@@ -523,18 +522,5 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertFalse( $json['success'] );
 		$this->assertStringContainsString( 'Invalid parameters', $json['data']['message'] );
-	}
-
-	/**
-	 * Hook names of every scheduled WP-Cron event, whatever their args.
-	 *
-	 * @return string[]
-	 */
-	private function scheduled_hooks(): array {
-		$hooks = array();
-		foreach ( _get_cron_array() as $events ) {
-			$hooks = array_merge( $hooks, array_keys( $events ) );
-		}
-		return $hooks;
 	}
 }

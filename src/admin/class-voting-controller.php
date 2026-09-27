@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Admin_Action_Dispatcher;
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -30,6 +31,7 @@ class Voting_Controller {
 
 	use Admin_Action_Dispatcher;
 	use Date_Formatting;
+	use Email_Job_Notice;
 	use Form_Rendering;
 
 	/**
@@ -166,7 +168,7 @@ class Voting_Controller {
 			__( 'Voting opened successfully.', 'photo-competition-manager' ),
 			$focus,
 			function () use ( $competition ) {
-				$this->send_voting_opened_notifications( $competition );
+				return $this->queue_voting_opened_notifications( $competition );
 			}
 		);
 	}
@@ -352,11 +354,13 @@ class Voting_Controller {
 	 * @param string        $success_code    Settings-error code for the success notice.
 	 * @param string        $success_message Human-readable success message.
 	 * @param string        $focus           Focus-panel key to preserve across the redirect.
-	 * @param callable|null $on_success      Optional side-effect to run only on success.
+	 * @param callable|null $on_success      Optional side-effect to run only on success. If it
+	 *                                       returns an email job ID, the page shows the job's progress.
 	 * @return void
 	 */
 	private function finish_voting_update( int $competition_id, array $settings, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
 		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+		$job_id = null;
 
 		if ( is_wp_error( $result ) ) {
 			add_settings_error(
@@ -373,12 +377,13 @@ class Voting_Controller {
 				'updated'
 			);
 
-			if ( $on_success ) {
-				$on_success();
-			}
+			$job_id = $on_success ? $on_success() : null;
 		}
 
 		$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+		if ( ! empty( $job_id ) ) {
+			$redirect_args['job_id'] = $job_id;
+		}
 		if ( ! empty( $focus ) ) {
 			$redirect_args['focus'] = $focus;
 		}
@@ -399,6 +404,9 @@ class Voting_Controller {
 		}
 
 		settings_errors( 'photo_competition_voting' );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_email_job_notice( $this->email_jobs );
 
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
@@ -628,11 +636,11 @@ class Voting_Controller {
 	 * Queue voting opened notifications to all active members.
 	 *
 	 * @param object $competition Competition object.
-	 * @return void
+	 * @return string|null Job ID, or null if nothing was queued.
 	 */
-	private function send_voting_opened_notifications( object $competition ): void {
+	private function queue_voting_opened_notifications( object $competition ): ?string {
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
-			return;
+			return null;
 		}
 
 		// Get voting page URL from global settings.
@@ -640,7 +648,7 @@ class Voting_Controller {
 		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
 
 		if ( empty( $voting_page_url ) ) {
-			return; // No voting page URL configured, skip sending.
+			return null; // No voting page URL configured, skip sending.
 		}
 
 		$member_ids = array();
@@ -666,25 +674,8 @@ class Voting_Controller {
 			)
 		);
 
-		if ( $job_id ) {
-			add_settings_error(
-				'photo_competition_voting',
-				'voting_emails_queued',
-				sprintf(
-					/* translators: %d: number of members */
-					_n(
-						'Emailing %d member that voting is open, in the background.',
-						'Emailing %d members that voting is open, in the background.',
-						count( $member_ids ),
-						'photo-competition-manager'
-					),
-					count( $member_ids )
-				),
-				'info'
-			);
-		}
+		return $job_id ? $job_id : null;
 	}
-
 
 	/**
 	 * Render results page links section.

@@ -194,11 +194,11 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		);
 	}
 
-	public function test_queue_schedules_first_batch(): void {
+	public function test_queue_sends_nothing_until_a_batch_is_processed(): void {
 		$job_id = $this->manager->queue( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 
-		$this->assertNotFalse( wp_next_scheduled( Email_Job_Manager::BATCH_HOOK, array( $job_id ) ) );
-		$this->assertSame( array(), $this->recipients, 'Nothing is sent until the batch runs.' );
+		$this->assertSame( 'pending', $this->manager->get_job( $job_id )['status'] );
+		$this->assertSame( array(), $this->recipients );
 	}
 
 	public function test_queue_returns_running_job_instead_of_duplicating_it(): void {
@@ -237,23 +237,21 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->manager->queue( 'results_share', $this->competition_id, array(), self::SHARE_ARGS ) );
 	}
 
-	public function test_process_batch_sends_one_batch_then_reschedules(): void {
+	public function test_process_batch_sends_one_batch_per_call(): void {
 		$member_ids = array();
 		for ( $i = 1; $i <= 12; $i++ ) {
 			$member_ids[] = $this->seed_member( "m{$i}@example.com" );
 		}
 		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, $member_ids, self::SHARE_ARGS );
 
-		$this->manager->process_batch( $job_id );
+		$job = $this->manager->process_batch( $job_id );
 
-		$job = $this->manager->get_job( $job_id );
 		$this->assertCount( 10, $this->recipients );
 		$this->assertSame( 'processing', $job['status'] );
-		$this->assertNotFalse( wp_next_scheduled( Email_Job_Manager::BATCH_HOOK, array( $job_id ) ) );
+		$this->assertCount( 10, $job['processed_ids'] );
 
-		$this->manager->process_batch( $job_id );
+		$job = $this->manager->process_batch( $job_id );
 
-		$job = $this->manager->get_job( $job_id );
 		$this->assertCount( 12, $this->recipients );
 		$this->assertSame( 12, $job['sent_count'] );
 		$this->assertSame( 'completed', $job['status'] );
@@ -332,6 +330,44 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( 'active@example.com' ), $this->recipients );
 		$this->assertSame( 'completed', $this->manager->get_job( $job_id )['status'] );
+	}
+
+	public function test_process_batch_sends_nothing_while_another_request_holds_the_lock(): void {
+		// A second tab on the same job must not send the batch the first tab is sending.
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		add_option( 'photo_comp_email_lock_' . $job_id, time(), '', false );
+
+		$job = $this->manager->process_batch( $job_id );
+
+		$this->assertSame( array(), $this->recipients );
+		$this->assertSame( 'pending', $job['status'] );
+	}
+
+	public function test_process_batch_takes_over_an_abandoned_lock(): void {
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		add_option( 'photo_comp_email_lock_' . $job_id, time() - Email_Job_Manager::LOCK_TIMEOUT - 1, '', false );
+
+		$job = $this->manager->process_batch( $job_id );
+
+		$this->assertSame( array( 'a@example.com' ), $this->recipients );
+		$this->assertSame( 'completed', $job['status'] );
+		global $wpdb;
+		$lock_rows = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", 'photo_comp_email_lock_' . $job_id ) );
+		$this->assertSame( 0, $lock_rows, 'The lock is released after the batch.' );
+	}
+
+	public function test_process_batch_on_finished_job_sends_nothing(): void {
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->process_batch( $job_id );
+
+		$this->assertSame( array( 'a@example.com' ), $this->recipients );
+		$this->assertSame( 'completed', $job['status'] );
+	}
+
+	public function test_process_batch_returns_null_for_unknown_job(): void {
+		$this->assertNull( $this->manager->process_batch( 'email_job_missing' ) );
 	}
 
 	public function test_cleanup_old_jobs_deletes_only_old_finished_jobs(): void {

@@ -243,7 +243,6 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $alice ), $job['member_ids'] );
 		$this->assertNotEmpty( $job['args']['upload_page_url'] );
 		$this->assertSame( 0, $this->mail_count );
-		$this->assertNotFalse( wp_next_scheduled( Email_Job_Manager::BATCH_HOOK, array( $job_id ) ) );
 	}
 
 	public function test_reminders_only_inactive_members_is_no_members() {
