@@ -118,9 +118,9 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 		$json = $this->send_batch( $job_id );
 
 		$this->assertTrue( $json['success'] );
-		$this->assertSame( 10, $this->mail_count );
+		$this->assertSame( 5, $this->mail_count );
 		$this->assertStringContainsString( 'data-job-id="' . $job_id . '"', $json['data']['html'] );
-		$this->assertStringContainsString( 'Progress: 10 of 12 emails sent', $json['data']['html'] );
+		$this->assertStringContainsString( 'Progress: 5 of 12 emails sent', $json['data']['html'] );
 	}
 
 	public function test_send_batch_returns_finished_notice_on_last_batch(): void {

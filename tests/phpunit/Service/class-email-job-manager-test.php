@@ -246,10 +246,11 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$job = $this->manager->process_batch( $job_id );
 
-		$this->assertCount( 10, $this->recipients );
+		$this->assertCount( 5, $this->recipients );
 		$this->assertSame( 'processing', $job['status'] );
-		$this->assertCount( 10, $job['processed_ids'] );
+		$this->assertCount( 5, $job['processed_ids'] );
 
+		$this->manager->process_batch( $job_id );
 		$job = $this->manager->process_batch( $job_id );
 
 		$this->assertCount( 12, $this->recipients );
@@ -364,6 +365,34 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( 'a@example.com' ), $this->recipients );
 		$this->assertSame( 'completed', $job['status'] );
+	}
+
+	public function test_request_dying_mid_batch_keeps_progress_of_members_already_sent(): void {
+		$first  = $this->seed_member( 'first@example.com' );
+		$second = $this->seed_member( 'second@example.com' );
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $first, $second ), self::SHARE_ARGS );
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) {
+				if ( 'second@example.com' === $atts['to'] ) {
+					throw new \RuntimeException( 'Request died' );
+				}
+				return $short_circuit;
+			},
+			5,
+			2
+		);
+
+		try {
+			$this->manager->process_batch( $job_id );
+			$this->fail( 'Expected the send to die.' );
+		} catch ( \RuntimeException $e ) {
+			unset( $e );
+		}
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( array( $first ), array_map( 'intval', $job['processed_ids'] ) );
+		$this->assertSame( 1, $job['sent_count'] );
 	}
 
 	public function test_process_batch_returns_null_for_unknown_job(): void {

@@ -42,7 +42,7 @@ class Email_Job_Manager {
 	 * @return int
 	 */
 	private function get_batch_size(): int {
-		return defined( 'CLUB_COMPETE_EMAIL_BATCH_SIZE' ) ? CLUB_COMPETE_EMAIL_BATCH_SIZE : 10;
+		return defined( 'CLUB_COMPETE_EMAIL_BATCH_SIZE' ) ? CLUB_COMPETE_EMAIL_BATCH_SIZE : 5;
 	}
 
 	/**
@@ -353,6 +353,10 @@ class Email_Job_Manager {
 			}
 
 			$job['processed_ids'][] = $member_id;
+
+			// Save after every send, so if the request dies partway through a
+			// batch, retrying doesn't email the members already sent to.
+			$this->update_job( $job_id, $job );
 		}
 
 		// Update job progress.

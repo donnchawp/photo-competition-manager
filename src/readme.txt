@@ -109,7 +109,7 @@ The plugin sends automated emails for key events:
 
 Configure and customize all templates from **Competitions → Email Templates**.
 
-Emails going to many members (upload links, voting opened, results, and results links) are sent 10 at a time by the admin page you sent them from, so a big send can't time out a single request. The page shows progress while they go out, so keep it open until it says they've been sent. If you leave early, send again and it carries on where it stopped without emailing anyone twice. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
+Emails going to many members (upload links, voting opened, results, and results links) are sent 5 at a time by the admin page you sent them from, so a big send can't time out a single request. The page shows progress while they go out, so keep it open until it says they've been sent. If you leave early, send again and it carries on where it stopped without emailing anyone twice. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
 
 = Can I customize categories and grades per competition? =
 
