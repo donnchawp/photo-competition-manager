@@ -109,7 +109,7 @@ The plugin sends automated emails for key events:
 
 Configure and customize all templates from **Competitions → Email Templates**.
 
-Emails going to many members (upload links, voting opened, competition closed, results, and results links) are sent in the background by WP-Cron, 10 at a time, so a big send can't time out the admin page. The page shows progress while they go out. WP-Cron only runs when someone visits the site, so on a quiet site, point a real cron job at `wp-cron.php` every minute. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
+Emails going to many members (upload links, voting opened, results, and results links) are sent in the background by WP-Cron, 10 at a time, so a big send can't time out the admin page. The page shows progress while they go out. WP-Cron only runs when someone visits the site, so on a quiet site, point a real cron job at `wp-cron.php` every minute. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
 
 = Can I customize categories and grades per competition? =
 

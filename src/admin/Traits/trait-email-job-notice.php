@@ -40,25 +40,21 @@ trait Email_Job_Notice {
 		}
 
 		$labels = array(
-			'results'            => array(
+			'results'       => array(
 				__( 'Sending results emails...', 'photo-competition-manager' ),
 				__( 'Email results sent successfully!', 'photo-competition-manager' ),
 			),
-			'upload_link'        => array(
+			'upload_link'   => array(
 				__( 'Sending upload link emails...', 'photo-competition-manager' ),
 				__( 'Upload link emails sent.', 'photo-competition-manager' ),
 			),
-			'results_share'      => array(
+			'results_share' => array(
 				__( 'Sending results link emails...', 'photo-competition-manager' ),
 				__( 'Results link emails sent.', 'photo-competition-manager' ),
 			),
-			'voting_opened'      => array(
+			'voting_opened' => array(
 				__( 'Sending voting opened emails...', 'photo-competition-manager' ),
 				__( 'Voting opened emails sent.', 'photo-competition-manager' ),
-			),
-			'competition_closed' => array(
-				__( 'Sending competition closed emails...', 'photo-competition-manager' ),
-				__( 'Competition closed emails sent.', 'photo-competition-manager' ),
 			),
 		);
 		$label  = $labels[ $job['type'] ?? 'results' ] ?? $labels['results'];

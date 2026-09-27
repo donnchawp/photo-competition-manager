@@ -20,6 +20,8 @@ use WP_UnitTestCase;
 
 class Email_Job_Manager_Test extends WP_UnitTestCase {
 
+	const SHARE_ARGS = array( 'share_url' => 'https://example.com/results?share=abc' );
+
 	/**
 	 * @var Email_Job_Manager
 	 */
@@ -193,7 +195,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_queue_schedules_first_batch(): void {
-		$job_id = $this->manager->queue( 'competition_closed', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) );
+		$job_id = $this->manager->queue( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 
 		$this->assertNotFalse( wp_next_scheduled( Email_Job_Manager::BATCH_HOOK, array( $job_id ) ) );
 		$this->assertSame( array(), $this->recipients, 'Nothing is sent until the batch runs.' );
@@ -201,11 +203,10 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_queue_returns_running_job_instead_of_duplicating_it(): void {
 		// A second click while the first send is still running must not email everyone twice.
-		$this->enable_template( 'competition_closed' );
 		$member_id = $this->seed_member( 'a@example.com' );
 
-		$first  = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
-		$second = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+		$first  = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		$this->assertSame( $first, $second );
 
@@ -214,12 +215,11 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_queue_starts_new_job_once_previous_one_finished(): void {
-		$this->enable_template( 'competition_closed' );
 		$member_id = $this->seed_member( 'a@example.com' );
 
-		$first = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+		$first = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 		$this->manager->process_batch( $first );
-		$second = $this->manager->queue( 'competition_closed', $this->competition_id, array( $member_id ) );
+		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		$this->assertNotSame( $first, $second );
 	}
@@ -234,7 +234,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_queue_with_no_recipients_returns_false(): void {
-		$this->assertFalse( $this->manager->queue( 'competition_closed', $this->competition_id, array() ) );
+		$this->assertFalse( $this->manager->queue( 'results_share', $this->competition_id, array(), self::SHARE_ARGS ) );
 	}
 
 	public function test_process_batch_sends_one_batch_then_reschedules(): void {
@@ -242,8 +242,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		for ( $i = 1; $i <= 12; $i++ ) {
 			$member_ids[] = $this->seed_member( "m{$i}@example.com" );
 		}
-		$this->enable_template( 'competition_closed' );
-		$job_id = $this->manager->create_job( 'competition_closed', $this->competition_id, $member_ids );
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, $member_ids, self::SHARE_ARGS );
 
 		$this->manager->process_batch( $job_id );
 

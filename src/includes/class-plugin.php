@@ -56,12 +56,7 @@ class Plugin {
 		$this->admin->register();
 		$this->frontend->register();
 
-		$email_jobs = ( new Dependencies() )->email_job_manager;
-
-		$cron_handler = new \PhotoCompetitionManager\Service\Cron_Handler( null, null, $email_jobs );
-		$cron_handler->register();
-
-		$this->register_email_job_hooks( $email_jobs );
+		$this->register_email_job_hooks( ( new Dependencies() )->email_job_manager );
 		$this->register_rest_api();
 	}
 

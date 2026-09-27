@@ -24,7 +24,7 @@ use function PhotoCompetitionManager\Support\utc_time;
  * Class Email_Job_Manager
  *
  * A job is one bulk send of one email type to a list of members. Job types:
- * results, upload_link, voting_opened, results_share, competition_closed.
+ * results, upload_link, voting_opened, results_share.
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -405,14 +405,6 @@ class Email_Job_Manager {
 					$competition->title,
 					(string) $args['share_url'],
 					(int) $competition->id
-				);
-				break;
-
-			case 'competition_closed':
-				$sent = $this->email_service->send_competition_closed_notification(
-					$member->email,
-					$member->name,
-					$competition->title
 				);
 				break;
 

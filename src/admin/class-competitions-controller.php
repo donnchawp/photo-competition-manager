@@ -14,7 +14,6 @@ use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
-use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -1127,14 +1126,11 @@ class Competitions_Controller {
 			);
 		}
 
-		$email_service = new Email_Service();
-
 		return $this->render_template(
 			'admin/competitions/competitions-table.php',
 			array(
-				'closed_email_enabled' => $email_service->is_template_enabled( 'competition_closed' ),
-				'views'                => $views,
-				'rows'                 => $rows,
+				'views' => $views,
+				'rows'  => $rows,
 			)
 		);
 	}

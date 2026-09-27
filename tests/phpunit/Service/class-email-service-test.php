@@ -103,15 +103,15 @@ class Email_Service_Test extends WP_UnitTestCase {
 		update_option(
 			'photo_comp_email_templates',
 			array(
-				'competition_closed' => array(
+				'voting_opened' => array(
 					'enabled' => true,
-					'subject' => '{competition_title} has closed',
+					'subject' => 'Voting is open for {competition_title}',
 					'body'    => '<p>Hi {member_name}</p>',
 				),
 			)
 		);
 
-		$this->assertTrue( $this->service->is_template_enabled( 'competition_closed' ) );
+		$this->assertTrue( $this->service->is_template_enabled( 'voting_opened' ) );
 	}
 
 	/**
@@ -121,15 +121,15 @@ class Email_Service_Test extends WP_UnitTestCase {
 		update_option(
 			'photo_comp_email_templates',
 			array(
-				'competition_closed' => array(
+				'voting_opened' => array(
 					'enabled' => false,
-					'subject' => '{competition_title} has closed',
+					'subject' => 'Voting is open for {competition_title}',
 					'body'    => '<p>Hi {member_name}</p>',
 				),
 			)
 		);
 
-		$this->assertFalse( $this->service->is_template_enabled( 'competition_closed' ) );
+		$this->assertFalse( $this->service->is_template_enabled( 'voting_opened' ) );
 		$this->assertFalse( $this->service->is_template_enabled( 'no_such_template' ) );
 	}
 
