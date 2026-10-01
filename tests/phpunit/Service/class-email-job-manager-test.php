@@ -340,6 +340,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 'failed', $job['status'] );
 		$this->assertSame( 0, $job['failed_count'] );
 		$this->assertSame( array( 'The Voting Opened email template was turned off.' ), $job['error_log'] );
+		$this->assertNotNull( $job['completed_at'], 'Cleanup counts retention from when the job stopped.' );
 	}
 
 	public function test_failed_send_is_counted_and_logged(): void {

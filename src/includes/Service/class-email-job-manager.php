@@ -322,18 +322,14 @@ class Email_Job_Manager {
 		$competition    = $this->competitions->find( $competition_id );
 
 		if ( ! $competition ) {
-			$job['status']      = 'failed';
-			$job['error_log'][] = 'Competition not found';
-			$this->update_job( $job_id, $job );
+			$this->fail_job( $job_id, $job, 'Competition not found' );
 			return;
 		}
 
 		// Unlike the other emails, voting opened has no built-in fallback, so
 		// every member would fail with a misleading wp_mail() error.
 		if ( 'voting_opened' === ( $job['type'] ?? '' ) && ! $this->email_service->is_template_enabled( 'voting_opened' ) ) {
-			$job['status']      = 'failed';
-			$job['error_log'][] = 'The Voting Opened email template was turned off.';
-			$this->update_job( $job_id, $job );
+			$this->fail_job( $job_id, $job, 'The Voting Opened email template was turned off.' );
 			return;
 		}
 
@@ -627,6 +623,22 @@ class Email_Job_Manager {
 	}
 
 	/**
+	 * Stop a job for good and say why.
+	 *
+	 * @param string $job_id Job ID.
+	 * @param array  $job    Job data.
+	 * @param string $reason Why, added to the job's error log.
+	 * @return void
+	 */
+	private function fail_job( string $job_id, array $job, string $reason ): void {
+		$job['status']       = 'failed';
+		$job['completed_at'] = utc_time();
+		$job['error_log'][]  = $reason;
+
+		$this->update_job( $job_id, $job );
+	}
+
+	/**
 	 * Mark job as complete.
 	 *
 	 * @param string $job_id Job ID.
@@ -694,11 +706,9 @@ class Email_Job_Manager {
 				return false;
 			}
 
-			$job['status']       = 'failed';
-			$job['completed_at'] = utc_time();
-			$job['error_log'][]  = $reason;
+			$this->fail_job( $job_id, $job, $reason );
 
-			return $this->update_job( $job_id, $job );
+			return true;
 		} finally {
 			$this->release_lock( $job_id );
 		}
