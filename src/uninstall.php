@@ -30,6 +30,11 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 function photo_competition_manager_uninstall() {
 	global $wpdb;
 
+	// Delete plugin options, transients and cron events first. They need no
+	// tables or files, so a timeout deleting a big uploads folder later
+	// doesn't leave the cleanup cron running against dropped tables.
+	photo_competition_manager_delete_options();
+
 	// Remove custom capabilities from all roles.
 	photo_competition_manager_remove_capabilities();
 
@@ -41,9 +46,6 @@ function photo_competition_manager_uninstall() {
 
 	// Drop all custom database tables.
 	photo_competition_manager_drop_tables( $wpdb );
-
-	// Delete plugin options, transients and cron events.
-	photo_competition_manager_delete_options();
 }
 
 /**

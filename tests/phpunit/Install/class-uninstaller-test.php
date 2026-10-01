@@ -61,7 +61,6 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		set_transient( 'photo_comp_admin_upload_1_2_3', true, 300 );
 
 		Uninstaller::delete_data();
-		wp_cache_flush();
 
 		$this->assertFalse( get_transient( 'photo_comp_closed_notif_1' ) );
 		$this->assertFalse( get_transient( 'photo_comp_admin_upload_1_2_3' ) );
