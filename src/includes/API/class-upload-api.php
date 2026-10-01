@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Upload_Handler;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 use WP_REST_Controller;
 use WP_REST_Request;
@@ -187,32 +188,10 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-
-		$quota_status = array();
-		foreach ( $categories as $cat ) {
-			$status = $this->upload_handler->get_quota_status(
-				(int) $competition->id,
-				$member_id,
-				$cat['slug']
-			);
-
-			if ( ! is_wp_error( $status ) ) {
-				$quota_status[ $cat['slug'] ] = array(
-					'label'     => $cat['label'],
-					'slug'      => $cat['slug'],
-					'current'   => $status['current'],
-					'quota'     => $status['quota'],
-					'remaining' => $status['remaining'],
-				);
-			}
-		}
-
 		return new WP_REST_Response(
 			array(
 				'competition_id' => $competition->id,
-				'quotas'         => $quota_status,
+				'quotas'         => $this->upload_handler->get_quota_status( $competition, $member_id ),
 			),
 			200
 		);
@@ -294,18 +273,10 @@ class Upload_API extends WP_REST_Controller {
 		}
 
 		// Validate quotas for all categories in batch before processing any files.
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		$settings = Competition_Settings::parse( $competition->settings );
 
 		foreach ( $batch_category_counts as $category => $batch_count ) {
-			// Find category config.
-			$category_config = null;
-			foreach ( $categories as $cat ) {
-				if ( $cat['slug'] === $category ) {
-					$category_config = $cat;
-					break;
-				}
-			}
+			$category_config = Competition_Settings::find_category( $settings, $category );
 
 			if ( ! $category_config ) {
 				return new WP_Error(
@@ -434,14 +405,6 @@ class Upload_API extends WP_REST_Controller {
 		$submission_id = $request->get_param( 'submission_id' );
 		$category      = $request->get_param( 'category' );
 		$token_record  = $request->get_param( '_token_record' );
-
-		if ( ! $token_record ) {
-			return new WP_Error(
-				'invalid_token',
-				__( 'Invalid or expired upload token.', 'photo-competition-manager' ),
-				array( 'status' => 401 )
-			);
-		}
 
 		$member_id      = (int) $token_record->member_id;
 		$competition_id = (int) $token_record->competition_id;

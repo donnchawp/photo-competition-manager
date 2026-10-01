@@ -175,25 +175,31 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return $token_string;
 	}
 
-	private function make_image(): int {
+	private function make_image( string $category = 'colour' ): int {
 		return (int) ( new Images_Repository() )->create(
 			array(
 				'competition_id' => (int) $this->competition->id,
-				'member_id'      => $this->make_member( 'entrant@example.com', true ),
-				'category'       => 'colour',
-				'filename'       => 'entry.jpg',
+				'member_id'      => $this->make_member( $category . '-entrant@example.com', true ),
+				'category'       => $category,
+				'filename'       => $category . '-entry.jpg',
 			)
 		);
 	}
 
-	private function submit_vote( string $token_string, int $image_id ): void {
+	/**
+	 * Submit a ballot with a token.
+	 *
+	 * @param string             $token_string Voting token.
+	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
+	 */
+	private function submit_vote( string $token_string, $votes ): void {
 		$nonce = wp_create_nonce( 'photo_competition_vote_with_token' );
 
 		$_GET['token']                            = $token_string;
 		$_POST['photo_competition_vote']          = '1';
 		$_POST['photo_competition_vote_nonce']    = $nonce;
 		$_REQUEST['photo_competition_vote_nonce'] = $nonce;
-		$_POST['votes']                           = array( $image_id => '9' );
+		$_POST['votes']                           = is_array( $votes ) ? array_map( 'strval', $votes ) : array( $votes => '9' );
 
 		$this->shortcode->render();
 	}
@@ -244,6 +250,22 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->submit_vote( $this->issue_token( $this->make_member( 'active@example.com', true ) ), $image_id );
 
 		$this->assertSame( 1, $this->vote_count() );
+	}
+
+	public function test_token_vote_ignores_images_from_another_category(): void {
+		$colour_id = $this->make_image( 'colour' );
+		$mono_id   = $this->make_image( 'mono' );
+
+		$this->submit_vote(
+			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
+			array(
+				$colour_id => 9,
+				$mono_id   => 8,
+			)
+		);
+
+		$votes = ( new Votes_Repository() )->find_by_competition( (int) $this->competition->id );
+		$this->assertSame( array( $colour_id ), array_map( 'intval', array_column( $votes, 'image_id' ) ) );
 	}
 
 	public function test_inactive_member_token_cannot_vote(): void {

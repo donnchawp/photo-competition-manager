@@ -850,8 +850,8 @@ class Results_Controller {
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
-		$rows_by_grade = array_fill_keys( array_column( $grades, 'slug' ), array() );
-		$rows_by_grade['']     = array();
+		$rows_by_grade     = array_fill_keys( array_column( $grades, 'slug' ), array() );
+		$rows_by_grade[''] = array();
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';

@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
 use WP_Error;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -176,8 +177,8 @@ class Email_Job_Manager {
 			return false;
 		}
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		// Collect all members who submitted images.
 		$member_ids = array();
@@ -336,6 +337,7 @@ class Email_Job_Manager {
 		// Get next batch of unprocessed members.
 		$remaining = array_diff( $job['member_ids'], $job['processed_ids'] );
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
+		$members   = $this->members->find_many( $batch );
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -344,7 +346,7 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			$member = $this->members->find( (int) $member_id );
+			$member = $members[ (int) $member_id ] ?? null;
 
 			// Deleted or deactivated since the job was created.
 			if ( ! $member || ! (int) $member->active ) {
@@ -505,8 +507,8 @@ class Email_Job_Manager {
 		$competition_id = (int) $competition->id;
 		$member_id      = (int) $member->id;
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		$member_results = array(
 			'images' => array(),
@@ -526,13 +528,7 @@ class Email_Job_Manager {
 			$results = $this->calculator->get_results( $competition_id, $category_slug );
 
 			// Build a members lookup for grade filtering.
-			$members_lookup = array();
-			foreach ( $results as $result ) {
-				$result_member_id = (int) $result->member_id;
-				if ( ! isset( $members_lookup[ $result_member_id ] ) ) {
-					$members_lookup[ $result_member_id ] = $this->members->find( $result_member_id );
-				}
-			}
+			$members_lookup = $this->members->find_many( array_column( $results, 'member_id' ) );
 
 			// Filter results to only include images from the member's grade.
 			$grade_results = array();

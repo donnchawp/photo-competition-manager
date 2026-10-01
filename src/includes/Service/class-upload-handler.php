@@ -72,7 +72,7 @@ class Upload_Handler {
 	}
 
 	/**
-	 * Handle image upload submission.
+	 * Handle a member's image upload submission while the competition is accepting uploads.
 	 *
 	 * @param int                  $competition_id Competition ID.
 	 * @param int                  $member_id      Member ID.
@@ -81,22 +81,41 @@ class Upload_Handler {
 	 * @return int|WP_Error Image ID on success, WP_Error on failure.
 	 */
 	public function handle_upload( int $competition_id, int $member_id, string $category, array $file ) {
+		return $this->upload( $competition_id, $member_id, $category, $file, true );
+	}
+
+	/**
+	 * Upload an image on a member's behalf, regardless of competition dates/status.
+	 *
+	 * @param int                  $competition_id Competition ID.
+	 * @param int                  $member_id      Member ID.
+	 * @param string               $category       Category slug.
+	 * @param array<string, mixed> $file           Uploaded file from $_FILES.
+	 * @return int|WP_Error Image ID on success, WP_Error on failure.
+	 */
+	public function upload_on_behalf( int $competition_id, int $member_id, string $category, array $file ) {
+		return $this->upload( $competition_id, $member_id, $category, $file, false );
+	}
+
+	/**
+	 * Validate and store an uploaded image.
+	 *
+	 * @param int                  $competition_id    Competition ID.
+	 * @param int                  $member_id         Member ID.
+	 * @param string               $category          Category slug.
+	 * @param array<string, mixed> $file              Uploaded file from $_FILES.
+	 * @param bool                 $enforce_time_gate Reject uploads when the competition is not accepting them.
+	 * @return int|WP_Error Image ID on success, WP_Error on failure.
+	 */
+	private function upload( int $competition_id, int $member_id, string $category, array $file, bool $enforce_time_gate ) {
 		// Validate competition exists and is open.
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		// Check for admin bypass transient (set when admins upload on behalf of members).
-		$transient_key  = 'photo_comp_admin_upload_' . $competition_id . '_' . $member_id . '_' . get_current_user_id();
-		$admin_bypass   = get_transient( $transient_key );
-		$skip_time_gate = false !== $admin_bypass;
-
-		if ( ! $skip_time_gate ) {
-			// Regular validation for public uploads.
-			if ( ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
-				return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
-			}
+		if ( $enforce_time_gate && ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
+			return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
 		}
 
 		// Validate member exists and is active.
@@ -110,17 +129,8 @@ class Upload_Handler {
 		}
 
 		// Parse competition settings.
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
-		// Validate category exists.
-		$category_config = null;
-		foreach ( $categories as $cat ) {
-			if ( $cat['slug'] === $category ) {
-				$category_config = $cat;
-				break;
-			}
-		}
+		$settings        = Competition_Settings::parse( $competition->settings );
+		$category_config = Competition_Settings::find_category( $settings, $category );
 
 		if ( ! $category_config ) {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
@@ -262,43 +272,30 @@ class Upload_Handler {
 	}
 
 	/**
-	 * Get remaining quota for a member in a category.
+	 * Get a member's quota status for every category in a competition.
 	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $category       Category slug.
-	 * @return array{current: int, quota: int, remaining: int}|WP_Error
+	 * @param object $competition Competition record.
+	 * @param int    $member_id   Member ID.
+	 * @return array<string, array{label: string, slug: string, current: int, quota: int, remaining: int}> Keyed by category slug.
 	 */
-	public function get_quota_status( int $competition_id, int $member_id, string $category ) {
-		$competition = $this->competitions_repo->find( $competition_id );
-		if ( ! $competition ) {
-			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+	public function get_quota_status( object $competition, int $member_id ): array {
+		$settings = Competition_Settings::parse( $competition->settings );
+
+		$quota_status = array();
+		foreach ( Competition_Settings::get_categories( $settings ) as $cat ) {
+			$current = $this->images_repo->count_by_member_category( (int) $competition->id, $member_id, $cat['slug'] );
+			$quota   = $cat['quota'] ?? 1;
+
+			$quota_status[ $cat['slug'] ] = array(
+				'label'     => $cat['label'],
+				'slug'      => $cat['slug'],
+				'current'   => $current,
+				'quota'     => $quota,
+				'remaining' => max( 0, $quota - $current ),
+			);
 		}
 
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
-		$category_config = null;
-		foreach ( $categories as $cat ) {
-			if ( $cat['slug'] === $category ) {
-				$category_config = $cat;
-				break;
-			}
-		}
-
-		if ( ! $category_config ) {
-			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
-		}
-
-		$current   = $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
-		$quota     = $category_config['quota'] ?? 1;
-		$remaining = max( 0, $quota - $current );
-
-		return array(
-			'current'   => $current,
-			'quota'     => $quota,
-			'remaining' => $remaining,
-		);
+		return $quota_status;
 	}
 
 	/**
@@ -348,16 +345,8 @@ class Upload_Handler {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
-		$category_config = null;
-		foreach ( $categories as $cat ) {
-			if ( $cat['slug'] === $new_category ) {
-				$category_config = $cat;
-				break;
-			}
-		}
+		$settings        = Competition_Settings::parse( $competition->settings );
+		$category_config = Competition_Settings::find_category( $settings, $new_category );
 
 		if ( ! $category_config ) {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );

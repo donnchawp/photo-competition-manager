@@ -17,6 +17,14 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 abstract class Abstract_Repository {
 
 	/**
+	 * Whether the table has been seen to exist. Only a positive result is
+	 * cached, so a table created later in the request is still picked up.
+	 *
+	 * @var bool
+	 */
+	private $table_found = false;
+
+	/**
 	 * Fully qualified table name.
 	 *
 	 * @return string
@@ -35,12 +43,16 @@ abstract class Abstract_Repository {
 	public function table_exists(): bool {
 		global $wpdb;
 
+		if ( $this->table_found ) {
+			return true;
+		}
+
 		$table = $this->table();
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		$this->table_found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
 
-		return $found === $table;
+		return $this->table_found;
 	}
 
 	/**

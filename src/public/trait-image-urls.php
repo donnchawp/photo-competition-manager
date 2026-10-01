@@ -1,6 +1,6 @@
 <?php
 /**
- * Shared image URL helpers for public shortcodes.
+ * Shared image URL helpers for shortcodes and admin screens.
  *
  * @package PhotoCompetitionManager\Frontend
  */
@@ -14,8 +14,8 @@ use PhotoCompetitionManager\Support\Image_Processor;
 /**
  * Provides image URL resolution for competition entries.
  *
- * Shared by the Top 3 and Results shortcodes, which both need to resolve
- * the public URLs for an entry's full-size image and thumbnail.
+ * Shared by the Top 3 and Results shortcodes and the admin Submissions
+ * screen, which all resolve the URLs for an entry's full-size image and thumbnail.
  *
  * @since 0.3.0
  */

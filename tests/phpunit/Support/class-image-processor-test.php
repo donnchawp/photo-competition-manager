@@ -222,6 +222,14 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The extension is lowercased, so uppercase names don't collide with the main image.
+	 */
+	public function test_get_thumbnail_filename_lowercases_extension(): void {
+		$this->assertEquals( 'Photo-thumb.jpg', Image_Processor::get_thumbnail_filename( 'Photo.JPG' ) );
+		$this->assertEquals( 'photo-thumb.jpeg', Image_Processor::get_thumbnail_filename( 'photo.jpeg' ) );
+	}
+
+	/**
 	 * Filenames without an extension still receive the suffix.
 	 */
 	public function test_get_thumbnail_filename_handles_missing_extension(): void {
