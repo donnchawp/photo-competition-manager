@@ -60,6 +60,48 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertFalse( get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_maybe_upgrade_unschedules_email_cron_events(): void {
+		// Email jobs are sent from the admin page now, and the competition closed email is gone.
+		wp_schedule_event( time(), 'daily', 'photo_competition_daily_cron' );
+		wp_schedule_single_event( time() + 60, 'photo_comp_send_email_batch', array( 'email_job_a' ) );
+		wp_schedule_single_event( time() + 60, 'photo_comp_send_results_batch', array( 'email_job_b' ) );
+		update_option( 'photo_comp_db_version', 1 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertFalse( wp_next_scheduled( 'photo_competition_daily_cron' ) );
+		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_email_batch', array( 'email_job_a' ) ) );
+		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_results_batch', array( 'email_job_b' ) ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_maybe_upgrade_drops_competition_closed_template(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_opened'      => array( 'enabled' => true ),
+				'competition_closed' => array( 'enabled' => true ),
+			)
+		);
+		update_option( 'photo_comp_db_version', 1 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame(
+			array( 'voting_opened' => array( 'enabled' => true ) ),
+			get_option( 'photo_comp_email_templates' )
+		);
+	}
+
+	public function test_maybe_upgrade_leaves_missing_templates_option_alone(): void {
+		delete_option( 'photo_comp_email_templates' );
+		update_option( 'photo_comp_db_version', 1 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertFalse( get_option( 'photo_comp_email_templates' ) );
+	}
+
 	public function test_maybe_upgrade_skips_when_current(): void {
 		global $wpdb;
 		$repository = new Members_Repository( $wpdb );

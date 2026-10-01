@@ -18,7 +18,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Email_Results_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
@@ -79,7 +79,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $votes );
 		$calculator  = new Score_Calculator( $this->images, $votes );
 		$email       = new Email_Service();
-		$job_manager = new Email_Results_Job_Manager(
+		$job_manager = new Email_Job_Manager(
 			$this->competitions,
 			$this->images,
 			$this->members,
@@ -96,7 +96,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$votes,
 			$analytics,
 			$calculator,
-			$email,
 			$job_manager
 		);
 
@@ -357,7 +356,8 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'competition=' . $id, $location );
-		$this->assertContains( 'results_link_sent', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**
@@ -371,6 +371,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
 			)
 		);
+		$this->seed_member_with_image( $id, 'colour' );
 
 		$this->set_request(
 			array(
@@ -380,13 +381,42 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
 
-		$this->capture_redirect(
+		$location = $this->capture_redirect(
 			function () {
 				$this->controller->handle_actions();
 			}
 		);
 
-		$this->assertContains( 'results_link_sent', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+	}
+
+	/**
+	 * With nobody to email, no job is queued and an error is recorded.
+	 */
+	public function test_send_results_no_recipients(): void {
+		$id = $this->create_competition(
+			array(
+				'share_hash' => 'ghi789hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_committee',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_committee_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertContains( 'no_recipients', $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**

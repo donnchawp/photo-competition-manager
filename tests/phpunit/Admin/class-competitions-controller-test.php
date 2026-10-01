@@ -529,9 +529,9 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_close_competition_closes_open_voting(): void {
 		$id = $this->create_competition( 'Mid Vote', 'mid-vote', '2020-01-01 00:00:00' );
 
-		$settings                                        = $this->settings( $id );
-		$settings['voting']['open_categories']           = array( 'colour' );
-		$settings['voting']['category_steps']['colour']  = 3;
+		$settings                                       = $this->settings( $id );
+		$settings['voting']['open_categories']          = array( 'colour' );
+		$settings['voting']['category_steps']['colour'] = 3;
 		$this->competitions->update( $id, array( 'settings' => $settings ) );
 
 		$this->set_request(
@@ -778,6 +778,32 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Deleting a competition stops its unfinished email jobs.
+	 */
+	public function test_delete_discards_unfinished_email_jobs(): void {
+		$id     = $this->create_competition( 'To Delete', 'to-delete' );
+		$jobs   = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
+		$job_id = $jobs->create_job( 'results_share', $id, array( 1 ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'delete',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( 'failed', $jobs->get_job( $job_id )['status'] );
+		$this->assertSame( array(), $jobs->get_abandoned_jobs() );
+	}
+
+	/**
 	 * Deleting a missing competition surfaces the repository error code.
 	 */
 	public function test_delete_not_found_error(): void {
@@ -868,7 +894,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 
 	/**
-	 * Sending reminder emails on an open competition with members reports success.
+	 * Sending reminder emails on an open competition queues a background job
+	 * and redirects to the dashboard, which shows its progress.
 	 */
 	public function test_send_emails_success(): void {
 		// Open competition: null open/close dates make is_open() true.
@@ -896,7 +923,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
-		$this->assertContains( 'emails_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**
