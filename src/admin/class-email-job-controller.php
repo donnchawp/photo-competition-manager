@@ -36,6 +36,11 @@ class Email_Job_Controller {
 	const DISCARD_ACTION = 'photo_comp_discard_email_job';
 
 	/**
+	 * Query arg added when Discard found nothing to discard.
+	 */
+	const NOT_DISCARDED_ARG = 'email_job_not_discarded';
+
+	/**
 	 * Email job queue.
 	 *
 	 * @var Email_Job_Manager
@@ -80,6 +85,11 @@ class Email_Job_Controller {
 	public function render_abandoned_job_notices(): void {
 		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
 			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET[ self::NOT_DISCARDED_ARG ] ) ) {
+			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__( "The email job wasn't discarded because it's still sending or has already finished.", 'photo-competition-manager' ) . '</p></div>';
 		}
 
 		// That job's progress notice is already on this page.
@@ -176,10 +186,12 @@ class Email_Job_Controller {
 		}
 
 		/* translators: %s: Name of the user who discarded the job */
-		$this->email_jobs->discard_job( $job_id, sprintf( __( 'Discarded by %s', 'photo-competition-manager' ), wp_get_current_user()->display_name ) );
+		$discarded = $this->email_jobs->discard_job( $job_id, sprintf( __( 'Discarded by %s', 'photo-competition-manager' ), wp_get_current_user()->display_name ) );
 
 		$referer = wp_get_referer();
-		wp_safe_redirect( $referer ? $referer : $this->dashboard_url() );
+		$url     = remove_query_arg( self::NOT_DISCARDED_ARG, $referer ? $referer : $this->dashboard_url() );
+
+		wp_safe_redirect( $discarded ? $url : add_query_arg( self::NOT_DISCARDED_ARG, '1', $url ) );
 		exit;
 	}
 

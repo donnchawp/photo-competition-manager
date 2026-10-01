@@ -37,9 +37,11 @@ class Email_Job_Manager {
 	const LOCK_TIMEOUT = 120;
 
 	/**
-	 * Seconds an unfinished job can go without progress before it counts as abandoned.
+	 * Seconds an unfinished job can go without progress before it counts as
+	 * abandoned. Longer than LOCK_TIMEOUT, so a request stuck on one slow
+	 * send isn't offered to someone else the moment its lock can be taken.
 	 */
-	const ABANDONED_AFTER = 120;
+	const ABANDONED_AFTER = 300;
 
 	/**
 	 * Prefix of the option each job is stored in. The rest is the job ID.
@@ -663,24 +665,39 @@ class Email_Job_Manager {
 	 * Stop an unfinished job for good. It's marked failed, so cleanup removes
 	 * it and the same send can be queued again.
 	 *
+	 * Refused while a batch is being sent, as that request saves its own copy
+	 * of the job after every member and would undo the discard.
+	 *
 	 * @param string $job_id Job ID.
 	 * @param string $reason Why, added to the job's error log.
 	 * @return bool Whether the job was discarded.
 	 */
 	public function discard_job( string $job_id, string $reason ): bool {
-		$job = $this->get_job( $job_id );
-
-		if ( ! $job || ! self::is_unfinished( $job ) ) {
+		if ( ! $this->acquire_lock( $job_id ) ) {
 			return false;
 		}
 
-		$this->fail_job( $job_id, $job, $reason );
+		try {
+			$job = $this->get_job( $job_id );
 
-		return true;
+			if ( ! $job || ! self::is_unfinished( $job ) ) {
+				return false;
+			}
+
+			$job['status']       = 'failed';
+			$job['completed_at'] = utc_time();
+			$job['error_log'][]  = $reason;
+
+			return $this->update_job( $job_id, $job );
+		} finally {
+			$this->release_lock( $job_id );
+		}
 	}
 
 	/**
-	 * Discard every unfinished job for a competition.
+	 * Discard every unfinished job for a competition. A job that's sending a
+	 * batch right now is left alone, and its next batch fails once it finds
+	 * the competition gone.
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $reason         Why, added to each job's error log.
@@ -690,29 +707,12 @@ class Email_Job_Manager {
 		$discarded = 0;
 
 		foreach ( $this->get_all_jobs() as $job_id => $job ) {
-			if ( (int) $job['competition_id'] === $competition_id && self::is_unfinished( $job ) ) {
-				$this->fail_job( $job_id, $job, $reason );
+			if ( (int) $job['competition_id'] === $competition_id && self::is_unfinished( $job ) && $this->discard_job( (string) $job_id, $reason ) ) {
 				++$discarded;
 			}
 		}
 
 		return $discarded;
-	}
-
-	/**
-	 * Mark a job failed for good.
-	 *
-	 * @param string $job_id Job ID.
-	 * @param array  $job    Job data.
-	 * @param string $reason Why, added to the job's error log.
-	 * @return void
-	 */
-	private function fail_job( string $job_id, array $job, string $reason ): void {
-		$job['status']       = 'failed';
-		$job['completed_at'] = utc_time();
-		$job['error_log'][]  = $reason;
-
-		$this->update_job( $job_id, $job );
 	}
 
 	/**

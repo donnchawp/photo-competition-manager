@@ -448,14 +448,14 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertGreaterThan( time() - 10, $updated_at );
 	}
 
-	public function test_get_abandoned_jobs_lists_unfinished_jobs_idle_for_two_minutes(): void {
+	public function test_get_abandoned_jobs_lists_unfinished_jobs_idle_for_five_minutes(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
 		$stale     = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
 		$moving    = $this->manager->create_job( 'upload_link', $this->competition_id, array( $member_id ) );
 		$finished  = $this->manager->create_job( 'voting_opened', $this->competition_id, array( $member_id ) );
 
-		$this->age_job( $stale, 121, 'processing' );
-		$this->age_job( $moving, 60, 'processing' );
+		$this->age_job( $stale, 301, 'processing' );
+		$this->age_job( $moving, 240, 'processing' );
 		$this->age_job( $finished, 600, 'completed' );
 
 		$this->assertSame( array( $stale ), array_keys( $this->manager->get_abandoned_jobs() ) );
@@ -482,6 +482,16 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 'failed', $job['status'] );
 		$this->assertContains( 'Discarded by admin', $job['error_log'] );
 		$this->assertNotSame( $first, $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS ) );
+	}
+
+	public function test_discard_job_refuses_while_a_batch_is_sending(): void {
+		// The sending request saves its own copy of the job after every member, which would undo the discard.
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		add_option( 'photo_comp_email_lock_' . $job_id, time(), '', false );
+
+		$this->assertFalse( $this->manager->discard_job( $job_id, 'Discarded by admin' ) );
+		$this->assertSame( 'pending', $this->manager->get_job( $job_id )['status'] );
+		$this->assertNotFalse( get_option( 'photo_comp_email_lock_' . $job_id ), 'The sending request still holds its lock.' );
 	}
 
 	public function test_discard_job_leaves_finished_and_unknown_jobs_alone(): void {

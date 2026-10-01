@@ -201,7 +201,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_abandoned_job_notice_offers_carry_on_and_discard(): void {
 		$job_id = $this->queue_job( 15 );
 		$this->send_batch( $job_id );
-		$this->age_job( $job_id, 300 );
+		$this->age_job( $job_id, 400 );
 		$this->reset_request();
 
 		$html = $this->abandoned_notices();
@@ -214,7 +214,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 
 	public function test_abandoned_job_notice_names_an_archived_competition(): void {
 		$job_id = $this->queue_job( 15 );
-		$this->age_job( $job_id, 300 );
+		$this->age_job( $job_id, 400 );
 		( new Competitions_Repository() )->archive( $this->competition_id );
 
 		$this->assertStringContainsString( 'for Spring Show stopped at 0 of 15.', $this->abandoned_notices() );
@@ -222,14 +222,14 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 
 	public function test_no_notice_for_job_that_moved_recently(): void {
 		$job_id = $this->queue_job( 15 );
-		$this->age_job( $job_id, 60 );
+		$this->age_job( $job_id, 240 );
 
 		$this->assertSame( '', $this->abandoned_notices() );
 	}
 
 	public function test_no_notice_without_capability(): void {
 		$job_id = $this->queue_job( 15 );
-		$this->age_job( $job_id, 300 );
+		$this->age_job( $job_id, 400 );
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
 
 		$this->assertSame( '', $this->abandoned_notices() );
@@ -237,7 +237,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 
 	public function test_no_notice_for_job_already_on_the_page(): void {
 		$job_id = $this->queue_job( 15 );
-		$this->age_job( $job_id, 300 );
+		$this->age_job( $job_id, 400 );
 		$this->set_request( array( 'job_id' => $job_id ) );
 
 		$this->assertSame( '', $this->abandoned_notices() );
@@ -269,7 +269,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$job_id    = $this->jobs->create_job( $type, $this->competition_id, array( $member_id ) );
-		$this->age_job( $job_id, 300 );
+		$this->age_job( $job_id, 400 );
 
 		preg_match( '/href="([^"]+)"[^>]*>Carry on/', $this->abandoned_notices(), $matches );
 		parse_str( (string) wp_parse_url( html_entity_decode( $matches[1] ), PHP_URL_QUERY ), $args );
@@ -281,21 +281,60 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 		}
 	}
 
-	public function test_discard_fails_the_job_and_redirects_back(): void {
-		$job_id = $this->queue_job( 15 );
+	/**
+	 * Call the Discard handler for a job, coming from a page.
+	 *
+	 * @param string $job_id  Job ID.
+	 * @param string $referer Page the Discard link was on.
+	 * @return string Redirect location.
+	 */
+	private function discard( string $job_id, string $referer ): string {
 		$this->set_request( array( 'job_id' => $job_id ) );
 		$this->set_nonce( Email_Job_Controller::DISCARD_ACTION . '_' . $job_id );
+		$_SERVER['HTTP_REFERER'] = $referer;
 
-		$location = $this->capture_redirect(
-			function () {
-				$this->controller->handle_discard();
-			}
-		);
+		try {
+			return $this->capture_redirect(
+				function () {
+					$this->controller->handle_discard();
+				}
+			);
+		} finally {
+			unset( $_SERVER['HTTP_REFERER'] );
+		}
+	}
+
+	public function test_discard_fails_the_job_and_redirects_back(): void {
+		$job_id  = $this->queue_job( 15 );
+		$members = admin_url( 'admin.php?page=photo-competition-manager-members' );
+
+		$location = $this->discard( $job_id, $members );
 
 		$job = $this->jobs->get_job( $job_id );
 		$this->assertSame( 'failed', $job['status'] );
 		$this->assertStringStartsWith( 'Discarded by ', end( $job['error_log'] ) );
-		$this->assertStringContainsString( 'wp-admin/', $location );
+		$this->assertSame( $members, $location );
+	}
+
+	public function test_discard_while_sending_says_so_and_leaves_the_job_alone(): void {
+		$job_id = $this->queue_job( 15 );
+		add_option( 'photo_comp_email_lock_' . $job_id, time(), '', false );
+
+		$location = $this->discard( $job_id, admin_url( 'admin.php?page=photo-competition-manager-members' ) );
+
+		$this->assertSame( 'pending', $this->jobs->get_job( $job_id )['status'] );
+		$this->assertStringContainsString( 'email_job_not_discarded=1', $location );
+
+		$this->set_request( array( 'email_job_not_discarded' => '1' ) );
+		$this->assertStringContainsString( 'still sending or has already finished', $this->abandoned_notices() );
+	}
+
+	public function test_discard_drops_an_earlier_not_discarded_message_from_the_page(): void {
+		$job_id = $this->queue_job( 15 );
+
+		$location = $this->discard( $job_id, admin_url( 'admin.php?page=photo-competition-manager-members&email_job_not_discarded=1' ) );
+
+		$this->assertSame( admin_url( 'admin.php?page=photo-competition-manager-members' ), $location );
 	}
 
 	public function test_discard_rejects_bad_nonce(): void {
