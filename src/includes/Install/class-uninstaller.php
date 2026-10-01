@@ -25,14 +25,9 @@ class Uninstaller {
 	 * @return void
 	 */
 	public static function delete_data(): void {
-		delete_option( 'photo_comp_db_version' );
-		delete_option( 'photo_comp_default_settings' );
-		delete_option( 'photo_comp_email_templates' );
-		delete_option( 'photo_comp_voting_ui_type' );
-
-		// One option per bulk email job, plus a lock left by any request that died mid-batch.
-		self::delete_options_starting_with( 'photo_comp_email_job_' );
-		self::delete_options_starting_with( 'photo_comp_email_lock_' );
+		// Every plugin option is prefixed, including one per bulk email job
+		// and a lock left by any request that died mid-batch.
+		self::delete_options_starting_with( 'photo_comp_' );
 
 		// Transient names vary by competition and member.
 		self::delete_options_starting_with( '_transient_photo_comp_' );
@@ -49,6 +44,9 @@ class Uninstaller {
 	/**
 	 * Delete every option whose name starts with a prefix.
 	 *
+	 * Goes through delete_option() rather than one DELETE query, so the
+	 * options cache doesn't keep serving autoloaded values.
+	 *
 	 * @param string $prefix Option name prefix, matched literally.
 	 * @return void
 	 */
@@ -56,12 +54,16 @@ class Uninstaller {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->query(
+		$names = $wpdb->get_col(
 			$wpdb->prepare(
-				'DELETE FROM %i WHERE option_name LIKE %s',
+				'SELECT option_name FROM %i WHERE option_name LIKE %s',
 				$wpdb->options,
 				$wpdb->esc_like( $prefix ) . '%'
 			)
 		);
+
+		foreach ( $names as $name ) {
+			delete_option( $name );
+		}
 	}
 }

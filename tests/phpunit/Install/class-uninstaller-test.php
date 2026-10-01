@@ -26,6 +26,15 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		$this->assertFalse( get_option( 'photo_comp_voting_ui_type' ) );
 	}
 
+	public function test_delete_data_removes_options_added_later(): void {
+		// Every plugin option starts with photo_comp_, so new ones go too.
+		update_option( 'photo_comp_some_future_setting', 'value' );
+
+		Uninstaller::delete_data();
+
+		$this->assertFalse( get_option( 'photo_comp_some_future_setting' ) );
+	}
+
 	public function test_delete_data_removes_email_jobs_and_locks(): void {
 		update_option( 'photo_comp_email_job_email_job_a', array( 'status' => 'completed' ), false );
 		update_option( 'photo_comp_email_job_email_job_b', array( 'status' => 'processing' ), false );
