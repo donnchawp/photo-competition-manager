@@ -131,6 +131,16 @@ class Email_Job_Manager {
 	private $upload_links;
 
 	/**
+	 * Category results for the batch being sent, grouped by uploader grade.
+	 *
+	 * Every member in a results batch gets the same results, so each category
+	 * is loaded once per batch. Cleared at the start of each batch.
+	 *
+	 * @var array<string, array<string, array<int, object>>>
+	 */
+	private $results_by_grade = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository  $competitions    Competitions repository.
@@ -339,6 +349,8 @@ class Email_Job_Manager {
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 		$members   = $this->members->find_many( $batch );
 
+		$this->results_by_grade = array();
+
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
 			// Avoid duplicate processing.
@@ -525,26 +537,8 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			$results = $this->calculator->get_results( $competition_id, $category_slug );
-
-			// Build a members lookup for grade filtering.
-			$members_lookup = $this->members->find_many( array_column( $results, 'member_id' ) );
-
-			// Filter results to only include images from the member's grade.
-			$grade_results = array();
-			if ( ! empty( $member_grade ) ) {
-				foreach ( $results as $result ) {
-					$result_member_id = (int) $result->member_id;
-					$result_member    = $members_lookup[ $result_member_id ] ?? null;
-					if ( $result_member && $result_member->grade === $member_grade ) {
-						$grade_results[] = $result;
-					}
-				}
-			} else {
-				// If member has no grade, fall back to all results.
-				$grade_results = $results;
-			}
-
+			// Only rank against images from the member's grade. A member with no grade is ranked against all results.
+			$grade_results  = $this->get_results_by_grade( $competition_id, $category_slug )[ $member_grade ] ?? array();
 			$total_in_grade = count( $grade_results );
 
 			// Find this member's images in the grade results.
@@ -581,6 +575,36 @@ class Email_Job_Manager {
 			$competition->title,
 			$member_results
 		);
+	}
+
+	/**
+	 * Get a category's ranked results grouped by the uploader's grade.
+	 *
+	 * The '' key holds all results, for members with no grade.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category_slug  Category slug.
+	 * @return array<string, array<int, object>> Ranked results keyed by grade slug.
+	 */
+	private function get_results_by_grade( int $competition_id, string $category_slug ): array {
+		$key = $competition_id . ':' . $category_slug;
+
+		if ( ! isset( $this->results_by_grade[ $key ] ) ) {
+			$results  = $this->calculator->get_results( $competition_id, $category_slug );
+			$members  = $this->members->find_many( array_column( $results, 'member_id' ) );
+			$by_grade = array( '' => $results );
+
+			foreach ( $results as $result ) {
+				$grade = $members[ (int) $result->member_id ]->grade ?? '';
+				if ( '' !== $grade ) {
+					$by_grade[ $grade ][] = $result;
+				}
+			}
+
+			$this->results_by_grade[ $key ] = $by_grade;
+		}
+
+		return $this->results_by_grade[ $key ];
 	}
 
 	/**
