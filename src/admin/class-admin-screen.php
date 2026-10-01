@@ -89,6 +89,13 @@ class Admin_Screen {
 	private $logs_controller;
 
 	/**
+	 * Email job controller.
+	 *
+	 * @var Email_Job_Controller
+	 */
+	private $email_job_controller;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Dependencies|null $deps Optional dependencies container.
@@ -97,10 +104,10 @@ class Admin_Screen {
 		$deps = $deps ?? new Dependencies();
 
 		// Initialize controllers with their dependencies.
-		$this->competitions_controller    = new Competitions_Controller( $deps->competitions );
+		$this->competitions_controller    = new Competitions_Controller( $deps->competitions, $deps->email_job_manager );
 		$this->members_controller         = new Members_Controller( $deps->competitions, $deps->members );
 		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
-		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images );
+		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images, $deps->members, $deps->email_job_manager );
 		$this->settings_controller        = new Settings_Controller( $deps->competitions, $deps->members );
 		$this->export_screen              = new Export_Screen();
 		$this->results_controller         = new Results_Controller(
@@ -110,12 +117,12 @@ class Admin_Screen {
 			$deps->votes,
 			$deps->analytics,
 			$deps->score_calculator,
-			$deps->email_service,
 			$deps->email_job_manager
 		);
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
 		$this->email_templates_controller = new Email_Templates_Controller();
 		$this->logs_controller            = new Logs_Controller( $deps->logs, $deps->competitions );
+		$this->email_job_controller       = new Email_Job_Controller( $deps->email_job_manager );
 	}
 
 	/**
@@ -138,6 +145,7 @@ class Admin_Screen {
 		$this->setup_wizard_controller->register();
 		$this->email_templates_controller->register();
 		$this->logs_controller->register();
+		$this->email_job_controller->register();
 	}
 
 	/**

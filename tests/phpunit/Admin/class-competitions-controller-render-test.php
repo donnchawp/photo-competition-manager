@@ -250,43 +250,84 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'More than one competition is open', $html );
 	}
 
-	/**
-	 * With the Competition Closed email enabled, closing a competition emails
-	 * every active member on the next cron run, so the confirmation says so.
-	 */
-	public function test_render_close_confirm_warns_when_closed_email_enabled(): void {
+	public function test_render_upload_link_job_notice_reports_skipped_members(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 		update_option(
-			'photo_comp_email_templates',
+			'photo_comp_email_job_upload_test',
 			array(
-				'competition_closed' => array(
-					'enabled' => true,
-					'subject' => '{competition_title} has closed',
-					'body'    => '<p>Hi {member_name}</p>',
-				),
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2, 3 ),
+				'status'         => 'completed',
+				'total_count'    => 3,
+				'sent_count'     => 1,
+				'skipped_count'  => 2,
+				'failed_count'   => 0,
+				'error_log'      => array(),
 			)
 		);
-		$this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->set_request( array( 'job_id' => 'upload_test' ) );
 
 		ob_start();
 		$this->controller->render();
 		$html = (string) ob_get_clean();
 
-		$this->assertMatchesRegularExpression( '/class="photo-comp-close-competition" data-confirm="[^"]*every active member[^"]*"/', $html );
+		$this->assertStringContainsString( 'Upload link emails sent.', $html );
+		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because they were emailed in the last 5 minutes.', $html );
 	}
 
-	/**
-	 * With the Competition Closed email off, the confirmation doesn't mention it.
-	 */
-	public function test_render_close_confirm_no_email_warning_when_closed_email_disabled(): void {
-		delete_option( 'photo_comp_email_templates' );
-		$this->seed_competition( 'Spring Show', 'spring-show' );
+	public function test_render_completed_job_notice_lists_failures(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_upload_failed_test',
+			array(
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2 ),
+				'status'         => 'completed',
+				'total_count'    => 2,
+				'sent_count'     => 1,
+				'skipped_count'  => 0,
+				'failed_count'   => 1,
+				'error_log'      => array( 'Failed to send email to Bob (bob@example.com): wp_mail() failed' ),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'upload_failed_test' ) );
 
 		ob_start();
 		$this->controller->render();
 		$html = (string) ob_get_clean();
 
-		$this->assertStringContainsString( 'class="photo-comp-close-competition"', $html );
-		$this->assertStringNotContainsString( 'every active member', $html );
+		$this->assertStringContainsString( '1 emails failed to send.', $html );
+		$this->assertStringContainsString( '<li>Failed to send email to Bob (bob@example.com): wp_mail() failed</li>', $html );
+	}
+
+	public function test_render_running_job_notice_is_driven_by_ajax(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_upload_running_test',
+			array(
+				'type'           => 'upload_link',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1 ),
+				'status'         => 'processing',
+				'total_count'    => 2,
+				'sent_count'     => 1,
+				'skipped_count'  => 0,
+				'failed_count'   => 0,
+				'error_log'      => array(),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'upload_running_test' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'class="notice notice-info photo-comp-email-job" data-job-id="upload_running_test"', $html );
+		$this->assertStringContainsString( 'data-action="photo_comp_send_email_batch"', $html );
+		$this->assertStringNotContainsString( 'http-equiv="refresh"', $html );
+		$this->assertTrue( wp_script_is( 'photo-comp-email-job', 'enqueued' ) );
 	}
 
 	public function test_render_list_archived_view(): void {
