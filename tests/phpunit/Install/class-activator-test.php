@@ -75,6 +75,33 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_maybe_upgrade_drops_competition_closed_template(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_opened'      => array( 'enabled' => true ),
+				'competition_closed' => array( 'enabled' => true ),
+			)
+		);
+		update_option( 'photo_comp_db_version', 1 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame(
+			array( 'voting_opened' => array( 'enabled' => true ) ),
+			get_option( 'photo_comp_email_templates' )
+		);
+	}
+
+	public function test_maybe_upgrade_leaves_missing_templates_option_alone(): void {
+		delete_option( 'photo_comp_email_templates' );
+		update_option( 'photo_comp_db_version', 1 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertFalse( get_option( 'photo_comp_email_templates' ) );
+	}
+
 	public function test_maybe_upgrade_skips_when_current(): void {
 		global $wpdb;
 		$repository = new Members_Repository( $wpdb );

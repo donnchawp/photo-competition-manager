@@ -58,11 +58,18 @@ class Activator {
 		}
 
 		// Email jobs are sent from the admin page now, and the competition
-		// closed email is gone, so these WP-Cron events have no handler.
+		// closed email is gone, so these WP-Cron events have no handler and
+		// its saved template is never used.
 		if ( $installed < 2 ) {
 			wp_unschedule_hook( 'photo_competition_daily_cron' );
 			wp_unschedule_hook( 'photo_comp_send_email_batch' );
 			wp_unschedule_hook( 'photo_comp_send_results_batch' );
+
+			$templates = get_option( 'photo_comp_email_templates' );
+			if ( is_array( $templates ) && isset( $templates['competition_closed'] ) ) {
+				unset( $templates['competition_closed'] );
+				update_option( 'photo_comp_email_templates', $templates );
+			}
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
