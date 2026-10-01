@@ -110,6 +110,30 @@ class Upload_Handler_Test extends WP_UnitTestCase {
 		$this->assertSame( 'competition_closed', $result->get_error_code() );
 	}
 
+	public function test_upload_on_behalf_skips_the_closed_check(): void {
+		$closed_id = $this->competitions_repo->create(
+			array(
+				'title'      => 'Closed Comp',
+				'slug'       => 'closed-comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		// Gets past the time gate to the next validation step.
+		$result = $this->handler->upload_on_behalf( $closed_id, $this->member_id, 'nonexistent', array() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_category', $result->get_error_code() );
+	}
+
+	public function test_upload_on_behalf_still_validates_the_member(): void {
+		$result = $this->handler->upload_on_behalf( $this->competition_id, 9999, 'colour', array() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_member', $result->get_error_code() );
+	}
+
 	public function test_handle_upload_rejects_invalid_member(): void {
 		$result = $this->handler->handle_upload( $this->competition_id, 9999, 'colour', array() );
 

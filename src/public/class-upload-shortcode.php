@@ -554,7 +554,6 @@ class Upload_Shortcode {
 							<?php foreach ( $submissions as $image ) : ?>
 								<div class="submission-item" data-submission-id="<?php echo esc_attr( $image->id ); ?>">
 									<img src="<?php echo esc_url( $image->thumbnail_url ); ?>" alt="" />
-
 									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
