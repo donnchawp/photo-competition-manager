@@ -547,14 +547,14 @@ class Upload_Shortcode {
 						<div id="category-change-status" class="category-change-status" style="display: none;"></div>
 
 						<div class="submissions-grid">
+							<?php
+							// Build form action URL with token to preserve it across submissions.
+							$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
+							?>
 							<?php foreach ( $submissions as $image ) : ?>
 								<div class="submission-item" data-submission-id="<?php echo esc_attr( $image->id ); ?>">
 									<img src="<?php echo esc_url( $image->thumbnail_url ); ?>" alt="" />
-									<?php
-									// Build form action URL with token to preserve it across submissions.
-									$token_param        = $this->token_param();
-									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
-									?>
+
 									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
@@ -675,7 +675,6 @@ class Upload_Shortcode {
 
 						<?php
 						// Build form action URL with token to preserve it across submissions.
-						$token_param = $this->token_param();
 						$form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
 						?>
 						<form method="post" enctype="multipart/form-data" class="competition-upload-form" action="<?php echo esc_url( $form_action ); ?>">

@@ -188,27 +188,10 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
-		$quota_status = array();
-		foreach ( $categories as $cat ) {
-			$current = $this->upload_handler->get_category_count( (int) $competition->id, $member_id, $cat['slug'] );
-			$quota   = $cat['quota'] ?? 1;
-
-			$quota_status[ $cat['slug'] ] = array(
-				'label'     => $cat['label'],
-				'slug'      => $cat['slug'],
-				'current'   => $current,
-				'quota'     => $quota,
-				'remaining' => max( 0, $quota - $current ),
-			);
-		}
-
 		return new WP_REST_Response(
 			array(
 				'competition_id' => $competition->id,
-				'quotas'         => $quota_status,
+				'quotas'         => $this->upload_handler->get_quota_status( $competition, $member_id ),
 			),
 			200
 		);

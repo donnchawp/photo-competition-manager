@@ -239,9 +239,9 @@ class Upload_Handler_Test extends WP_UnitTestCase {
 	// ---------------------------------------------------------------
 
 	public function test_get_quota_status_returns_full_quota_when_empty(): void {
-		$status = $this->handler->get_quota_status( $this->competition_id, $this->member_id, 'colour' );
+		$competition = $this->competitions_repo->find( $this->competition_id );
+		$status      = $this->handler->get_quota_status( $competition, $this->member_id )['colour'];
 
-		$this->assertIsArray( $status );
 		$this->assertSame( 0, $status['current'] );
 		$this->assertSame( 1, $status['quota'] );
 		$this->assertSame( 1, $status['remaining'] );
@@ -257,24 +257,12 @@ class Upload_Handler_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$status = $this->handler->get_quota_status( $this->competition_id, $this->member_id, 'colour' );
+		$competition = $this->competitions_repo->find( $this->competition_id );
+		$status      = $this->handler->get_quota_status( $competition, $this->member_id );
 
-		$this->assertSame( 1, $status['current'] );
-		$this->assertSame( 0, $status['remaining'] );
-	}
-
-	public function test_get_quota_status_rejects_invalid_competition(): void {
-		$result = $this->handler->get_quota_status( 9999, $this->member_id, 'colour' );
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'invalid_competition', $result->get_error_code() );
-	}
-
-	public function test_get_quota_status_rejects_invalid_category(): void {
-		$result = $this->handler->get_quota_status( $this->competition_id, $this->member_id, 'nonexistent' );
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'invalid_category', $result->get_error_code() );
+		$this->assertSame( 1, $status['colour']['current'] );
+		$this->assertSame( 0, $status['colour']['remaining'] );
+		$this->assertSame( 1, $status['black-white']['remaining'] );
 	}
 
 	// ---------------------------------------------------------------

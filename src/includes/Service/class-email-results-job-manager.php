@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -152,8 +153,8 @@ class Email_Results_Job_Manager {
 			return false;
 		}
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		// Collect all members who submitted images.
 		$member_ids = array();
@@ -253,8 +254,8 @@ class Email_Results_Job_Manager {
 		$remaining = array_diff( $job['member_ids'], $job['processed_ids'] );
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		// Results and their uploaders are the same for every member in the batch, so load them once.
 		$category_results  = array();
@@ -270,7 +271,7 @@ class Email_Results_Job_Manager {
 				$result_member_ids[] = (int) $result->member_id;
 			}
 		}
-		$members_lookup = $this->members->find_many( $result_member_ids );
+		$members_lookup = $this->members->find_many( array_merge( $result_member_ids, $batch ) );
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -279,7 +280,7 @@ class Email_Results_Job_Manager {
 				continue;
 			}
 
-			$member = $this->members->find( (int) $member_id );
+			$member = $members_lookup[ (int) $member_id ] ?? null;
 			if ( ! $member || empty( $member->email ) ) {
 				++$job['failed_count'];
 				$job['error_log'][]     = sprintf( 'Member %d has no email address', $member_id );

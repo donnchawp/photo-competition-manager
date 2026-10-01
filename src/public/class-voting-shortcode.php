@@ -716,13 +716,7 @@ class Voting_Shortcode {
 				}
 
 				// Get category label.
-				$category_label = $category;
-				foreach ( $voting_categories as $cat ) {
-					if ( $cat['slug'] === $category ) {
-						$category_label = $cat['label'];
-						break;
-					}
-				}
+				$category_label = array_column( $voting_categories, 'label', 'slug' )[ $category ] ?? $category;
 
 				// Get images for this category in randomized order to prevent identification across categories.
 				$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );

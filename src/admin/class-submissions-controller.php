@@ -469,9 +469,8 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
-					// Admins may upload on a member's behalf regardless of competition dates/status.
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Upload_Handler.
-					$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ), true );
+					$result = $this->upload_handler->upload_on_behalf( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(
