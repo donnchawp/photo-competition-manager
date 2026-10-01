@@ -42,7 +42,7 @@ if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
 		absint( $data['percent'] )
 	);
 	echo '</p>';
-	echo '<p><em>' . esc_html__( 'Keep this page open until sending finishes. If you leave, send again to carry on from where it stopped.', 'photo-competition-manager' ) . '</em></p>';
+	echo '<p><em>' . esc_html__( 'Keep this page open until sending finishes. If you leave, a notice on any admin page lets you carry on from where it stopped.', 'photo-competition-manager' ) . '</em></p>';
 	echo '<p class="photo-comp-email-job-error" hidden>';
 	echo esc_html__( 'Sending stopped:', 'photo-competition-manager' ) . ' <span>' . esc_html__( 'the server returned an error. Your login may have expired; reload the page to carry on.', 'photo-competition-manager' ) . '</span> ';
 	echo '<button type="button" class="button">' . esc_html__( 'Try again', 'photo-competition-manager' ) . '</button>';

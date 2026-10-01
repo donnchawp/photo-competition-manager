@@ -43,7 +43,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 		parent::set_up();
 
 		$this->jobs       = ( new Dependencies() )->email_job_manager;
-		$this->controller = new Email_Job_Controller( $this->jobs );
+		$this->controller = new Email_Job_Controller( $this->jobs, new Competitions_Repository() );
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
@@ -172,5 +172,160 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_send_batch();
+	}
+
+	/**
+	 * Make a job look as if it was last saved some time ago.
+	 *
+	 * @param string $job_id  Job ID.
+	 * @param int    $seconds How long ago.
+	 * @return void
+	 */
+	private function age_job( string $job_id, int $seconds ): void {
+		$job               = $this->jobs->get_job( $job_id );
+		$job['updated_at'] = gmdate( 'Y-m-d H:i:s', time() - $seconds );
+		update_option( 'photo_comp_email_job_' . $job_id, $job, false );
+	}
+
+	/**
+	 * Render the abandoned job notices for the current request.
+	 *
+	 * @return string Notice HTML.
+	 */
+	private function abandoned_notices(): string {
+		ob_start();
+		$this->controller->render_abandoned_job_notices();
+		return (string) ob_get_clean();
+	}
+
+	public function test_abandoned_job_notice_offers_carry_on_and_discard(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->send_batch( $job_id );
+		$this->age_job( $job_id, 300 );
+		$this->reset_request();
+
+		$html = $this->abandoned_notices();
+
+		$this->assertStringContainsString( 'Sending results link emails for Spring Show stopped at 5 of 15.', $html );
+		$this->assertStringContainsString( 'Carry on', $html );
+		$this->assertStringContainsString( 'Discard', $html );
+		$this->assertStringContainsString( 'action=photo_comp_discard_email_job', $html );
+	}
+
+	public function test_abandoned_job_notice_names_an_archived_competition(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->age_job( $job_id, 300 );
+		( new Competitions_Repository() )->archive( $this->competition_id );
+
+		$this->assertStringContainsString( 'for Spring Show stopped at 0 of 15.', $this->abandoned_notices() );
+	}
+
+	public function test_no_notice_for_job_that_moved_recently(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->age_job( $job_id, 60 );
+
+		$this->assertSame( '', $this->abandoned_notices() );
+	}
+
+	public function test_no_notice_without_capability(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->age_job( $job_id, 300 );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+
+		$this->assertSame( '', $this->abandoned_notices() );
+	}
+
+	public function test_no_notice_for_job_already_on_the_page(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->age_job( $job_id, 300 );
+		$this->set_request( array( 'job_id' => $job_id ) );
+
+		$this->assertSame( '', $this->abandoned_notices() );
+	}
+
+	/**
+	 * @return array<string, array{string, array<string, string>}>
+	 */
+	public function carry_on_pages(): array {
+		return array(
+			'upload links'  => array( 'upload_link', array( 'page' => 'photo-competition-manager' ) ),
+			'results'       => array( 'results', array( 'page' => 'photo-competition-manager-results' ) ),
+			'results link'  => array( 'results_share', array( 'page' => 'photo-competition-manager-results' ) ),
+			'voting opened' => array( 'voting_opened', array( 'page' => 'photo-competition-manager-voting' ) ),
+		);
+	}
+
+	/**
+	 * @dataProvider carry_on_pages
+	 *
+	 * @param string                $type  Job type.
+	 * @param array<string, string> $query Expected query args.
+	 */
+	public function test_carry_on_links_to_the_page_that_sends_the_job( string $type, array $query ): void {
+		$member_id = (int) ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Member',
+				'email' => 'm@example.com',
+			)
+		);
+		$job_id    = $this->jobs->create_job( $type, $this->competition_id, array( $member_id ) );
+		$this->age_job( $job_id, 300 );
+
+		preg_match( '/href="([^"]+)"[^>]*>Carry on/', $this->abandoned_notices(), $matches );
+		parse_str( (string) wp_parse_url( html_entity_decode( $matches[1] ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( $query['page'], $args['page'] );
+		$this->assertSame( $job_id, $args['job_id'] );
+		if ( 'photo-competition-manager-results' === $query['page'] ) {
+			$this->assertSame( (string) $this->competition_id, $args['competition'] );
+		}
+	}
+
+	public function test_discard_fails_the_job_and_redirects_back(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->set_request( array( 'job_id' => $job_id ) );
+		$this->set_nonce( Email_Job_Controller::DISCARD_ACTION . '_' . $job_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_discard();
+			}
+		);
+
+		$job = $this->jobs->get_job( $job_id );
+		$this->assertSame( 'failed', $job['status'] );
+		$this->assertStringStartsWith( 'Discarded by ', end( $job['error_log'] ) );
+		$this->assertStringContainsString( 'wp-admin/', $location );
+	}
+
+	public function test_discard_rejects_bad_nonce(): void {
+		$job_id = $this->queue_job( 15 );
+		$this->set_request(
+			array(
+				'job_id'   => $job_id,
+				'_wpnonce' => 'bad',
+			)
+		);
+
+		try {
+			$this->controller->handle_discard();
+			$this->fail( 'Expected the request to be rejected.' );
+		} catch ( \WPDieException $e ) {
+			$this->assertSame( 'pending', $this->jobs->get_job( $job_id )['status'] );
+		}
+	}
+
+	public function test_discard_requires_capability(): void {
+		$job_id = $this->queue_job( 15 );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+		$this->set_request( array( 'job_id' => $job_id ) );
+		$this->set_nonce( Email_Job_Controller::DISCARD_ACTION . '_' . $job_id );
+
+		try {
+			$this->controller->handle_discard();
+			$this->fail( 'Expected the request to be rejected.' );
+		} catch ( \WPDieException $e ) {
+			$this->assertSame( 'pending', $this->jobs->get_job( $job_id )['status'] );
+		}
 	}
 }

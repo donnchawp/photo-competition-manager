@@ -11,10 +11,12 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 
 /**
- * Sends email job batches for the progress notice's script.
+ * Sends email job batches for the progress notice's script, and flags jobs
+ * that stopped because their page was closed.
  *
  * @since 0.3.0
  */
@@ -29,6 +31,11 @@ class Email_Job_Controller {
 	const AJAX_ACTION = 'photo_comp_send_email_batch';
 
 	/**
+	 * Action for admin-post.php that discards an abandoned job. The nonce action adds the job ID.
+	 */
+	const DISCARD_ACTION = 'photo_comp_discard_email_job';
+
+	/**
 	 * Email job queue.
 	 *
 	 * @var Email_Job_Manager
@@ -36,12 +43,21 @@ class Email_Job_Controller {
 	private $email_jobs;
 
 	/**
+	 * Competitions repository.
+	 *
+	 * @var Competitions_Repository
+	 */
+	private $competitions;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Email_Job_Manager $email_jobs Email job queue.
+	 * @param Email_Job_Manager       $email_jobs   Email job queue.
+	 * @param Competitions_Repository $competitions Competitions repository.
 	 */
-	public function __construct( Email_Job_Manager $email_jobs ) {
-		$this->email_jobs = $email_jobs;
+	public function __construct( Email_Job_Manager $email_jobs, Competitions_Repository $competitions ) {
+		$this->email_jobs   = $email_jobs;
+		$this->competitions = $competitions;
 	}
 
 	/**
@@ -51,6 +67,119 @@ class Email_Job_Controller {
 	 */
 	public function register(): void {
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( $this, 'handle_send_batch' ) );
+		add_action( 'admin_post_' . self::DISCARD_ACTION, array( $this, 'handle_discard' ) );
+		add_action( 'admin_notices', array( $this, 'render_abandoned_job_notices' ) );
+	}
+
+	/**
+	 * Show a notice for each job that stopped partway, with links to carry on
+	 * sending it or discard it.
+	 *
+	 * @return void
+	 */
+	public function render_abandoned_job_notices(): void {
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
+			return;
+		}
+
+		// That job's progress notice is already on this page.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$current_job = isset( $_GET['job_id'] ) ? sanitize_text_field( wp_unslash( $_GET['job_id'] ) ) : '';
+
+		$messages = array(
+			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+			'results'       => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+			'upload_link'   => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+			'results_share' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+			'voting_opened' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+		);
+
+		foreach ( $this->email_jobs->get_abandoned_jobs() as $job_id => $job ) {
+			if ( $job_id === $current_job ) {
+				continue;
+			}
+
+			$type        = $job['type'] ?? 'results';
+			$competition = $this->competitions->find( (int) $job['competition_id'], true );
+
+			$notice = $this->render_template(
+				'admin/abandoned-email-job-notice.php',
+				array(
+					'message'      => sprintf(
+						$messages[ $type ] ?? $messages['results'],
+						$competition ? $competition->title : '#' . $job['competition_id'],
+						count( $job['processed_ids'] ),
+						$job['total_count']
+					),
+					'carry_on_url' => $this->carry_on_url( $job_id, $job ),
+					'discard_url'  => wp_nonce_url(
+						add_query_arg(
+							array(
+								'action' => self::DISCARD_ACTION,
+								'job_id' => $job_id,
+							),
+							admin_url( 'admin-post.php' )
+						),
+						self::DISCARD_ACTION . '_' . $job_id
+					),
+				)
+			);
+
+			echo $notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		}
+	}
+
+	/**
+	 * The admin page that sends a job, with the job in the URL so its
+	 * progress notice picks up where it stopped.
+	 *
+	 * @param string $job_id Job ID.
+	 * @param array  $job    Job data.
+	 * @return string URL.
+	 */
+	private function carry_on_url( string $job_id, array $job ): string {
+		$args = array( 'job_id' => $job_id );
+
+		switch ( $job['type'] ?? 'results' ) {
+			case 'upload_link':
+				$args['page'] = 'photo-competition-manager';
+				break;
+
+			case 'voting_opened':
+				$args['page'] = 'photo-competition-manager-voting';
+				break;
+
+			default:
+				$args['page']        = 'photo-competition-manager-results';
+				$args['competition'] = (int) $job['competition_id'];
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
+	 * Handler for admin-post.php: discard an abandoned job and go back.
+	 *
+	 * @return void
+	 */
+	public function handle_discard(): void {
+		$job_id = isset( $_GET['job_id'] ) ? sanitize_text_field( wp_unslash( $_GET['job_id'] ) ) : '';
+
+		check_admin_referer( self::DISCARD_ACTION . '_' . $job_id );
+
+		if ( ! current_user_can( 'manage_photo_competitions' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'photo-competition-manager' ) );
+		}
+
+		/* translators: %s: Name of the user who discarded the job */
+		$this->email_jobs->discard_job( $job_id, sprintf( __( 'Discarded by %s', 'photo-competition-manager' ), wp_get_current_user()->display_name ) );
+
+		$referer = wp_get_referer();
+		wp_safe_redirect( $referer ? $referer : admin_url( 'admin.php?page=photo-competition-manager' ) );
+		exit;
 	}
 
 	/**

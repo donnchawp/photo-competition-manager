@@ -419,4 +419,103 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertNotNull( $this->manager->get_job( $recent ) );
 		$this->assertNotNull( $this->manager->get_job( $running ) );
 	}
+
+	/**
+	 * Make a job look as if it was last saved some time ago.
+	 *
+	 * @param string      $job_id  Job ID.
+	 * @param int         $seconds How long ago.
+	 * @param string|null $status  New status, or null to keep it.
+	 * @return void
+	 */
+	private function age_job( string $job_id, int $seconds, ?string $status = null ): void {
+		$job               = $this->manager->get_job( $job_id );
+		$job['updated_at'] = gmdate( 'Y-m-d H:i:s', time() - $seconds );
+		if ( $status ) {
+			$job['status'] = $status;
+		}
+		update_option( 'photo_comp_email_job_' . $job_id, $job, false );
+	}
+
+	public function test_saving_a_job_records_when_it_moved(): void {
+		$job_id = $this->manager->queue( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ), $this->seed_member( 'b@example.com' ) ), self::SHARE_ARGS );
+		$this->assertNotEmpty( $this->manager->get_job( $job_id )['updated_at'] );
+
+		$this->age_job( $job_id, 600 );
+		$this->manager->process_batch( $job_id );
+
+		$updated_at = strtotime( $this->manager->get_job( $job_id )['updated_at'] );
+		$this->assertGreaterThan( time() - 10, $updated_at );
+	}
+
+	public function test_get_abandoned_jobs_lists_unfinished_jobs_idle_for_two_minutes(): void {
+		$member_id = $this->seed_member( 'a@example.com' );
+		$stale     = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
+		$moving    = $this->manager->create_job( 'upload_link', $this->competition_id, array( $member_id ) );
+		$finished  = $this->manager->create_job( 'voting_opened', $this->competition_id, array( $member_id ) );
+
+		$this->age_job( $stale, 121, 'processing' );
+		$this->age_job( $moving, 60, 'processing' );
+		$this->age_job( $finished, 600, 'completed' );
+
+		$this->assertSame( array( $stale ), array_keys( $this->manager->get_abandoned_jobs() ) );
+	}
+
+	public function test_get_abandoned_jobs_falls_back_to_started_at(): void {
+		// Jobs saved before updated_at existed only have started_at.
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) );
+		$job    = $this->manager->get_job( $job_id );
+		unset( $job['updated_at'] );
+		$job['started_at'] = gmdate( 'Y-m-d H:i:s', time() - 600 );
+		update_option( 'photo_comp_email_job_' . $job_id, $job, false );
+
+		$this->assertSame( array( $job_id ), array_keys( $this->manager->get_abandoned_jobs() ) );
+	}
+
+	public function test_discard_job_fails_it_so_the_same_send_can_start_fresh(): void {
+		$member_id = $this->seed_member( 'a@example.com' );
+		$first     = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+
+		$this->assertTrue( $this->manager->discard_job( $first, 'Discarded by admin' ) );
+
+		$job = $this->manager->get_job( $first );
+		$this->assertSame( 'failed', $job['status'] );
+		$this->assertContains( 'Discarded by admin', $job['error_log'] );
+		$this->assertNotSame( $first, $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS ) );
+	}
+
+	public function test_discard_job_leaves_finished_and_unknown_jobs_alone(): void {
+		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$this->manager->process_batch( $job_id );
+
+		$this->assertFalse( $this->manager->discard_job( $job_id, 'Discarded by admin' ) );
+		$this->assertSame( 'completed', $this->manager->get_job( $job_id )['status'] );
+		$this->assertFalse( $this->manager->discard_job( 'email_job_missing', 'Discarded by admin' ) );
+	}
+
+	public function test_discard_competition_jobs_stops_only_that_competitions_unfinished_jobs(): void {
+		$member_id = $this->seed_member( 'a@example.com' );
+		$other     = (int) ( new Competitions_Repository() )->create(
+			array(
+				'title'    => 'Other',
+				'slug'     => 'other-' . wp_generate_password( 6, false ),
+				'settings' => array(),
+			)
+		);
+
+		$pending   = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
+		$running   = $this->manager->create_job( 'upload_link', $this->competition_id, array( $member_id ) );
+		$elsewhere = $this->manager->create_job( 'results_share', $other, array( $member_id ) );
+		$finished  = $this->manager->create_job( 'voting_opened', $this->competition_id, array( $member_id ) );
+		$this->age_job( $running, 0, 'processing' );
+		$this->age_job( $finished, 0, 'completed' );
+
+		$this->assertSame( 2, $this->manager->discard_competition_jobs( $this->competition_id, 'Competition deleted' ) );
+
+		$this->assertSame( 'failed', $this->manager->get_job( $pending )['status'] );
+		$this->assertSame( 'failed', $this->manager->get_job( $running )['status'] );
+		$this->assertContains( 'Competition deleted', $this->manager->get_job( $running )['error_log'] );
+		$this->assertSame( 'pending', $this->manager->get_job( $elsewhere )['status'] );
+		$this->assertSame( 'completed', $this->manager->get_job( $finished )['status'] );
+	}
 }

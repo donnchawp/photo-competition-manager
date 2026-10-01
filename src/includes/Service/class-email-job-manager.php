@@ -37,6 +37,11 @@ class Email_Job_Manager {
 	const LOCK_TIMEOUT = 120;
 
 	/**
+	 * Seconds an unfinished job can go without progress before it counts as abandoned.
+	 */
+	const ABANDONED_AFTER = 120;
+
+	/**
 	 * Get batch size for email sending.
 	 *
 	 * @return int
@@ -254,6 +259,7 @@ class Email_Job_Manager {
 			'failed_count'   => 0,
 			'error_log'      => array(),
 			'started_at'     => utc_time(),
+			'updated_at'     => utc_time(),
 			'completed_at'   => null,
 		);
 
@@ -598,6 +604,8 @@ class Email_Job_Manager {
 	 * @return bool Whether the update was successful.
 	 */
 	private function update_job( string $job_id, array $job_data ): bool {
+		$job_data['updated_at'] = utc_time();
+
 		return update_option( 'photo_comp_email_job_' . $job_id, $job_data, false );
 	}
 
@@ -618,6 +626,73 @@ class Email_Job_Manager {
 		$job['completed_at'] = utc_time();
 
 		$this->update_job( $job_id, $job );
+	}
+
+	/**
+	 * Unfinished jobs that haven't moved for a while, most likely because the
+	 * page sending them was closed.
+	 *
+	 * @return array<string, array> Job data keyed by job ID.
+	 */
+	public function get_abandoned_jobs(): array {
+		$cutoff    = time() - self::ABANDONED_AFTER;
+		$abandoned = array();
+
+		foreach ( $this->get_all_jobs() as $option_name => $job ) {
+			if ( ! in_array( $job['status'] ?? '', array( 'pending', 'processing' ), true ) ) {
+				continue;
+			}
+
+			// Jobs saved before updated_at existed only have started_at.
+			$moved_at = strtotime( $job['updated_at'] ?? $job['started_at'] ?? '' );
+
+			if ( $moved_at && $moved_at < $cutoff ) {
+				$abandoned[ substr( $option_name, strlen( 'photo_comp_email_job_' ) ) ] = $job;
+			}
+		}
+
+		return $abandoned;
+	}
+
+	/**
+	 * Stop an unfinished job for good. It's marked failed, so cleanup removes
+	 * it and the same send can be queued again.
+	 *
+	 * @param string $job_id Job ID.
+	 * @param string $reason Why, added to the job's error log.
+	 * @return bool Whether the job was discarded.
+	 */
+	public function discard_job( string $job_id, string $reason ): bool {
+		$job = $this->get_job( $job_id );
+
+		if ( ! $job || ! in_array( $job['status'], array( 'pending', 'processing' ), true ) ) {
+			return false;
+		}
+
+		$job['status']       = 'failed';
+		$job['completed_at'] = utc_time();
+		$job['error_log'][]  = $reason;
+
+		return $this->update_job( $job_id, $job );
+	}
+
+	/**
+	 * Discard every unfinished job for a competition.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $reason         Why, added to each job's error log.
+	 * @return int Number of jobs discarded.
+	 */
+	public function discard_competition_jobs( int $competition_id, string $reason ): int {
+		$discarded = 0;
+
+		foreach ( $this->get_all_jobs() as $option_name => $job ) {
+			if ( (int) $job['competition_id'] === $competition_id && $this->discard_job( substr( $option_name, strlen( 'photo_comp_email_job_' ) ), $reason ) ) {
+				++$discarded;
+			}
+		}
+
+		return $discarded;
 	}
 
 	/**
