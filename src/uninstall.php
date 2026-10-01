@@ -22,7 +22,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
  * - All custom database tables
  * - All uploaded competition files and directories
  * - All WordPress attachments created by the plugin
- * - All plugin options
+ * - All plugin options, transients and cron events
  * - Custom capabilities from roles
  *
  * @return void
@@ -42,7 +42,7 @@ function photo_competition_manager_uninstall() {
 	// Drop all custom database tables.
 	photo_competition_manager_drop_tables( $wpdb );
 
-	// Delete any plugin options (if any exist).
+	// Delete plugin options, transients and cron events.
 	photo_competition_manager_delete_options();
 }
 
@@ -194,12 +194,14 @@ function photo_competition_manager_drop_tables( $wpdb ) {
 }
 
 /**
- * Delete any plugin-specific options from wp_options table.
+ * Delete the plugin's options, transients and cron events.
  *
  * @return void
  */
 function photo_competition_manager_delete_options() {
-	delete_option( 'photo_comp_db_version' );
+	require_once __DIR__ . '/includes/Install/class-uninstaller.php';
+
+	\PhotoCompetitionManager\Install\Uninstaller::delete_data();
 }
 
 // Execute the uninstall.
