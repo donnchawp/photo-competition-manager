@@ -177,6 +177,37 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 'completed', $job['status'] );
 	}
 
+	public function test_inactive_member_without_email_is_skipped_not_failed(): void {
+		$member_id = $this->seed_member( 'gone@example.com' );
+		$job_id    = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+
+		global $wpdb;
+		$wpdb->update(
+			$this->members->table(),
+			array(
+				'email'  => '',
+				'active' => 0,
+			),
+			array( 'id' => $member_id )
+		);
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( 0, $job['failed_count'] );
+		$this->assertSame( 0, $job['total_count'] );
+	}
+
+	public function test_job_for_a_missing_competition_records_when_it_stopped(): void {
+		$job_id = $this->manager->create_job( 'results_share', 999999, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( 'failed', $job['status'] );
+		$this->assertSame( array( 'Competition not found' ), $job['error_log'] );
+		$this->assertNotNull( $job['completed_at'] );
+	}
+
 	/**
 	 * Seed an active member without any submissions.
 	 *
@@ -339,7 +370,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->recipients );
 		$this->assertSame( 'failed', $job['status'] );
 		$this->assertSame( 0, $job['failed_count'] );
-		$this->assertSame( array( 'The Voting Opened email template was turned off.' ), $job['error_log'] );
+		$this->assertSame( array( 'The Voting Opened email template was turned off or has no subject or body.' ), $job['error_log'] );
 		$this->assertNotNull( $job['completed_at'], 'Cleanup counts retention from when the job stopped.' );
 	}
 

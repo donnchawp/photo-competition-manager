@@ -563,6 +563,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'status'         => 'processing',
 				'total_count'    => 4,
 				'processed_ids'  => array( 1, 2 ),
+				'sent_count'     => 2,
 			)
 		);
 

@@ -329,7 +329,7 @@ class Email_Job_Manager {
 		// Unlike the other emails, voting opened has no built-in fallback, so
 		// every member would fail with a misleading wp_mail() error.
 		if ( 'voting_opened' === ( $job['type'] ?? '' ) && ! $this->email_service->is_template_enabled( 'voting_opened' ) ) {
-			$this->fail_job( $job_id, $job, 'The Voting Opened email template was turned off.' );
+			$this->fail_job( $job_id, $job, 'The Voting Opened email template was turned off or has no subject or body.' );
 			return;
 		}
 

@@ -109,7 +109,7 @@ class Email_Job_Controller {
 					'message'      => sprintf(
 						$this->email_job_labels( $job )['stopped'],
 						$competition ? $competition->title : '#' . $job['competition_id'],
-						count( $job['processed_ids'] ),
+						$this->email_job_progress( $job ),
 						$job['total_count']
 					),
 					'carry_on_url' => $this->carry_on_url( $job_id, $job ),
