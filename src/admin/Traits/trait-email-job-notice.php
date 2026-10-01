@@ -63,7 +63,7 @@ trait Email_Job_Notice {
 
 		$label = $this->email_job_labels( $job );
 
-		$processed = count( $job['processed_ids'] );
+		$processed = $this->email_job_progress( $job );
 
 		return $this->render_template(
 			'admin/email-job-notice.php',
@@ -77,13 +77,25 @@ trait Email_Job_Notice {
 				'sent_count'      => $job['sent_count'],
 				'skipped_count'   => $job['skipped_count'] ?? 0,
 				'failed_count'    => $job['failed_count'],
-				'errors'          => array_slice( $job['error_log'], 0, 5 ),
+				// A failed job's last entry says why it stopped.
+				'errors'          => 'failed' === $job['status'] ? array_slice( $job['error_log'], -5 ) : array_slice( $job['error_log'], 0, 5 ),
 				'job_id'          => $job_id,
 				'ajax_url'        => admin_url( 'admin-ajax.php' ),
 				'ajax_action'     => Email_Job_Controller::AJAX_ACTION,
 				'nonce'           => $running ? wp_create_nonce( Email_Job_Controller::AJAX_ACTION ) : '',
 			)
 		);
+	}
+
+	/**
+	 * Members a job has dealt with so far. Not count( processed_ids ), which
+	 * also holds members dropped from total_count since the job was queued.
+	 *
+	 * @param array $job Job data.
+	 * @return int
+	 */
+	private function email_job_progress( array $job ): int {
+		return $job['sent_count'] + ( $job['skipped_count'] ?? 0 ) + $job['failed_count'];
 	}
 
 	/**

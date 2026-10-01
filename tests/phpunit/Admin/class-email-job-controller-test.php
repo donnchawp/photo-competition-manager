@@ -133,6 +133,34 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'photo-comp-email-job', $json['data']['html'], 'A finished notice has nothing for the script to send.' );
 	}
 
+	public function test_progress_leaves_out_members_deleted_since_the_job_was_queued(): void {
+		// They're dropped from the total, so counting them as processed too overshoots.
+		$job_id  = $this->queue_job( 12 );
+		$members = new Members_Repository();
+		foreach ( array_slice( $this->jobs->get_job( $job_id )['member_ids'], 0, 4 ) as $member_id ) {
+			$members->delete( (int) $member_id );
+		}
+
+		$json = $this->send_batch( $job_id );
+		$this->assertStringContainsString( 'Progress: 1 of 8 emails sent', $json['data']['html'] );
+
+		$this->age_job( $job_id, 400 );
+		$this->reset_request();
+		$this->assertStringContainsString( 'stopped at 1 of 8.', $this->abandoned_notices() );
+	}
+
+	public function test_failed_notice_shows_why_the_job_stopped_after_earlier_errors(): void {
+		$job_id               = $this->queue_job( 1 );
+		$job                  = $this->jobs->get_job( $job_id );
+		$job['status']        = 'failed';
+		$job['error_log']     = array( 'error 1', 'error 2', 'error 3', 'error 4', 'error 5', 'Competition not found' );
+		update_option( 'photo_comp_email_job_' . $job_id, $job, false );
+
+		$json = $this->send_batch( $job_id );
+
+		$this->assertStringContainsString( 'Competition not found', $json['data']['html'] );
+	}
+
 	public function test_send_batch_unknown_job_is_an_error(): void {
 		$json = $this->send_batch( 'email_job_missing' );
 
