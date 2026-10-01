@@ -86,45 +86,24 @@ class Email_Job_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$current_job = isset( $_GET['job_id'] ) ? sanitize_text_field( wp_unslash( $_GET['job_id'] ) ) : '';
 
-		$messages = array(
-			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-			'results'       => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-			'upload_link'   => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-			'results_share' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-			/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-			'voting_opened' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-		);
-
 		foreach ( $this->email_jobs->get_abandoned_jobs() as $job_id => $job ) {
 			if ( $job_id === $current_job ) {
 				continue;
 			}
 
-			$type        = $job['type'] ?? 'results';
 			$competition = $this->competitions->find( (int) $job['competition_id'], true );
 
 			$notice = $this->render_template(
 				'admin/abandoned-email-job-notice.php',
 				array(
 					'message'      => sprintf(
-						$messages[ $type ] ?? $messages['results'],
+						$this->email_job_labels( $job )['stopped'],
 						$competition ? $competition->title : '#' . $job['competition_id'],
 						count( $job['processed_ids'] ),
 						$job['total_count']
 					),
 					'carry_on_url' => $this->carry_on_url( $job_id, $job ),
-					'discard_url'  => wp_nonce_url(
-						add_query_arg(
-							array(
-								'action' => self::DISCARD_ACTION,
-								'job_id' => $job_id,
-							),
-							admin_url( 'admin-post.php' )
-						),
-						self::DISCARD_ACTION . '_' . $job_id
-					),
+					'discard_url'  => $this->discard_url( $job_id ),
 				)
 			);
 
@@ -141,23 +120,45 @@ class Email_Job_Controller {
 	 * @return string URL.
 	 */
 	private function carry_on_url( string $job_id, array $job ): string {
-		$args = array( 'job_id' => $job_id );
-
 		switch ( $job['type'] ?? 'results' ) {
 			case 'upload_link':
-				$args['page'] = 'photo-competition-manager';
+				$url = $this->dashboard_url();
 				break;
 
 			case 'voting_opened':
-				$args['page'] = 'photo-competition-manager-voting';
+				$url = admin_url( 'admin.php?page=photo-competition-manager-voting' );
 				break;
 
 			default:
-				$args['page']        = 'photo-competition-manager-results';
-				$args['competition'] = (int) $job['competition_id'];
+				$url = add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager-results',
+						'competition' => (int) $job['competition_id'],
+					),
+					admin_url( 'admin.php' )
+				);
 		}
 
-		return add_query_arg( $args, admin_url( 'admin.php' ) );
+		return add_query_arg( 'job_id', $job_id, $url );
+	}
+
+	/**
+	 * Nonced URL that discards a job.
+	 *
+	 * @param string $job_id Job ID.
+	 * @return string URL.
+	 */
+	private function discard_url( string $job_id ): string {
+		return wp_nonce_url(
+			add_query_arg(
+				array(
+					'action' => self::DISCARD_ACTION,
+					'job_id' => $job_id,
+				),
+				admin_url( 'admin-post.php' )
+			),
+			self::DISCARD_ACTION . '_' . $job_id
+		);
 	}
 
 	/**
@@ -178,7 +179,7 @@ class Email_Job_Controller {
 		$this->email_jobs->discard_job( $job_id, sprintf( __( 'Discarded by %s', 'photo-competition-manager' ), wp_get_current_user()->display_name ) );
 
 		$referer = wp_get_referer();
-		wp_safe_redirect( $referer ? $referer : admin_url( 'admin.php?page=photo-competition-manager' ) );
+		wp_safe_redirect( $referer ? $referer : $this->dashboard_url() );
 		exit;
 	}
 

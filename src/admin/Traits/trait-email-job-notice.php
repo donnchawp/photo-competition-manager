@@ -49,7 +49,7 @@ trait Email_Job_Notice {
 	 * @return string Notice HTML.
 	 */
 	private function render_job_notice( string $job_id, array $job ): string {
-		$running = in_array( $job['status'], array( 'pending', 'processing' ), true );
+		$running = Email_Job_Manager::is_unfinished( $job );
 
 		if ( $running ) {
 			wp_enqueue_script(
@@ -61,25 +61,7 @@ trait Email_Job_Notice {
 			);
 		}
 
-		$labels = array(
-			'results'       => array(
-				__( 'Sending results emails...', 'photo-competition-manager' ),
-				__( 'Email results sent successfully!', 'photo-competition-manager' ),
-			),
-			'upload_link'   => array(
-				__( 'Sending upload link emails...', 'photo-competition-manager' ),
-				__( 'Upload link emails sent.', 'photo-competition-manager' ),
-			),
-			'results_share' => array(
-				__( 'Sending results link emails...', 'photo-competition-manager' ),
-				__( 'Results link emails sent.', 'photo-competition-manager' ),
-			),
-			'voting_opened' => array(
-				__( 'Sending voting opened emails...', 'photo-competition-manager' ),
-				__( 'Voting opened emails sent.', 'photo-competition-manager' ),
-			),
-		);
-		$label  = $labels[ $job['type'] ?? 'results' ] ?? $labels['results'];
+		$label = $this->email_job_labels( $job );
 
 		$processed = count( $job['processed_ids'] );
 
@@ -87,8 +69,8 @@ trait Email_Job_Notice {
 			'admin/email-job-notice.php',
 			array(
 				'status'          => $job['status'],
-				'sending_label'   => $label[0],
-				'sent_label'      => $label[1],
+				'sending_label'   => $label['sending'],
+				'sent_label'      => $label['sent'],
 				'processed_count' => $processed,
 				'total_count'     => $job['total_count'],
 				'percent'         => $job['total_count'] > 0 ? ( $processed / $job['total_count'] ) * 100 : 0,
@@ -102,5 +84,49 @@ trait Email_Job_Notice {
 				'nonce'           => $running ? wp_create_nonce( Email_Job_Controller::AJAX_ACTION ) : '',
 			)
 		);
+	}
+
+	/**
+	 * Wording for a job's type.
+	 *
+	 * @param array $job Job data.
+	 * @return array{sending: string, sent: string, stopped: string} The stopped
+	 *     message takes the competition title, members emailed so far and
+	 *     members in the job.
+	 */
+	private function email_job_labels( array $job ): array {
+		switch ( $job['type'] ?? 'results' ) {
+			case 'upload_link':
+				return array(
+					'sending' => __( 'Sending upload link emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Upload link emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+				);
+
+			case 'results_share':
+				return array(
+					'sending' => __( 'Sending results link emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Results link emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+				);
+
+			case 'voting_opened':
+				return array(
+					'sending' => __( 'Sending voting opened emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Voting opened emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+				);
+
+			default:
+				return array(
+					'sending' => __( 'Sending results emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Email results sent successfully!', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+				);
+		}
 	}
 }

@@ -42,6 +42,11 @@ class Email_Job_Manager {
 	const ABANDONED_AFTER = 120;
 
 	/**
+	 * Prefix of the option each job is stored in. The rest is the job ID.
+	 */
+	const OPTION_PREFIX = 'photo_comp_email_job_';
+
+	/**
 	 * Get batch size for email sending.
 	 *
 	 * @return int
@@ -264,7 +269,7 @@ class Email_Job_Manager {
 		);
 
 		// Store job data.
-		update_option( 'photo_comp_email_job_' . $job_id, $job_data, false );
+		update_option( self::OPTION_PREFIX . $job_id, $job_data, false );
 
 		return $job_id;
 	}
@@ -287,7 +292,7 @@ class Email_Job_Manager {
 			// Read the job only once the lock is held, so its progress is current.
 			$job = $this->get_job( $job_id );
 
-			if ( $job && in_array( $job['status'], array( 'pending', 'processing' ), true ) ) {
+			if ( $job && self::is_unfinished( $job ) ) {
 				$this->send_batch( $job_id, $job );
 			}
 		} finally {
@@ -581,7 +586,7 @@ class Email_Job_Manager {
 	 * @return array|null Job data or null if not found.
 	 */
 	public function get_job( string $job_id ): ?array {
-		$job_data = get_option( 'photo_comp_email_job_' . $job_id, null );
+		$job_data = get_option( self::OPTION_PREFIX . $job_id, null );
 
 		return is_array( $job_data ) ? $job_data : null;
 	}
@@ -606,7 +611,7 @@ class Email_Job_Manager {
 	private function update_job( string $job_id, array $job_data ): bool {
 		$job_data['updated_at'] = utc_time();
 
-		return update_option( 'photo_comp_email_job_' . $job_id, $job_data, false );
+		return update_option( self::OPTION_PREFIX . $job_id, $job_data, false );
 	}
 
 	/**
@@ -638,8 +643,8 @@ class Email_Job_Manager {
 		$cutoff    = time() - self::ABANDONED_AFTER;
 		$abandoned = array();
 
-		foreach ( $this->get_all_jobs() as $option_name => $job ) {
-			if ( ! in_array( $job['status'] ?? '', array( 'pending', 'processing' ), true ) ) {
+		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+			if ( ! self::is_unfinished( $job ) ) {
 				continue;
 			}
 
@@ -647,7 +652,7 @@ class Email_Job_Manager {
 			$moved_at = strtotime( $job['updated_at'] ?? $job['started_at'] ?? '' );
 
 			if ( $moved_at && $moved_at < $cutoff ) {
-				$abandoned[ substr( $option_name, strlen( 'photo_comp_email_job_' ) ) ] = $job;
+				$abandoned[ $job_id ] = $job;
 			}
 		}
 
@@ -665,15 +670,13 @@ class Email_Job_Manager {
 	public function discard_job( string $job_id, string $reason ): bool {
 		$job = $this->get_job( $job_id );
 
-		if ( ! $job || ! in_array( $job['status'], array( 'pending', 'processing' ), true ) ) {
+		if ( ! $job || ! self::is_unfinished( $job ) ) {
 			return false;
 		}
 
-		$job['status']       = 'failed';
-		$job['completed_at'] = utc_time();
-		$job['error_log'][]  = $reason;
+		$this->fail_job( $job_id, $job, $reason );
 
-		return $this->update_job( $job_id, $job );
+		return true;
 	}
 
 	/**
@@ -686,13 +689,40 @@ class Email_Job_Manager {
 	public function discard_competition_jobs( int $competition_id, string $reason ): int {
 		$discarded = 0;
 
-		foreach ( $this->get_all_jobs() as $option_name => $job ) {
-			if ( (int) $job['competition_id'] === $competition_id && $this->discard_job( substr( $option_name, strlen( 'photo_comp_email_job_' ) ), $reason ) ) {
+		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+			if ( (int) $job['competition_id'] === $competition_id && self::is_unfinished( $job ) ) {
+				$this->fail_job( $job_id, $job, $reason );
 				++$discarded;
 			}
 		}
 
 		return $discarded;
+	}
+
+	/**
+	 * Mark a job failed for good.
+	 *
+	 * @param string $job_id Job ID.
+	 * @param array  $job    Job data.
+	 * @param string $reason Why, added to the job's error log.
+	 * @return void
+	 */
+	private function fail_job( string $job_id, array $job, string $reason ): void {
+		$job['status']       = 'failed';
+		$job['completed_at'] = utc_time();
+		$job['error_log'][]  = $reason;
+
+		$this->update_job( $job_id, $job );
+	}
+
+	/**
+	 * Whether a job still has members to send to.
+	 *
+	 * @param array $job Job data.
+	 * @return bool
+	 */
+	public static function is_unfinished( array $job ): bool {
+		return in_array( $job['status'] ?? '', array( 'pending', 'processing' ), true );
 	}
 
 	/**
@@ -705,7 +735,7 @@ class Email_Job_Manager {
 
 		$cleaned = 0;
 
-		foreach ( $this->get_all_jobs() as $option_name => $job_data ) {
+		foreach ( $this->get_all_jobs() as $job_id => $job_data ) {
 			// Only clean up completed or failed jobs.
 			if ( ! in_array( $job_data['status'], array( 'completed', 'failed' ), true ) ) {
 				continue;
@@ -717,7 +747,7 @@ class Email_Job_Manager {
 			$job_time     = $completed_at ? $completed_at : $started_at;
 
 			if ( $job_time && $job_time < $cutoff_time ) {
-				delete_option( $option_name );
+				delete_option( self::OPTION_PREFIX . $job_id );
 				++$cleaned;
 			}
 		}
@@ -734,14 +764,14 @@ class Email_Job_Manager {
 	 * @return string|null Job ID, or null if there is no unfinished match.
 	 */
 	private function find_unfinished_job( string $type, int $competition_id, array $args ): ?string {
-		foreach ( $this->get_all_jobs() as $option_name => $job ) {
+		foreach ( $this->get_all_jobs() as $job_id => $job ) {
 			if (
-				in_array( $job['status'] ?? '', array( 'pending', 'processing' ), true )
+				self::is_unfinished( $job )
 				&& ( $job['type'] ?? 'results' ) === $type
 				&& (int) $job['competition_id'] === $competition_id
 				&& ( $job['args'] ?? array() ) === $args
 			) {
-				return substr( $option_name, strlen( 'photo_comp_email_job_' ) );
+				return (string) $job_id;
 			}
 		}
 
@@ -751,7 +781,7 @@ class Email_Job_Manager {
 	/**
 	 * Load every stored email job.
 	 *
-	 * @return array<string, array> Job data keyed by option name.
+	 * @return array<string, array> Job data keyed by job ID.
 	 */
 	private function get_all_jobs(): array {
 		global $wpdb;
@@ -761,7 +791,7 @@ class Email_Job_Manager {
 			$wpdb->prepare(
 				'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s',
 				$wpdb->options,
-				$wpdb->esc_like( 'photo_comp_email_job_' ) . '%'
+				$wpdb->esc_like( self::OPTION_PREFIX ) . '%'
 			)
 		);
 
@@ -769,7 +799,7 @@ class Email_Job_Manager {
 		foreach ( $job_options as $option ) {
 			$job_data = maybe_unserialize( $option->option_value );
 			if ( is_array( $job_data ) ) {
-				$jobs[ $option->option_name ] = $job_data;
+				$jobs[ substr( $option->option_name, strlen( self::OPTION_PREFIX ) ) ] = $job_data;
 			}
 		}
 
