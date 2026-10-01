@@ -328,6 +328,15 @@ class Email_Job_Manager {
 			return;
 		}
 
+		// Unlike the other emails, voting opened has no built-in fallback, so
+		// every member would fail with a misleading wp_mail() error.
+		if ( 'voting_opened' === ( $job['type'] ?? '' ) && ! $this->email_service->is_template_enabled( 'voting_opened' ) ) {
+			$job['status']      = 'failed';
+			$job['error_log'][] = 'The Voting Opened email template was turned off.';
+			$this->update_job( $job_id, $job );
+			return;
+		}
+
 		// Get next batch of unprocessed members.
 		$remaining = array_diff( $job['member_ids'], $job['processed_ids'] );
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
@@ -340,16 +349,17 @@ class Email_Job_Manager {
 			}
 
 			$member = $this->members->find( (int) $member_id );
-			if ( ! $member || empty( $member->email ) ) {
-				++$job['failed_count'];
-				$job['error_log'][]     = sprintf( 'Member %d has no email address', $member_id );
+
+			// Deleted or deactivated since the job was created.
+			if ( ! $member || ! (int) $member->active ) {
+				--$job['total_count'];
 				$job['processed_ids'][] = $member_id;
 				continue;
 			}
 
-			// Deactivated since the job was created.
-			if ( ! (int) $member->active ) {
-				--$job['total_count'];
+			if ( empty( $member->email ) ) {
+				++$job['failed_count'];
+				$job['error_log'][]     = sprintf( 'Member %d has no email address', $member_id );
 				$job['processed_ids'][] = $member_id;
 				continue;
 			}

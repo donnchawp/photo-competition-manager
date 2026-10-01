@@ -161,6 +161,22 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 'completed', $job['status'] );
 	}
 
+	public function test_process_batch_skips_member_deleted_after_job_created(): void {
+		$this->seed_entrant( 'stays@example.com' );
+		$leaver = $this->seed_entrant( 'leaver@example.com' );
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		$this->members->delete( $leaver );
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( array( 'stays@example.com' ), $this->recipients );
+		$this->assertSame( 0, $job['failed_count'] );
+		$this->assertSame( 1, $job['total_count'] );
+		$this->assertSame( array(), $job['error_log'] );
+		$this->assertSame( 'completed', $job['status'] );
+	}
+
 	/**
 	 * Seed an active member without any submissions.
 	 *
@@ -302,6 +318,28 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( 'a@example.com' ), $this->recipients );
 		$this->assertSame( 1, $this->manager->get_job( $job_id )['sent_count'] );
+	}
+
+	public function test_voting_opened_job_stops_when_its_template_is_turned_off(): void {
+		$this->enable_template( 'voting_opened' );
+		$job_id = $this->manager->create_job(
+			'voting_opened',
+			$this->competition_id,
+			array( $this->seed_member( 'a@example.com' ), $this->seed_member( 'b@example.com' ) ),
+			array(
+				'voting_page_url' => 'https://example.com/vote/',
+				'close_date'      => '',
+			)
+		);
+
+		delete_option( 'photo_comp_email_templates' );
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( array(), $this->recipients );
+		$this->assertSame( 'failed', $job['status'] );
+		$this->assertSame( 0, $job['failed_count'] );
+		$this->assertSame( array( 'The Voting Opened email template was turned off.' ), $job['error_log'] );
 	}
 
 	public function test_failed_send_is_counted_and_logged(): void {
