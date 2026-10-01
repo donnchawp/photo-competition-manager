@@ -778,6 +778,32 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Deleting a competition stops its unfinished email jobs.
+	 */
+	public function test_delete_discards_unfinished_email_jobs(): void {
+		$id     = $this->create_competition( 'To Delete', 'to-delete' );
+		$jobs   = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
+		$job_id = $jobs->create_job( 'results_share', $id, array( 1 ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'delete',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( 'failed', $jobs->get_job( $job_id )['status'] );
+		$this->assertSame( array(), $jobs->get_abandoned_jobs() );
+	}
+
+	/**
 	 * Deleting a missing competition surfaces the repository error code.
 	 */
 	public function test_delete_not_found_error(): void {

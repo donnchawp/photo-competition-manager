@@ -122,7 +122,7 @@ class Admin_Screen {
 		$this->setup_wizard_controller    = new Setup_Wizard_Controller();
 		$this->email_templates_controller = new Email_Templates_Controller();
 		$this->logs_controller            = new Logs_Controller( $deps->logs, $deps->competitions );
-		$this->email_job_controller       = new Email_Job_Controller( $deps->email_job_manager );
+		$this->email_job_controller       = new Email_Job_Controller( $deps->email_job_manager, $deps->competitions );
 	}
 
 	/**

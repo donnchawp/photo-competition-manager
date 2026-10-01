@@ -349,6 +349,8 @@ class Competitions_Controller {
 						'error'
 					);
 				} else {
+					$this->email_jobs->discard_competition_jobs( $competition_id, __( 'Competition deleted', 'photo-competition-manager' ) );
+
 					add_settings_error(
 						'photo_competition_manager',
 						'deleted',
