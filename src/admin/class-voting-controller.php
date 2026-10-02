@@ -465,12 +465,17 @@ class Voting_Controller {
 
 		// Check if any category has voting open globally. This matches the
 		// guard in handle_open_category_voting(), so the page doesn't offer
-		// to open voting the guard would refuse.
+		// to open voting the guard would refuse. The current competition is
+		// checked first, since that's the voting members can reach.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
 		$open_category_slug   = null;
+		$other_competitions   = array_filter(
+			$open_competitions,
+			fn( $comp ) => (int) $comp->id !== (int) $active_competition->id
+		);
 
-		foreach ( $open_competitions as $competition ) {
+		foreach ( array_merge( array( $active_competition ), $other_competitions ) as $competition ) {
 			$settings        = Competition_Settings::parse( $competition->settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 
@@ -478,6 +483,11 @@ class Voting_Controller {
 				$voting_open_globally = true;
 				$open_competition_id  = (int) $competition->id;
 				$open_category_slug   = $open_categories[0];
+
+				if ( $competition !== $active_competition ) {
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+					echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $competition->title ) );
+				}
 				break;
 			}
 		}

@@ -196,8 +196,8 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * More than one open competition is a setup mistake: the page merges their
-	 * categories into one tab bar, so warn and name the competitions.
+	 * More than one open competition is a setup mistake, left over from
+	 * before only one could be open, so warn and name the competitions.
 	 */
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( array() );
@@ -213,27 +213,41 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * With two competitions open (data saved before only one could be),
-	 * Voting Controls acts on the same one the public pages show: the
-	 * latest to open, not the latest created.
+	 * Seed two open competitions, as saved before only one could be open.
+	 * "Spring Show" opened later but was created first, so it is the current
+	 * competition, while "Old Show" is the newest by created_at.
+	 *
+	 * @param array<int,string> $current_open Categories with voting open in Spring Show.
+	 * @param array<int,string> $older_open   Categories with voting open in Old Show.
+	 * @return array{0:int,1:int} Spring Show and Old Show IDs.
 	 */
-	public function test_render_acts_on_the_current_competition_when_several_are_open(): void {
+	private function seed_two_open_competitions( array $current_open = array(), array $older_open = array() ): array {
 		$current_id = $this->insert_overlapping_competition(
 			'Spring Show',
 			'spring-show',
 			array(
 				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
-				'settings'   => wp_json_encode( array( 'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) ) ),
+				'settings'   => wp_json_encode(
+					array(
+						'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ),
+						'voting'     => array( 'open_categories' => $current_open ),
+					)
+				),
 				'created_at' => '2020-01-01 00:00:00',
 			)
 		);
-		$older_id = $this->insert_overlapping_competition(
+		$older_id   = $this->insert_overlapping_competition(
 			'Old Show',
 			'old-show',
 			array(
 				'open_date' => utc_time( -30 * DAY_IN_SECONDS ),
-				'settings'  => wp_json_encode( array( 'categories' => array( array( 'slug' => 'mono', 'label' => 'Mono' ) ) ) ),
+				'settings'  => wp_json_encode(
+					array(
+						'categories' => array( array( 'slug' => 'mono', 'label' => 'Mono' ) ),
+						'voting'     => array( 'open_categories' => $older_open ),
+					)
+				),
 			)
 		);
 
@@ -250,14 +264,51 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			);
 		}
 
+		return array( $current_id, $older_id );
+	}
+
+	/**
+	 * Render the page and return its HTML.
+	 */
+	private function render_html(): string {
 		ob_start();
 		$this->controller->render();
-		$html = (string) ob_get_clean();
+		return (string) ob_get_clean();
+	}
 
-		$this->assertStringContainsString( 'More than one competition is open', $html );
+	/**
+	 * With two competitions open, Voting Controls acts on the same one the
+	 * public pages show: the latest to open, not the latest created.
+	 */
+	public function test_render_acts_on_the_current_competition_when_several_are_open(): void {
+		list( $current_id, $older_id ) = $this->seed_two_open_competitions();
+
+		$html = $this->render_html();
+
+		$this->assertMatchesRegularExpression( '/More than one competition is open: <strong>[^<]*Old Show[^<]*<\/strong>/', $html );
 		$this->assertStringContainsString( 'status-bar-title">Spring Show<', $html );
 		$this->assertMatchesRegularExpression( '/competition=' . $current_id . '(?!\d)/', $html );
 		$this->assertDoesNotMatchRegularExpression( '/competition=' . $older_id . '(?!\d)/', $html );
+	}
+
+	/**
+	 * Voting left open in an older competition blocks opening voting here,
+	 * and that competition has no tab, so say where it is and how to close it.
+	 */
+	public function test_render_names_the_competition_with_voting_open_elsewhere(): void {
+		$this->seed_two_open_competitions( array(), array( 'mono' ) );
+
+		$this->assertStringContainsString( 'Voting is open in <strong>Old Show</strong>', $this->render_html() );
+	}
+
+	/**
+	 * When the current competition has voting open, that's the one the page
+	 * follows, even if an older competition has voting open too.
+	 */
+	public function test_render_prefers_voting_open_in_the_current_competition(): void {
+		$this->seed_two_open_competitions( array( 'colour' ), array( 'mono' ) );
+
+		$this->assertStringNotContainsString( 'Voting is open in', $this->render_html() );
 	}
 
 	/**
