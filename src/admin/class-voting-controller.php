@@ -303,7 +303,7 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Load a competition or add a not-found error and redirect to the voting page.
+	 * Load a competition or add an error and redirect to the voting page.
 	 *
 	 * The redirect terminates the request, so callers can treat the return value
 	 * as a guaranteed competition object.
@@ -312,12 +312,41 @@ class Voting_Controller {
 	 * @return object Competition object.
 	 */
 	private function load_competition_or_fail( int $competition_id ): object {
+		$competition = $this->find_actionable_competition( $competition_id );
+
+		if ( is_wp_error( $competition ) ) {
+			$this->fail_voting( $competition->get_error_code(), $competition->get_error_message() );
+		}
+
+		return $competition;
+	}
+
+	/**
+	 * Find the competition a voting action may act on.
+	 *
+	 * Voting Controls only shows the current competition, so an action for
+	 * any other comes from a stale tab or link. When no competition is
+	 * current, the last one shown can still be finished off: it may have
+	 * reached its close date while the page was open.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param int $competition_id Competition ID from the request.
+	 * @return object|\WP_Error The competition, or 'competition_not_found' or 'competition_not_current'.
+	 */
+	private function find_actionable_competition( int $competition_id ) {
 		$competition = $this->competitions->find( $competition_id );
 
 		if ( ! $competition ) {
-			$this->fail_voting(
-				'competition_not_found',
-				__( 'Competition not found.', 'photo-competition-manager' )
+			return new \WP_Error( 'competition_not_found', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		$current = $this->competitions->find_current_active();
+
+		if ( $current && (int) $current->id !== (int) $competition->id ) {
+			return new \WP_Error(
+				'competition_not_current',
+				__( 'This isn\'t the current competition. Reload Voting Controls.', 'photo-competition-manager' )
 			);
 		}
 
@@ -1058,9 +1087,9 @@ class Voting_Controller {
 			wp_send_json_error( array( 'message' => __( 'Invalid parameters.', 'photo-competition-manager' ) ) );
 		}
 
-		$competition = $this->competitions->find( $competition_id );
-		if ( ! $competition ) {
-			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
+		$competition = $this->find_actionable_competition( $competition_id );
+		if ( is_wp_error( $competition ) ) {
+			wp_send_json_error( array( 'message' => $competition->get_error_message() ) );
 		}
 
 		$settings = Competition_Settings::parse( $competition->settings );

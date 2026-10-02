@@ -252,7 +252,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * Opening is blocked when another active competition already has voting open.
 	 */
 	public function test_open_category_voting_blocked_when_another_open(): void {
-		$other                          = $this->insert_overlapping_competition( 'Other', 'other' );
+		$other                          = $this->insert_overlapping_competition( 'Other', 'other', array( 'created_at' => '2020-01-01 00:00:00' ) );
 		$comp                           = $this->competitions->find( $other );
 		$s                              = Competition_Settings::parse( $comp->settings );
 		$s['voting']['open_categories'] = array( 'mono' );
@@ -522,5 +522,144 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertFalse( $json['success'] );
 		$this->assertStringContainsString( 'Invalid parameters', $json['data']['message'] );
+	}
+
+	/**
+	 * Insert an older competition that overlaps the current one, as saved
+	 * before only one could be open. Both have no open date, so the one
+	 * from set_up() is current because it was created later.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function insert_older_open_competition(): int {
+		return $this->insert_overlapping_competition(
+			'Old Show',
+			'old-show',
+			array( 'created_at' => '2020-01-01 00:00:00' )
+		);
+	}
+
+	/**
+	 * Voting actions available from the Voting Controls page.
+	 *
+	 * @return array<string, array{0:string,1:string,2:bool}> Action, nonce prefix, whether it takes a category.
+	 */
+	public function voting_actions(): array {
+		return array(
+			'open voting'    => array( 'open_category_voting', 'photo_competition_open_voting_', true ),
+			'close voting'   => array( 'close_category_voting', 'photo_competition_close_voting_', true ),
+			'reset category' => array( 'reset_category', 'photo_competition_reset_category_', true ),
+			'show results'   => array( 'show_results', 'photo_competition_show_results_', false ),
+			'hide results'   => array( 'hide_results', 'photo_competition_hide_results_', false ),
+		);
+	}
+
+	/**
+	 * A stale tab or bookmarked link can't act on a competition Voting
+	 * Controls no longer shows and members can't reach.
+	 *
+	 * @dataProvider voting_actions
+	 *
+	 * @param string $action       Action name.
+	 * @param string $nonce_prefix Nonce action prefix.
+	 * @param bool   $has_category Whether the action takes a category.
+	 */
+	public function test_voting_action_refuses_competition_that_is_not_current( string $action, string $nonce_prefix, bool $has_category ): void {
+		$older_id = $this->insert_older_open_competition();
+		$before   = $this->competitions->find( $older_id )->settings;
+		$request  = array(
+			'action'      => $action,
+			'competition' => $older_id,
+		);
+
+		if ( $has_category ) {
+			$request['category'] = 'colour';
+		}
+
+		$this->set_request( $request );
+		$this->set_nonce( $nonce_prefix . $older_id . ( $has_category ? '_colour' : '' ) );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'competition_not_current', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertSame( $before, $this->competitions->find( $older_id )->settings );
+	}
+
+	/**
+	 * Another open competition doesn't stop the current one being run.
+	 */
+	public function test_voting_action_accepts_current_competition_when_another_is_open(): void {
+		$this->insert_older_open_competition();
+
+		$this->set_request(
+			array(
+				'action'      => 'show_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_show_results_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertTrue( $this->settings()['results']['results_visible'] );
+	}
+
+	/**
+	 * The competition can reach its close date while the admin still has
+	 * Voting Controls open, and the last steps must still work then.
+	 */
+	public function test_show_results_allowed_when_no_competition_is_current(): void {
+		$this->competitions->update( $this->competition_id, array( 'close_date' => '2020-02-01 00:00:00' ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'show_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_show_results_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
+	}
+
+	/**
+	 * The slideshow's step button can't advance a competition that isn't current.
+	 */
+	public function test_advance_step_refuses_competition_that_is_not_current(): void {
+		$older_id = $this->insert_older_open_competition();
+
+		$this->set_request(
+			array(
+				'competition_id' => $older_id,
+				'category_slug'  => 'colour',
+				'step'           => 3,
+			)
+		);
+		$this->set_nonce( 'photo_comp_voting_step' );
+
+		$json = $this->capture_json(
+			function () {
+				$this->controller->handle_advance_step();
+			}
+		);
+
+		$this->assertFalse( $json['success'] );
+		$this->assertStringContainsString( "isn't the current competition", $json['data']['message'] );
+		$this->assertNull( $this->competitions->find( $older_id )->settings );
 	}
 }
