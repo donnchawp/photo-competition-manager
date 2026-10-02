@@ -51,6 +51,11 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 		// CSS). Whether core adds it varies by version/theme HTML5 support, so
 		// removing it keeps the snapshot agnostic to WP-core asset chrome.
 		$html = preg_replace( '/(<link\b[^>]*?)\s+type=\'text\/css\'/', '$1', $html );
+		// Drop the core stylesheet <link> tags wp_editor() prints. It prints
+		// them only for the first editor in the PHP process, so whether they
+		// appear depends on which test ran first (#89). They come from WordPress
+		// core, not the controller.
+		$html = preg_replace( '/<link rel=\'stylesheet\'[^>]*\/>\n?/', '', $html );
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
 		// &amp;; core has changed usage between releases).
