@@ -475,13 +475,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	// ---------------------------------------------------------------
 
 	public function test_parse_empty_string_auto_detects_voting_page(): void {
-		$page_id = self::factory()->post->create(
-			array(
-				'post_type'    => 'page',
-				'post_status'  => 'publish',
-				'post_content' => '[competition_voting]',
-			)
-		);
+		$page_id = $this->create_page( '[competition_voting]' );
 
 		$expected_url = get_permalink( $page_id );
 
@@ -491,13 +485,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_parse_empty_and_empty_object_return_same_urls(): void {
-		$page_id = self::factory()->post->create(
-			array(
-				'post_type'    => 'page',
-				'post_status'  => 'publish',
-				'post_content' => '[competition_voting]',
-			)
-		);
+		$page_id = $this->create_page( '[competition_voting]' );
 
 		$empty_result       = Competition_Settings::parse( '' );
 		$empty_object_result = Competition_Settings::parse( '{}' );
@@ -513,13 +501,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_parse_invalid_json_auto_detects_voting_page(): void {
-		$page_id = self::factory()->post->create(
-			array(
-				'post_type'    => 'page',
-				'post_status'  => 'publish',
-				'post_content' => '[competition_voting]',
-			)
-		);
+		$page_id = $this->create_page( '[competition_voting]' );
 
 		$expected_url = get_permalink( $page_id );
 
@@ -614,6 +596,11 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertSame( get_permalink( $results ), $urls['results_page'] );
 		$this->assertArrayNotHasKey( 'top3_page', $urls );
 		$this->assertSame( get_permalink( $upload ), Competition_Settings::find_page_url_with_shortcode( 'competition_upload' ) );
+	}
+
+	public function test_empty_shortcode_tag_finds_no_page(): void {
+		$this->create_page( '[competition_upload]' );
+
 		$this->assertSame( '', Competition_Settings::find_page_url_with_shortcode( '' ) );
 	}
 

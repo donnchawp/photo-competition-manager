@@ -31,18 +31,12 @@ class Competition_Settings {
 	);
 
 	/**
-	 * Competition page URLs found this request, keyed by shortcode tag.
+	 * Competition page URLs found this request, keyed by the posts "last
+	 * changed" time they were found at, then by shortcode tag.
 	 *
-	 * @var array<string, string>
+	 * @var array<string, array<string, string>>
 	 */
 	private static $page_urls = array();
-
-	/**
-	 * Posts "last changed" time when $page_urls was filled.
-	 *
-	 * @var string
-	 */
-	private static $page_urls_last_changed = '';
 
 	/**
 	 * Get global default settings from WordPress options.
@@ -556,12 +550,11 @@ class Competition_Settings {
 	private static function competition_page_urls(): array {
 		$last_changed = wp_cache_get_last_changed( 'posts' );
 
-		if ( self::$page_urls_last_changed !== $last_changed ) {
-			self::$page_urls              = self::find_page_urls( array_values( self::PAGE_SHORTCODES ) );
-			self::$page_urls_last_changed = $last_changed;
+		if ( ! isset( self::$page_urls[ $last_changed ] ) ) {
+			self::$page_urls = array( $last_changed => self::find_page_urls( array_values( self::PAGE_SHORTCODES ) ) );
 		}
 
-		return self::$page_urls;
+		return self::$page_urls[ $last_changed ];
 	}
 
 	/**
