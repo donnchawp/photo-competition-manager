@@ -214,9 +214,10 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->seed_entrant( 'three@example.com' );
 		$job_id = $this->manager->queue_results( $this->competition_id );
 
+		$settings          = ( new Competitions_Repository() )->find( $this->competition_id )->settings;
 		$lookups_per_parse = $this->count_page_lookups(
-			static function () {
-				Competition_Settings::parse( null );
+			static function () use ( $settings ) {
+				Competition_Settings::parse( $settings );
 			}
 		);
 		$batch_lookups     = $this->count_page_lookups(
