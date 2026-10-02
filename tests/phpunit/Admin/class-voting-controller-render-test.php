@@ -218,19 +218,16 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * latest to open, not the latest created.
 	 */
 	public function test_render_acts_on_the_current_competition_when_several_are_open(): void {
-		global $wpdb;
-
-		$current_id = $this->competitions->create(
+		$current_id = $this->insert_overlapping_competition(
+			'Spring Show',
+			'spring-show',
 			array(
-				'title'      => 'Spring Show',
-				'slug'       => 'spring-show',
 				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
-				'settings'   => array( 'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) ),
+				'settings'   => wp_json_encode( array( 'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) ) ),
+				'created_at' => '2020-01-01 00:00:00',
 			)
 		);
-		$wpdb->update( $this->competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $current_id ) );
-
 		$older_id = $this->insert_overlapping_competition(
 			'Old Show',
 			'old-show',

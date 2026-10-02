@@ -426,8 +426,10 @@ class Voting_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $open_competitions, true );
 
+		$images = $this->images->find_by_competition( (int) $active_competition->id );
+
 		// Check for members with submissions but no grades.
-		$members_without_grades = $this->check_members_without_grades( $active_competition );
+		$members_without_grades = $this->check_members_without_grades( $images );
 		if ( ! empty( $members_without_grades ) ) {
 			$notice_data = array( 'members_without_grades' => $members_without_grades );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -481,10 +483,11 @@ class Voting_Controller {
 		}
 
 		// Build list of the competition's categories with images.
+		$image_counts   = array_count_values( wp_list_pluck( $images, 'category' ) );
 		$all_categories = array();
 		foreach ( Competition_Settings::get_categories( $active_settings ) as $cat ) {
 			$cat_slug    = $cat['slug'] ?? '';
-			$image_count = count( $this->images->find_by_competition( (int) $active_competition->id, $cat_slug ) );
+			$image_count = $image_counts[ $cat_slug ] ?? 0;
 
 			if ( $image_count > 0 ) {
 				$all_categories[] = array(
@@ -504,23 +507,19 @@ class Voting_Controller {
 		}
 
 		// Page load recovery: live state wins over stored step.
+		$open_cats = Competition_Settings::get_open_voting_categories( $active_settings );
+		$voted     = $active_settings['voting']['voted_categories'] ?? array();
 		foreach ( $all_categories as &$cat_data ) {
-			$cat_slug     = $cat_data['category']['slug'] ?? '';
-			$cat_comp_id  = (int) $cat_data['competition']->id;
-			$cat_key      = $cat_comp_id . '_' . $cat_slug;
-			$cat_settings = $cat_data['settings'];
-
-			$stored_step = $cat_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
+			$cat_slug    = $cat_data['category']['slug'] ?? '';
+			$stored_step = $active_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
 
 			// If voting is currently open for this category and step < 3, jump to 3.
-			$open_cats = Competition_Settings::get_open_voting_categories( $cat_settings );
 			if ( in_array( $cat_slug, $open_cats, true ) && $stored_step < 3 ) {
 				$stored_step = 3;
 			}
 
 			// If category is in voted_categories and step < 5, jump to 5.
-			$voted = $cat_settings['voting']['voted_categories'] ?? array();
-			if ( in_array( $cat_key, $voted, true ) && $stored_step < 5 ) {
+			if ( in_array( $cat_data['key'], $voted, true ) && $stored_step < 5 ) {
 				$stored_step = 5;
 			}
 
@@ -545,9 +544,9 @@ class Voting_Controller {
 		}
 
 		// Try voting open category.
-		if ( ! $active_category_data && $voting_open_globally && $open_competition_id ) {
+		if ( ! $active_category_data && (int) $active_competition->id === $open_competition_id ) {
 			foreach ( $all_categories as $cat_data ) {
-				if ( (int) $cat_data['competition']->id === $open_competition_id && ( $cat_data['category']['slug'] ?? '' ) === $open_category_slug ) {
+				if ( ( $cat_data['category']['slug'] ?? '' ) === $open_category_slug ) {
 					$active_category_data = $cat_data;
 					break;
 				}
@@ -999,12 +998,11 @@ class Voting_Controller {
 	/**
 	 * Check for members with submissions but no grades.
 	 *
-	 * @param object $competition Competition object.
+	 * @param array<int, object> $images The competition's images.
 	 * @return array Array of member info with missing grades.
 	 */
-	private function check_members_without_grades( object $competition ): array {
+	private function check_members_without_grades( array $images ): array {
 		$members_without_grades = array();
-		$images                 = $this->images->find_by_competition( (int) $competition->id );
 
 		if ( empty( $images ) ) {
 			return $members_without_grades;
@@ -1029,6 +1027,7 @@ class Voting_Controller {
 
 		return $members_without_grades;
 	}
+
 	/**
 	 * AJAX handler for advancing the voting workflow step.
 	 *
