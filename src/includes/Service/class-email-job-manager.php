@@ -528,8 +528,10 @@ class Email_Job_Manager {
 			'images' => array(),
 		);
 
-		// Get the member's grade.
+		// Get the member's grade, shown by its label.
 		$member_grade = ! empty( $member->grade ) ? $member->grade : '';
+		$grade_labels = array_column( Competition_Settings::get_grades( $settings ), 'label', 'slug' );
+		$grade_label  = $grade_labels[ $member_grade ] ?? $member_grade;
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
@@ -544,9 +546,16 @@ class Email_Job_Manager {
 			$grade_results  = $this->get_results_by_grade( $competition_id, $category_slug )[ $member_grade ] ?? array();
 			$total_in_grade = count( $grade_results );
 
-			// Find this member's images in the grade results.
-			$rank = 1;
+			// Find this member's images in the grade results. Results are sorted
+			// by total score, and tied scores share a position (1, 1, 2).
+			$position       = 0;
+			$previous_score = null;
 			foreach ( $grade_results as $result ) {
+				if ( $result->total_score !== $previous_score ) {
+					++$position;
+					$previous_score = $result->total_score;
+				}
+
 				if ( (int) $result->member_id === (int) $member_id ) {
 					$image_details = $this->analytics->get_image_details( (int) $result->id );
 
@@ -560,15 +569,14 @@ class Email_Job_Manager {
 					$member_results['images'][] = array(
 						'category_label' => $category_label,
 						'image_number'   => $result->random_number,
-						'rank'           => $rank,
+						'rank'           => $position,
 						'total_in_grade' => $total_in_grade,
-						'grade'          => $member_grade,
+						'grade'          => $grade_label,
 						'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
 						'statistics'     => $image_details['statistics'],
 						'votes'          => $image_details['votes'],
 					);
 				}
-				++$rank;
 			}
 		}
 
