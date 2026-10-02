@@ -411,19 +411,23 @@ class Voting_Controller {
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
 
-		$open_competitions = $this->competitions->all_open();
+		// Act on the same competition as the public voting and upload pages.
+		$active_competition = $this->competitions->find_current_active();
 
-		if ( empty( $open_competitions ) ) {
+		if ( ! $active_competition ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/voting/notice-no-open-competitions.php' );
 			return;
 		}
 
+		// Competitions saved before only one could be open may still overlap.
+		$open_competitions = $this->competitions->all_open();
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $open_competitions, true );
 
 		// Check for members with submissions but no grades.
-		$members_without_grades = $this->check_members_without_grades( $open_competitions );
+		$members_without_grades = $this->check_members_without_grades( $active_competition );
 		if ( ! empty( $members_without_grades ) ) {
 			$notice_data = array( 'members_without_grades' => $members_without_grades );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -431,10 +435,8 @@ class Voting_Controller {
 			return; // Stop rendering the rest of the page.
 		}
 
-		// Get the first open competition (there should only be one).
-		$active_competition = reset( $open_competitions );
-		$active_settings    = Competition_Settings::parse( $active_competition->settings );
-		$global_settings    = Competition_Settings::global_settings();
+		$active_settings = Competition_Settings::parse( $active_competition->settings );
+		$global_settings = Competition_Settings::global_settings();
 
 		// Check that required pages are configured. A competition that doesn't
 		// override the voting page has its urls.voting_page SET to '' (not
@@ -459,7 +461,9 @@ class Voting_Controller {
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
-		// Check if any category has voting open globally.
+		// Check if any category has voting open globally. This matches the
+		// guard in handle_open_category_voting(), so the page doesn't offer
+		// to open voting the guard would refuse.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
 		$open_category_slug   = null;
@@ -476,26 +480,20 @@ class Voting_Controller {
 			}
 		}
 
-		// Build list of all available categories with images.
+		// Build list of the competition's categories with images.
 		$all_categories = array();
-		foreach ( $open_competitions as $comp ) {
-			$settings   = Competition_Settings::parse( $comp->settings );
-			$categories = Competition_Settings::get_categories( $settings );
+		foreach ( Competition_Settings::get_categories( $active_settings ) as $cat ) {
+			$cat_slug    = $cat['slug'] ?? '';
+			$image_count = count( $this->images->find_by_competition( (int) $active_competition->id, $cat_slug ) );
 
-			foreach ( $categories as $cat ) {
-				$cat_slug    = $cat['slug'] ?? '';
-				$images      = $this->images->find_by_competition( (int) $comp->id, $cat_slug );
-				$image_count = count( $images );
-
-				if ( $image_count > 0 ) {
-					$all_categories[] = array(
-						'competition' => $comp,
-						'settings'    => $settings,
-						'category'    => $cat,
-						'image_count' => $image_count,
-						'key'         => $comp->id . '_' . $cat_slug,
-					);
-				}
+			if ( $image_count > 0 ) {
+				$all_categories[] = array(
+					'competition' => $active_competition,
+					'settings'    => $active_settings,
+					'category'    => $cat,
+					'image_count' => $image_count,
+					'key'         => $active_competition->id . '_' . $cat_slug,
+				);
 			}
 		}
 
@@ -1001,44 +999,36 @@ class Voting_Controller {
 	/**
 	 * Check for members with submissions but no grades.
 	 *
-	 * @param array $competitions Array of competition objects.
+	 * @param object $competition Competition object.
 	 * @return array Array of member info with missing grades.
 	 */
-	private function check_members_without_grades( array $competitions ): array {
+	private function check_members_without_grades( object $competition ): array {
 		$members_without_grades = array();
+		$images                 = $this->images->find_by_competition( (int) $competition->id );
 
-		foreach ( $competitions as $competition ) {
-			// Get all images for this competition.
-			$images = $this->images->find_by_competition( (int) $competition->id );
+		if ( empty( $images ) ) {
+			return $members_without_grades;
+		}
 
-			if ( empty( $images ) ) {
-				continue;
-			}
+		// Get unique member IDs from images.
+		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 
-			// Get unique member IDs from images.
-			$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
+		// Check each member for missing grade.
+		foreach ( $this->members->find_many( $member_ids ) as $member_id => $member ) {
+			if ( empty( $member->grade ) ) {
+				// Count images for this member.
+				$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
 
-			// Get member details.
-			$members = $this->members->find_many( $member_ids );
-
-			// Check each member for missing grade.
-			foreach ( $members as $member_id => $member ) {
-				if ( empty( $member->grade ) ) {
-					// Count images for this member.
-					$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
-
-					$members_without_grades[ $member_id ] = array(
-						'name'        => $member->name,
-						'email'       => $member->email,
-						'image_count' => $image_count,
-					);
-				}
+				$members_without_grades[ $member_id ] = array(
+					'name'        => $member->name,
+					'email'       => $member->email,
+					'image_count' => $image_count,
+				);
 			}
 		}
 
 		return $members_without_grades;
 	}
-
 	/**
 	 * AJAX handler for advancing the voting workflow step.
 	 *

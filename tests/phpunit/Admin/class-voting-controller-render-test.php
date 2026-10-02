@@ -18,6 +18,8 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * @covers \PhotoCompetitionManager\Admin\Voting_Controller
  */
@@ -208,6 +210,57 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'More than one competition is open', $html );
 		$this->assertStringContainsString( 'Spring Show', $html );
 		$this->assertStringContainsString( 'Autumn Show', $html );
+	}
+
+	/**
+	 * With two competitions open (data saved before only one could be),
+	 * Voting Controls acts on the same one the public pages show: the
+	 * latest to open, not the latest created.
+	 */
+	public function test_render_acts_on_the_current_competition_when_several_are_open(): void {
+		global $wpdb;
+
+		$current_id = $this->competitions->create(
+			array(
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
+				'settings'   => array( 'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) ),
+			)
+		);
+		$wpdb->update( $this->competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $current_id ) );
+
+		$older_id = $this->insert_overlapping_competition(
+			'Old Show',
+			'old-show',
+			array(
+				'open_date' => utc_time( -30 * DAY_IN_SECONDS ),
+				'settings'  => wp_json_encode( array( 'categories' => array( array( 'slug' => 'mono', 'label' => 'Mono' ) ) ) ),
+			)
+		);
+
+		$member_id = $this->members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'A' ) );
+		foreach ( array( $current_id => 'colour', $older_id => 'mono' ) as $comp_id => $cat ) {
+			$this->images->create(
+				array(
+					'competition_id' => $comp_id,
+					'member_id'      => $member_id,
+					'category'       => $cat,
+					'filename'       => $cat . '.jpg',
+					'random_number'  => 100,
+				)
+			);
+		}
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'More than one competition is open', $html );
+		$this->assertStringContainsString( 'status-bar-title">Spring Show<', $html );
+		$this->assertMatchesRegularExpression( '/competition=' . $current_id . '(?!\d)/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/competition=' . $older_id . '(?!\d)/', $html );
 	}
 
 	/**
