@@ -305,7 +305,6 @@ class Voting_Controller {
 	/**
 	 * Load a competition or add an error and redirect to the voting page.
 	 *
-	 * Refuses a competition that isn't the current one (see is_superseded()).
 	 * The redirect terminates the request, so callers can treat the return value
 	 * as a guaranteed competition object.
 	 *
@@ -313,24 +312,17 @@ class Voting_Controller {
 	 * @return object Competition object.
 	 */
 	private function load_competition_or_fail( int $competition_id ): object {
-		$competition = $this->competitions->find( $competition_id );
+		$competition = $this->find_actionable_competition( $competition_id );
 
-		if ( ! $competition ) {
-			$this->fail_voting(
-				'competition_not_found',
-				__( 'Competition not found.', 'photo-competition-manager' )
-			);
-		}
-
-		if ( $this->is_superseded( $competition ) ) {
-			$this->fail_voting( 'competition_not_current', $this->not_current_message() );
+		if ( is_wp_error( $competition ) ) {
+			$this->fail_voting( $competition->get_error_code(), $competition->get_error_message() );
 		}
 
 		return $competition;
 	}
 
 	/**
-	 * Whether another competition is now the current one.
+	 * Find the competition a voting action may act on.
 	 *
 	 * Voting Controls only shows the current competition, so an action for
 	 * any other comes from a stale tab or link. When no competition is
@@ -339,24 +331,26 @@ class Voting_Controller {
 	 *
 	 * @since 0.3.0
 	 *
-	 * @param object $competition Competition the request acts on.
-	 * @return bool
+	 * @param int $competition_id Competition ID from the request.
+	 * @return object|\WP_Error The competition, or 'competition_not_found' or 'competition_not_current'.
 	 */
-	private function is_superseded( object $competition ): bool {
+	private function find_actionable_competition( int $competition_id ) {
+		$competition = $this->competitions->find( $competition_id );
+
+		if ( ! $competition ) {
+			return new \WP_Error( 'competition_not_found', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
 		$current = $this->competitions->find_current_active();
 
-		return $current && (int) $current->id !== (int) $competition->id;
-	}
+		if ( $current && (int) $current->id !== (int) $competition->id ) {
+			return new \WP_Error(
+				'competition_not_current',
+				__( 'This competition is no longer the current one. Reload Voting Controls.', 'photo-competition-manager' )
+			);
+		}
 
-	/**
-	 * Error shown when an action targets a competition that isn't current.
-	 *
-	 * @since 0.3.0
-	 *
-	 * @return string
-	 */
-	private function not_current_message(): string {
-		return __( 'This competition is no longer the current one. Reload Voting Controls.', 'photo-competition-manager' );
+		return $competition;
 	}
 
 	/**
@@ -1093,13 +1087,9 @@ class Voting_Controller {
 			wp_send_json_error( array( 'message' => __( 'Invalid parameters.', 'photo-competition-manager' ) ) );
 		}
 
-		$competition = $this->competitions->find( $competition_id );
-		if ( ! $competition ) {
-			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
-		}
-
-		if ( $this->is_superseded( $competition ) ) {
-			wp_send_json_error( array( 'message' => $this->not_current_message() ) );
+		$competition = $this->find_actionable_competition( $competition_id );
+		if ( is_wp_error( $competition ) ) {
+			wp_send_json_error( array( 'message' => $competition->get_error_message() ) );
 		}
 
 		$settings = Competition_Settings::parse( $competition->settings );

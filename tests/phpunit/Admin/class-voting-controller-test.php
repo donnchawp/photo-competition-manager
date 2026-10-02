@@ -524,12 +524,6 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'Invalid parameters', $json['data']['message'] );
 	}
 
-	/*
-	 * -----------------------------------------------------------------
-	 * Only the current competition.
-	 * -----------------------------------------------------------------
-	 */
-
 	/**
 	 * Insert an older competition that overlaps the current one, as saved
 	 * before only one could be open. Both have no open date, so the one
@@ -619,6 +613,9 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
 	}
 
+	/**
+	 * The slideshow's step button can't advance a competition that isn't current.
+	 */
 	public function test_advance_step_refuses_competition_that_is_not_current(): void {
 		$older_id = $this->insert_older_open_competition();
 
