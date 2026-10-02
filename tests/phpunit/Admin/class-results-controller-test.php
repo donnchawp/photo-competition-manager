@@ -68,6 +68,13 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	private $competition_id;
 
 	/**
+	 * Competitions made by create_dated_competition(), used to order their created_at.
+	 *
+	 * @var int
+	 */
+	private $created_count = 0;
+
+	/**
 	 * Set up the controller and a seeded competition.
 	 */
 	public function set_up(): void {
@@ -703,11 +710,10 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * The screen opens on the competition being judged, not the newest one.
 	 */
 	public function test_default_is_the_current_competition_not_the_newest(): void {
-		$this->competitions->archive( $this->competition_id );
-		$this->create_dated_competition( 'This Month', -3, 1, '2026-01-01 00:00:00' );
-		$this->create_dated_competition( 'Next Month', 25, 30, '2026-01-02 00:00:00' );
+		$this->create_dated_competition( 'This Month', -3, 1 );
+		$this->create_dated_competition( 'Next Month', 25, 30 );
 
-		$this->assertSame( 'This Month', $this->default_competition_title() );
+		$this->assertSame( 'This Month', $this->selected_competition_title() );
 	}
 
 	/**
@@ -715,11 +721,10 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * hasn't opened, so the screen opens on the last one to open.
 	 */
 	public function test_default_between_competitions_is_the_latest_opened(): void {
-		$this->competitions->archive( $this->competition_id );
-		$this->create_dated_competition( 'Last Month', -10, -5, '2026-01-01 00:00:00' );
-		$this->create_dated_competition( 'Next Month', 20, 25, '2026-01-02 00:00:00' );
+		$this->create_dated_competition( 'Last Month', -10, -5 );
+		$this->create_dated_competition( 'Next Month', 20, 25 );
 
-		$this->assertSame( 'Last Month', $this->default_competition_title() );
+		$this->assertSame( 'Last Month', $this->selected_competition_title() );
 	}
 
 	/**
@@ -727,32 +732,35 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * one in the selector, the newest created.
 	 */
 	public function test_default_when_nothing_has_opened_is_the_first_in_the_selector(): void {
+		// The set_up() competition opened in 2020.
 		$this->competitions->archive( $this->competition_id );
-		$this->create_dated_competition( 'Soon', 5, 10, '2026-01-01 00:00:00' );
-		$this->create_dated_competition( 'Later', 20, 25, '2026-01-02 00:00:00' );
+		$this->create_dated_competition( 'Soon', 5, 10 );
+		$this->create_dated_competition( 'Later', 20, 25 );
 
-		$this->assertSame( 'Later', $this->default_competition_title() );
+		$this->assertSame( 'Later', $this->selected_competition_title() );
 	}
 
 	public function test_competition_in_the_url_overrides_the_default(): void {
-		$this->create_dated_competition( 'This Month', -3, 1, '2026-01-01 00:00:00' );
-		$chosen_id = $this->create_dated_competition( 'Next Month', 25, 30, '2026-01-02 00:00:00' );
+		$this->create_dated_competition( 'This Month', -3, 1 );
+		$chosen_id = $this->create_dated_competition( 'Next Month', 25, 30 );
 
 		$this->set_request( array( 'competition' => (string) $chosen_id ) );
 
-		$this->assertSame( 'Next Month', $this->default_competition_title() );
+		$this->assertSame( 'Next Month', $this->selected_competition_title() );
 	}
 
 	/**
 	 * Create a competition open from $opens_in to $closes_in days from now.
 	 *
-	 * @param string $title      Title.
-	 * @param int    $opens_in   Days from now until it opens (negative: in the past).
-	 * @param int    $closes_in  Days from now until it closes.
-	 * @param string $created_at created_at to force, so creation order is deterministic.
+	 * Each one is stamped as created after every competition before it,
+	 * including the set_up() one, so creation order follows call order.
+	 *
+	 * @param string $title     Title.
+	 * @param int    $opens_in  Days from now until it opens (negative: in the past).
+	 * @param int    $closes_in Days from now until it closes.
 	 * @return int Competition ID.
 	 */
-	private function create_dated_competition( string $title, int $opens_in, int $closes_in, string $created_at ): int {
+	private function create_dated_competition( string $title, int $opens_in, int $closes_in ): int {
 		global $wpdb;
 
 		$id = $this->create_competition(
@@ -764,7 +772,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->update( $this->competitions->table(), array( 'created_at' => $created_at ), array( 'id' => $id ) );
+		$wpdb->update( $this->competitions->table(), array( 'created_at' => utc_time( ++$this->created_count * MINUTE_IN_SECONDS ) ), array( 'id' => $id ) );
 
 		return $id;
 	}
@@ -774,7 +782,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 *
 	 * @return string|null
 	 */
-	private function default_competition_title(): ?string {
+	private function selected_competition_title(): ?string {
 		ob_start();
 		$this->controller->render();
 		$html = (string) ob_get_clean();
