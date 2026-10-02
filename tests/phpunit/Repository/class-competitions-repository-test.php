@@ -786,6 +786,76 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertTrue( $repository->update( $first_id, array( 'settings' => array( 'grades' => array() ) ) ) );
 	}
 
+	public function test_update_accepts_dates_ending_when_another_opens(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 10 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $hand_over,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $current_id, array( 'close_date' => $hand_over ) ) );
+	}
+
+	/**
+	 * Close Competition sets the close date to now. That must work even
+	 * when older competitions saved before the overlap check still clash
+	 * with it, since closing is how an admin clears up that clash.
+	 */
+	public function test_update_closing_now_ignores_existing_overlap(): void {
+		global $wpdb;
+
+		$repository = new Competitions_Repository( $wpdb );
+
+		$open_id = $repository->create( array( 'title' => 'Open' ) );
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'title'      => 'Never Closed',
+				'slug'       => 'never-closed',
+				'created_at' => utc_time(),
+				'updated_at' => utc_time(),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $open_id, array( 'close_date' => utc_time() ) ) );
+	}
+
+	public function test_restore_accepts_competition_ending_when_another_opens(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$archived_id = $repository->create(
+			array(
+				'title'      => 'Archived',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => $hand_over,
+			)
+		);
+		$repository->archive( $archived_id );
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $hand_over,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertTrue( $repository->restore( $archived_id ) );
+		$this->assertNotNull( $repository->find( $archived_id ) );
+	}
+
 	public function test_restore_refuses_competition_that_overlaps_another(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
