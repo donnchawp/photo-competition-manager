@@ -644,7 +644,7 @@ class Members_Controller {
 		echo '<h1>' . esc_html__( 'Members', 'photo-competition-manager' ) . '</h1>';
 
 		// Show upload status with toggle button for active competition.
-		if ( $active_competition && $this->competitions->is_open( $active_competition ) ) {
+		if ( $active_competition ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_uploads_status_notice( $active_competition );
 		}
@@ -782,7 +782,7 @@ class Members_Controller {
 				'photo_competition_delete_member_' . (int) $member->id
 			);
 
-			$show_send_email = (bool) ( $active_competition && $this->competitions->is_open( $active_competition ) && $member->active && ! empty( $member->email ) );
+			$show_send_email = (bool) ( $active_competition && $member->active && ! empty( $member->email ) );
 			$send_url        = '';
 			$upload_url      = '';
 

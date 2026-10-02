@@ -81,7 +81,7 @@ WP_CLI::success( sprintf( '%d members created.', $created ) );
 $competitions_repo = new Competitions_Repository();
 $competition       = $competitions_repo->find_current_active();
 
-if ( $competition && $competitions_repo->is_open( $competition ) ) {
+if ( $competition ) {
 	WP_CLI::log( sprintf( 'Using existing open competition: %s', $competition->title ) );
 } else {
 	$yesterday = gmdate( 'Y-m-d 00:00:00', strtotime( '-1 day' ) );

@@ -47,10 +47,31 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Fetch open competitions, newest first.
 	 *
+	 * @since 0.3.0
+	 *
 	 * @return array<int, object>
 	 */
 	public function all_open(): array {
-		return array_values( array_filter( $this->all( 100 ), array( $this, 'is_open' ) ) );
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- open_condition() is prepared.
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $this->open_condition() . ' ORDER BY created_at DESC', $this->table() ) );
+	}
+
+	/**
+	 * WHERE clause for competitions open now: not archived, and
+	 * open_date <= now < close_date. Matches is_open().
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return string Prepared SQL condition.
+	 */
+	private function open_condition(): string {
+		global $wpdb;
+
+		$current = utc_time();
+
+		return $wpdb->prepare( 'deleted_at IS NULL AND (open_date IS NULL OR open_date <= %s) AND (close_date IS NULL OR close_date > %s)', $current, $current );
 	}
 
 	/**
@@ -136,7 +157,7 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Find the current active competition.
 	 *
-	 * Returns a competition whose open date has started, close date has not passed,
+	 * Returns a competition whose open date has started, close date has not arrived,
 	 * and that has not been archived.
 	 *
 	 * @return object|null
@@ -144,20 +165,8 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find_current_active() {
 		global $wpdb;
 
-		$current = utc_time();
-
-		// phpcs:disable WordPress.DB.PreparedSQL
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return $wpdb->get_row(
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->prepare(
-				'SELECT * FROM %i WHERE deleted_at IS NULL AND (open_date IS NULL OR open_date <= %s) AND (close_date IS NULL OR close_date >= %s) ORDER BY open_date DESC, created_at DESC LIMIT 1',
-				$this->table(),
-				$current,
-				$current
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- open_condition() is prepared.
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $this->open_condition() . ' ORDER BY open_date DESC, created_at DESC LIMIT 1', $this->table() ) );
 	}
 
 	/**
@@ -169,7 +178,8 @@ class Competitions_Repository extends Abstract_Repository {
 	 * date means the range starts now; a missing close date means it never
 	 * ends, so a competition with no close date overlaps everything after it
 	 * opens. A range that starts at the moment another closes does not
-	 * overlap it. Archived competitions are ignored.
+	 * overlap it, the same rule is_open() uses. Archived competitions are
+	 * ignored.
 	 *
 	 * @since 0.3.0
 	 *
@@ -577,6 +587,9 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Check if a competition is open (within date range and not deleted).
 	 *
+	 * A competition is open while open_date <= now < close_date. A missing
+	 * date is unbounded on that side.
+	 *
 	 * @param object $competition Competition object.
 	 * @return bool
 	 */
@@ -592,8 +605,8 @@ class Competitions_Repository extends Abstract_Repository {
 			return false;
 		}
 
-		// Check if close_date has not passed (or is null).
-		if ( ! empty( $competition->close_date ) && $competition->close_date < $current ) {
+		// Check if close_date has not arrived (or is null).
+		if ( ! empty( $competition->close_date ) && $competition->close_date <= $current ) {
 			return false;
 		}
 

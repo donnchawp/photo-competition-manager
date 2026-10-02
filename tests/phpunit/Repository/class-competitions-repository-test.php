@@ -313,6 +313,25 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertFalse( $repository->is_open( $competition ) );
 	}
 
+	/**
+	 * A competition is open while open_date <= now < close_date, so it is
+	 * already closed at the moment its close date arrives.
+	 */
+	public function test_is_open_returns_false_at_close_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id          = $repository->create(
+			array(
+				'title'      => 'Closing Now',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => utc_time(),
+			)
+		);
+		$competition = $repository->find( $id );
+
+		$this->assertFalse( $repository->is_open( $competition ) );
+	}
+
 	public function test_is_open_returns_false_when_archived(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
@@ -367,6 +386,46 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $open_id ), $ids );
 		$this->assertNotContains( $closed_id, $ids );
 		$this->assertNotContains( $future_id, $ids );
+	}
+
+	/**
+	 * An old competition that never closed is still open, however many
+	 * newer competitions there are.
+	 */
+	public function test_all_open_finds_old_open_competition_behind_many_closed_ones(): void {
+		global $wpdb;
+
+		$repository = new Competitions_Repository( $wpdb );
+
+		$open_id = $repository->create( array( 'title' => 'Old Open Comp' ) );
+		$wpdb->update( $repository->table(), array( 'created_at' => '2000-01-01 00:00:00' ), array( 'id' => $open_id ) );
+
+		for ( $i = 1; $i <= 101; $i++ ) {
+			$repository->create(
+				array(
+					'title'      => "Closed Comp {$i}",
+					'close_date' => '2020-02-01 00:00:00',
+				)
+			);
+		}
+
+		$ids = array_map( 'intval', wp_list_pluck( $repository->all_open(), 'id' ) );
+
+		$this->assertSame( array( $open_id ), $ids );
+	}
+
+	public function test_all_open_excludes_competition_at_close_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closing Now',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => utc_time(),
+			)
+		);
+
+		$this->assertSame( array(), $repository->all_open() );
 	}
 
 	public function test_all_open_returns_empty_array_when_none_open(): void {
@@ -511,7 +570,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			array(
 				'title'      => 'Closed Today',
 				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
-				'close_date' => utc_time( -1 ),
+				'close_date' => utc_time(),
 			)
 		);
 
@@ -696,6 +755,20 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 				'title'      => 'Past Comp',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$this->assertNull( $repository->find_current_active() );
+	}
+
+	public function test_find_current_active_returns_null_at_close_date(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Closing Now',
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => utc_time(),
 			)
 		);
 

@@ -294,13 +294,13 @@ class Competitions_Controller {
 				$settings = Competition_Settings::close_category_voting( $settings, $competition_id, $category_slug );
 			}
 
-			// Close as of a second ago: is_open() needs close_date < now, and a
-			// date-only "today" is stored as midnight UTC, which is still in the
-			// future just after midnight on sites ahead of UTC.
+			// Use the current time, not a date-only "today": that is stored as
+			// midnight UTC, which is still in the future just after midnight on
+			// sites ahead of UTC.
 			$result = $this->competitions->update(
 				$competition_id,
 				array(
-					'close_date' => utc_time( -1 ),
+					'close_date' => utc_time(),
 					'settings'   => $settings,
 				)
 			);
