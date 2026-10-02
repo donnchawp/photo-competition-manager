@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 class Email_Job_Manager_Test extends WP_UnitTestCase {
@@ -179,6 +180,55 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertCount( 3, $this->recipients );
 		$this->assertNotEmpty( $calls );
 		$this->assertSame( array_values( array_unique( $calls ) ), $calls );
+	}
+
+	public function test_results_batch_parses_competition_settings_once(): void {
+		$this->seed_entrant( 'one@example.com' );
+		$this->seed_entrant( 'two@example.com' );
+		$this->seed_entrant( 'three@example.com' );
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		// Parsing settings with no page URLs looks for each page via get_pages().
+		$page_lookups = 0;
+		$count_lookup = static function ( $pages ) use ( &$page_lookups ) {
+			++$page_lookups;
+			return $pages;
+		};
+		add_filter( 'get_pages', $count_lookup );
+
+		Competition_Settings::parse( null );
+		$lookups_per_parse = $page_lookups;
+		$page_lookups      = 0;
+
+		$this->manager->process_batch( $job_id );
+		remove_filter( 'get_pages', $count_lookup );
+
+		$this->assertCount( 3, $this->recipients );
+		$this->assertGreaterThan( 0, $lookups_per_parse );
+		$this->assertSame( $lookups_per_parse, $page_lookups );
+	}
+
+	public function test_competition_settings_are_parsed_again_for_each_batch(): void {
+		for ( $i = 1; $i <= 6; $i++ ) {
+			$this->seed_entrant( "entrant-$i@example.com" );
+		}
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		$page_lookups = 0;
+		$count_lookup = static function ( $pages ) use ( &$page_lookups ) {
+			++$page_lookups;
+			return $pages;
+		};
+		add_filter( 'get_pages', $count_lookup );
+
+		$this->manager->process_batch( $job_id );
+		$first_batch = $page_lookups;
+		$this->manager->process_batch( $job_id );
+		remove_filter( 'get_pages', $count_lookup );
+
+		$this->assertCount( 6, $this->recipients );
+		$this->assertGreaterThan( 0, $first_batch );
+		$this->assertSame( 2 * $first_batch, $page_lookups );
 	}
 
 	public function test_results_are_reloaded_for_each_batch(): void {
