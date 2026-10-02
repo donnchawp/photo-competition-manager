@@ -674,11 +674,8 @@ class Competitions_Controller {
 	}
 
 	/**
-	 * Link the competition named in an overlap error.
-	 *
-	 * The repository refuses dates that overlap another competition, since
-	 * only one may be open at a time. Link to the competition in the way,
-	 * since it may be too old to appear in the dashboard list.
+	 * Link the competition named in an overlap error, since it may be too
+	 * old to appear in the dashboard list.
 	 *
 	 * @since 0.3.0
 	 *
@@ -690,7 +687,8 @@ class Competitions_Controller {
 			return $result;
 		}
 
-		$other = $result->get_error_data()['competition'];
+		$data  = $result->get_error_data();
+		$other = $data['competition'];
 
 		return new \WP_Error(
 			'competition_overlap',
@@ -699,7 +697,7 @@ class Competitions_Controller {
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
 				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
 			),
-			$result->get_error_data()
+			$data
 		);
 	}
 

@@ -237,7 +237,7 @@ class Competitions_Repository extends Abstract_Repository {
 			'competition_overlap',
 			sprintf(
 				/* translators: %s: title of the overlapping competition */
-				__( 'These dates overlap %s, and only one competition can be open at a time.', 'photo-competition-manager' ),
+				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
 				$other->title
 			),
 			array( 'competition' => $other )
