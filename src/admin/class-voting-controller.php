@@ -346,7 +346,7 @@ class Voting_Controller {
 		if ( $current && (int) $current->id !== (int) $competition->id ) {
 			return new \WP_Error(
 				'competition_not_current',
-				__( 'This competition is no longer the current one. Reload Voting Controls.', 'photo-competition-manager' )
+				__( 'This isn\'t the current competition. Reload Voting Controls.', 'photo-competition-manager' )
 			);
 		}
 

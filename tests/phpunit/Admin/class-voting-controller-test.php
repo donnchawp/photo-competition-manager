@@ -252,7 +252,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * Opening is blocked when another active competition already has voting open.
 	 */
 	public function test_open_category_voting_blocked_when_another_open(): void {
-		$other                          = $this->insert_overlapping_competition( 'Other', 'other' );
+		$other                          = $this->insert_overlapping_competition( 'Other', 'other', array( 'created_at' => '2020-01-01 00:00:00' ) );
 		$comp                           = $this->competitions->find( $other );
 		$s                              = Competition_Settings::parse( $comp->settings );
 		$s['voting']['open_categories'] = array( 'mono' );
@@ -590,6 +590,30 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Another open competition doesn't stop the current one being run.
+	 */
+	public function test_voting_action_accepts_current_competition_when_another_is_open(): void {
+		$this->insert_older_open_competition();
+
+		$this->set_request(
+			array(
+				'action'      => 'show_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_show_results_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertTrue( $this->settings()['results']['results_visible'] );
+	}
+
+	/**
 	 * The competition can reach its close date while the admin still has
 	 * Voting Controls open, and the last steps must still work then.
 	 */
@@ -635,7 +659,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertFalse( $json['success'] );
-		$this->assertStringContainsString( 'no longer the current one', $json['data']['message'] );
+		$this->assertStringContainsString( "isn't the current competition", $json['data']['message'] );
 		$this->assertNull( $this->competitions->find( $older_id )->settings );
 	}
 }
