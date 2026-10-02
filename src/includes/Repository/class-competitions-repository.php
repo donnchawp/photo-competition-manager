@@ -188,15 +188,21 @@ class Competitions_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY open_date DESC, created_at DESC', $this->table() ) );
 
+		$open = null;
+
 		foreach ( $competitions as $competition ) {
-			$settings = json_decode( (string) $competition->settings, true );
+			$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
 
 			if ( ! empty( $settings['results']['results_visible'] ) ) {
 				return $competition;
 			}
+
+			if ( null === $open && $this->is_open( $competition ) ) {
+				$open = $competition;
+			}
 		}
 
-		return $this->find_current_active() ?? ( $competitions[0] ?? null );
+		return $open ?? ( $competitions[0] ?? null );
 	}
 
 	/**
