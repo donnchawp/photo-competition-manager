@@ -23,6 +23,8 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * Characterization tests for the results controller.
  *
@@ -688,5 +690,95 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			),
 			$this->summarize_export_rows( $rows )
 		);
+	}
+
+	/*
+	 * -------------------------------------------------------------------------
+	 * Default competition (no ?competition= in the URL).
+	 * -------------------------------------------------------------------------
+	 */
+
+	/**
+	 * Results night: next month's competition was created a few days early.
+	 * The screen opens on the competition being judged, not the newest one.
+	 */
+	public function test_default_is_the_current_competition_not_the_newest(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->create_dated_competition( 'This Month', -3, 1, '2026-01-01 00:00:00' );
+		$this->create_dated_competition( 'Next Month', 25, 30, '2026-01-02 00:00:00' );
+
+		$this->assertSame( 'This Month', $this->default_competition_title() );
+	}
+
+	/**
+	 * Between competitions nothing is current, and next month's competition
+	 * hasn't opened, so the screen opens on the last one to open.
+	 */
+	public function test_default_between_competitions_is_the_latest_opened(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->create_dated_competition( 'Last Month', -10, -5, '2026-01-01 00:00:00' );
+		$this->create_dated_competition( 'Next Month', 20, 25, '2026-01-02 00:00:00' );
+
+		$this->assertSame( 'Last Month', $this->default_competition_title() );
+	}
+
+	/**
+	 * With every competition still to open, the screen falls back to the first
+	 * one in the selector, the newest created.
+	 */
+	public function test_default_when_nothing_has_opened_is_the_first_in_the_selector(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->create_dated_competition( 'Soon', 5, 10, '2026-01-01 00:00:00' );
+		$this->create_dated_competition( 'Later', 20, 25, '2026-01-02 00:00:00' );
+
+		$this->assertSame( 'Later', $this->default_competition_title() );
+	}
+
+	public function test_competition_in_the_url_overrides_the_default(): void {
+		$this->create_dated_competition( 'This Month', -3, 1, '2026-01-01 00:00:00' );
+		$chosen_id = $this->create_dated_competition( 'Next Month', 25, 30, '2026-01-02 00:00:00' );
+
+		$this->set_request( array( 'competition' => (string) $chosen_id ) );
+
+		$this->assertSame( 'Next Month', $this->default_competition_title() );
+	}
+
+	/**
+	 * Create a competition open from $opens_in to $closes_in days from now.
+	 *
+	 * @param string $title      Title.
+	 * @param int    $opens_in   Days from now until it opens (negative: in the past).
+	 * @param int    $closes_in  Days from now until it closes.
+	 * @param string $created_at created_at to force, so creation order is deterministic.
+	 * @return int Competition ID.
+	 */
+	private function create_dated_competition( string $title, int $opens_in, int $closes_in, string $created_at ): int {
+		global $wpdb;
+
+		$id = $this->create_competition(
+			array(
+				'title'      => $title,
+				'open_date'  => utc_time( $opens_in * DAY_IN_SECONDS ),
+				'close_date' => utc_time( $closes_in * DAY_IN_SECONDS ),
+			)
+		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $this->competitions->table(), array( 'created_at' => $created_at ), array( 'id' => $id ) );
+
+		return $id;
+	}
+
+	/**
+	 * Render the Results screen and return the title selected in its competition selector.
+	 *
+	 * @return string|null
+	 */
+	private function default_competition_title(): ?string {
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		return preg_match( '#<option[^>]* selected>([^<]+)</option>#', $html, $match ) ? $match[1] : null;
 	}
 }
