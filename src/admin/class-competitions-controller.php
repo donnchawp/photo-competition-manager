@@ -225,7 +225,6 @@ class Competitions_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
-				return;
 			}
 
 			$new_hash = Competition_Settings::generate_share_hash();
@@ -265,7 +264,6 @@ class Competitions_Controller {
 			}
 
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
-			return;
 		}
 
 		if ( 'close_competition' === $action && isset( $_GET['competition'] ) ) {
@@ -286,7 +284,6 @@ class Competitions_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
-				return;
 			}
 
 			$settings = Competition_Settings::parse( $competition->settings );
@@ -322,7 +319,6 @@ class Competitions_Controller {
 			}
 
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
-			return;
 		}
 
 		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {

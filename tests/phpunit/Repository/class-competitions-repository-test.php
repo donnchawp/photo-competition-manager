@@ -502,6 +502,45 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A range that closes on the day the next competition opens is the same
+	 * hand-over seen from the other side, not an overlap.
+	 */
+	public function test_find_overlapping_allows_range_closing_when_other_opens(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $hand_over,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertNull( $repository->find_overlapping( utc_time( -10 * DAY_IN_SECONDS ), $hand_over ) );
+	}
+
+	/**
+	 * A competition with no open date has been open since forever, so it
+	 * overlaps any range that starts before it closes.
+	 */
+	public function test_find_overlapping_treats_missing_open_date_of_other_as_already_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$undated_id = $repository->create(
+			array(
+				'title'      => 'Undated Open',
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$overlap = $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) );
+
+		$this->assertNotNull( $overlap );
+		$this->assertSame( $undated_id, (int) $overlap->id );
+	}
+
+	/**
 	 * A competition with no close date stays open for ever, so it overlaps
 	 * anything that opens after it.
 	 */

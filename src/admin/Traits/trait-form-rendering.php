@@ -129,7 +129,7 @@ trait Form_Rendering {
 	 * ensuring they display on the destination page after the redirect completes.
 	 *
 	 * @param string $url Destination URL.
-	 * @return void
+	 * @return never
 	 */
 	private function redirect_with_settings_errors( string $url ): void {
 		set_transient( 'settings_errors', get_settings_errors(), 30 );
