@@ -509,6 +509,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( $expected_url, $result['urls']['voting_page'] );
 	}
+
 	// ---------------------------------------------------------------
 	// Page URL detection is done once per request until posts change.
 	// ---------------------------------------------------------------
@@ -588,14 +589,52 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$upload  = $this->create_page( '[competition_upload]' );
 		$voting  = $this->create_page( '[competition_voting]' );
 		$results = $this->create_page( '[competition_results]' );
+		$top3    = $this->create_page( '[competition_top3]' );
 
 		$urls = Competition_Settings::parse( null )['urls'];
 
 		$this->assertSame( get_permalink( $upload ), $urls['upload_page'] );
 		$this->assertSame( get_permalink( $voting ), $urls['voting_page'] );
 		$this->assertSame( get_permalink( $results ), $urls['results_page'] );
-		$this->assertArrayNotHasKey( 'top3_page', $urls );
+		$this->assertSame( get_permalink( $top3 ), $urls['top3_page'] );
 		$this->assertSame( get_permalink( $upload ), Competition_Settings::find_page_url_with_shortcode( 'competition_upload' ) );
+	}
+
+	public function test_undetected_page_url_is_left_unset(): void {
+		$this->create_page( '[competition_voting]' );
+
+		$this->assertArrayNotHasKey( 'top3_page', Competition_Settings::parse( null )['urls'] );
+	}
+
+	public function test_page_with_two_shortcodes_is_found_for_both(): void {
+		$page_id = $this->create_page( '[competition_results] [competition_top3]' );
+
+		$urls = Competition_Settings::parse( null )['urls'];
+
+		$this->assertSame( get_permalink( $page_id ), $urls['results_page'] );
+		$this->assertSame( get_permalink( $page_id ), $urls['top3_page'] );
+	}
+
+	public function test_first_page_in_title_order_wins_when_two_have_the_shortcode(): void {
+		$second = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_title'   => 'B Voting',
+				'post_content' => '[competition_voting]',
+			)
+		);
+		$first  = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_title'   => 'A Voting',
+				'post_content' => '[competition_voting]',
+			)
+		);
+
+		$this->assertSame( get_permalink( $first ), Competition_Settings::parse( null )['urls']['voting_page'] );
+		$this->assertNotSame( get_permalink( $second ), get_permalink( $first ) );
 	}
 
 	public function test_empty_shortcode_tag_finds_no_page(): void {
