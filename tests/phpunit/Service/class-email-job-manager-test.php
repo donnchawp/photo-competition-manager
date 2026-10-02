@@ -159,6 +159,32 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		return $member_id;
 	}
 
+	/**
+	 * Count get_pages() calls made while running a callback.
+	 *
+	 * Parsing settings with no page URLs looks for each page via get_pages(),
+	 * so this counts how often competition settings were parsed.
+	 *
+	 * @param callable $run Code to run.
+	 * @return int Number of get_pages() calls.
+	 */
+	private function count_page_lookups( callable $run ): int {
+		$lookups = 0;
+		$count   = static function ( $pages ) use ( &$lookups ) {
+			++$lookups;
+			return $pages;
+		};
+
+		add_filter( 'get_pages', $count );
+		try {
+			$run();
+		} finally {
+			remove_filter( 'get_pages', $count );
+		}
+
+		return $lookups;
+	}
+
 	public function test_queue_results_leaves_out_inactive_entrants(): void {
 		$active   = $this->seed_entrant( 'active@example.com' );
 		$inactive = $this->seed_entrant( 'gone@example.com' );
@@ -188,24 +214,20 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->seed_entrant( 'three@example.com' );
 		$job_id = $this->manager->queue_results( $this->competition_id );
 
-		// Parsing settings with no page URLs looks for each page via get_pages().
-		$page_lookups = 0;
-		$count_lookup = static function ( $pages ) use ( &$page_lookups ) {
-			++$page_lookups;
-			return $pages;
-		};
-		add_filter( 'get_pages', $count_lookup );
-
-		Competition_Settings::parse( null );
-		$lookups_per_parse = $page_lookups;
-		$page_lookups      = 0;
-
-		$this->manager->process_batch( $job_id );
-		remove_filter( 'get_pages', $count_lookup );
+		$lookups_per_parse = $this->count_page_lookups(
+			static function () {
+				Competition_Settings::parse( null );
+			}
+		);
+		$batch_lookups     = $this->count_page_lookups(
+			function () use ( $job_id ) {
+				$this->manager->process_batch( $job_id );
+			}
+		);
 
 		$this->assertCount( 3, $this->recipients );
 		$this->assertGreaterThan( 0, $lookups_per_parse );
-		$this->assertSame( $lookups_per_parse, $page_lookups );
+		$this->assertSame( $lookups_per_parse, $batch_lookups );
 	}
 
 	public function test_competition_settings_are_parsed_again_for_each_batch(): void {
@@ -214,21 +236,15 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		}
 		$job_id = $this->manager->queue_results( $this->competition_id );
 
-		$page_lookups = 0;
-		$count_lookup = static function ( $pages ) use ( &$page_lookups ) {
-			++$page_lookups;
-			return $pages;
+		$process_batch = function () use ( $job_id ) {
+			$this->manager->process_batch( $job_id );
 		};
-		add_filter( 'get_pages', $count_lookup );
-
-		$this->manager->process_batch( $job_id );
-		$first_batch = $page_lookups;
-		$this->manager->process_batch( $job_id );
-		remove_filter( 'get_pages', $count_lookup );
+		$first_batch   = $this->count_page_lookups( $process_batch );
+		$second_batch  = $this->count_page_lookups( $process_batch );
 
 		$this->assertCount( 6, $this->recipients );
 		$this->assertGreaterThan( 0, $first_batch );
-		$this->assertSame( 2 * $first_batch, $page_lookups );
+		$this->assertSame( $first_batch, $second_batch );
 	}
 
 	public function test_results_are_reloaded_for_each_batch(): void {
