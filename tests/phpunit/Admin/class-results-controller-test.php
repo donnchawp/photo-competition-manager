@@ -114,10 +114,10 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				array(
 					'title'      => 'Spring Show',
 					'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
-					// Null dates keep is_open() clock-independent, consistent with the
-					// other admin-controller suites (no date-gated behavior here today).
-					'open_date'  => null,
-					'close_date' => null,
+					// A past, closed range is clock-independent and never overlaps,
+					// so tests can create as many as they need.
+					'open_date'  => '2020-01-01 00:00:00',
+					'close_date' => '2020-02-01 00:00:00',
 					'settings'   => array(),
 				),
 				$overrides

@@ -252,7 +252,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * Opening is blocked when another active competition already has voting open.
 	 */
 	public function test_open_category_voting_blocked_when_another_open(): void {
-		$other                          = $this->create_open_competition( 'Other', 'other' );
+		$other                          = $this->insert_overlapping_competition( 'Other', 'other' );
 		$comp                           = $this->competitions->find( $other );
 		$s                              = Competition_Settings::parse( $comp->settings );
 		$s['voting']['open_categories'] = array( 'mono' );

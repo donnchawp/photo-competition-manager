@@ -136,8 +136,9 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array(
 				'title'      => $title,
 				'slug'       => sanitize_title( $title ),
-				'open_date'  => null,
-				'close_date' => null,
+				// A past, closed range never overlaps the other seeded competitions.
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
 			)
 		);
 

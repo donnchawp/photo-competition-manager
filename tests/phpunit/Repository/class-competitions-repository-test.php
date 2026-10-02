@@ -365,7 +365,14 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_all_open_returns_only_open_competitions(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$open_id     = $repository->create( array( 'title' => 'Open Comp' ) );
+		$archived_id = $repository->create( array( 'title' => 'Archived Comp' ) );
+		$repository->archive( $archived_id );
+		$open_id     = $repository->create(
+			array(
+				'title'      => 'Open Comp',
+				'close_date' => '2098-12-31 00:00:00',
+			)
+		);
 		$closed_id   = $repository->create(
 			array(
 				'title'      => 'Closed Comp',
@@ -378,8 +385,6 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 				'open_date' => '2099-01-01 00:00:00',
 			)
 		);
-		$archived_id = $repository->create( array( 'title' => 'Archived Comp' ) );
-		$repository->archive( $archived_id );
 
 		$ids = array_map( 'intval', wp_list_pluck( $repository->all_open(), 'id' ) );
 
@@ -660,6 +665,222 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository->archive( $id );
 
 		$this->assertNull( $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) ) );
+	}
+
+	// ---------------------------------------------------------------
+	// One open competition at a time: create(), update(), restore()
+	// ---------------------------------------------------------------
+
+	public function test_create_refuses_dates_that_overlap_another_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $repository->create(
+			array(
+				'title'      => 'Clashing',
+				'open_date'  => utc_time( 10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 40 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'competition_overlap', $result->get_error_code() );
+		$this->assertSame( $current_id, (int) $result->get_error_data()['competition']->id );
+		$this->assertNull( $repository->find_by_slug( 'clashing' ) );
+	}
+
+	public function test_create_accepts_competition_opening_when_another_closes(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => $hand_over,
+			)
+		);
+
+		$this->assertIsInt(
+			$repository->create(
+				array(
+					'title'      => 'Next',
+					'open_date'  => $hand_over,
+					'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+				)
+			)
+		);
+	}
+
+	public function test_update_refuses_dates_that_overlap_another_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+		$next_opens = utc_time( 20 * DAY_IN_SECONDS );
+		$next_id    = $repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $next_opens,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $repository->update( $next_id, array( 'open_date' => utc_time( 10 * DAY_IN_SECONDS ) ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'competition_overlap', $result->get_error_code() );
+		$this->assertSame( $current_id, (int) $result->get_error_data()['competition']->id );
+		$this->assertSame( $next_opens, $repository->find( $next_id )->open_date );
+	}
+
+	/**
+	 * Saving a competition's own dates doesn't clash with itself.
+	 */
+	public function test_update_accepts_new_dates_for_the_only_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $id, array( 'close_date' => utc_time( 30 * DAY_IN_SECONDS ) ) ) );
+	}
+
+	/**
+	 * Overlaps that already exist don't block saving anything other than
+	 * the dates, such as voting settings.
+	 */
+	public function test_update_without_dates_ignores_existing_overlap(): void {
+		global $wpdb;
+
+		$repository = new Competitions_Repository( $wpdb );
+
+		$first_id = $repository->create( array( 'title' => 'First' ) );
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'title'      => 'Second',
+				'slug'       => 'second',
+				'created_at' => utc_time(),
+				'updated_at' => utc_time(),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $first_id, array( 'settings' => array( 'grades' => array() ) ) ) );
+	}
+
+	public function test_update_accepts_dates_ending_when_another_opens(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 10 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $hand_over,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $current_id, array( 'close_date' => $hand_over ) ) );
+	}
+
+	/**
+	 * Close Competition sets the close date to now. That must work even
+	 * when older competitions saved before the overlap check still clash
+	 * with it, since closing is how an admin clears up that clash.
+	 */
+	public function test_update_closing_now_ignores_existing_overlap(): void {
+		global $wpdb;
+
+		$repository = new Competitions_Repository( $wpdb );
+
+		$open_id = $repository->create( array( 'title' => 'Open' ) );
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'title'      => 'Never Closed',
+				'slug'       => 'never-closed',
+				'created_at' => utc_time(),
+				'updated_at' => utc_time(),
+			)
+		);
+
+		$this->assertTrue( $repository->update( $open_id, array( 'close_date' => utc_time() ) ) );
+	}
+
+	public function test_restore_accepts_competition_ending_when_another_opens(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );
+
+		$archived_id = $repository->create(
+			array(
+				'title'      => 'Archived',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => $hand_over,
+			)
+		);
+		$repository->archive( $archived_id );
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => $hand_over,
+				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertTrue( $repository->restore( $archived_id ) );
+		$this->assertNotNull( $repository->find( $archived_id ) );
+	}
+
+	public function test_restore_refuses_competition_that_overlaps_another(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$archived_id = $repository->create(
+			array(
+				'title'      => 'Archived',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->archive( $archived_id );
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $repository->restore( $archived_id );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'competition_overlap', $result->get_error_code() );
+		$this->assertSame( $current_id, (int) $result->get_error_data()['competition']->id );
+		$this->assertNull( $repository->find( $archived_id ) );
 	}
 
 	// ---------------------------------------------------------------

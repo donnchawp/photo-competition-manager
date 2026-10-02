@@ -201,7 +201,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * dates overlap an existing one is refused.
 	 */
 	public function test_create_competition_overlapping_dates_error(): void {
-		$this->create_competition( 'Stale', 'stale', '2020-01-01 00:00:00' );
+		$stale_id = $this->create_competition( 'Stale', 'stale', '2020-01-01 00:00:00' );
 
 		$this->set_request(
 			array(
@@ -223,6 +223,11 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertContains( 'competition_overlap', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNull( $this->competitions->find_by_slug( 'october' ) );
+
+		// The competition in the way may be too old for the dashboard list,
+		// so the message links to its edit screen.
+		$messages = implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_manager' ), 'message' ) );
+		$this->assertMatchesRegularExpression( '/<a href="[^"]*action=edit&(#038;|amp;)?competition=' . $stale_id . '">Stale<\/a>/', $messages );
 	}
 
 	/**
