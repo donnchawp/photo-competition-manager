@@ -133,7 +133,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			check_admin_referer( 'photo_competition_send_member_email_' . $member_id . '_' . $competition_id );
@@ -149,7 +148,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			if ( ! $member || empty( $member->email ) || ! $member->active ) {
@@ -160,7 +158,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
@@ -317,7 +314,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			check_admin_referer( 'photo_competition_delete_member_' . $member_id );
@@ -332,7 +328,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			$result = $this->members->delete( $member_id );
@@ -372,7 +367,6 @@ class Members_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $this->members_url() );
-				exit;
 			}
 
 			$importer = new \PhotoCompetitionManager\Service\Member_CSV_Importer( $this->members );
