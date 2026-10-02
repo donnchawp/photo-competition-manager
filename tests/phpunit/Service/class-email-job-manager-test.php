@@ -57,18 +57,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	private $bodies = array();
 
 	/**
-	 * Score calculator handed to the manager.
+	 * Score calculator handed to the manager. Records the categories
+	 * get_results() was called for in $calls.
 	 *
 	 * @var Score_Calculator
 	 */
 	private $calculator;
-
-	/**
-	 * Categories get_results() was called for, in call order.
-	 *
-	 * @var array<int, string|null>
-	 */
-	private $results_calls = array();
 
 	public function set_up(): void {
 		parent::set_up();
@@ -79,18 +73,11 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->members = new Members_Repository();
 		$votes         = new Votes_Repository();
 
-		$this->results_calls = array();
-		$results_calls       = &$this->results_calls;
-		$this->calculator    = new class( $this->images, $votes, $results_calls ) extends Score_Calculator {
+		$this->calculator = new class( $this->images, $votes ) extends Score_Calculator {
 			/**
 			 * @var array<int, string|null>
 			 */
-			private $calls;
-
-			public function __construct( Images_Repository $images, Votes_Repository $votes, array &$calls ) {
-				parent::__construct( $images, $votes );
-				$this->calls = &$calls;
-			}
+			public $calls = array();
 
 			public function get_results( int $competition_id, ?string $category = null ): array {
 				$this->calls[] = $category;
@@ -186,14 +173,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->seed_entrant( 'one@example.com' );
 		$this->seed_entrant( 'two@example.com' );
 		$this->seed_entrant( 'three@example.com' );
-		$job_id = $this->manager->queue_results( $this->competition_id );
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
-		$this->results_calls = array();
-		$this->manager->process_batch( $job_id );
-
+		$calls = $this->calculator->calls;
 		$this->assertCount( 3, $this->recipients );
-		$this->assertNotEmpty( $this->results_calls );
-		$this->assertSame( array_values( array_unique( $this->results_calls ) ), $this->results_calls );
+		$this->assertNotEmpty( $calls );
+		$this->assertSame( array_values( array_unique( $calls ) ), $calls );
 	}
 
 	public function test_results_email_ranks_within_the_members_grade(): void {
