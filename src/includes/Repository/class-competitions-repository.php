@@ -170,6 +170,43 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find the competition the results pages show by default.
+	 *
+	 * That's the latest competition, by open date, whose results are
+	 * visible, so last month's results stay up until the next ones are
+	 * shown. With none visible, it's the current competition, then the one
+	 * with the latest open date, so the page can still name a competition.
+	 * A competition without an open date opened when it was created.
+	 * Archived competitions are ignored.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return object|null
+	 */
+	public function find_for_results() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY COALESCE(open_date, created_at) DESC, created_at DESC', $this->table() ) );
+
+		$open = null;
+
+		foreach ( $competitions as $competition ) {
+			$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
+
+			if ( ! empty( $settings['results']['results_visible'] ) ) {
+				return $competition;
+			}
+
+			if ( null === $open && $this->is_open( $competition ) ) {
+				$open = $competition;
+			}
+		}
+
+		return $open ?? ( $competitions[0] ?? null );
+	}
+
+	/**
 	 * Find a competition whose dates overlap the given range.
 	 *
 	 * Only one competition may be open at a time from now on, so only the

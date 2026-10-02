@@ -1052,6 +1052,150 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	// ---------------------------------------------------------------
+	// find_for_results()
+	// ---------------------------------------------------------------
+
+	/**
+	 * Results night when next month's competition was created early: the
+	 * results pages keep showing the competition whose results are out.
+	 */
+	public function test_find_for_results_prefers_latest_competition_with_visible_results(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$published_id = $repository->create(
+			array(
+				'title'      => 'September',
+				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( DAY_IN_SECONDS ),
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'October',
+				'open_date'  => utc_time( DAY_IN_SECONDS ),
+				'close_date' => utc_time( 31 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $published_id, (int) $repository->find_for_results()->id );
+	}
+
+	/**
+	 * Of several competitions with results out, the one that opened last wins.
+	 */
+	public function test_find_for_results_picks_latest_opened_of_several_published(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$august_id = $repository->create(
+			array(
+				'title'      => 'August',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'July',
+				'open_date'  => '2020-07-01 00:00:00',
+				'close_date' => '2020-08-01 00:00:00',
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+
+		$this->assertSame( $august_id, (int) $repository->find_for_results()->id );
+	}
+
+	/**
+	 * With no results out, the page names the current competition.
+	 */
+	public function test_find_for_results_falls_back_to_current_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Next',
+				'open_date'  => utc_time( 10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 40 * DAY_IN_SECONDS ),
+			)
+		);
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 5 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $current_id, (int) $repository->find_for_results()->id );
+	}
+
+	/**
+	 * With no results out and nothing open, the page names the competition
+	 * that opened most recently, ignoring archived ones.
+	 */
+	public function test_find_for_results_falls_back_to_latest_opened(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$latest_id   = $repository->create(
+			array(
+				'title'      => 'August',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'July',
+				'open_date'  => '2020-07-01 00:00:00',
+				'close_date' => '2020-08-01 00:00:00',
+			)
+		);
+		$archived_id = $repository->create(
+			array(
+				'title'      => 'Archived',
+				'open_date'  => '2020-10-01 00:00:00',
+				'close_date' => '2020-11-01 00:00:00',
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+		$repository->archive( $archived_id );
+
+		$this->assertSame( $latest_id, (int) $repository->find_for_results()->id );
+	}
+
+	/**
+	 * A competition saved without an open date opened when it was created,
+	 * so it ranks by its creation time rather than below every dated one.
+	 */
+	public function test_find_for_results_ranks_missing_open_date_by_creation(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'August',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+		$undated_id = $repository->create(
+			array(
+				'title'      => 'September',
+				'close_date' => utc_time( DAY_IN_SECONDS ),
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+
+		$this->assertSame( $undated_id, (int) $repository->find_for_results()->id );
+	}
+
+	public function test_find_for_results_returns_null_without_competitions(): void {
+		$this->assertNull( ( new Competitions_Repository( $GLOBALS['wpdb'] ) )->find_for_results() );
+	}
+
+	// ---------------------------------------------------------------
 	// find_by_share_hash() / update_share_hash()
 	// ---------------------------------------------------------------
 

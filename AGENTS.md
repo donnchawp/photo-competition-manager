@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `photocomp_prd.md` captures the product definition; keep it current when scope or terminology shifts.
+- `clubcompete_prd.md` captures the product definition; keep it current when scope or terminology shifts.
 - Bootstrap the WordPress plugin from `src/photo-competition-manager.php`, loading discrete modules from `src/includes/`.
 - Group admin interfaces under `src/admin/`, public features under `src/public/`, shared utilities in `src/includes/Support/`, templates in `src/templates/`, and assets in `assets/`.
 - Mirror the source layout in `tests/phpunit` and `tests/js` so failures map directly back to modules.
@@ -28,7 +28,7 @@
 - The repository currently lacks Git history; follow Conventional Commits (`feat:`, `fix:`, `docs:`) to establish consistency from the outset.
 - Keep pull requests focused on a single logical change; include a summary, testing notes, and screenshots or screencasts for UI-impacting work.
 - When archiving competitions, pair repository updates with UI affordances (archive/restore links) and tests covering repository-state transitions.
-- Update supporting docs (`photocomp_prd.md`, schema diagrams, configuration samples) alongside code changes.
+- Update supporting docs (`clubcompete_prd.md`, schema diagrams, configuration samples) alongside code changes.
 - Ensure local tests pass and planned CI pipelines succeed before merging.
 
 ## Security & Configuration Tips

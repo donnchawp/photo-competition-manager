@@ -92,4 +92,87 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'data-label="Member"', $html );
 		$this->assertStringContainsString( 'data-label="Score"', $html );
 	}
+
+	/**
+	 * Results night when next month's competition was created early: with
+	 * no competition named, the page shows the competition whose results
+	 * are out, not the newest one.
+	 */
+	public function test_defaults_to_latest_competition_with_visible_results(): void {
+		$this->create_next_month();
+
+		$html = ( new Results_Shortcode() )->render( array() );
+
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+	}
+
+	/**
+	 * With no results out, the page still names the competition and says
+	 * its results aren't available yet.
+	 */
+	public function test_default_without_visible_results_shows_not_available(): void {
+		$competitions = new Competitions_Repository();
+		$competition  = $competitions->find_by_slug( 'results-comp' );
+		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+
+		$html = ( new Results_Shortcode() )->render( array() );
+
+		$this->assertStringContainsString( 'Results Comp - Results', $html );
+		$this->assertStringContainsString( 'Results are not yet available.', $html );
+	}
+
+	/**
+	 * A share link shows its competition's results before they're out.
+	 */
+	public function test_share_link_shows_hidden_results(): void {
+		$competitions = new Competitions_Repository();
+		$competition  = $competitions->find_by_slug( 'results-comp' );
+		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+		$competitions->update_share_hash( (int) $competition->id, 'share-hash' );
+		$_GET['share'] = 'share-hash';
+
+		$html = ( new Results_Shortcode() )->render( array() );
+
+		$this->assertStringNotContainsString( 'Results are not yet available.', $html );
+		$this->assertStringContainsString( 'Ann Example', $html );
+	}
+
+	/**
+	 * An unknown share link falls back to the latest results that are out.
+	 */
+	public function test_unknown_share_link_falls_back_to_latest_visible_results(): void {
+		$this->create_next_month();
+		$_GET['share'] = 'unknown-hash';
+
+		$html = ( new Results_Shortcode() )->render( array() );
+
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+	}
+
+	/**
+	 * Clear the share parameter set by the share link tests.
+	 */
+	public function tearDown(): void {
+		unset( $_GET['share'] );
+
+		parent::tearDown();
+	}
+
+	/**
+	 * Close the published competition and create next month's after it,
+	 * with its results hidden: newer by both open and creation date.
+	 */
+	private function create_next_month(): void {
+		$competitions = new Competitions_Repository();
+		$published    = $competitions->find_by_slug( 'results-comp' );
+		$competitions->update( (int) $published->id, array( 'close_date' => '2020-02-01 00:00:00' ) );
+		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
+		$competitions->create(
+			array(
+				'title'     => 'Next Month',
+				'slug'      => 'next-month',
+				'open_date' => '2020-02-01 00:00:00',
+			)
+		);
+	}
 }

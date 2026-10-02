@@ -171,9 +171,9 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_upload]` | Member upload form for the active competition. |
 | `[competition_voting competition="slug"]` | Public/mobile voting interface. |
 | `[competition_slideshow competition="slug"]` | Admin slideshow view. |
-| `[competition_results]` | Complete results table for most recent competition. |
+| `[competition_results]` | Complete results table for the latest competition with visible results. |
 | `[competition_results competition="slug"]` | Complete results table for specific competition. |
-| `[competition_top3]` | Top 3 winners per grade for most recent competition. |
+| `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
 
 ### Results Display Features
