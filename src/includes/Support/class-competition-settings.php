@@ -19,6 +19,32 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * Shortcode tag of each competition page, keyed by its settings URL key.
+	 *
+	 * @var array<string, string>
+	 */
+	private const PAGE_SHORTCODES = array(
+		'upload_page'  => 'competition_upload',
+		'voting_page'  => 'competition_voting',
+		'results_page' => 'competition_results',
+		'top3_page'    => 'competition_top3',
+	);
+
+	/**
+	 * Competition page URLs found this request, keyed by shortcode tag.
+	 *
+	 * @var array<string, string>
+	 */
+	private static $page_urls = array();
+
+	/**
+	 * Posts "last changed" time when $page_urls was filled.
+	 *
+	 * @var string
+	 */
+	private static $page_urls_last_changed = '';
+
+	/**
 	 * Get global default settings from WordPress options.
 	 *
 	 * @return array<string, mixed>
@@ -484,35 +510,12 @@ class Competition_Settings {
 			$settings['urls'] = array();
 		}
 
-		// Auto-detect upload page.
-		if ( empty( $settings['urls']['upload_page'] ) ) {
-			$url = self::find_page_url_with_shortcode( 'competition_upload' );
-			if ( ! empty( $url ) ) {
-				$settings['urls']['upload_page'] = $url;
-			}
-		}
-
-		// Auto-detect voting page.
-		if ( empty( $settings['urls']['voting_page'] ) ) {
-			$url = self::find_page_url_with_shortcode( 'competition_voting' );
-			if ( ! empty( $url ) ) {
-				$settings['urls']['voting_page'] = $url;
-			}
-		}
-
-		// Auto-detect results page.
-		if ( empty( $settings['urls']['results_page'] ) ) {
-			$url = self::find_page_url_with_shortcode( 'competition_results' );
-			if ( ! empty( $url ) ) {
-				$settings['urls']['results_page'] = $url;
-			}
-		}
-
-		// Auto-detect top 3 page.
-		if ( empty( $settings['urls']['top3_page'] ) ) {
-			$url = self::find_page_url_with_shortcode( 'competition_top3' );
-			if ( ! empty( $url ) ) {
-				$settings['urls']['top3_page'] = $url;
+		foreach ( self::PAGE_SHORTCODES as $url_key => $shortcode_tag ) {
+			if ( empty( $settings['urls'][ $url_key ] ) ) {
+				$url = self::find_page_url_with_shortcode( $shortcode_tag );
+				if ( ! empty( $url ) ) {
+					$settings['urls'][ $url_key ] = $url;
+				}
 			}
 		}
 
@@ -534,18 +537,56 @@ class Competition_Settings {
 			return '';
 		}
 
-		$pages = get_pages( array( 'number' => 100 ) );
-		if ( ! is_array( $pages ) ) {
-			return '';
+		if ( in_array( $shortcode_tag, self::PAGE_SHORTCODES, true ) ) {
+			return self::competition_page_urls()[ $shortcode_tag ];
 		}
 
-		foreach ( $pages as $page ) {
-			if ( ! empty( $page->post_content ) && has_shortcode( $page->post_content, $shortcode_tag ) ) {
-				$url = get_permalink( $page->ID );
-				return $url ? $url : '';
+		return self::find_page_urls( array( $shortcode_tag ) )[ $shortcode_tag ];
+	}
+
+	/**
+	 * Get the URLs of the competition shortcode pages.
+	 *
+	 * Every parse() looks these up, so they are found in one pass over the
+	 * pages and kept for the rest of the request. Any post change bumps the
+	 * posts "last changed" time, which makes the next call look again.
+	 *
+	 * @return array<string, string> Page URLs keyed by shortcode tag.
+	 */
+	private static function competition_page_urls(): array {
+		$last_changed = wp_cache_get_last_changed( 'posts' );
+
+		if ( self::$page_urls_last_changed !== $last_changed ) {
+			self::$page_urls              = self::find_page_urls( array_values( self::PAGE_SHORTCODES ) );
+			self::$page_urls_last_changed = $last_changed;
+		}
+
+		return self::$page_urls;
+	}
+
+	/**
+	 * Find the first page containing each shortcode, in one pass over the pages.
+	 *
+	 * @param array<int, string> $shortcode_tags Shortcode tags to search for.
+	 * @return array<string, string> Page URLs keyed by shortcode tag, '' when not found.
+	 */
+	private static function find_page_urls( array $shortcode_tags ): array {
+		$urls  = array();
+		$pages = get_pages( array( 'number' => 100 ) );
+
+		foreach ( is_array( $pages ) ? $pages : array() as $page ) {
+			if ( empty( $page->post_content ) ) {
+				continue;
+			}
+
+			foreach ( $shortcode_tags as $shortcode_tag ) {
+				if ( ! isset( $urls[ $shortcode_tag ] ) && has_shortcode( $page->post_content, $shortcode_tag ) ) {
+					$url                    = get_permalink( $page->ID );
+					$urls[ $shortcode_tag ] = $url ? $url : '';
+				}
 			}
 		}
 
-		return '';
+		return $urls + array_fill_keys( $shortcode_tags, '' );
 	}
 }

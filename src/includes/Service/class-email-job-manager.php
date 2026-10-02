@@ -143,17 +143,6 @@ class Email_Job_Manager {
 	private $results_by_grade = array();
 
 	/**
-	 * Categories of the competition whose batch is being sent.
-	 *
-	 * Parsing competition settings can scan every page for shortcodes, so it
-	 * is done once per batch rather than once per member. Keyed by
-	 * competition ID. Cleared at the start of each batch.
-	 *
-	 * @var array<int, array<int, array<string, mixed>>>
-	 */
-	private $categories_by_competition = array();
-
-	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository  $competitions    Competitions repository.
@@ -362,8 +351,7 @@ class Email_Job_Manager {
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 		$members   = $this->members->find_many( $batch );
 
-		$this->results_by_grade          = array();
-		$this->categories_by_competition = array();
+		$this->results_by_grade = array();
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -533,7 +521,8 @@ class Email_Job_Manager {
 		$competition_id = (int) $competition->id;
 		$member_id      = (int) $member->id;
 
-		$categories = $this->get_categories( $competition );
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		$member_results = array(
 			'images' => array(),
@@ -589,26 +578,6 @@ class Email_Job_Manager {
 			$competition->title,
 			$member_results
 		);
-	}
-
-	/**
-	 * Get a competition's categories, parsing its settings once per batch.
-	 *
-	 * @param object $competition Competition row.
-	 * @return array<int, array<string, mixed>> Categories.
-	 */
-	private function get_categories( object $competition ): array {
-		$competition_id = (int) $competition->id;
-
-		if ( isset( $this->categories_by_competition[ $competition_id ] ) ) {
-			return $this->categories_by_competition[ $competition_id ];
-		}
-
-		$categories = Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ) );
-
-		$this->categories_by_competition[ $competition_id ] = $categories;
-
-		return $categories;
 	}
 
 	/**

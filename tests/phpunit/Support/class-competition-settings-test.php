@@ -527,4 +527,108 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( $expected_url, $result['urls']['voting_page'] );
 	}
+	// ---------------------------------------------------------------
+	// Page URL detection is done once per request until posts change.
+	// ---------------------------------------------------------------
+
+	/**
+	 * Count get_pages() calls made while running a callback.
+	 *
+	 * @param callable $run Code to run.
+	 * @return int Number of get_pages() calls.
+	 */
+	private function count_page_lookups( callable $run ): int {
+		$lookups = 0;
+		$count   = static function ( $pages ) use ( &$lookups ) {
+			++$lookups;
+			return $pages;
+		};
+
+		add_filter( 'get_pages', $count );
+		try {
+			$run();
+		} finally {
+			remove_filter( 'get_pages', $count );
+		}
+
+		return $lookups;
+	}
+
+	/**
+	 * Create a published page with the given content.
+	 *
+	 * @param string $content Page content.
+	 * @return int Page ID.
+	 */
+	private function create_page( string $content ): int {
+		return self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => $content,
+			)
+		);
+	}
+
+	public function test_parsing_several_times_looks_up_pages_once(): void {
+		$this->create_page( '[competition_voting]' );
+
+		$lookups = $this->count_page_lookups(
+			static function () {
+				Competition_Settings::parse( null );
+				Competition_Settings::parse( '{}' );
+				Competition_Settings::parse( '{"title":"Another"}' );
+				Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
+			}
+		);
+
+		$this->assertSame( 1, $lookups );
+	}
+
+	public function test_page_published_after_first_lookup_is_found(): void {
+		$this->assertSame( '', Competition_Settings::parse( null )['urls']['voting_page'] );
+
+		$page_id = $this->create_page( '[competition_voting]' );
+
+		$this->assertSame( get_permalink( $page_id ), Competition_Settings::parse( null )['urls']['voting_page'] );
+	}
+
+	public function test_trashed_page_is_no_longer_found(): void {
+		$page_id = $this->create_page( '[competition_voting]' );
+		$this->assertSame( get_permalink( $page_id ), Competition_Settings::parse( null )['urls']['voting_page'] );
+
+		wp_trash_post( $page_id );
+
+		$this->assertSame( '', Competition_Settings::parse( null )['urls']['voting_page'] );
+	}
+
+	public function test_each_shortcode_resolves_to_its_own_page(): void {
+		$upload  = $this->create_page( '[competition_upload]' );
+		$voting  = $this->create_page( '[competition_voting]' );
+		$results = $this->create_page( '[competition_results]' );
+
+		$urls = Competition_Settings::parse( null )['urls'];
+
+		$this->assertSame( get_permalink( $upload ), $urls['upload_page'] );
+		$this->assertSame( get_permalink( $voting ), $urls['voting_page'] );
+		$this->assertSame( get_permalink( $results ), $urls['results_page'] );
+		$this->assertArrayNotHasKey( 'top3_page', $urls );
+		$this->assertSame( get_permalink( $upload ), Competition_Settings::find_page_url_with_shortcode( 'competition_upload' ) );
+		$this->assertSame( '', Competition_Settings::find_page_url_with_shortcode( '' ) );
+	}
+
+	public function test_set_page_url_is_not_replaced_by_detection(): void {
+		$this->create_page( '[competition_voting]' );
+
+		$urls = Competition_Settings::parse( '{"urls":{"voting_page":"https://example.com/vote"}}' )['urls'];
+
+		$this->assertSame( 'https://example.com/vote', $urls['voting_page'] );
+	}
+
+	public function test_unknown_shortcode_is_still_looked_up(): void {
+		$page_id = $this->create_page( '[gallery]' );
+
+		$this->assertSame( get_permalink( $page_id ), Competition_Settings::find_page_url_with_shortcode( 'gallery' ) );
+		$this->assertSame( '', Competition_Settings::find_page_url_with_shortcode( 'no_such_shortcode' ) );
+	}
 }
