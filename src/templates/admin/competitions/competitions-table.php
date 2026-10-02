@@ -91,7 +91,7 @@ foreach ( $data['rows'] as $row ) {
 
 	// Close competition action: sets the close date to now and closes voting.
 	if ( '' !== $row['close_url'] ) {
-		$close_confirm = __( 'Close this competition? Its close date will be set to today and any open voting will be closed. You can change the date again from the Edit screen.', 'photo-competition-manager' );
+		$close_confirm = __( 'Close this competition? Its close date will be set to now and any open voting will be closed. You can change the date again from the Edit screen.', 'photo-competition-manager' );
 		$actions[]     = sprintf(
 			'<a href="%s" class="photo-comp-close-competition" data-confirm="%s">%s</a>',
 			esc_url( $row['close_url'] ),
