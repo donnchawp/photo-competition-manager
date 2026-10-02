@@ -60,6 +60,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function tearDown(): void {
 		unset( $_GET['token'] );
+		$GLOBALS['wp_scripts'] = null;
 		parent::tearDown();
 	}
 
@@ -103,16 +104,15 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<input type="hidden" name="photo_competition_delete" value="1" />', $output );
 		$this->assertStringContainsString( 'photo-comp-delete-button', $output );
 		$this->assertStringContainsString( 'data-confirm-label="Tap again to delete"', $output );
+		$this->assertTrue( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
 	}
 
-	public function test_delete_confirmation_does_not_use_native_confirm_dialog(): void {
+	public function test_delete_script_not_loaded_without_submissions(): void {
 		$_GET['token'] = $this->issue_token( true );
 
 		$this->shortcode->render( array() );
 
-		$this->assertTrue( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
-		$this->assertStringEndsWith( 'assets/js/delete-confirm.js', wp_scripts()->registered['photo-comp-delete-confirm']->src );
-		$this->assertEmpty( wp_scripts()->get_data( 'photo-comp-delete-confirm', 'after' ) );
+		$this->assertFalse( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
 	}
 
 	public function test_inactive_member_token_falls_back_to_request_form(): void {

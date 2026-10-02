@@ -164,15 +164,6 @@ class Upload_Shortcode {
 				$category_asset['version']
 			);
 		}
-
-		// Enqueue the two-tap delete confirmation handler.
-		wp_enqueue_script(
-			'photo-comp-delete-confirm',
-			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/delete-confirm.js',
-			array(),
-			PHOTO_COMPETITION_MANAGER_VERSION,
-			true
-		);
 	}
 
 	/**
@@ -523,6 +514,14 @@ class Upload_Shortcode {
 				<?php
 				// Show existing submissions with category dropdowns and delete buttons.
 				if ( ! empty( $submissions ) ) :
+					// Two-tap delete confirmation; only needed when there are delete buttons.
+					wp_enqueue_script(
+						'photo-comp-delete-confirm',
+						PHOTO_COMPETITION_MANAGER_URL . 'assets/js/delete-confirm.js',
+						array(),
+						PHOTO_COMPETITION_MANAGER_VERSION,
+						true
+					);
 					?>
 					<div class="member-submissions">
 						<h3><?php esc_html_e( 'Your Submissions', 'photo-competition-manager' ); ?></h3>
@@ -539,7 +538,7 @@ class Upload_Shortcode {
 									$token_param        = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 									$delete_form_action = add_query_arg( 'token', rawurlencode( $token_param ), get_permalink() );
 									?>
-									<form method="post" class="delete-form photo-comp-delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
+									<form method="post" class="delete-form" action="<?php echo esc_url( $delete_form_action ); ?>">
 										<?php wp_nonce_field( 'photo_competition_delete_with_token', 'photo_competition_delete_nonce' ); ?>
 										<input type="hidden" name="image_id" value="<?php echo esc_attr( $image->id ); ?>" />
 										<?php // Hidden field, not the button's name: the button is disabled on submit, which drops it from the POST. ?>

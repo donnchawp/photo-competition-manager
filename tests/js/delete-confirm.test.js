@@ -6,8 +6,7 @@ require( '../../src/assets/js/delete-confirm' );
 
 function renderForm() {
 	document.body.innerHTML = `
-		<form method="post" class="photo-comp-delete-form">
-			<input type="hidden" name="photo_competition_delete" value="1" />
+		<form method="post">
 			<button
 				type="submit"
 				class="photo-comp-delete-button"

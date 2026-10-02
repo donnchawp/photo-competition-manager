@@ -13,51 +13,54 @@
 	var ARM_TIMEOUT_MS = 4000;
 	var BUTTON_SELECTOR = '.photo-comp-delete-button';
 
-	function disarm( button ) {
-		clearTimeout( button.photoCompDisarmTimer );
-		button.classList.remove( 'is-armed' );
-		if ( button.dataset.originalLabel ) {
-			button.textContent = button.dataset.originalLabel;
+	// Only one button is armed (or busy) at a time.
+	var armed = null;
+	var armedLabel = '';
+	var timer;
+
+	function disarm() {
+		if ( ! armed ) {
+			return;
 		}
+		clearTimeout( timer );
+		armed.disabled = false;
+		armed.classList.remove( 'is-armed' );
+		armed.textContent = armedLabel;
+		armed = null;
 	}
 
 	document.addEventListener( 'click', function ( e ) {
 		var button = e.target.closest( BUTTON_SELECTOR );
-		if ( ! button || button.classList.contains( 'is-armed' ) ) {
+		if ( ! button || button === armed ) {
 			return;
 		}
 
 		e.preventDefault();
+		disarm();
 
-		button.dataset.originalLabel = button.textContent;
+		armed = button;
+		armedLabel = button.textContent;
 		button.textContent = button.dataset.confirmLabel;
 		button.classList.add( 'is-armed' );
-		button.photoCompDisarmTimer = setTimeout( function () {
-			disarm( button );
-		}, ARM_TIMEOUT_MS );
+		timer = setTimeout( disarm, ARM_TIMEOUT_MS );
 	} );
 
 	document.addEventListener( 'submit', function ( e ) {
-		var button = e.target.querySelector( BUTTON_SELECTOR );
-		if ( ! button ) {
+		if ( ! armed || ! e.target.contains( armed ) ) {
 			return;
 		}
 
 		// Show progress and block repeat taps while the request is in flight.
-		clearTimeout( button.photoCompDisarmTimer );
-		button.disabled = true;
-		button.textContent = button.dataset.busyLabel;
+		clearTimeout( timer );
+		armed.disabled = true;
+		armed.textContent = armed.dataset.busyLabel;
 	} );
 
 	// Going back to a page restored from the back/forward cache would
-	// otherwise leave the buttons disabled on "Deleting…".
+	// otherwise leave the button disabled on "Deleting…".
 	window.addEventListener( 'pageshow', function ( e ) {
-		if ( ! e.persisted ) {
-			return;
+		if ( e.persisted ) {
+			disarm();
 		}
-		document.querySelectorAll( BUTTON_SELECTOR ).forEach( function ( button ) {
-			button.disabled = false;
-			disarm( button );
-		} );
 	} );
 } )();
