@@ -517,7 +517,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertContains( 'competition_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
-		$this->assertGreaterThanOrEqual( $before - 1, $closed_at );
+		$this->assertGreaterThanOrEqual( $before, $closed_at );
 		$this->assertLessThanOrEqual( time(), $closed_at );
 		$this->assertFalse( $this->competitions->is_open( $competition ) );
 	}
