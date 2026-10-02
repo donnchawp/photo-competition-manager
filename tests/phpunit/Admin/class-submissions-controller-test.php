@@ -87,20 +87,24 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Create a competition and return its ID.
 	 *
-	 * @param string $title Title.
-	 * @param string $slug  Slug.
+	 * @param string               $title     Title.
+	 * @param string               $slug      Slug.
+	 * @param array<string, mixed> $overrides Field overrides.
 	 * @return int Competition ID.
 	 */
-	private function create_competition( string $title, string $slug ): int {
+	private function create_competition( string $title, string $slug, array $overrides = array() ): int {
 		return $this->competitions->create(
-			array(
-				'title'      => $title,
-				'slug'       => $slug,
-				// Null dates keep is_open() clock-independent, consistent with the
-				// other admin-controller suites (no date-gated behavior here today).
-				'open_date'  => null,
-				'close_date' => null,
-				'settings'   => array(),
+			array_merge(
+				array(
+					'title'      => $title,
+					'slug'       => $slug,
+					// Null dates keep is_open() clock-independent, consistent with the
+					// other admin-controller suites (no date-gated behavior here today).
+					'open_date'  => null,
+					'close_date' => null,
+					'settings'   => array(),
+				),
+				$overrides
 			)
 		);
 	}
@@ -395,7 +399,14 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 * An image belonging to a different competition is counted as a failure.
 	 */
 	public function test_bulk_delete_submissions_partial_failure_for_wrong_competition(): void {
-		$other       = $this->create_competition( 'Other', 'other' );
+		$other       = $this->create_competition(
+			'Other',
+			'other',
+			array(
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			)
+		);
 		$foreign_img = $this->seed_image( $other );
 
 		$this->set_request(

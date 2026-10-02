@@ -661,9 +661,11 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$member_id = $this->seed_member( 'a@example.com' );
 		$other     = (int) ( new Competitions_Repository() )->create(
 			array(
-				'title'    => 'Other',
-				'slug'     => 'other-' . wp_generate_password( 6, false ),
-				'settings' => array(),
+				'title'      => 'Other',
+				'slug'       => 'other-' . wp_generate_password( 6, false ),
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+				'settings'   => array(),
 			)
 		);
 

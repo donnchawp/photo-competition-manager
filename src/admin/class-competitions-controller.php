@@ -147,7 +147,7 @@ class Competitions_Controller {
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
-			$result = $this->overlap_error( $data['open_date'], $data['close_date'] ) ?? $this->competitions->create( $data );
+			$result = $this->link_overlap_error( $this->competitions->create( $data ) );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -188,7 +188,7 @@ class Competitions_Controller {
 				'close_date' => $this->parse_date_input( $close_date_raw ),
 			);
 
-			$result = $this->overlap_error( $data['open_date'], $data['close_date'], $competition_id ) ?? $this->competitions->update( $competition_id, $data );
+			$result = $this->link_overlap_error( $this->competitions->update( $competition_id, $data ) );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -408,12 +408,7 @@ class Competitions_Controller {
 			if ( 'archive' === $action ) {
 				$result = $this->competitions->archive( $competition_id );
 			} else {
-				$archived = $this->competitions->find( $competition_id, true );
-				$result   = $archived ? $this->overlap_error( $archived->open_date, $archived->close_date, $competition_id ) : null;
-
-				if ( null === $result ) {
-					$result = $this->competitions->restore( $competition_id );
-				}
+				$result = $this->link_overlap_error( $this->competitions->restore( $competition_id ) );
 			}
 
 			if ( is_wp_error( $result ) ) {
@@ -679,25 +674,23 @@ class Competitions_Controller {
 	}
 
 	/**
-	 * Refuse dates that overlap another competition.
+	 * Link the competition named in an overlap error.
 	 *
-	 * Only one competition may be open at a time. The error names the
-	 * competition in the way and links to its edit screen, since it may be
-	 * too old to appear in the dashboard list.
+	 * The repository refuses dates that overlap another competition, since
+	 * only one may be open at a time. Link to the competition in the way,
+	 * since it may be too old to appear in the dashboard list.
 	 *
 	 * @since 0.3.0
 	 *
-	 * @param string|null $open_date  Open date, or null for now.
-	 * @param string|null $close_date Close date, or null for unbounded.
-	 * @param int         $exclude_id Competition being saved, if it already exists.
-	 * @return \WP_Error|null Error when the dates overlap, otherwise null.
+	 * @param mixed $result Result of a repository create(), update() or restore().
+	 * @return mixed The same result, with an overlap error's message linked.
 	 */
-	private function overlap_error( ?string $open_date, ?string $close_date, int $exclude_id = 0 ): ?\WP_Error {
-		$other = $this->competitions->find_overlapping( $open_date, $close_date, $exclude_id );
-
-		if ( ! $other ) {
-			return null;
+	private function link_overlap_error( $result ) {
+		if ( ! is_wp_error( $result ) || 'competition_overlap' !== $result->get_error_code() ) {
+			return $result;
 		}
+
+		$other = $result->get_error_data()['competition'];
 
 		return new \WP_Error(
 			'competition_overlap',
@@ -705,7 +698,8 @@ class Competitions_Controller {
 				/* translators: %s: linked title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
 				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
-			)
+			),
+			$result->get_error_data()
 		);
 	}
 

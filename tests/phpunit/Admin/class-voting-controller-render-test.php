@@ -199,13 +199,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( array() );
-		$this->competitions->create(
-			array(
-				'title'    => 'Autumn Show',
-				'slug'     => 'autumn-show',
-				'settings' => array(),
-			)
-		);
+		$this->insert_overlapping_competition( 'Autumn Show', 'autumn-show' );
 
 		ob_start();
 		$this->controller->render();

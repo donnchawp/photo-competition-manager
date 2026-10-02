@@ -228,7 +228,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( 'Spring Show', 'spring-show' );
-		$this->seed_competition( 'Autumn Show', 'autumn-show' );
+		$this->insert_overlapping_competition( 'Autumn Show', 'autumn-show' );
 
 		ob_start();
 		$this->controller->render();

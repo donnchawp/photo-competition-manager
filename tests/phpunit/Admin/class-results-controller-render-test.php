@@ -362,7 +362,15 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// image has a real thumbnail on disk (the <img> branch); the others
 		// fall back to the dashicon placeholder. Share results section hits
 		// the "share hash + results page configured" branch.
-		$winter_id = $this->seed_competition( 'Winter Salon', 'winter-salon', array(), '2026-02-01 00:00:00' );
+		$winter_id = $this->seed_competition(
+			'Winter Salon',
+			'winter-salon',
+			array(
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => '2020-02-01 00:00:00',
+			),
+			'2026-02-01 00:00:00'
+		);
 		$spring_id = $this->seed_competition(
 			'Spring Show',
 			'spring-show',

@@ -14,7 +14,10 @@ namespace PhotoCompetitionManager\Tests\Admin;
 
 require_once __DIR__ . '/class-redirect-exception.php';
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use WP_UnitTestCase;
+
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Base test case for admin controller characterization tests.
@@ -158,5 +161,39 @@ abstract class Admin_Controller_Test_Case extends WP_UnitTestCase {
 	 */
 	protected function settings_error_codes( string $group ): array {
 		return wp_list_pluck( get_settings_errors( $group ), 'code' );
+	}
+
+	/**
+	 * Insert a competition without the repository's overlap check.
+	 *
+	 * Competitions saved before only one could be open at a time (#66) can
+	 * still overlap. This recreates that data for the warnings and guards
+	 * that handle it.
+	 *
+	 * @param string               $title  Title.
+	 * @param string               $slug   Slug.
+	 * @param array<string, mixed> $fields Column overrides. No dates means open for ever.
+	 * @return int Competition ID.
+	 */
+	protected function insert_overlapping_competition( string $title, string $slug, array $fields = array() ): int {
+		global $wpdb;
+
+		$now = utc_time();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$wpdb->insert(
+			( new Competitions_Repository() )->table(),
+			array_merge(
+				array(
+					'title'      => $title,
+					'slug'       => $slug,
+					'created_at' => $now,
+					'updated_at' => $now,
+				),
+				$fields
+			)
+		);
+
+		return (int) $wpdb->insert_id;
 	}
 }

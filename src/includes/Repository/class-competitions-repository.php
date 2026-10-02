@@ -217,7 +217,38 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Build the error returned when a range overlaps another competition.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param string|null $open_date  Open date of the range, or null for now.
+	 * @param string|null $close_date Close date of the range, or null for unbounded.
+	 * @param int         $exclude_id Competition to leave out, e.g. the one being saved.
+	 * @return WP_Error|null Error carrying the other competition as 'competition' data, or null.
+	 */
+	private function overlap_error( ?string $open_date, ?string $close_date, int $exclude_id = 0 ): ?WP_Error {
+		$other = $this->find_overlapping( $open_date, $close_date, $exclude_id );
+
+		if ( ! $other ) {
+			return null;
+		}
+
+		return new WP_Error(
+			'competition_overlap',
+			sprintf(
+				/* translators: %s: title of the overlapping competition */
+				__( 'These dates overlap %s, and only one competition can be open at a time.', 'photo-competition-manager' ),
+				$other->title
+			),
+			array( 'competition' => $other )
+		);
+	}
+
+	/**
 	 * Create a competition.
+	 *
+	 * Refuses dates that overlap another competition with a
+	 * 'competition_overlap' error.
 	 *
 	 * @param array<string, mixed> $data Competition data.
 	 * @return int|WP_Error
@@ -241,7 +272,13 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$open_date  = $this->normalize_date( $data['open_date'] ?? null );
 		$close_date = $this->normalize_date( $data['close_date'] ?? null );
-		$now        = utc_time();
+		$overlap    = $this->overlap_error( $open_date, $close_date );
+
+		if ( $overlap ) {
+			return $overlap;
+		}
+
+		$now = utc_time();
 
 		$payload = array(
 			'title'      => $title,
@@ -278,6 +315,9 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Update a competition.
 	 *
+	 * When the dates change, refuses dates that overlap another competition
+	 * with a 'competition_overlap' error.
+	 *
 	 * @param int                  $id   Competition ID.
 	 * @param array<string, mixed> $data Updated data.
 	 * @return bool|WP_Error
@@ -313,6 +353,14 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$open_date  = array_key_exists( 'open_date', $data ) ? $this->normalize_date( $data['open_date'] ) : $current->open_date;
 		$close_date = array_key_exists( 'close_date', $data ) ? $this->normalize_date( $data['close_date'] ) : $current->close_date;
+
+		if ( array_key_exists( 'open_date', $data ) || array_key_exists( 'close_date', $data ) ) {
+			$overlap = $this->overlap_error( $open_date, $close_date, $id );
+
+			if ( $overlap ) {
+				return $overlap;
+			}
+		}
 
 		$payload = array(
 			'title'      => $title,
@@ -383,6 +431,9 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Restore archived competition.
 	 *
+	 * Refuses with a 'competition_overlap' error if its dates overlap
+	 * another competition.
+	 *
 	 * @param int $id Competition ID.
 	 * @return bool|WP_Error
 	 */
@@ -391,6 +442,13 @@ class Competitions_Repository extends Abstract_Repository {
 
 		if ( $id <= 0 ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		$archived = $this->find( $id, true );
+		$overlap  = $archived ? $this->overlap_error( $archived->open_date, $archived->close_date, $id ) : null;
+
+		if ( $overlap ) {
+			return $overlap;
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- plugin check doesn't like $this
