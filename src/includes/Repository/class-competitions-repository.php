@@ -170,6 +170,36 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find the competition the results pages show by default.
+	 *
+	 * That's the latest competition, by open date, whose results are
+	 * visible, so last month's results stay up until the next ones are
+	 * shown. With none visible, it's the current competition, then the one
+	 * that opened most recently, so the page can still name a competition.
+	 * Archived competitions are ignored.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return object|null
+	 */
+	public function find_for_results() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY open_date DESC, created_at DESC', $this->table() ) );
+
+		foreach ( $competitions as $competition ) {
+			$settings = json_decode( (string) $competition->settings, true );
+
+			if ( ! empty( $settings['results']['results_visible'] ) ) {
+				return $competition;
+			}
+		}
+
+		return $this->find_current_active() ?? ( $competitions[0] ?? null );
+	}
+
+	/**
 	 * Find a competition whose dates overlap the given range.
 	 *
 	 * Only one competition may be open at a time from now on, so only the

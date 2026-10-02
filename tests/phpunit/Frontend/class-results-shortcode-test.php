@@ -92,4 +92,27 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'data-label="Member"', $html );
 		$this->assertStringContainsString( 'data-label="Score"', $html );
 	}
+
+	/**
+	 * Results night when next month's competition was created early: with
+	 * no competition named, the page shows the competition whose results
+	 * are out, not the newest one.
+	 */
+	public function test_defaults_to_latest_competition_with_visible_results(): void {
+		$competitions = new Competitions_Repository();
+		$published    = $competitions->find_by_slug( 'results-comp' );
+		$competitions->update( (int) $published->id, array( 'close_date' => '2020-02-01 00:00:00' ) );
+		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
+		$competitions->create(
+			array(
+				'title'     => 'Next Month',
+				'slug'      => 'next-month',
+				'open_date' => '2020-02-01 00:00:00',
+			)
+		);
+
+		$html = ( new Results_Shortcode() )->render( array() );
+
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+	}
 }

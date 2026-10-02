@@ -117,13 +117,12 @@ class Top3_Shortcode {
 				}
 			}
 
-			// Fall back to the most recent competition.
+			// Fall back to the latest competition with results out.
 			if ( ! $competition ) {
-				$competitions = $this->competitions_repo->all( 1, false, false );
-				if ( empty( $competitions ) ) {
+				$competition = $this->competitions_repo->find_for_results();
+				if ( ! $competition ) {
 					return '<p class="error">' . esc_html__( 'No competitions found.', 'photo-competition-manager' ) . '</p>';
 				}
-				$competition = $competitions[0];
 			}
 		} else {
 			$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
