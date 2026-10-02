@@ -3,7 +3,9 @@
  * Golden-master snapshot tests for Email_Templates_Controller::render().
  *
  * Pins the exact rendered HTML ahead of the template-partial extraction (#40).
- * Nonces are normalized so snapshots do not churn per run.
+ * Nonces are normalized so snapshots do not churn per run, and the core
+ * stylesheet links wp_editor() prints are stripped so they don't depend on
+ * test order (#89).
  *
  * @package PhotoCompetitionManager\Tests\Admin
  */
