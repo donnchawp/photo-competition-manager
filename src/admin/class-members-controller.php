@@ -782,7 +782,7 @@ class Members_Controller {
 				'photo_competition_delete_member_' . (int) $member->id
 			);
 
-			$show_send_email = (bool) ( $active_competition && $this->competitions->is_open( $active_competition ) && $member->active && ! empty( $member->email ) );
+			$show_send_email = (bool) ( $active_competition && $member->active && ! empty( $member->email ) );
 			$send_url        = '';
 			$upload_url      = '';
 

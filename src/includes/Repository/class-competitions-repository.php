@@ -54,7 +54,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function all_open(): array {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- open_condition() is prepared.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- open_condition() is prepared.
 		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $this->open_condition() . ' ORDER BY created_at DESC', $this->table() ) );
 	}
 
@@ -165,7 +165,7 @@ class Competitions_Repository extends Abstract_Repository {
 	public function find_current_active() {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- open_condition() is prepared.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- open_condition() is prepared.
 		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $this->open_condition() . ' ORDER BY open_date DESC, created_at DESC LIMIT 1', $this->table() ) );
 	}
 
