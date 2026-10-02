@@ -3,7 +3,9 @@
  * Golden-master snapshot tests for Email_Templates_Controller::render().
  *
  * Pins the exact rendered HTML ahead of the template-partial extraction (#40).
- * Nonces are normalized so snapshots do not churn per run.
+ * Nonces are normalized so snapshots do not churn per run, and the core
+ * stylesheet links wp_editor() prints are stripped so they don't depend on
+ * test order (#89).
  *
  * @package PhotoCompetitionManager\Tests\Admin
  */
@@ -43,14 +45,11 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 		// Normalize per-run nonces: _wpnonce=<10 hex> and nonce field values.
 		$html = preg_replace( '/(_wpnonce=)[a-f0-9]{10}/', '$1NONCE', $html );
 		$html = preg_replace( '/(name="_wpnonce" value=")[a-f0-9]{10}/', '$1NONCE', $html );
-		// Normalize the WordPress version string on enqueued core assets
-		// (e.g. dashicons.min.css?ver=7.0) so patch releases don't churn the snapshot.
-		$html = preg_replace( '/([?&]ver=)[^\'"&\s]+/', '$1VER', $html );
-		// Drop the optional type='text/css' attribute WordPress core emits on
-		// enqueued <link> stylesheet tags (wp_editor() pulls in dashicons/editor
-		// CSS). Whether core adds it varies by version/theme HTML5 support, so
-		// removing it keeps the snapshot agnostic to WP-core asset chrome.
-		$html = preg_replace( '/(<link\b[^>]*?)\s+type=\'text\/css\'/', '$1', $html );
+		// Drop the core stylesheet <link> tags wp_editor() prints. It prints
+		// them only for the first editor in the PHP process, so whether they
+		// appear depends on which test ran first (#89). They come from WordPress
+		// core, not the controller.
+		$html = preg_replace( '/<link\b[^>]*\brel=[\'"]stylesheet[\'"][^>]*>\n?/', '', $html );
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
 		// &amp;; core has changed usage between releases).
