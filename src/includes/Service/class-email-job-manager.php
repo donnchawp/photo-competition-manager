@@ -134,10 +134,11 @@ class Email_Job_Manager {
 	 * Category results for the batch being sent, grouped by uploader grade.
 	 *
 	 * Every member in a results batch gets the same results, so each category
-	 * is loaded once per batch. Keyed by category slug, since a batch belongs
-	 * to one competition. Cleared at the start of each batch.
+	 * is loaded once per batch. Keyed by "competition_id:category_slug", then
+	 * by grade slug (numeric grade slugs become int keys). Cleared at the
+	 * start of each batch.
 	 *
-	 * @var array<string, array<string, array<int, object>>>
+	 * @var array<string, array<int|string, array<int, object>>>
 	 */
 	private $results_by_grade = array();
 
@@ -538,7 +539,8 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			// Only rank against images from the member's grade. A member with no grade is ranked against all results.
+			// Only rank against images from the member's grade.
+			// A member with no grade is ranked against all results.
 			$grade_results  = $this->get_results_by_grade( $competition_id, $category_slug )[ $member_grade ] ?? array();
 			$total_in_grade = count( $grade_results );
 
@@ -585,11 +587,13 @@ class Email_Job_Manager {
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category_slug  Category slug.
-	 * @return array<string, array<int, object>> Ranked results keyed by grade slug.
+	 * @return array<int|string, array<int, object>> Ranked results keyed by grade slug.
 	 */
 	private function get_results_by_grade( int $competition_id, string $category_slug ): array {
-		if ( isset( $this->results_by_grade[ $category_slug ] ) ) {
-			return $this->results_by_grade[ $category_slug ];
+		$key = $competition_id . ':' . $category_slug;
+
+		if ( isset( $this->results_by_grade[ $key ] ) ) {
+			return $this->results_by_grade[ $key ];
 		}
 
 		$results  = $this->calculator->get_results( $competition_id, $category_slug );
@@ -603,7 +607,7 @@ class Email_Job_Manager {
 			}
 		}
 
-		$this->results_by_grade[ $category_slug ] = $by_grade;
+		$this->results_by_grade[ $key ] = $by_grade;
 
 		return $by_grade;
 	}

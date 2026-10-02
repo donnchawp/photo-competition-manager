@@ -181,18 +181,45 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( array_values( array_unique( $calls ) ), $calls );
 	}
 
+	public function test_results_are_reloaded_for_each_batch(): void {
+		for ( $i = 1; $i <= 6; $i++ ) {
+			$this->seed_entrant( "entrant-$i@example.com" );
+		}
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		$this->manager->process_batch( $job_id );
+		$first_batch = $this->calculator->calls;
+		$this->manager->process_batch( $job_id );
+
+		$this->assertCount( 6, $this->recipients );
+		$this->assertNotEmpty( $first_batch );
+		$this->assertSame( array_merge( $first_batch, $first_batch ), $this->calculator->calls );
+	}
+
 	public function test_results_email_ranks_within_the_members_grade(): void {
-		$this->seed_entrant( 'beginner-a@example.com', 'beginner' );
-		$this->seed_entrant( 'beginner-b@example.com', 'beginner' );
-		$this->seed_entrant( 'advanced@example.com', 'advanced' );
-		$this->seed_entrant( 'ungraded@example.com', '' );
+		$this->vote_for( $this->seed_entrant( 'beginner-a@example.com', 'beginner' ), 5 );
+		$this->vote_for( $this->seed_entrant( 'beginner-b@example.com', 'beginner' ), 9 );
+		$this->vote_for( $this->seed_entrant( 'advanced@example.com', 'advanced' ), 1 );
+		$this->vote_for( $this->seed_entrant( 'ungraded@example.com', '' ), 7 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
-		$this->assertStringContainsString( 'of 2 (beginner)', $this->bodies['beginner-a@example.com'] );
-		$this->assertStringContainsString( 'of 2 (beginner)', $this->bodies['beginner-b@example.com'] );
-		$this->assertStringContainsString( 'of 1 (advanced)', $this->bodies['advanced@example.com'] );
-		$this->assertStringContainsString( 'of 4', $this->bodies['ungraded@example.com'] );
+		$this->assertStringContainsString( '2 of 2 (beginner)', $this->bodies['beginner-a@example.com'] );
+		$this->assertStringContainsString( '1 of 2 (beginner)', $this->bodies['beginner-b@example.com'] );
+		$this->assertStringContainsString( '1 of 1 (advanced)', $this->bodies['advanced@example.com'] );
+		// Ranked against every entry, with no grade label after the rank.
+		$this->assertMatchesRegularExpression( '#>\s*2 of 4\s*</td>#', $this->bodies['ungraded@example.com'] );
+	}
+
+	/**
+	 * Score a member's colour entry.
+	 *
+	 * @param int $member_id Member ID.
+	 * @param int $score     Score to give the entry.
+	 */
+	private function vote_for( int $member_id, int $score ): void {
+		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[0];
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Judge', (int) $image->id, $score );
 	}
 
 	public function test_queue_results_returns_false_when_every_entrant_is_inactive(): void {
