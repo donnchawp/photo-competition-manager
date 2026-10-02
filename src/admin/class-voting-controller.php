@@ -303,8 +303,9 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Load a competition or add a not-found error and redirect to the voting page.
+	 * Load a competition or add an error and redirect to the voting page.
 	 *
+	 * Refuses a competition that isn't the current one (see is_superseded()).
 	 * The redirect terminates the request, so callers can treat the return value
 	 * as a guaranteed competition object.
 	 *
@@ -321,7 +322,41 @@ class Voting_Controller {
 			);
 		}
 
+		if ( $this->is_superseded( $competition ) ) {
+			$this->fail_voting( 'competition_not_current', $this->not_current_message() );
+		}
+
 		return $competition;
+	}
+
+	/**
+	 * Whether another competition is now the current one.
+	 *
+	 * Voting Controls only shows the current competition, so an action for
+	 * any other comes from a stale tab or link. When no competition is
+	 * current, the last one shown can still be finished off: it may have
+	 * reached its close date while the page was open.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param object $competition Competition the request acts on.
+	 * @return bool
+	 */
+	private function is_superseded( object $competition ): bool {
+		$current = $this->competitions->find_current_active();
+
+		return $current && (int) $current->id !== (int) $competition->id;
+	}
+
+	/**
+	 * Error shown when an action targets a competition that isn't current.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return string
+	 */
+	private function not_current_message(): string {
+		return __( 'This competition is no longer the current one. Reload Voting Controls.', 'photo-competition-manager' );
 	}
 
 	/**
@@ -1061,6 +1096,10 @@ class Voting_Controller {
 		$competition = $this->competitions->find( $competition_id );
 		if ( ! $competition ) {
 			wp_send_json_error( array( 'message' => __( 'Competition not found.', 'photo-competition-manager' ) ) );
+		}
+
+		if ( $this->is_superseded( $competition ) ) {
+			wp_send_json_error( array( 'message' => $this->not_current_message() ) );
 		}
 
 		$settings = Competition_Settings::parse( $competition->settings );
