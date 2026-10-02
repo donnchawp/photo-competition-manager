@@ -45,12 +45,12 @@ This guide explains how to use the Photo Competition Manager plugin shortcodes t
 **Purpose:** Shows all competition results grouped by grade, sorted by total scores.
 
 **Parameters:**
-- `competition` - Competition slug (optional, defaults to most recent)
+- `competition` - Competition slug (optional, defaults to the latest competition whose results are visible, otherwise the current one)
 - `hide_names` - Set to "true" to hide member names (optional, defaults to "false")
 
 **Examples:**
 ```php
-// Show results for most recent competition
+// Show the latest published results
 [competition_results]
 
 // Show results for specific competition
@@ -103,7 +103,7 @@ Category: Black & White
 
 **Examples:**
 ```php
-// Show top 3 for most recent competition
+// Show top 3 for the latest published results
 [competition_top3]
 
 // Show top 3 for specific competition
@@ -168,8 +168,8 @@ Create a page with the following content:
 [competition_voting competition="october-2024"]
 ```
 
-### Results Page (Most Recent Competition)
-Create a results page that automatically shows the latest competition:
+### Results Page (Latest Results)
+Create a results page that automatically shows the latest competition whose results are visible. Last month's results stay up until the next ones are shown:
 
 ```php
 <h1>Latest Competition Results</h1>

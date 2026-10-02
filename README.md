@@ -23,7 +23,7 @@ The plugin provides four main shortcodes for displaying competition functionalit
 
 **3. Complete Results** - `[competition_results]` or `[competition_results competition="slug"]`
 - Shows all competition results grouped by category and grade, sorted by score
-- Parameters: `competition` (optional, defaults to most recent), `hide_names` (optional, hides member names)
+- Parameters: `competition` (optional, defaults to the latest competition with results out), `hide_names` (optional, hides member names)
 - Features: category grouping, grade sub-grouping, responsive tables, clickable thumbnails
 
 **4. Top 3 Podium** - `[competition_top3]` or `[competition_top3 competition="slug"]`
@@ -37,7 +37,7 @@ The plugin provides four main shortcodes for displaying competition functionalit
 [competition_voting]
 [competition_voting competition="october-2025"]
 
-// Results for most recent competition
+// Latest published results
 [competition_results]
 [competition_top3]
 

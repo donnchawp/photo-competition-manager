@@ -175,7 +175,8 @@ class Competitions_Repository extends Abstract_Repository {
 	 * That's the latest competition, by open date, whose results are
 	 * visible, so last month's results stay up until the next ones are
 	 * shown. With none visible, it's the current competition, then the one
-	 * that opened most recently, so the page can still name a competition.
+	 * with the latest open date, so the page can still name a competition.
+	 * A competition without an open date opened when it was created.
 	 * Archived competitions are ignored.
 	 *
 	 * @since 0.3.0
@@ -186,7 +187,7 @@ class Competitions_Repository extends Abstract_Repository {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY open_date DESC, created_at DESC', $this->table() ) );
+		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY COALESCE(open_date, created_at) DESC, created_at DESC', $this->table() ) );
 
 		$open = null;
 

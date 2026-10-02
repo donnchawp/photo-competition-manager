@@ -1165,6 +1165,32 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( $latest_id, (int) $repository->find_for_results()->id );
 	}
 
+	/**
+	 * A competition saved without an open date opened when it was created,
+	 * so it ranks by its creation time rather than below every dated one.
+	 */
+	public function test_find_for_results_ranks_missing_open_date_by_creation(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'August',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+		$undated_id = $repository->create(
+			array(
+				'title'      => 'September',
+				'close_date' => utc_time( DAY_IN_SECONDS ),
+				'settings'   => array( 'results' => array( 'results_visible' => true ) ),
+			)
+		);
+
+		$this->assertSame( $undated_id, (int) $repository->find_for_results()->id );
+	}
+
 	public function test_find_for_results_returns_null_without_competitions(): void {
 		$this->assertNull( ( new Competitions_Repository( $GLOBALS['wpdb'] ) )->find_for_results() );
 	}
