@@ -204,11 +204,53 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
-		$this->assertStringContainsString( '2 of 2 (beginner)', $this->bodies['beginner-a@example.com'] );
-		$this->assertStringContainsString( '1 of 2 (beginner)', $this->bodies['beginner-b@example.com'] );
-		$this->assertStringContainsString( '1 of 1 (advanced)', $this->bodies['advanced@example.com'] );
+		$this->assertStringContainsString( '2 of 2 (Beginner)', $this->bodies['beginner-a@example.com'] );
+		$this->assertStringContainsString( '1 of 2 (Beginner)', $this->bodies['beginner-b@example.com'] );
+		$this->assertStringContainsString( '1 of 1 (Advanced)', $this->bodies['advanced@example.com'] );
 		// Ranked against every entry, with no grade label after the rank.
 		$this->assertMatchesRegularExpression( '#>\s*2 of 4\s*</td>#', $this->bodies['ungraded@example.com'] );
+	}
+
+	public function test_results_email_tied_entries_share_a_position(): void {
+		$this->vote_for( $this->seed_entrant( 'tied-a@example.com' ), 9 );
+		$this->vote_for( $this->seed_entrant( 'tied-b@example.com' ), 9 );
+		$this->vote_for( $this->seed_entrant( 'behind@example.com' ), 7 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 3 (Beginner)', $this->bodies['tied-a@example.com'] );
+		$this->assertStringContainsString( '1 of 3 (Beginner)', $this->bodies['tied-b@example.com'] );
+		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['behind@example.com'] );
+	}
+
+	public function test_results_email_gives_each_of_a_members_entries_its_own_position(): void {
+		$member_id = $this->seed_entrant( 'two-entries@example.com' );
+		$this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'second-' . $member_id . '.jpg',
+			)
+		);
+		$entries = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id );
+		$votes   = new Votes_Repository();
+		$votes->create( $this->competition_id, 'colour', 'Judge', (int) $entries[0]->id, 9 );
+		$votes->create( $this->competition_id, 'colour', 'Judge', (int) $entries[1]->id, 5 );
+		$this->vote_for( $this->seed_entrant( 'rival@example.com' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 3 (Beginner)', $this->bodies['two-entries@example.com'] );
+		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['two-entries@example.com'] );
+	}
+
+	public function test_results_email_shows_the_grade_label(): void {
+		$this->vote_for( $this->seed_entrant( 'labelled@example.com', 'intermediate' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 1 (Intermediate)', $this->bodies['labelled@example.com'] );
 	}
 
 	/**
