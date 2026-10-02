@@ -10,13 +10,13 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Email_Results_Job_Manager;
-use PhotoCompetitionManager\Service\Email_Service;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -31,6 +31,7 @@ use function PhotoCompetitionManager\Support\sanitize_csv_row;
 class Results_Controller {
 
 	use Date_Formatting;
+	use Email_Job_Notice;
 	use Form_Rendering;
 
 	/**
@@ -76,30 +77,22 @@ class Results_Controller {
 	private $calculator;
 
 	/**
-	 * Email service.
-	 *
-	 * @var Email_Service
-	 */
-	private $email_service;
-
-	/**
 	 * Email job manager.
 	 *
-	 * @var Email_Results_Job_Manager
+	 * @var Email_Job_Manager
 	 */
 	private $email_job_manager;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository   $competitions      Competitions repository.
-	 * @param Images_Repository         $images            Images repository.
-	 * @param Members_Repository        $members           Members repository.
-	 * @param Votes_Repository          $votes             Votes repository.
-	 * @param Results_Analytics         $analytics         Results analytics service.
-	 * @param Score_Calculator          $calculator        Score calculator service.
-	 * @param Email_Service             $email_service     Email service.
-	 * @param Email_Results_Job_Manager $email_job_manager Email job manager.
+	 * @param Competitions_Repository $competitions      Competitions repository.
+	 * @param Images_Repository       $images            Images repository.
+	 * @param Members_Repository      $members           Members repository.
+	 * @param Votes_Repository        $votes             Votes repository.
+	 * @param Results_Analytics       $analytics         Results analytics service.
+	 * @param Score_Calculator        $calculator        Score calculator service.
+	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -108,8 +101,7 @@ class Results_Controller {
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
-		Email_Service $email_service,
-		Email_Results_Job_Manager $email_job_manager
+		Email_Job_Manager $email_job_manager
 	) {
 		$this->competitions      = $competitions;
 		$this->images            = $images;
@@ -117,7 +109,6 @@ class Results_Controller {
 		$this->votes             = $votes;
 		$this->analytics         = $analytics;
 		$this->calculator        = $calculator;
-		$this->email_service     = $email_service;
 		$this->email_job_manager = $email_job_manager;
 	}
 
@@ -226,8 +217,8 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
-			// Create background job for email sending.
-			$job_id = $this->email_job_manager->create_job( $competition_id );
+			// Queue a background job for email sending.
+			$job_id = $this->email_job_manager->queue_results( $competition_id );
 
 			if ( ! $job_id ) {
 				add_settings_error(
@@ -247,9 +238,6 @@ class Results_Controller {
 					)
 				);
 			}
-
-			// Schedule first batch immediately.
-			$this->email_job_manager->schedule_next_batch( $job_id, 0 );
 
 			// Redirect to results page with job status.
 			wp_safe_redirect(
@@ -325,41 +313,33 @@ class Results_Controller {
 				$recipients = $this->members->find_active_members();
 			}
 
-			$sent_count = 0;
-
+			$member_ids = array();
 			foreach ( $recipients as $member ) {
 				if ( ! empty( $member->email ) ) {
-					$sent = $this->email_service->send_results_share_link(
-						$member->email,
-						$member->name,
-						$competition->title,
-						$share_url,
-						$competition_id
-					);
-					if ( $sent ) {
-						++$sent_count;
-					}
+					$member_ids[] = (int) $member->id;
 				}
 			}
 
-			$audience_label = 'send_results_committee' === $action
-				? __( 'committee members', 'photo-competition-manager' )
-				: __( 'active members', 'photo-competition-manager' );
-
-			add_settings_error(
-				'photo_competition_results',
-				'results_link_sent',
-				sprintf(
-					/* translators: 1: number of emails sent, 2: audience label */
-					__( 'Results link sent to %1$d %2$s.', 'photo-competition-manager' ),
-					$sent_count,
-					$audience_label
-				),
-				'updated'
+			$job_id = $this->email_job_manager->queue(
+				'results_share',
+				$competition_id,
+				$member_ids,
+				array( 'share_url' => $share_url )
 			);
 
-			$this->redirect_with_settings_errors( $redirect_url );
-			return;
+			if ( ! $job_id ) {
+				add_settings_error(
+					'photo_competition_results',
+					'no_recipients',
+					__( 'No members with an email address to send the results link to.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+				return;
+			}
+
+			wp_safe_redirect( add_query_arg( 'job_id', $job_id, $redirect_url ) );
+			exit;
 		}
 
 		if ( 'export_results_csv' === $action ) {
@@ -385,7 +365,8 @@ class Results_Controller {
 		settings_errors( 'photo_competition_results' );
 
 		// Display email job progress if present.
-		$this->display_email_job_notice();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_email_job_notice( $this->email_job_manager );
 
 		// Get selected competition or default to most recent.
 		$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -622,54 +603,14 @@ class Results_Controller {
 	 * @return string
 	 */
 	private function render_results_table( int $competition_id, string $category, array $grades ): string {
-		$results        = $this->calculator->get_results( $competition_id, $category );
-		$members_lookup = array();
-
-		// Build members lookup.
-		$all_members = $this->members->all( 10000, false );
-		foreach ( $all_members as $member ) {
-			$members_lookup[ $member->id ] = $member;
-		}
-
-		// Group by grade.
-		$results_by_grade = array();
-		foreach ( $results as $result ) {
-			$member = $members_lookup[ $result->member_id ] ?? null;
-			$grade  = $member ? $member->grade : 'unknown';
-
-			if ( ! isset( $results_by_grade[ $grade ] ) ) {
-				$results_by_grade[ $grade ] = array();
-			}
-
-			$results_by_grade[ $grade ][] = $result;
-		}
-
+		$results      = $this->calculator->get_results( $competition_id, $category );
 		$grade_tables = array();
 
-		foreach ( $grades as $grade ) {
-			$grade_slug  = $grade['slug'] ?? '';
-			$grade_label = $grade['label'] ?? $grade_slug;
+		foreach ( $this->rank_results_by_grade( $results, $grades, $this->get_members_lookup() ) as $group ) {
+			$rows = array();
 
-			$grade_results = $results_by_grade[ $grade_slug ] ?? array();
-
-			if ( empty( $grade_results ) ) {
-				continue;
-			}
-
-			// Assign ranks with tie handling (dense ranking).
-			$rank           = 0;
-			$previous_score = null;
-			$rows           = array();
-
-			foreach ( $grade_results as $result ) {
-				// Advance rank only when score changes.
-				if ( null === $previous_score || (int) $result->total_score !== $previous_score ) {
-					++$rank;
-					$previous_score = (int) $result->total_score;
-				}
-
-				$member    = $members_lookup[ $result->member_id ] ?? null;
-				$image_url = $this->get_image_url( $competition_id, $category, $result->filename );
+			foreach ( $group['entries'] as $entry ) {
+				$result = $entry['result'];
 
 				$detail_url = add_query_arg(
 					array(
@@ -682,9 +623,9 @@ class Results_Controller {
 				);
 
 				$rows[] = array(
-					'rank'        => $rank,
-					'image_url'   => $image_url,
-					'member_name' => $member ? $member->name : null,
+					'rank'        => $entry['rank'],
+					'image_url'   => $this->get_image_url( $competition_id, $category, $result->filename ),
+					'member_name' => $entry['member'] ? $entry['member']->name : null,
 					'total_score' => $result->total_score,
 					'vote_count'  => $result->vote_count,
 					'detail_url'  => $detail_url,
@@ -692,12 +633,99 @@ class Results_Controller {
 			}
 
 			$grade_tables[] = array(
-				'label' => $grade_label,
+				'label' => $group['label'],
 				'rows'  => $rows,
 			);
 		}
 
 		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+	}
+
+	/**
+	 * Build a member ID => member lookup table.
+	 *
+	 * @return array<int, object>
+	 */
+	private function get_members_lookup(): array {
+		$lookup = array();
+		foreach ( $this->members->all( 10000, false ) as $member ) {
+			$lookup[ $member->id ] = $member;
+		}
+
+		return $lookup;
+	}
+
+	/**
+	 * Group a category's results by the entrant's grade and rank them within each grade.
+	 *
+	 * Groups follow the configured grade order; entrants whose grade is missing
+	 * or not configured are collected in a trailing "Ungraded" group so no
+	 * entry is dropped. Ranking is dense: tied scores share a rank.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param array<int, object> $results        Results sorted by score, highest first.
+	 * @param array<int, array>  $grades         Grade definitions.
+	 * @param array<int, object> $members_lookup Member ID => member.
+	 * @return array<int, array{slug: string, label: string, entries: array<int, array{rank: int, result: object, member: object|null}>}>
+	 */
+	private function rank_results_by_grade( array $results, array $grades, array $members_lookup ): array {
+		$groups = array();
+		foreach ( $grades as $grade ) {
+			$slug            = (string) ( $grade['slug'] ?? '' );
+			$groups[ $slug ] = array(
+				'slug'    => $slug,
+				'label'   => (string) ( $grade['label'] ?? $slug ),
+				'entries' => array(),
+			);
+		}
+
+		$ungraded = array(
+			'slug'    => '',
+			'label'   => __( 'Ungraded', 'photo-competition-manager' ),
+			'entries' => array(),
+		);
+
+		foreach ( $results as $result ) {
+			$member = $members_lookup[ $result->member_id ] ?? null;
+			$slug   = $member ? (string) $member->grade : '';
+			$entry  = array(
+				'rank'   => 0,
+				'result' => $result,
+				'member' => $member,
+			);
+
+			if ( '' !== $slug && isset( $groups[ $slug ] ) ) {
+				$groups[ $slug ]['entries'][] = $entry;
+			} else {
+				$ungraded['entries'][] = $entry;
+			}
+		}
+
+		$groups[] = $ungraded;
+
+		$ranked = array();
+		foreach ( $groups as $group ) {
+			if ( empty( $group['entries'] ) ) {
+				continue;
+			}
+
+			// Advance rank only when score changes.
+			$rank           = 0;
+			$previous_score = null;
+			foreach ( $group['entries'] as $index => $entry ) {
+				$score = (int) $entry['result']->total_score;
+				if ( null === $previous_score || $score !== $previous_score ) {
+					++$rank;
+					$previous_score = $score;
+				}
+				$group['entries'][ $index ]['rank'] = $rank;
+			}
+
+			$ranked[] = $group;
+		}
+
+		return $ranked;
 	}
 
 	/**
@@ -773,9 +801,6 @@ class Results_Controller {
 			wp_die( esc_html__( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		$settings   = Competition_Settings::parse( $competition->settings );
-		$categories = Competition_Settings::get_categories( $settings );
-
 		$filename = 'results-' . sanitize_title( $competition->slug ) . '.csv';
 
 		header( 'Content-Type: text/csv; charset=utf-8' );
@@ -784,65 +809,82 @@ class Results_Controller {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$output = fopen( 'php://output', 'w' );
 
-		// CSV header.
-		fputcsv(
-			$output,
-			sanitize_csv_row(
-				array(
-					'Competition',
-					'Category',
-					'Rank',
-					'Image Number',
-					'Member Name',
-					'Member Email',
-					'Grade',
-					'Score',
-					'Vote Count',
-					'Filename',
-				)
-			)
+		foreach ( $this->get_export_rows( $competition ) as $row ) {
+			fputcsv( $output, sanitize_csv_row( $row ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		fclose( $output );
+	}
+
+	/**
+	 * Build the results CSV rows, header first.
+	 *
+	 * Rows are ordered by grade, then category, then rank; the rank restarts
+	 * for each grade within each category, matching the results screen.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return array<int, array<int, string|int>>
+	 */
+	public function get_export_rows( object $competition ): array {
+		$settings       = Competition_Settings::parse( $competition->settings );
+		$categories     = Competition_Settings::get_categories( $settings );
+		$grades         = Competition_Settings::get_grades( $settings );
+		$members_lookup = $this->get_members_lookup();
+
+		$rows = array(
+			array(
+				'Competition',
+				'Grade',
+				'Category',
+				'Rank',
+				'Image Number',
+				'Member Name',
+				'Member Email',
+				'Score',
+				'Vote Count',
+				'Filename',
+			),
 		);
 
-		$members_lookup = array();
-		$all_members    = $this->members->all( 10000, false );
-		foreach ( $all_members as $member ) {
-			$members_lookup[ $member->id ] = $member;
-		}
+		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
+		$rows_by_grade     = array_fill_keys( array_column( $grades, 'slug' ), array() );
+		$rows_by_grade[''] = array();
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
 			$category_label = $category['label'] ?? $category_slug;
 
-			$results = $this->calculator->get_results( $competition_id, $category_slug );
+			$results = $this->calculator->get_results( (int) $competition->id, $category_slug );
 
-			$rank = 1;
-			foreach ( $results as $result ) {
-				$member = $members_lookup[ $result->member_id ] ?? null;
+			foreach ( $this->rank_results_by_grade( $results, $grades, $members_lookup ) as $group ) {
+				foreach ( $group['entries'] as $entry ) {
+					$result = $entry['result'];
+					$member = $entry['member'];
 
-				fputcsv(
-					$output,
-					sanitize_csv_row(
-						array(
-							$competition->title,
-							$category_label,
-							$rank,
-							$result->random_number,
-							$member ? $member->name : '',
-							$member ? $member->email : '',
-							$member ? $member->grade : '',
-							number_format( $result->total_score, 0 ),
-							$result->vote_count,
-							$result->filename,
-						)
-					)
-				);
-
-				++$rank;
+					$rows_by_grade[ $group['slug'] ][] = array(
+						$competition->title,
+						$group['label'],
+						$category_label,
+						$entry['rank'],
+						$result->random_number,
+						$member ? $member->name : '',
+						$member ? $member->email : '',
+						number_format( $result->total_score, 0 ),
+						$result->vote_count,
+						$result->filename,
+					);
+				}
 			}
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-		fclose( $output );
+		foreach ( $rows_by_grade as $grade_rows ) {
+			array_push( $rows, ...$grade_rows );
+		}
+
+		return $rows;
 	}
 
 	/**
@@ -869,185 +911,5 @@ class Results_Controller {
 
 		// Return thumbnail URL if it exists, otherwise null.
 		return file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : null;
-	}
-
-	/**
-	 * Email results to all members who submitted images.
-	 *
-	 * @param int $competition_id Competition ID.
-	 * @return array{success: bool, sent_count: int, total_count: int, message: string}
-	 */
-	private function email_results_to_members( int $competition_id ): array {
-		$competition = $this->competitions->find( $competition_id );
-		if ( ! $competition ) {
-			return array(
-				'success'     => false,
-				'sent_count'  => 0,
-				'total_count' => 0,
-				'message'     => __( 'Competition not found.', 'photo-competition-manager' ),
-			);
-		}
-
-		$settings   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-		$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-
-		// Collect all members who submitted images.
-		$member_ids = array();
-		foreach ( $categories as $category ) {
-			$category_slug = $category['slug'] ?? '';
-			if ( empty( $category_slug ) ) {
-				continue;
-			}
-
-			$images = $this->images->find_by_competition( $competition_id, $category_slug );
-			foreach ( $images as $image ) {
-				$member_ids[ $image->member_id ] = true;
-			}
-		}
-
-		$sent_count  = 0;
-		$total_count = count( $member_ids );
-
-		foreach ( array_keys( $member_ids ) as $member_id ) {
-			$member = $this->members->find( (int) $member_id );
-			if ( ! $member || empty( $member->email ) ) {
-				continue;
-			}
-
-			// Build member results data.
-			$member_results = array(
-				'images' => array(),
-			);
-
-			foreach ( $categories as $category ) {
-				$category_slug  = $category['slug'] ?? '';
-				$category_label = $category['label'] ?? $category_slug;
-
-				if ( empty( $category_slug ) ) {
-					continue;
-				}
-
-				$results = $this->calculator->get_results( $competition_id, $category_slug );
-
-				// Find this member's images in the results.
-				$rank = 1;
-				foreach ( $results as $result ) {
-					if ( (int) $result->member_id === (int) $member_id ) {
-						$image_details = $this->analytics->get_image_details( (int) $result->id );
-
-						$member_results['images'][] = array(
-							'category_label' => $category_label,
-							'image_number'   => $result->random_number,
-							'rank'           => $rank,
-							'statistics'     => $image_details['statistics'],
-							'votes'          => $image_details['votes'],
-						);
-					}
-					++$rank;
-				}
-			}
-
-			// Send email to member.
-			$sent = $this->email_service->send_results_email(
-				$member->email,
-				$member->name,
-				$competition->title,
-				$member_results
-			);
-
-			if ( $sent ) {
-				++$sent_count;
-			}
-		}
-
-		return array(
-			'success'     => true,
-			'sent_count'  => $sent_count,
-			'total_count' => $total_count,
-			'message'     => sprintf(
-				/* translators: %1$d: number of emails sent, %2$d: total number of members */
-				__( 'Sent results to %1$d of %2$d members.', 'photo-competition-manager' ),
-				$sent_count,
-				$total_count
-			),
-		);
-	}
-
-	/**
-	 * Display email job progress notice.
-	 *
-	 * @return void
-	 */
-	private function display_email_job_notice(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( ! isset( $_GET['job_id'] ) ) {
-			return;
-		}
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$job_id = sanitize_text_field( wp_unslash( $_GET['job_id'] ) );
-		$job    = $this->email_job_manager->get_job_status( $job_id );
-
-		if ( ! $job ) {
-			return;
-		}
-
-		if ( 'processing' === $job['status'] || 'pending' === $job['status'] ) {
-			$progress_percent = $job['total_count'] > 0 ? ( count( $job['processed_ids'] ) / $job['total_count'] ) * 100 : 0;
-
-			echo '<div class="notice notice-info">';
-			echo '<p><strong>' . esc_html__( 'Sending results emails...', 'photo-competition-manager' ) . '</strong></p>';
-			echo '<p>';
-			printf(
-				/* translators: 1: Sent count, 2: Total count, 3: Progress percentage */
-				esc_html__( 'Progress: %1$d of %2$d emails sent (%3$d%%)', 'photo-competition-manager' ),
-				esc_html( count( $job['processed_ids'] ) ),
-				esc_html( $job['total_count'] ),
-				absint( $progress_percent )
-			);
-			echo '</p>';
-			echo '<p><em>' . esc_html__( 'This page will refresh automatically every 5 seconds.', 'photo-competition-manager' ) . '</em> ';
-			echo '<a href="' . esc_url( remove_query_arg( array( 'job_id', 'status' ) ) ) . '">' . esc_html__( 'Refresh now', 'photo-competition-manager' ) . '</a></p>';
-			echo '</div>';
-
-			// Auto-refresh every 5 seconds.
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			echo '<meta http-equiv="refresh" content="5">';
-		} elseif ( 'completed' === $job['status'] ) {
-			echo '<div class="notice notice-success is-dismissible">';
-			echo '<p><strong>' . esc_html__( 'Email results sent successfully!', 'photo-competition-manager' ) . '</strong></p>';
-			echo '<p>';
-			printf(
-				/* translators: 1: Sent count, 2: Total count */
-				esc_html__( 'Sent %1$d of %2$d emails.', 'photo-competition-manager' ),
-				esc_html( $job['sent_count'] ),
-				esc_html( $job['total_count'] )
-			);
-
-			if ( $job['failed_count'] > 0 ) {
-				echo ' ';
-				printf(
-					/* translators: %d: Failed count */
-					esc_html__( '%d emails failed to send.', 'photo-competition-manager' ),
-					esc_html( $job['failed_count'] )
-				);
-			}
-
-			echo '</p>';
-			echo '</div>';
-		} elseif ( 'failed' === $job['status'] ) {
-			echo '<div class="notice notice-error is-dismissible">';
-			echo '<p><strong>' . esc_html__( 'Email job failed.', 'photo-competition-manager' ) . '</strong></p>';
-
-			if ( ! empty( $job['error_log'] ) ) {
-				echo '<ul>';
-				foreach ( array_slice( $job['error_log'], 0, 5 ) as $error ) {
-					echo '<li>' . esc_html( $error ) . '</li>';
-				}
-				echo '</ul>';
-			}
-
-			echo '</div>';
-		}
 	}
 }

@@ -11,6 +11,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Image_Processor;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -182,7 +183,7 @@ foreach ( $all_members as $member ) {
 		copy( $tmp_file, trailingslashit( $cat_dir ) . $filename );
 
 		// Generate thumbnail.
-		$thumb_file = str_replace( '.jpg', '-thumb.jpg', $filename );
+		$thumb_file = Image_Processor::get_thumbnail_filename( $filename );
 		$thumb_img  = imagecreatefromjpeg( $tmp_file );
 		$thumb_resized = imagescale( $thumb_img, 400 );
 		imagejpeg( $thumb_resized, trailingslashit( $cat_dir ) . $thumb_file, 80 );

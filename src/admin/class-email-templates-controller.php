@@ -180,14 +180,6 @@ class Email_Templates_Controller {
 				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Voting is now open for {competition_title}!</p>\n\n<p>Visit the voting page to see all submitted images and cast your votes.</p>\n\n<p><a href=\"{voting_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Go to Voting Page</a></p>\n\n<p>Voting closes on {close_date}.</p>", 'photo-competition-manager' ),
 				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_page}', '{close_date}', '{site_name}' ),
 			),
-			'competition_closed'   => array(
-				'name'        => __( 'Competition Closed', 'photo-competition-manager' ),
-				'description' => __( 'Sent when a competition closes (voting ends).', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( '{competition_title} has closed', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>{competition_title} has now closed. Thank you for participating!</p>\n\n<p>Results will be announced soon.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{site_name}' ),
-			),
 			'results_published'    => array(
 				'name'        => __( 'Results Published', 'photo-competition-manager' ),
 				'description' => __( 'Sent to members when competition results are available.', 'photo-competition-manager' ),

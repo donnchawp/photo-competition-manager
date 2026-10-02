@@ -31,6 +31,32 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertCount( 3, $defaults['grades'] );
 	}
 
+	public function test_find_category_returns_matching_config(): void {
+		$settings = array(
+			'categories' => array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+					'quota' => 2,
+				),
+				array(
+					'slug'  => 'mono',
+					'label' => 'Mono',
+					'quota' => 1,
+				),
+			),
+		);
+
+		$category = Competition_Settings::find_category( $settings, 'mono' );
+
+		$this->assertSame( 'Mono', $category['label'] );
+		$this->assertSame( 1, $category['quota'] );
+	}
+
+	public function test_find_category_returns_null_for_unknown_slug(): void {
+		$this->assertNull( Competition_Settings::find_category( Competition_Settings::defaults(), 'nonexistent' ) );
+	}
+
 	public function test_parse_empty_json_returns_defaults(): void {
 		$result = Competition_Settings::parse( null );
 

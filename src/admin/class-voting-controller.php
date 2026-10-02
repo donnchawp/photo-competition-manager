@@ -11,12 +11,14 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Admin_Action_Dispatcher;
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
+use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -29,6 +31,7 @@ class Voting_Controller {
 
 	use Admin_Action_Dispatcher;
 	use Date_Formatting;
+	use Email_Job_Notice;
 	use Form_Rendering;
 
 	/**
@@ -53,20 +56,30 @@ class Voting_Controller {
 	private $members;
 
 	/**
+	 * Email job queue.
+	 *
+	 * @var Email_Job_Manager
+	 */
+	private $email_jobs;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
 	 * @param Images_Repository       $images       Images repository.
 	 * @param Members_Repository|null $members      Members repository.
+	 * @param Email_Job_Manager|null  $email_jobs   Email job queue.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
 		Images_Repository $images,
-		?Members_Repository $members = null
+		?Members_Repository $members = null,
+		?Email_Job_Manager $email_jobs = null
 	) {
 		$this->competitions = $competitions;
 		$this->images       = $images;
 		$this->members      = $members ?? new Members_Repository();
+		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 	}
 
 	/**
@@ -155,7 +168,7 @@ class Voting_Controller {
 			__( 'Voting opened successfully.', 'photo-competition-manager' ),
 			$focus,
 			function () use ( $competition ) {
-				$this->send_voting_opened_notifications( $competition );
+				return $this->queue_voting_opened_notifications( $competition );
 			}
 		);
 	}
@@ -341,11 +354,13 @@ class Voting_Controller {
 	 * @param string        $success_code    Settings-error code for the success notice.
 	 * @param string        $success_message Human-readable success message.
 	 * @param string        $focus           Focus-panel key to preserve across the redirect.
-	 * @param callable|null $on_success      Optional side-effect to run only on success.
+	 * @param callable|null $on_success      Optional side-effect to run only on success. If it
+	 *                                       returns an email job ID, the page shows the job's progress.
 	 * @return void
 	 */
 	private function finish_voting_update( int $competition_id, array $settings, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
 		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+		$job_id = null;
 
 		if ( is_wp_error( $result ) ) {
 			add_settings_error(
@@ -362,12 +377,13 @@ class Voting_Controller {
 				'updated'
 			);
 
-			if ( $on_success ) {
-				$on_success();
-			}
+			$job_id = $on_success ? $on_success() : null;
 		}
 
 		$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
+		if ( ! empty( $job_id ) ) {
+			$redirect_args['job_id'] = $job_id;
+		}
 		if ( ! empty( $focus ) ) {
 			$redirect_args['focus'] = $focus;
 		}
@@ -388,6 +404,9 @@ class Voting_Controller {
 		}
 
 		settings_errors( 'photo_competition_voting' );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_email_job_notice( $this->email_jobs );
 
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
@@ -614,25 +633,29 @@ class Voting_Controller {
 
 
 	/**
-	 * Send voting opened notifications to all active members.
+	 * Queue voting opened notifications to all active members.
 	 *
 	 * @param object $competition Competition object.
-	 * @return void
+	 * @return string|null Job ID, or null if nothing was queued.
 	 */
-	private function send_voting_opened_notifications( object $competition ): void {
+	private function queue_voting_opened_notifications( object $competition ): ?string {
+		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
+			return null;
+		}
+
 		// Get voting page URL from global settings.
 		$global_settings = Competition_Settings::global_settings();
 		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
 
 		if ( empty( $voting_page_url ) ) {
-			return; // No voting page URL configured, skip sending.
+			return null; // No voting page URL configured, skip sending.
 		}
 
-		// Get all active members.
-		$members = $this->members->all( 10000, true );
-
-		if ( empty( $members ) ) {
-			return;
+		$member_ids = array();
+		foreach ( $this->members->all( 10000, true ) as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$member_ids[] = (int) $member->id;
+			}
 		}
 
 		// Format close date.
@@ -641,21 +664,18 @@ class Voting_Controller {
 			$close_date = wp_date( get_option( 'date_format' ), strtotime( $competition->close_date ) );
 		}
 
-		$email_service = new Email_Service();
+		$job_id = $this->email_jobs->queue(
+			'voting_opened',
+			(int) $competition->id,
+			$member_ids,
+			array(
+				'voting_page_url' => $voting_page_url,
+				'close_date'      => $close_date,
+			)
+		);
 
-		foreach ( $members as $member ) {
-			if ( ! empty( $member->email ) ) {
-				$email_service->send_voting_opened_notification(
-					$member->email,
-					$member->name,
-					$competition->title,
-					$voting_page_url,
-					$close_date
-				);
-			}
-		}
+		return $job_id ? $job_id : null;
 	}
-
 
 	/**
 	 * Render results page links section.

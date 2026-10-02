@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Image_Processor;
 use WP_Error;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -433,7 +434,7 @@ class Members_Repository extends Abstract_Repository {
 		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
 
 		$filename   = $image->filename;
-		$thumb_name = $this->get_thumbnail_filename( $filename );
+		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
 
 		$full_path  = $folder_path . $filename;
 		$thumb_path = $folder_path . $thumb_name;
@@ -447,17 +448,6 @@ class Members_Repository extends Abstract_Repository {
 		if ( file_exists( $thumb_path ) ) {
 			wp_delete_file( $thumb_path );
 		}
-	}
-
-	/**
-	 * Generate thumbnail filename from original filename.
-	 *
-	 * @param string $filename Original filename.
-	 * @return string Thumbnail filename.
-	 */
-	private function get_thumbnail_filename( string $filename ): string {
-		$parts = pathinfo( $filename );
-		return $parts['filename'] . '-thumb.' . ( $parts['extension'] ?? 'jpg' );
 	}
 
 	/**
