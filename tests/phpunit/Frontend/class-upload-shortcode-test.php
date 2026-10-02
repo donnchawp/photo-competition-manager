@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Upload_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_UnitTestCase;
@@ -59,6 +60,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function tearDown(): void {
 		unset( $_GET['token'] );
+		$GLOBALS['wp_scripts'] = null;
 		parent::tearDown();
 	}
 
@@ -82,6 +84,35 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
 		$this->assertStringNotContainsString( 'token-request-section', $output );
+	}
+
+	public function test_submission_delete_form_uses_two_tap_confirmation(): void {
+		$_GET['token'] = $this->issue_token( true );
+		$member        = $this->members->find_by_email( 'uploader@example.com' );
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $member->id,
+				'category'       => 'colour',
+				'filename'       => 'entry.jpg',
+			)
+		);
+
+		$output = $this->shortcode->render( array() );
+
+		// The delete flag is a hidden field so disabling the button on submit cannot drop it.
+		$this->assertStringContainsString( '<input type="hidden" name="photo_competition_delete" value="1" />', $output );
+		$this->assertStringContainsString( 'photo-comp-delete-button', $output );
+		$this->assertStringContainsString( 'data-confirm-label="Tap again to delete"', $output );
+		$this->assertTrue( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
+	}
+
+	public function test_delete_script_not_loaded_without_submissions(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertFalse( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
 	}
 
 	public function test_inactive_member_token_falls_back_to_request_form(): void {
