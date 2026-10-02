@@ -528,9 +528,9 @@ class Email_Job_Manager {
 			'images' => array(),
 		);
 
-		// Get the member's grade, shown by its label from the club's grade list.
+		// Get the member's grade, shown by its label.
 		$member_grade = ! empty( $member->grade ) ? $member->grade : '';
-		$grade_labels = array_column( Competition_Settings::get_grades( Competition_Settings::global_settings() ), 'label', 'slug' );
+		$grade_labels = array_column( Competition_Settings::get_grades( $settings ), 'label', 'slug' );
 		$grade_label  = $grade_labels[ $member_grade ] ?? $member_grade;
 
 		foreach ( $categories as $category ) {

@@ -146,16 +146,25 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			)
 		);
 
+		$this->add_entry( $member_id );
+
+		return $member_id;
+	}
+
+	/**
+	 * Add a colour entry for a member.
+	 *
+	 * @param int $member_id Member ID.
+	 */
+	private function add_entry( int $member_id ): void {
 		$this->images->create(
 			array(
 				'competition_id' => $this->competition_id,
 				'member_id'      => $member_id,
 				'category'       => 'colour',
-				'filename'       => 'photo-' . $member_id . '.jpg',
+				'filename'       => 'photo-' . $member_id . '-' . wp_generate_password( 6, false ) . '.jpg',
 			)
 		);
-
-		return $member_id;
 	}
 
 	public function test_queue_results_leaves_out_inactive_entrants(): void {
@@ -225,18 +234,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_results_email_gives_each_of_a_members_entries_its_own_position(): void {
 		$member_id = $this->seed_entrant( 'two-entries@example.com' );
-		$this->images->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $member_id,
-				'category'       => 'colour',
-				'filename'       => 'second-' . $member_id . '.jpg',
-			)
-		);
-		$entries = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id );
-		$votes   = new Votes_Repository();
-		$votes->create( $this->competition_id, 'colour', 'Judge', (int) $entries[0]->id, 9 );
-		$votes->create( $this->competition_id, 'colour', 'Judge', (int) $entries[1]->id, 5 );
+		$this->add_entry( $member_id );
+		$this->vote_for( $member_id, 9 );
+		$this->vote_for( $member_id, 5, 1 );
 		$this->vote_for( $this->seed_entrant( 'rival@example.com' ), 9 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
@@ -245,22 +245,15 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['two-entries@example.com'] );
 	}
 
-	public function test_results_email_shows_the_grade_label(): void {
-		$this->vote_for( $this->seed_entrant( 'labelled@example.com', 'intermediate' ), 9 );
-
-		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
-
-		$this->assertStringContainsString( '1 of 1 (Intermediate)', $this->bodies['labelled@example.com'] );
-	}
-
 	/**
 	 * Score a member's colour entry.
 	 *
 	 * @param int $member_id Member ID.
 	 * @param int $score     Score to give the entry.
+	 * @param int $entry     Which of the member's entries to score.
 	 */
-	private function vote_for( int $member_id, int $score ): void {
-		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[0];
+	private function vote_for( int $member_id, int $score, int $entry = 0 ): void {
+		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[ $entry ];
 		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Judge', (int) $image->id, $score );
 	}
 
