@@ -294,9 +294,9 @@ class Competitions_Controller {
 				$settings = Competition_Settings::close_category_voting( $settings, $competition_id, $category_slug );
 			}
 
-			// Close as of now rather than a date-only "today": that is stored as
+			// Use the current time, not a date-only "today": that is stored as
 			// midnight UTC, which is still in the future just after midnight on
-			// sites ahead of UTC. A competition is closed once close_date <= now.
+			// sites ahead of UTC.
 			$result = $this->competitions->update(
 				$competition_id,
 				array(
