@@ -49,6 +49,21 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	 */
 	private $recipients = array();
 
+	/**
+	 * Message bodies wp_mail() was asked to send, keyed by recipient.
+	 *
+	 * @var array<string, string>
+	 */
+	private $bodies = array();
+
+	/**
+	 * Score calculator handed to the manager. Records the categories
+	 * get_results() was called for in $calls.
+	 *
+	 * @var Score_Calculator
+	 */
+	private $calculator;
+
 	public function set_up(): void {
 		parent::set_up();
 		Activator::activate();
@@ -58,13 +73,25 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->members = new Members_Repository();
 		$votes         = new Votes_Repository();
 
+		$this->calculator = new class( $this->images, $votes ) extends Score_Calculator {
+			/**
+			 * @var array<int, string|null>
+			 */
+			public $calls = array();
+
+			public function get_results( int $competition_id, ?string $category = null ): array {
+				$this->calls[] = $category;
+				return parent::get_results( $competition_id, $category );
+			}
+		};
+
 		$this->manager = new Email_Job_Manager(
 			$competitions,
 			$this->images,
 			$this->members,
 			$votes,
 			new Results_Analytics( $competitions, $this->images, $this->members, $votes ),
-			new Score_Calculator( $this->images, $votes ),
+			$this->calculator,
 			new Email_Service()
 		);
 
@@ -79,6 +106,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		);
 
 		$this->recipients = array();
+		$this->bodies     = array();
 		add_filter( 'pre_wp_mail', array( $this, 'capture_mail' ), 10, 2 );
 	}
 
@@ -96,7 +124,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	 * @return bool
 	 */
 	public function capture_mail( $short_circuit, array $atts ): bool {
-		$this->recipients[] = is_array( $atts['to'] ) ? implode( ',', $atts['to'] ) : $atts['to'];
+		$to                  = is_array( $atts['to'] ) ? implode( ',', $atts['to'] ) : $atts['to'];
+		$this->recipients[]  = $to;
+		$this->bodies[ $to ] = (string) $atts['message'];
 		return true;
 	}
 
@@ -104,14 +134,15 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	 * Seed a member who submitted an image.
 	 *
 	 * @param string $email Member email.
+	 * @param string $grade Member grade.
 	 * @return int Member ID.
 	 */
-	private function seed_entrant( string $email ): int {
+	private function seed_entrant( string $email, string $grade = 'beginner' ): int {
 		$member_id = (int) $this->members->create(
 			array(
 				'name'  => 'Entrant',
 				'email' => $email,
-				'grade' => 'beginner',
+				'grade' => $grade,
 			)
 		);
 
@@ -136,6 +167,59 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( $active ), array_map( 'intval', $job['member_ids'] ) );
 		$this->assertSame( 1, $job['total_count'] );
+	}
+
+	public function test_results_batch_loads_each_category_results_once(): void {
+		$this->seed_entrant( 'one@example.com' );
+		$this->seed_entrant( 'two@example.com' );
+		$this->seed_entrant( 'three@example.com' );
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$calls = $this->calculator->calls;
+		$this->assertCount( 3, $this->recipients );
+		$this->assertNotEmpty( $calls );
+		$this->assertSame( array_values( array_unique( $calls ) ), $calls );
+	}
+
+	public function test_results_are_reloaded_for_each_batch(): void {
+		for ( $i = 1; $i <= 6; $i++ ) {
+			$this->seed_entrant( "entrant-$i@example.com" );
+		}
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		$this->manager->process_batch( $job_id );
+		$first_batch = $this->calculator->calls;
+		$this->manager->process_batch( $job_id );
+
+		$this->assertCount( 6, $this->recipients );
+		$this->assertNotEmpty( $first_batch );
+		$this->assertSame( array_merge( $first_batch, $first_batch ), $this->calculator->calls );
+	}
+
+	public function test_results_email_ranks_within_the_members_grade(): void {
+		$this->vote_for( $this->seed_entrant( 'beginner-a@example.com', 'beginner' ), 5 );
+		$this->vote_for( $this->seed_entrant( 'beginner-b@example.com', 'beginner' ), 9 );
+		$this->vote_for( $this->seed_entrant( 'advanced@example.com', 'advanced' ), 1 );
+		$this->vote_for( $this->seed_entrant( 'ungraded@example.com', '' ), 7 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '2 of 2 (beginner)', $this->bodies['beginner-a@example.com'] );
+		$this->assertStringContainsString( '1 of 2 (beginner)', $this->bodies['beginner-b@example.com'] );
+		$this->assertStringContainsString( '1 of 1 (advanced)', $this->bodies['advanced@example.com'] );
+		// Ranked against every entry, with no grade label after the rank.
+		$this->assertMatchesRegularExpression( '#>\s*2 of 4\s*</td>#', $this->bodies['ungraded@example.com'] );
+	}
+
+	/**
+	 * Score a member's colour entry.
+	 *
+	 * @param int $member_id Member ID.
+	 * @param int $score     Score to give the entry.
+	 */
+	private function vote_for( int $member_id, int $score ): void {
+		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[0];
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Judge', (int) $image->id, $score );
 	}
 
 	public function test_queue_results_returns_false_when_every_entrant_is_inactive(): void {
