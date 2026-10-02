@@ -19,7 +19,7 @@ echo '<div class="notice notice-warning">';
 echo '<p>';
 printf(
 	/* translators: %s: comma-separated list of open competition titles */
-	esc_html__( 'More than one competition is open: %s. Voting Controls shows the categories of every open competition, so close the ones you are not running.', 'photo-competition-manager' ),
+	esc_html__( 'More than one competition is open: %s. Voting Controls and the public pages use the one that opened most recently, so close the ones you are not running.', 'photo-competition-manager' ),
 	'<strong>' . esc_html( implode( ', ', $data['titles'] ) ) . '</strong>'
 );
 if ( $data['show_link'] ) {

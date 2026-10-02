@@ -411,19 +411,25 @@ class Voting_Controller {
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
 
-		$open_competitions = $this->competitions->all_open();
+		// Act on the same competition as the public voting and upload pages.
+		$active_competition = $this->competitions->find_current_active();
 
-		if ( empty( $open_competitions ) ) {
+		if ( ! $active_competition ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/voting/notice-no-open-competitions.php' );
 			return;
 		}
 
+		// Competitions saved before only one could be open may still overlap.
+		$open_competitions = $this->competitions->all_open();
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $open_competitions, true );
 
+		$images = $this->images->find_by_competition( (int) $active_competition->id );
+
 		// Check for members with submissions but no grades.
-		$members_without_grades = $this->check_members_without_grades( $open_competitions );
+		$members_without_grades = $this->check_members_without_grades( $images );
 		if ( ! empty( $members_without_grades ) ) {
 			$notice_data = array( 'members_without_grades' => $members_without_grades );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -431,10 +437,8 @@ class Voting_Controller {
 			return; // Stop rendering the rest of the page.
 		}
 
-		// Get the first open competition (there should only be one).
-		$active_competition = reset( $open_competitions );
-		$active_settings    = Competition_Settings::parse( $active_competition->settings );
-		$global_settings    = Competition_Settings::global_settings();
+		$active_settings = Competition_Settings::parse( $active_competition->settings );
+		$global_settings = Competition_Settings::global_settings();
 
 		// Check that required pages are configured. A competition that doesn't
 		// override the voting page has its urls.voting_page SET to '' (not
@@ -459,12 +463,19 @@ class Voting_Controller {
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
-		// Check if any category has voting open globally.
+		// Check if any category has voting open globally. This matches the
+		// guard in handle_open_category_voting(), so the page doesn't offer
+		// to open voting the guard would refuse. The current competition is
+		// checked first, since that's the voting members can reach.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
 		$open_category_slug   = null;
+		$other_competitions   = array_filter(
+			$open_competitions,
+			fn( $comp ) => (int) $comp->id !== (int) $active_competition->id
+		);
 
-		foreach ( $open_competitions as $competition ) {
+		foreach ( array_merge( array( $active_competition ), $other_competitions ) as $competition ) {
 			$settings        = Competition_Settings::parse( $competition->settings );
 			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
 
@@ -472,30 +483,30 @@ class Voting_Controller {
 				$voting_open_globally = true;
 				$open_competition_id  = (int) $competition->id;
 				$open_category_slug   = $open_categories[0];
+
+				if ( $competition !== $active_competition ) {
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+					echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $competition->title ) );
+				}
 				break;
 			}
 		}
 
-		// Build list of all available categories with images.
+		// Build list of the competition's categories with images.
+		$image_counts   = array_count_values( wp_list_pluck( $images, 'category' ) );
 		$all_categories = array();
-		foreach ( $open_competitions as $comp ) {
-			$settings   = Competition_Settings::parse( $comp->settings );
-			$categories = Competition_Settings::get_categories( $settings );
+		foreach ( Competition_Settings::get_categories( $active_settings ) as $cat ) {
+			$cat_slug    = $cat['slug'] ?? '';
+			$image_count = $image_counts[ $cat_slug ] ?? 0;
 
-			foreach ( $categories as $cat ) {
-				$cat_slug    = $cat['slug'] ?? '';
-				$images      = $this->images->find_by_competition( (int) $comp->id, $cat_slug );
-				$image_count = count( $images );
-
-				if ( $image_count > 0 ) {
-					$all_categories[] = array(
-						'competition' => $comp,
-						'settings'    => $settings,
-						'category'    => $cat,
-						'image_count' => $image_count,
-						'key'         => $comp->id . '_' . $cat_slug,
-					);
-				}
+			if ( $image_count > 0 ) {
+				$all_categories[] = array(
+					'competition' => $active_competition,
+					'settings'    => $active_settings,
+					'category'    => $cat,
+					'image_count' => $image_count,
+					'key'         => $active_competition->id . '_' . $cat_slug,
+				);
 			}
 		}
 
@@ -506,23 +517,19 @@ class Voting_Controller {
 		}
 
 		// Page load recovery: live state wins over stored step.
+		$open_cats = Competition_Settings::get_open_voting_categories( $active_settings );
+		$voted     = $active_settings['voting']['voted_categories'] ?? array();
 		foreach ( $all_categories as &$cat_data ) {
-			$cat_slug     = $cat_data['category']['slug'] ?? '';
-			$cat_comp_id  = (int) $cat_data['competition']->id;
-			$cat_key      = $cat_comp_id . '_' . $cat_slug;
-			$cat_settings = $cat_data['settings'];
-
-			$stored_step = $cat_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
+			$cat_slug    = $cat_data['category']['slug'] ?? '';
+			$stored_step = $active_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
 
 			// If voting is currently open for this category and step < 3, jump to 3.
-			$open_cats = Competition_Settings::get_open_voting_categories( $cat_settings );
 			if ( in_array( $cat_slug, $open_cats, true ) && $stored_step < 3 ) {
 				$stored_step = 3;
 			}
 
 			// If category is in voted_categories and step < 5, jump to 5.
-			$voted = $cat_settings['voting']['voted_categories'] ?? array();
-			if ( in_array( $cat_key, $voted, true ) && $stored_step < 5 ) {
+			if ( in_array( $cat_data['key'], $voted, true ) && $stored_step < 5 ) {
 				$stored_step = 5;
 			}
 
@@ -547,9 +554,9 @@ class Voting_Controller {
 		}
 
 		// Try voting open category.
-		if ( ! $active_category_data && $voting_open_globally && $open_competition_id ) {
+		if ( ! $active_category_data && (int) $active_competition->id === $open_competition_id ) {
 			foreach ( $all_categories as $cat_data ) {
-				if ( (int) $cat_data['competition']->id === $open_competition_id && ( $cat_data['category']['slug'] ?? '' ) === $open_category_slug ) {
+				if ( ( $cat_data['category']['slug'] ?? '' ) === $open_category_slug ) {
 					$active_category_data = $cat_data;
 					break;
 				}
@@ -1001,38 +1008,30 @@ class Voting_Controller {
 	/**
 	 * Check for members with submissions but no grades.
 	 *
-	 * @param array $competitions Array of competition objects.
+	 * @param array<int, object> $images The competition's images.
 	 * @return array Array of member info with missing grades.
 	 */
-	private function check_members_without_grades( array $competitions ): array {
+	private function check_members_without_grades( array $images ): array {
 		$members_without_grades = array();
 
-		foreach ( $competitions as $competition ) {
-			// Get all images for this competition.
-			$images = $this->images->find_by_competition( (int) $competition->id );
+		if ( empty( $images ) ) {
+			return $members_without_grades;
+		}
 
-			if ( empty( $images ) ) {
-				continue;
-			}
+		// Get unique member IDs from images.
+		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 
-			// Get unique member IDs from images.
-			$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
+		// Check each member for missing grade.
+		foreach ( $this->members->find_many( $member_ids ) as $member_id => $member ) {
+			if ( empty( $member->grade ) ) {
+				// Count images for this member.
+				$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
 
-			// Get member details.
-			$members = $this->members->find_many( $member_ids );
-
-			// Check each member for missing grade.
-			foreach ( $members as $member_id => $member ) {
-				if ( empty( $member->grade ) ) {
-					// Count images for this member.
-					$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
-
-					$members_without_grades[ $member_id ] = array(
-						'name'        => $member->name,
-						'email'       => $member->email,
-						'image_count' => $image_count,
-					);
-				}
+				$members_without_grades[ $member_id ] = array(
+					'name'        => $member->name,
+					'email'       => $member->email,
+					'image_count' => $image_count,
+				);
 			}
 		}
 

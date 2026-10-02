@@ -632,11 +632,6 @@ class Voting_Shortcode {
 				<?php echo wp_kses_post( $message ); ?>
 			<?php endif; ?>
 
-			<?php if ( ! $this->competitions_repo->is_open( $competition ) ) : ?>
-				<p class="notice"><?php esc_html_e( 'Voting is not currently open for this competition.', 'photo-competition-manager' ); ?></p>
-				<?php return; ?>
-			<?php endif; ?>
-
 			<?php if ( empty( $voting_categories ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
@@ -955,11 +950,6 @@ class Voting_Shortcode {
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>
-			<?php endif; ?>
-
-			<?php if ( ! $this->competitions_repo->is_open( $competition ) ) : ?>
-				<p class="notice"><?php esc_html_e( 'Voting is not currently open for this competition.', 'photo-competition-manager' ); ?></p>
-				<?php return; ?>
 			<?php endif; ?>
 
 			<?php if ( empty( $voting_categories ) ) : ?>
