@@ -190,7 +190,6 @@ class Results_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
-				return;
 			}
 
 			// Score_Calculator::calculate_scores() always returns an array{updated, errors};
@@ -209,7 +208,6 @@ class Results_Controller {
 			);
 
 			$this->redirect_with_settings_errors( $redirect_url );
-			return;
 		}
 
 		if ( 'email_results' === $action ) {
@@ -276,7 +274,6 @@ class Results_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
-				return;
 			}
 
 			$share_hash = $competition->share_hash ?? '';
@@ -289,7 +286,6 @@ class Results_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
-				return;
 			}
 
 			$settings         = Competition_Settings::parse( $competition->settings );
@@ -302,7 +298,6 @@ class Results_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
-				return;
 			}
 
 			$share_url = add_query_arg( 'share', $share_hash, $results_page_url );
@@ -335,7 +330,6 @@ class Results_Controller {
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
-				return;
 			}
 
 			wp_safe_redirect( add_query_arg( 'job_id', $job_id, $redirect_url ) );
