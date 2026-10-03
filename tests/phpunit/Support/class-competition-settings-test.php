@@ -138,6 +138,20 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertSame( Competition_Settings::defaults()['results'], $parsed['results'] );
 	}
 
+	public function test_parse_uses_the_default_score_matrix_when_stored_empty(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":[]}}' );
+
+		$this->assertSame( Competition_Settings::defaults()['voting']['score_matrix'], $parsed['voting']['score_matrix'] );
+	}
+
+	public function test_parse_keeps_a_score_matrix_stored_with_gaps_in_its_keys(): void {
+		// The settings forms drop non-numeric entries with array_filter(),
+		// which keeps keys, so "10, x, 8" is stored as {"0":10,"2":8}.
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":{"0":10,"2":8}}}' );
+
+		$this->assertSame( array( 10, 8 ), array_values( $parsed['voting']['score_matrix'] ) );
+	}
+
 	public function test_parse_keeps_category_steps_keyed_by_slug(): void {
 		$parsed = Competition_Settings::parse( '{"voting":{"category_steps":{"colour":3}}}' );
 
