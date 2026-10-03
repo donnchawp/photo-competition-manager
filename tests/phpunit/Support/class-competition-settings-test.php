@@ -58,25 +58,58 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The defaults parse() fills in. Grades are left out: they belong to the
-	 * club and are read through club_grades().
+	 * The defaults parse() fills in. Grades and categories are left out: they
+	 * are read through club_grades() and get_categories(), which fall back to
+	 * the club's lists.
 	 *
 	 * @return array<string, mixed>
 	 */
-	private function defaults_without_grades(): array {
-		return array_diff_key( Competition_Settings::defaults(), array( 'grades' => true ) );
+	private function filled_defaults(): array {
+		return array_diff_key(
+			Competition_Settings::defaults(),
+			array(
+				'grades'     => true,
+				'categories' => true,
+			)
+		);
+	}
+
+	/**
+	 * Save the club's categories.
+	 *
+	 * @param array<int, string> $slugs Category slugs; labels are made from them.
+	 */
+	private function save_club_categories( array $slugs ): void {
+		$categories = array();
+		foreach ( $slugs as $slug ) {
+			$categories[] = array(
+				'slug'  => $slug,
+				'label' => ucfirst( $slug ),
+				'quota' => 1,
+			);
+		}
+
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'categories' => $categories,
+					'grades'     => Competition_Settings::defaults()['grades'],
+				)
+			)
+		);
 	}
 
 	public function test_parse_empty_json_returns_defaults(): void {
 		$result = Competition_Settings::parse( null );
 
-		$this->assertEquals( $this->defaults_without_grades(), $result );
+		$this->assertEquals( $this->filled_defaults(), $result );
 	}
 
 	public function test_parse_invalid_json_returns_defaults(): void {
 		$result = Competition_Settings::parse( '{invalid json' );
 
-		$this->assertEquals( $this->defaults_without_grades(), $result );
+		$this->assertEquals( $this->filled_defaults(), $result );
 	}
 
 	public function test_parse_valid_json_merges_with_defaults(): void {
@@ -274,6 +307,53 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'colour', $result[0]['slug'] );
 	}
 
+	public function test_empty_category_list_uses_the_clubs_categories(): void {
+		$this->save_club_categories( array( 'open' ) );
+
+		$categories = Competition_Settings::get_categories( Competition_Settings::parse( '{"categories":[]}' ) );
+
+		$this->assertSame( array( 'open' ), wp_list_pluck( $categories, 'slug' ) );
+	}
+
+	public function test_competition_without_categories_uses_the_clubs_categories(): void {
+		$this->save_club_categories( array( 'open', 'nature', 'mono' ) );
+
+		foreach ( array( '{}', null ) as $stored ) {
+			$categories = Competition_Settings::get_categories( Competition_Settings::parse( $stored ) );
+
+			$this->assertSame( array( 'open', 'nature', 'mono' ), wp_list_pluck( $categories, 'slug' ) );
+		}
+	}
+
+	public function test_competitions_own_categories_win_over_the_clubs(): void {
+		$this->save_club_categories( array( 'open' ) );
+
+		$categories = Competition_Settings::get_categories(
+			Competition_Settings::parse( '{"categories":[{"slug":"portrait","label":"Portrait","quota":2}]}' )
+		);
+
+		$this->assertSame( array( 'portrait' ), wp_list_pluck( $categories, 'slug' ) );
+	}
+
+	public function test_no_categories_anywhere_uses_the_built_in_categories(): void {
+		delete_option( 'photo_comp_default_settings' );
+
+		foreach ( array( '{}', '{"categories":[]}' ) as $stored ) {
+			$categories = Competition_Settings::get_categories( Competition_Settings::parse( $stored ) );
+
+			$this->assertSame( array( 'colour', 'black-white' ), wp_list_pluck( $categories, 'slug' ) );
+		}
+	}
+
+	public function test_parse_does_not_add_categories_to_a_competition_without_them(): void {
+		$this->save_club_categories( array( 'open' ) );
+
+		$parsed = Competition_Settings::parse( '{}' );
+
+		$this->assertArrayNotHasKey( 'categories', $parsed );
+		$this->assertArrayNotHasKey( 'categories', json_decode( Competition_Settings::encode( $parsed ), true ) );
+	}
+
 	public function test_club_grades_returns_defaults_when_none_saved(): void {
 		delete_option( 'photo_comp_default_settings' );
 
@@ -464,7 +544,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$result = Competition_Settings::global_settings();
 
-		$this->assertEquals( $this->defaults_without_grades(), $result );
+		$this->assertEquals( $this->filled_defaults(), $result );
 	}
 
 	public function test_global_settings_reads_stored_option(): void {
@@ -496,7 +576,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$result = Competition_Settings::global_settings();
 
-		$this->assertEquals( $this->defaults_without_grades(), $result );
+		$this->assertEquals( $this->filled_defaults(), $result );
 
 		delete_option( 'photo_comp_default_settings' );
 	}

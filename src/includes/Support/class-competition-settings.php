@@ -39,28 +39,6 @@ class Competition_Settings {
 	private static $page_urls = array();
 
 	/**
-	 * Get global default settings from WordPress options.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private static function get_global_defaults(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-
-		if ( empty( $saved ) ) {
-			return self::defaults();
-		}
-
-		$decoded = json_decode( $saved, true );
-
-		if ( ! is_array( $decoded ) ) {
-			return self::defaults();
-		}
-
-		// Merge with hard-coded defaults to ensure structure is complete.
-		return array_replace_recursive( self::defaults(), $decoded );
-	}
-
-	/**
 	 * Default settings structure.
 	 *
 	 * @return array<string, mixed>
@@ -193,20 +171,14 @@ class Competition_Settings {
 	private static function merge_with_defaults( array $settings ): array {
 		$defaults = self::defaults();
 
-		// Grades belong to the club and are read through club_grades(), so
-		// they're never filled in. A competition's settings written back
-		// after parsing would otherwise gain the built-in list.
-		unset( $defaults['grades'] );
+		// Grades and categories are read through club_grades() and
+		// get_categories(), which fall back to the club's lists, so they're
+		// never filled in. A competition's settings written back after
+		// parsing would otherwise gain the built-in lists. With no default
+		// to merge into, a stored list is also kept whole, not merged by
+		// position.
+		unset( $defaults['grades'], $defaults['categories'] );
 
-		// For arrays like categories and grades, replace entirely rather than merge.
-		foreach ( array( 'categories', 'grades' ) as $key ) {
-			if ( isset( $settings[ $key ] ) ) {
-				$defaults[ $key ] = $settings[ $key ];
-				unset( $settings[ $key ] );
-			}
-		}
-
-		// For other nested arrays, merge recursively.
 		return array_replace_recursive( $defaults, $settings );
 	}
 
@@ -386,19 +358,20 @@ class Competition_Settings {
 	/**
 	 * Get categories from settings.
 	 *
+	 * A competition with no categories of its own uses the club's, and a club
+	 * with none saved uses the built-in ones.
+	 *
 	 * @param array<string, mixed> $settings Parsed settings.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_categories( array $settings ): array {
-		$categories = $settings['categories'] ?? array();
-
-		// If empty, fall back to global defaults.
-		if ( empty( $categories ) ) {
-			$global_settings = self::get_global_defaults();
-			$categories      = $global_settings['categories'] ?? self::defaults()['categories'];
+		if ( ! empty( $settings['categories'] ) ) {
+			return $settings['categories'];
 		}
 
-		return $categories;
+		$club_categories = self::global_settings()['categories'] ?? array();
+
+		return ! empty( $club_categories ) ? $club_categories : self::defaults()['categories'];
 	}
 
 	/**
