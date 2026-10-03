@@ -147,6 +147,29 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Renaming a grade keeps its slug, so its members still hold it.
 	 */
+	public function test_score_matrix_with_a_non_number_is_stored_as_a_list(): void {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_global_settings',
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'grades'                   => $this->default_grade_rows(),
+				'score_matrix'             => '10, x, 8',
+			)
+		);
+		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$stored = json_decode( get_option( 'photo_comp_default_settings' ), true );
+		$this->assertSame( array( 10, 8 ), $stored['voting']['score_matrix'] );
+	}
+
 	public function test_renaming_a_grade_keeps_its_slug(): void {
 		$member = $this->create_member( 'Ann Advanced', 'advanced' );
 

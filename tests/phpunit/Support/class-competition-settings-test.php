@@ -104,6 +104,60 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( $this->filled_defaults(), $result );
 	}
 
+	public function test_parse_keeps_a_short_score_matrix_whole(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":[10,8,6]}}' );
+
+		$this->assertSame( array( 10, 8, 6 ), $parsed['voting']['score_matrix'] );
+	}
+
+	public function test_parse_keeps_a_short_format_list_whole(): void {
+		$parsed = Competition_Settings::parse( '{"upload":{"allowed_formats":["png"]}}' );
+
+		$this->assertSame( array( 'png' ), $parsed['upload']['allowed_formats'] );
+	}
+
+	public function test_parse_keeps_a_long_score_matrix_whole(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":[10,9,8,7,6,5]}}' );
+
+		$this->assertSame( array( 10, 9, 8, 7, 6, 5 ), $parsed['voting']['score_matrix'] );
+	}
+
+	public function test_parse_fills_in_the_rest_of_a_partly_stored_section(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"password":"x"}}' );
+
+		$this->assertSame(
+			array_merge( Competition_Settings::defaults()['voting'], array( 'password' => 'x' ) ),
+			$parsed['voting']
+		);
+	}
+
+	public function test_parse_fills_in_a_section_stored_empty(): void {
+		// wp_json_encode() writes an empty section as [], not {}.
+		$parsed = Competition_Settings::parse( '{"results":[]}' );
+
+		$this->assertSame( Competition_Settings::defaults()['results'], $parsed['results'] );
+	}
+
+	public function test_parse_uses_the_default_score_matrix_when_stored_empty(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":[]}}' );
+
+		$this->assertSame( Competition_Settings::defaults()['voting']['score_matrix'], $parsed['voting']['score_matrix'] );
+	}
+
+	public function test_parse_keeps_a_score_matrix_stored_with_gaps_in_its_keys(): void {
+		// The settings forms drop non-numeric entries with array_filter(),
+		// which keeps keys, so "10, x, 8" is stored as {"0":10,"2":8}.
+		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":{"0":10,"2":8}}}' );
+
+		$this->assertSame( array( 10, 8 ), array_values( $parsed['voting']['score_matrix'] ) );
+	}
+
+	public function test_parse_keeps_category_steps_keyed_by_slug(): void {
+		$parsed = Competition_Settings::parse( '{"voting":{"category_steps":{"colour":3}}}' );
+
+		$this->assertSame( array( 'colour' => 3 ), $parsed['voting']['category_steps'] );
+	}
+
 	public function test_parse_valid_json_merges_with_defaults(): void {
 		$custom = array(
 			'categories' => array(
