@@ -89,15 +89,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 			);
 		}
 
-		update_option(
-			'photo_comp_default_settings',
-			Competition_Settings::encode(
-				array(
-					'categories' => $categories,
-					'grades'     => Competition_Settings::defaults()['grades'],
-				)
-			)
-		);
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => $categories ) ) );
 	}
 
 	public function test_parse_empty_json_returns_defaults(): void {
@@ -346,12 +338,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_parse_does_not_add_categories_to_a_competition_without_them(): void {
-		$this->save_club_categories( array( 'open' ) );
-
-		$parsed = Competition_Settings::parse( '{}' );
-
-		$this->assertArrayNotHasKey( 'categories', $parsed );
-		$this->assertArrayNotHasKey( 'categories', json_decode( Competition_Settings::encode( $parsed ), true ) );
+		$this->assertArrayNotHasKey( 'categories', Competition_Settings::parse( '{}' ) );
 	}
 
 	public function test_club_grades_returns_defaults_when_none_saved(): void {

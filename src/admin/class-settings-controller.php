@@ -257,7 +257,7 @@ class Settings_Controller {
 		settings_errors( 'photo_competition_settings' );
 
 		$settings            = Competition_Settings::global_settings();
-		$categories          = Competition_Settings::get_categories( $settings );
+		$categories          = Competition_Settings::club_categories();
 		$grades              = Competition_Settings::club_grades();
 		$upload              = Competition_Settings::get_upload_constraints( $settings );
 		$voting              = Competition_Settings::get_voting_config( $settings );

@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 
 $settings   = Competition_Settings::global_settings();
 $grades     = Competition_Settings::club_grades();
-$categories = Competition_Settings::get_categories( $settings );
+$categories = Competition_Settings::club_categories();
 
 if ( empty( $grades ) || empty( $categories ) ) {
 	WP_CLI::error( 'No grades or categories configured. Save default settings first.' );
@@ -87,6 +87,7 @@ if ( $competition ) {
 	$in_5_days = gmdate( 'Y-m-d 23:59:59', strtotime( '+5 days' ) );
 
 	$comp_settings                             = array_diff_key( $settings, array( 'grades' => true ) );
+	$comp_settings['categories']               = $categories;
 	$comp_settings['upload']['uploads_closed'] = false;
 
 	$comp_id = $competitions_repo->create(

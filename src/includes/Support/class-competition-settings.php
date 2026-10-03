@@ -172,11 +172,8 @@ class Competition_Settings {
 		$defaults = self::defaults();
 
 		// Grades and categories are read through club_grades() and
-		// get_categories(), which fall back to the club's lists, so they're
-		// never filled in. A competition's settings written back after
-		// parsing would otherwise gain the built-in lists. With no default
-		// to merge into, a stored list is also kept whole, not merged by
-		// position.
+		// get_categories(), which fall back to the club's lists, so the
+		// built-in lists aren't filled in. A stored list is kept whole.
 		unset( $defaults['grades'], $defaults['categories'] );
 
 		return array_replace_recursive( $defaults, $settings );
@@ -358,20 +355,25 @@ class Competition_Settings {
 	/**
 	 * Get categories from settings.
 	 *
-	 * A competition with no categories of its own uses the club's, and a club
-	 * with none saved uses the built-in ones.
+	 * A competition with no categories of its own uses the club's.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_categories( array $settings ): array {
-		if ( ! empty( $settings['categories'] ) ) {
-			return $settings['categories'];
-		}
+		return ! empty( $settings['categories'] ) ? $settings['categories'] : self::club_categories();
+	}
 
-		$club_categories = self::global_settings()['categories'] ?? array();
+	/**
+	 * The club's category list, or the built-in one if the club has none saved.
+	 *
+	 * @since 0.4.0
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function club_categories(): array {
+		$categories = self::global_settings()['categories'] ?? array();
 
-		return ! empty( $club_categories ) ? $club_categories : self::defaults()['categories'];
+		return ! empty( $categories ) ? $categories : self::defaults()['categories'];
 	}
 
 	/**
