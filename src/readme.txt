@@ -1,7 +1,7 @@
 === Photo Competition Manager ===
 Contributors: donncha
 Tags: competitions, photography, voting, shortcodes, member management
-Requires at least: 6.2
+Requires at least: 6.5
 Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 0.3.0
