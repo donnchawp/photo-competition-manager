@@ -726,4 +726,31 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$this->assert_matches_snapshot( 'email-job-notice-failed', array( $comp_id ) );
 	}
+
+	public function test_render_email_job_notice_for_a_finished_results_link_job(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+
+		$this->seed_job(
+			'email_job_results_share_test',
+			array(
+				'type'           => 'results_share',
+				'competition_id' => $comp_id,
+				'status'         => 'completed',
+				'sent_count'     => 1,
+				'processed_ids'  => array( 1 ),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'job_id'      => 'email_job_results_share_test',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Results link emails sent.', $html );
+		$this->assertStringNotContainsString( 'Email results sent successfully!', $html );
+	}
 }

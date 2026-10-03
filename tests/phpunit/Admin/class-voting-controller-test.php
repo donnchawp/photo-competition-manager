@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -247,6 +248,60 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertMatchesRegularExpression( '/[?&]job_id=email_job_/', $location );
 		$this->assertSame( 0, $mail_count );
+	}
+
+	/**
+	 * With the voting-opened email turned off, opening voting queues no job.
+	 */
+	public function test_open_category_voting_queues_nothing_when_the_email_is_off(): void {
+		global $wpdb;
+
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_opened' => array(
+					'enabled' => false,
+					'subject' => 'Voting is open',
+					'body'    => '<p>Go vote.</p>',
+				),
+			)
+		);
+		( new Members_Repository() )->create(
+			array(
+				'name'  => 'Voter',
+				'email' => 'voter@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'open_category_voting',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertSame( array( 'colour' ), $this->settings()['voting']['open_categories'] );
+		$this->assertSame(
+			'0',
+			$wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE option_name LIKE %s',
+					$wpdb->options,
+					$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
+				)
+			)
+		);
 	}
 
 	/**
