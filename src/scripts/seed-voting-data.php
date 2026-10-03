@@ -23,8 +23,9 @@ $settings   = Competition_Settings::global_settings();
 $grades     = Competition_Settings::club_grades();
 $categories = Competition_Settings::club_categories();
 
-if ( empty( $grades ) || empty( $categories ) ) {
-	WP_CLI::error( 'No grades or categories configured. Save default settings first.' );
+// club_categories() falls back to the built-in list, so it's never empty.
+if ( empty( $grades ) ) {
+	WP_CLI::error( 'No grades configured. Save default settings first.' );
 }
 
 $grade_slugs = array_column( $grades, 'slug' );

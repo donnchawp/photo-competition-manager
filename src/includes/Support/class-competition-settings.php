@@ -182,6 +182,9 @@ class Competition_Settings {
 	/**
 	 * Validate settings array.
 	 *
+	 * Expects settings built from a form, which always carry a `categories`
+	 * key. Parsed settings may not have one; read those with get_categories().
+	 *
 	 * @param array<string, mixed> $settings      Settings to validate.
 	 * @param bool                 $club_settings True for the club's settings, which need at
 	 *                                            least one category and a valid grade list;
