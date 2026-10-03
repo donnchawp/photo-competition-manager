@@ -16,6 +16,22 @@ _Avoid_: Level, class, division
 A kind of image a competition accepts, such as Colour or Black & White, with a quota of images per member. Images are voted on and ranked within their category. The club defines a list of categories, and a new competition starts with a copy of it. A competition can change its own list, which then replaces the club's. A competition with no categories of its own uses the club's list.
 _Avoid_: Section, class
 
+**Competition phase**:
+Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived.
+_Avoid_: Status, state
+
+### Voting
+
+**Voting stage**:
+How far one category has got on competition night: Not started, Previewed, Voting, Slideshow shown, Critique or Done. A competition has one voting stage per category. Votes are accepted at Voting and Slideshow shown, and only one category in the club can accept votes at a time.
+_Avoid_: Step
+
+**Reset**:
+Returning a category's voting stage to Not started, optionally clearing its votes.
+
+**Self-vote**:
+A member's vote on their own image. Members vote on their own images like any others, and are expected to give them the top score.
+
 ### Results
 
 **Total score**:
