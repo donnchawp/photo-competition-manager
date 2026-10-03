@@ -202,7 +202,7 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_email', __( 'A member with this email already exists.', 'photo-competition-manager' ) );
 		}
 
-		$grade = isset( $data['grade'] ) ? sanitize_text_field( (string) $data['grade'] ) : '';
+		$grade = (string) ( $data['grade'] ?? '' );
 
 		if ( ! Competition_Settings::is_club_grade( $grade ) ) {
 			return self::invalid_grade_error();
@@ -273,7 +273,7 @@ class Members_Repository extends Abstract_Repository {
 		// Only a grade being set is checked, so a member saved with a bad
 		// grade can still be deactivated or renamed.
 		if ( array_key_exists( 'grade', $data ) ) {
-			$grade = sanitize_text_field( (string) $data['grade'] );
+			$grade = (string) $data['grade'];
 
 			if ( ! Competition_Settings::is_club_grade( $grade ) ) {
 				return self::invalid_grade_error();
@@ -332,9 +332,10 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * The error for a grade that isn't in the club's list.
 	 *
+	 * @since 0.4.0
 	 * @return WP_Error
 	 */
-	private static function invalid_grade_error(): WP_Error {
+	public static function invalid_grade_error(): WP_Error {
 		return new WP_Error( 'invalid_grade', __( 'Choose a grade from the club\'s list of grades.', 'photo-competition-manager' ) );
 	}
 

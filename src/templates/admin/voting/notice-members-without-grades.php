@@ -23,10 +23,11 @@ echo '<ul style="list-style: disc; margin-left: 20px;">';
 foreach ( $data['members_without_grades'] as $member_info ) {
 	echo '<li>';
 	echo esc_html( $member_info['name'] ) . ' (' . esc_html( $member_info['email'] ) . ')';
-	if ( '' === ( $member_info['grade'] ?? '' ) ) {
-		echo ' - ' . esc_html__( 'no grade', 'photo-competition-manager' );
+	echo ' - ';
+	if ( '' === $member_info['grade'] ) {
+		echo esc_html__( 'no grade', 'photo-competition-manager' );
 	} else {
-		echo ' - ' . esc_html(
+		echo esc_html(
 			sprintf(
 				/* translators: %s: the member's grade, which isn't in the club's list */
 				__( '"%s" isn\'t one of the club\'s grades', 'photo-competition-manager' ),

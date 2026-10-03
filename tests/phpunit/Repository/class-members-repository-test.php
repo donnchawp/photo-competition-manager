@@ -7,6 +7,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -634,19 +635,8 @@ class Members_Repository_Test extends WP_UnitTestCase {
 	 * grade is invalid.
 	 */
 	public function test_update_without_grade_ignores_stored_invalid_grade(): void {
-		global $wpdb;
 		$repository = new Members_Repository();
-
-		$wpdb->insert(
-			$repository->table(),
-			array(
-				'name'   => 'Old Grade',
-				'email'  => 'old-grade@example.com',
-				'grade'  => 'Beginner',
-				'active' => 1,
-			)
-		);
-		$id = (int) $wpdb->insert_id;
+		$id         = Member_Fixtures::insert_with_grade( 'Old Grade', 'old-grade@example.com', 'Beginner' );
 
 		$this->assertTrue( $repository->set_active( $id, false ) );
 		$this->assertSame( 'Beginner', $repository->find( $id )->grade );

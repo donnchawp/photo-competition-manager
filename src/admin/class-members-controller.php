@@ -511,12 +511,8 @@ class Members_Controller {
 							'error'
 						);
 					} elseif ( ! Competition_Settings::is_club_grade( $new_grade ) ) {
-						add_settings_error(
-							'photo_competition_members',
-							'invalid_grade',
-							__( 'Choose a grade from the club\'s list of grades.', 'photo-competition-manager' ),
-							'error'
-						);
+						$error = Members_Repository::invalid_grade_error();
+						add_settings_error( 'photo_competition_members', $error->get_error_code(), $error->get_error_message(), 'error' );
 					} else {
 						foreach ( $member_ids as $member_id ) {
 							$result = $this->members->update( $member_id, array( 'grade' => $new_grade ) );
@@ -870,22 +866,12 @@ class Members_Controller {
 	}
 
 	/**
-	 * Retrieve grade options from default settings.
+	 * The club's grades as slug => label options.
 	 *
 	 * @return array<string, string>
 	 */
 	private function get_grade_options(): array {
-		$settings = Competition_Settings::global_settings();
-		$grades   = Competition_Settings::get_grades( $settings );
-
-		$options = array();
-		foreach ( $grades as $grade ) {
-			if ( isset( $grade['label'] ) ) {
-				$options[ $grade['slug'] ?? sanitize_title( $grade['label'] ) ] = $grade['label'];
-			}
-		}
-
-		return $options;
+		return array_column( Competition_Settings::club_grades(), 'label', 'slug' );
 	}
 
 	/**

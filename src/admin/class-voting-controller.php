@@ -458,7 +458,7 @@ class Voting_Controller {
 		$images = $this->images->find_by_competition( (int) $active_competition->id );
 
 		// Check every entrant has a grade from the club's list.
-		$members_without_grades = $this->check_members_without_grades( $images );
+		$members_without_grades = $this->check_ungraded_entrants( $images );
 		if ( ! empty( $members_without_grades ) ) {
 			$notice_data = array( 'members_without_grades' => $members_without_grades );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -1041,7 +1041,7 @@ class Voting_Controller {
 	 * @return array Member info keyed by member ID: name, email, grade (as
 	 *               stored, '' for none) and image_count.
 	 */
-	private function check_members_without_grades( array $images ): array {
+	private function check_ungraded_entrants( array $images ): array {
 		$members_without_grades = array();
 
 		if ( empty( $images ) ) {

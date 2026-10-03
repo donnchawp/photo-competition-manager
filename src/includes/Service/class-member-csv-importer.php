@@ -174,7 +174,7 @@ class Member_CSV_Importer {
 			}
 
 			// Resolve the grade cell to a club grade's slug.
-			$grade_slug = '' === $grade ? null : Competition_Settings::find_club_grade_slug( $grade );
+			$grade_slug = Competition_Settings::find_club_grade_slug( $grade );
 			if ( '' !== $grade && null === $grade_slug ) {
 				$stats['errors'][] = sprintf(
 					/* translators: 1: row number, 2: grade from the CSV file */
