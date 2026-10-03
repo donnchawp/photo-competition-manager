@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Settings_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Settings_Controller
@@ -197,7 +198,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	 * A member whose grade isn't in the list keeps it.
 	 */
 	public function test_member_with_unknown_grade_is_unchanged(): void {
-		$member = $this->create_member( 'Uma Unknown', 'expert' );
+		$member = Member_Fixtures::insert_with_grade( 'Uma Unknown', 'uma@example.com', 'expert' );
 
 		$this->save_grades( $this->default_grade_rows() );
 
@@ -260,7 +261,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	 * A member without a grade keeps their empty grade.
 	 */
 	public function test_member_with_empty_grade_is_unchanged(): void {
-		$member = $this->create_member( 'Nora None', '' );
+		$member = Member_Fixtures::insert_with_grade( 'Nora None', 'nora@example.com', '' );
 
 		$this->save_grades( $this->default_grade_rows() );
 

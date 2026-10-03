@@ -39,6 +39,8 @@ echo '</p>';
 echo '<p class="description">';
 echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inactive)', 'photo-competition-manager' );
 echo '<br />';
+echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New members need one. Leave it blank to keep an existing member\'s grade.', 'photo-competition-manager' );
+echo '<br />';
 echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';
 echo '</p>';
 

@@ -393,6 +393,60 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The club's grade list.
+	 *
+	 * @since 0.4.0
+	 * @return array<int, array{label: string, slug: string}>
+	 */
+	public static function club_grades(): array {
+		return self::get_grades( self::global_settings() );
+	}
+
+	/**
+	 * Whether a slug is one of the club's grades.
+	 *
+	 * @since 0.4.0
+	 * @param string $slug Grade slug.
+	 * @return bool
+	 */
+	public static function is_club_grade( string $slug ): bool {
+		return in_array( $slug, wp_list_pluck( self::club_grades(), 'slug' ), true );
+	}
+
+	/**
+	 * Find the club grade a label or slug names, ignoring case and accents.
+	 *
+	 * Labels are checked before slugs. A renamed grade keeps its old slug, so
+	 * a new grade given the old name must still win on its label.
+	 *
+	 * @since 0.4.0
+	 * @param string $label_or_slug Grade label or slug, as typed into a CSV file.
+	 * @return string|null The grade's slug, or null if no club grade matches.
+	 */
+	public static function find_club_grade_slug( string $label_or_slug ): ?string {
+		$wanted = sanitize_title( $label_or_slug );
+		$grades = self::club_grades();
+
+		if ( '' === $wanted ) {
+			return null;
+		}
+
+		foreach ( $grades as $grade ) {
+			if ( sanitize_title( $grade['label'] ) === $wanted ) {
+				return $grade['slug'];
+			}
+		}
+
+		foreach ( $grades as $grade ) {
+			if ( $grade['slug'] === $wanted ) {
+				return $grade['slug'];
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Sanitize grade rows posted from a settings form.
 	 *
 	 * An existing grade posts its slug, which stays put when the label is

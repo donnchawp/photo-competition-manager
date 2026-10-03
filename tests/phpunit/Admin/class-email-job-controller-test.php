@@ -88,6 +88,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 				array(
 					'name'  => "Member {$i}",
 					'email' => "m{$i}@example.com",
+					'grade' => 'beginner',
 				)
 			);
 		}
@@ -294,6 +295,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'name'  => 'Member',
 				'email' => 'm@example.com',
+				'grade' => 'beginner',
 			)
 		);
 		$job_id    = $this->jobs->create_job( $type, $this->competition_id, array( $member_id ) );

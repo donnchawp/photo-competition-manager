@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -41,6 +42,9 @@ class Member_CSV_Importer {
 	 * Expected CSV format:
 	 * - Header row: name,email,grade,active
 	 * - Data rows: "John Doe",john@example.com,Beginner,1
+	 *
+	 * The grade may be a club grade's label or slug, in any case. A blank
+	 * grade, or no grade column, keeps an existing member's grade.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
 	 * @return array<string, mixed>|WP_Error Array with import stats on success, WP_Error on failure.
@@ -107,7 +111,7 @@ class Member_CSV_Importer {
 			$col_active    = array_search( 'active', $header, true );
 			$col_committee = array_search( 'committee', $header, true );
 
-			$row_number = 1; // Start at 1 (header is row 0).
+			$row_number = 1; // The header is row 1, as in a spreadsheet.
 		} else {
 			// First row is data - assume format: name,email or name,email,grade,active,committee.
 			// Rewind to process first row as data.
@@ -169,6 +173,20 @@ class Member_CSV_Importer {
 				continue;
 			}
 
+			// Resolve the grade cell to a club grade's slug.
+			$grade_slug = Competition_Settings::find_club_grade_slug( $grade );
+			if ( '' !== $grade && null === $grade_slug ) {
+				$stats['errors'][] = sprintf(
+					/* translators: 1: row number, 2: grade from the CSV file */
+					__( 'Row %1$d: "%2$s" isn\'t one of the club\'s grades.', 'photo-competition-manager' ),
+					$row_number,
+					$grade
+				);
+				++$stats['skipped'];
+				$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
+				continue;
+			}
+
 			// Normalize active field (1, yes, true, active = true; others = false).
 			$active_normalized    = in_array( strtolower( $active ), array( '1', 'yes', 'true', 'active' ), true ) ? 1 : 0;
 			$committee_normalized = in_array( strtolower( $committee ), array( '1', 'yes', 'true' ), true ) ? 1 : 0;
@@ -179,10 +197,14 @@ class Member_CSV_Importer {
 			$data = array(
 				'name'      => $name,
 				'email'     => $email,
-				'grade'     => $grade,
 				'active'    => $active_normalized,
 				'committee' => $committee_normalized,
 			);
+
+			// Leaving the grade out of the update keeps an existing member's grade.
+			if ( null !== $grade_slug ) {
+				$data['grade'] = $grade_slug;
+			}
 
 			if ( $existing ) {
 				// Update existing member.
@@ -199,6 +221,13 @@ class Member_CSV_Importer {
 				} else {
 					++$stats['updated'];
 				}
+			} elseif ( null === $grade_slug ) {
+				$stats['errors'][] = sprintf(
+					/* translators: %d: row number */
+					__( 'Row %d: A new member needs a grade.', 'photo-competition-manager' ),
+					$row_number
+				);
+				++$stats['skipped'];
 			} else {
 				// Create new member.
 				$result = $this->members->create( $data );
@@ -225,15 +254,26 @@ class Member_CSV_Importer {
 	}
 
 	/**
-	 * Generate a sample CSV file for download.
+	 * Generate a sample CSV file for download, using the club's grades.
 	 *
 	 * @return string CSV content.
 	 */
 	public function generate_sample_csv(): string {
-		$csv  = "name,email,grade,active,committee\n";
-		$csv .= '"John Doe",john.doe@example.com,Beginner,1,0' . "\n";
-		$csv .= '"Jane Smith",jane.smith@example.com,Advanced,1,1' . "\n";
-		$csv .= '"Bob Johnson",bob.johnson@example.com,Intermediate,0,0' . "\n";
+		$labels = wp_list_pluck( Competition_Settings::club_grades(), 'label' );
+		$rows   = array(
+			array( 'John Doe', 'john.doe@example.com', '1', '0' ),
+			array( 'Jane Smith', 'jane.smith@example.com', '1', '1' ),
+			array( 'Bob Johnson', 'bob.johnson@example.com', '0', '0' ),
+		);
+
+		$csv = "name,email,grade,active,committee\n";
+		foreach ( $rows as $index => $row ) {
+			list( $name, $email, $active, $committee ) = $row;
+
+			// Quote the label, doubling any quotes inside it.
+			$grade = str_replace( '"', '""', $labels[ $index % count( $labels ) ] );
+			$csv  .= sprintf( '"%s",%s,"%s",%s,%s', $name, $email, $grade, $active, $committee ) . "\n";
+		}
 
 		return $csv;
 	}

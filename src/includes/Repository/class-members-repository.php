@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
 use WP_Error;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -201,7 +202,12 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_email', __( 'A member with this email already exists.', 'photo-competition-manager' ) );
 		}
 
-		$grade     = isset( $data['grade'] ) ? sanitize_text_field( (string) $data['grade'] ) : '';
+		$grade = (string) ( $data['grade'] ?? '' );
+
+		if ( ! Competition_Settings::is_club_grade( $grade ) ) {
+			return self::invalid_grade_error();
+		}
+
 		$active    = isset( $data['active'] ) ? (int) (bool) $data['active'] : 1;
 		$committee = isset( $data['committee'] ) ? (int) (bool) $data['committee'] : 0;
 		$now       = utc_time();
@@ -264,7 +270,18 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_email', __( 'A member with this email already exists.', 'photo-competition-manager' ) );
 		}
 
-		$grade     = array_key_exists( 'grade', $data ) ? sanitize_text_field( (string) $data['grade'] ) : $current->grade;
+		// Only a grade being set is checked, so a member saved with a bad
+		// grade can still be deactivated or renamed.
+		if ( array_key_exists( 'grade', $data ) ) {
+			$grade = (string) $data['grade'];
+
+			if ( ! Competition_Settings::is_club_grade( $grade ) ) {
+				return self::invalid_grade_error();
+			}
+		} else {
+			$grade = $current->grade;
+		}
+
 		$active    = array_key_exists( 'active', $data ) ? (int) (bool) $data['active'] : (int) $current->active;
 		$committee = array_key_exists( 'committee', $data ) ? (int) (bool) $data['committee'] : (int) ( $current->committee ?? 0 );
 
@@ -310,6 +327,16 @@ class Members_Repository extends Abstract_Repository {
 				$this->table()
 			)
 		);
+	}
+
+	/**
+	 * The error for a grade that isn't in the club's list.
+	 *
+	 * @since 0.4.0
+	 * @return WP_Error
+	 */
+	public static function invalid_grade_error(): WP_Error {
+		return new WP_Error( 'invalid_grade', __( 'Choose a grade from the club\'s list of grades.', 'photo-competition-manager' ) );
 	}
 
 	/**

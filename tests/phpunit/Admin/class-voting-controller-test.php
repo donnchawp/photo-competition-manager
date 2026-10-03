@@ -218,6 +218,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'name'  => 'Voter',
 				'email' => 'voter@example.com',
+				'grade' => 'beginner',
 			)
 		);
 		$mail_count = 0;

@@ -49,3 +49,5 @@ tests_add_filter(
 );
 
 require $_tests_dir . '/includes/bootstrap.php';
+
+require_once __DIR__ . '/fixtures/class-member-fixtures.php';
