@@ -754,6 +754,9 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 *
 	 * Each one is stamped as created after every competition before it,
 	 * including the set_up() one, so creation order follows call order.
+	 * Those created_at times are in the future, which is only safe because
+	 * every competition here has an open date: without one, it would count
+	 * as not yet opened.
 	 *
 	 * @param string $title     Title.
 	 * @param int    $opens_in  Days from now until it opens (negative: in the past).
