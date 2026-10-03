@@ -510,6 +510,13 @@ class Members_Controller {
 							__( 'Please select a grade.', 'photo-competition-manager' ),
 							'error'
 						);
+					} elseif ( ! Competition_Settings::is_club_grade( $new_grade ) ) {
+						add_settings_error(
+							'photo_competition_members',
+							'invalid_grade',
+							__( 'Choose a grade from the club\'s list of grades.', 'photo-competition-manager' ),
+							'error'
+						);
 					} else {
 						foreach ( $member_ids as $member_id ) {
 							$result = $this->members->update( $member_id, array( 'grade' => $new_grade ) );

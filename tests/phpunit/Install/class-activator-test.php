@@ -27,7 +27,7 @@ class Activator_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Old Inactive',
 				'email'  => 'old@example.com',
-				'grade'  => '',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -111,7 +111,7 @@ class Activator_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Left Alone',
 				'email'  => 'alone@example.com',
-				'grade'  => '',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);

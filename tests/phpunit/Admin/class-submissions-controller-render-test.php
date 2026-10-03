@@ -243,7 +243,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array(
 				'name'  => $name,
 				'email' => $email,
-				'grade' => 'A',
+				'grade' => 'beginner',
 			)
 		);
 	}

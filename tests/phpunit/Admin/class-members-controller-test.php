@@ -165,6 +165,36 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * An empty grade, or one not in the club's list, surfaces invalid_grade
+	 * and creates nothing.
+	 *
+	 * @testWith [""]
+	 *           ["expert"]
+	 *
+	 * @param string $grade Posted grade.
+	 */
+	public function test_create_member_rejects_grade_not_in_club_list( string $grade ): void {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_member',
+				'member_name'              => 'No Grade',
+				'member_email'             => 'nograde@example.com',
+				'member_grade'             => $grade,
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_create', 'photo_competition_member_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'invalid_grade', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNull( $this->members->find_by_email( 'nograde@example.com' ) );
+	}
+
+	/**
 	 * A missing name surfaces the repository's invalid_name error and creates nothing.
 	 */
 	public function test_create_member_validation_error_missing_name(): void {
@@ -239,6 +269,42 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'member_action=edit', $location );
 		$this->assertContains( 'member_updated', $this->settings_error_codes( self::GROUP ) );
 		$this->assertSame( 'New Name', $this->members->find( $id )->name );
+	}
+
+	/**
+	 * Editing a member to a grade not in the club's list surfaces invalid_grade
+	 * and saves nothing.
+	 */
+	public function test_update_member_rejects_grade_not_in_club_list(): void {
+		$id = $this->create_member(
+			array(
+				'name'  => 'Keep Me',
+				'email' => 'keep@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => $id,
+				'member_name'              => 'Renamed',
+				'member_email'             => 'keep@example.com',
+				'member_grade'             => 'expert',
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'invalid_grade', $this->settings_error_codes( self::GROUP ) );
+		$member = $this->members->find( $id );
+		$this->assertSame( 'Keep Me', $member->name );
+		$this->assertSame( 'beginner', $member->grade );
 	}
 
 	/**
@@ -714,6 +780,37 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'no_grade_selected', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * Bulk update to a grade not in the club's list reports invalid_grade and
+	 * changes nobody.
+	 */
+	public function test_bulk_update_grade_rejects_grade_not_in_club_list(): void {
+		$a = $this->create_member(
+			array(
+				'email' => 'a@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'     => 'bulk_update_grade',
+				'member_ids' => array( $a ),
+				'bulk_grade' => 'expert',
+			)
+		);
+		$this->set_nonce( 'photo_competition_bulk_members' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'invalid_grade' ), $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'beginner', $this->members->find( $a )->grade );
 	}
 
 	/**

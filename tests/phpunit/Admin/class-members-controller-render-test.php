@@ -16,6 +16,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 use PhotoCompetitionManager\Admin\Members_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Members_Controller
@@ -215,7 +216,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$ada   = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced', 'active' => 1, 'committee' => 1 ) );
 		$bob   = $this->seed_member( 'Bob Baker', 'bob@example.com', array( 'grade' => 'beginner', 'active' => 0 ) );
-		$carol = $this->seed_member( 'Carol Diaz', 'carol@example.com', array( 'grade' => 'unknown-grade', 'active' => 1 ) );
+		$carol = Member_Fixtures::insert_with_grade( 'Carol Diaz', 'carol@example.com', 'unknown-grade' );
 
 		$this->assert_matches_snapshot( 'list-uploads-open', array( $comp_id ), array( $ada, $bob, $carol ) );
 	}

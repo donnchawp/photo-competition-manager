@@ -44,7 +44,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'       => 'Alice',
 				'email'      => 'alice@example.com',
-				'grade'      => 'Beginner',
+				'grade'      => 'beginner',
 				'active'     => 1,
 				'created_at' => utc_time(),
 			)
@@ -55,7 +55,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'       => 'Bob',
 				'email'      => 'bob@example.com',
-				'grade'      => 'Advanced',
+				'grade'      => 'advanced',
 				'active'     => 0,
 				'created_at' => utc_time(),
 			)
@@ -83,7 +83,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Charlie Lens',
 				'email' => 'charlie@example.com',
-				'grade' => 'Intermediate',
+				'grade' => 'intermediate',
 			)
 		);
 
@@ -93,7 +93,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 'Charlie Lens', $member->name );
 		$this->assertSame( 'charlie@example.com', $member->email );
-		$this->assertSame( 'Intermediate', $member->grade );
+		$this->assertSame( 'intermediate', $member->grade );
 		$this->assertSame( 1, (int) $member->active );
 	}
 
@@ -109,6 +109,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Dana First',
 				'email' => 'dana@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -118,6 +119,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Dana Second',
 				'email' => 'dana@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -137,7 +139,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Evan Artist',
 				'email' => 'evan@example.com',
-				'grade' => 'Beginner',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -146,7 +148,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Evan Artist II',
 				'email'  => 'evan.ii@example.com',
-				'grade'  => 'Advanced',
+				'grade'  => 'advanced',
 				'active' => 0,
 			)
 		);
@@ -157,7 +159,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 'Evan Artist II', $member->name );
 		$this->assertSame( 'deactivated-evan.ii@example.com.invalid', $member->email );
-		$this->assertSame( 'Advanced', $member->grade );
+		$this->assertSame( 'advanced', $member->grade );
 		$this->assertSame( 0, (int) $member->active );
 	}
 
@@ -173,6 +175,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Fay Toggle',
 				'email'  => 'fay@example.com',
+				'grade'  => 'beginner',
 				'active' => 1,
 			)
 		);
@@ -194,6 +197,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Alice Batch',
 				'email' => 'alice.batch@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -201,6 +205,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Bob Batch',
 				'email' => 'bob.batch@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -224,7 +229,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'George Finder',
 				'email' => 'george@example.com',
-				'grade' => 'Intermediate',
+				'grade' => 'intermediate',
 			)
 		);
 
@@ -385,6 +390,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Gil Leaver',
 				'email' => 'gil@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -400,6 +406,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Hal Returner',
 				'email' => 'hal@example.com',
+				'grade' => 'beginner',
 			)
 		);
 		$repository->set_active( $id, false );
@@ -416,6 +423,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Ivy Inactive',
 				'email'  => 'ivy@example.com',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -430,6 +438,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Jo Edited',
 				'email'  => 'jo@example.com',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -454,6 +463,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Mo Typed',
 				'email'  => 'Deactivated-Mo@example.com.INVALID',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -472,6 +482,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Kit Gone',
 				'email'  => 'kit@example.com',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -486,6 +497,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Lee Gone',
 				'email'  => 'lee@example.com',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -494,6 +506,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Lee Again',
 				'email' => 'lee@example.com',
+				'grade' => 'beginner',
 			)
 		);
 
@@ -511,7 +524,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Old Inactive',
 				'email'  => 'old@example.com',
-				'grade'  => '',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -521,7 +534,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Still Active',
 				'email'  => 'active@example.com',
-				'grade'  => '',
+				'grade'  => 'beginner',
 				'active' => 1,
 			)
 		);
@@ -530,6 +543,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Already Marked',
 				'email'  => 'marked@example.com',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -541,7 +555,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			array(
 				'name'   => 'Long Address',
 				'email'  => $long_email,
-				'grade'  => '',
+				'grade'  => 'beginner',
 				'active' => 0,
 			)
 		);
@@ -553,5 +567,110 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( 'deactivated-old@example.com.invalid', $repository->find( $old_id )->email );
 		$this->assertSame( 'active@example.com', $repository->find( $active_id )->email );
 		$this->assertSame( 'deactivated-marked@example.com.invalid', $repository->find( $marked_id )->email );
+	}
+
+	/**
+	 * Data for a member with the given grade.
+	 *
+	 * @param mixed $grade Grade value, or null to leave it out.
+	 * @return array<string, mixed>
+	 */
+	private function member_data( $grade ): array {
+		$data = array(
+			'name'  => 'Gina Graded',
+			'email' => 'gina@example.com',
+		);
+
+		if ( null !== $grade ) {
+			$data['grade'] = $grade;
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Creating a member with a club grade's slug succeeds.
+	 */
+	public function test_create_accepts_club_grade(): void {
+		$repository = new Members_Repository();
+
+		$id = $repository->create( $this->member_data( 'advanced' ) );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( 'advanced', $repository->find( $id )->grade );
+	}
+
+	/**
+	 * Creating a member with no grade, an empty grade, an unknown grade or a
+	 * label instead of a slug fails.
+	 *
+	 * @dataProvider invalid_grades
+	 *
+	 * @param mixed $grade Grade value, or null to leave it out.
+	 */
+	public function test_create_rejects_invalid_grade( $grade ): void {
+		$result = ( new Members_Repository() )->create( $this->member_data( $grade ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_grade', $result->get_error_code() );
+	}
+
+	/**
+	 * Grades that aren't a club grade's slug.
+	 *
+	 * @return array<string, array{0: mixed}>
+	 */
+	public function invalid_grades(): array {
+		return array(
+			'missing' => array( null ),
+			'empty'   => array( '' ),
+			'unknown' => array( 'expert' ),
+			'label'   => array( 'Advanced' ),
+		);
+	}
+
+	/**
+	 * An update that doesn't touch the grade works for a member whose stored
+	 * grade is invalid.
+	 */
+	public function test_update_without_grade_ignores_stored_invalid_grade(): void {
+		global $wpdb;
+		$repository = new Members_Repository();
+
+		$wpdb->insert(
+			$repository->table(),
+			array(
+				'name'   => 'Old Grade',
+				'email'  => 'old-grade@example.com',
+				'grade'  => 'Beginner',
+				'active' => 1,
+			)
+		);
+		$id = (int) $wpdb->insert_id;
+
+		$this->assertTrue( $repository->set_active( $id, false ) );
+		$this->assertSame( 'Beginner', $repository->find( $id )->grade );
+	}
+
+	/**
+	 * An update setting an invalid grade fails and changes nothing.
+	 */
+	public function test_update_rejects_invalid_grade(): void {
+		$repository = new Members_Repository();
+		$id         = $repository->create( $this->member_data( 'beginner' ) );
+
+		$result = $repository->update(
+			$id,
+			array(
+				'name'  => 'Renamed',
+				'grade' => 'expert',
+			)
+		);
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_grade', $result->get_error_code() );
+		$member = $repository->find( $id );
+		$this->assertSame( 'beginner', $member->grade );
+		$this->assertSame( 'Gina Graded', $member->name );
 	}
 }

@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -149,7 +150,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$member_id = $this->members->create(
-			array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'A' )
+			array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'beginner' )
 		);
 		foreach ( array( 'colour', 'mono' ) as $cat ) {
 			$this->images->create(
@@ -163,6 +164,52 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			);
 		}
 		$this->assert_matches_snapshot( 'happy-path', array( $comp_id ) );
+	}
+
+	/**
+	 * Render the page with one entrant holding the given grade.
+	 *
+	 * @param string $grade Entrant's stored grade.
+	 * @return string Rendered HTML.
+	 */
+	private function render_with_entrant_grade( string $grade ): string {
+		$comp_id   = $this->seed_competition( array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) );
+		$member_id = Member_Fixtures::insert_with_grade( 'Ada', 'ada@example.com', $grade );
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * An entrant whose grade isn't in the club's list blocks voting, and the
+	 * notice names the grade.
+	 */
+	public function test_render_blocks_entrant_with_grade_not_in_club_list(): void {
+		$html = $this->render_with_entrant_grade( 'legacy' );
+
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'Ada (ada@example.com)', $html );
+		$this->assertStringContainsString( '&quot;legacy&quot; isn&#039;t one of the club&#039;s grades', $html );
+		$this->assertStringNotContainsString( 'id="focus-panel"', $html );
+	}
+
+	/**
+	 * An entrant with no grade blocks voting, and the notice says so.
+	 */
+	public function test_render_blocks_entrant_with_no_grade(): void {
+		$html = $this->render_with_entrant_grade( '' );
+
+		$this->assertStringContainsString( 'Ada (ada@example.com)', $html );
+		$this->assertStringContainsString( 'no grade', $html );
 	}
 
 	/**
@@ -251,7 +298,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 
-		$member_id = $this->members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'A' ) );
+		$member_id = $this->members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'beginner' ) );
 		foreach ( array( $current_id => 'colour', $older_id => 'mono' ) as $comp_id => $cat ) {
 			$this->images->create(
 				array(

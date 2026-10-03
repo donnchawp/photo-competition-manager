@@ -909,6 +909,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'name'   => 'Member One',
 				'email'  => 'member-one@example.com',
+				'grade'  => 'beginner',
 				'active' => 1,
 			)
 		);

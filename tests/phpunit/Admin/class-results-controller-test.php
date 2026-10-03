@@ -22,6 +22,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -146,7 +147,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'name'      => 'Ada Member',
 				'email'     => 'ada+' . wp_generate_password( 6, false ) . '@example.com',
-				'grade'     => 'a',
+				'grade'     => 'beginner',
 				'active'    => 1,
 				'committee' => 1,
 			)
@@ -567,14 +568,8 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * @return void
 	 */
 	private function seed_scored_entry( string $name, string $grade, string $category, int $score ): void {
-		$member_id = $this->members->create(
-			array(
-				'name'   => $name,
-				'email'  => sanitize_title( $name ) . '@example.com',
-				'grade'  => $grade,
-				'active' => 1,
-			)
-		);
+		// Any grade, so a test can seed one that isn't in the club's list.
+		$member_id = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
 
 		$image_id = $this->images->create(
 			array(

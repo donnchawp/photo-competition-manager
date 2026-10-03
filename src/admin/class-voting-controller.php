@@ -457,7 +457,7 @@ class Voting_Controller {
 
 		$images = $this->images->find_by_competition( (int) $active_competition->id );
 
-		// Check for members with submissions but no grades.
+		// Check every entrant has a grade from the club's list.
 		$members_without_grades = $this->check_members_without_grades( $images );
 		if ( ! empty( $members_without_grades ) ) {
 			$notice_data = array( 'members_without_grades' => $members_without_grades );
@@ -1035,10 +1035,11 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Check for members with submissions but no grades.
+	 * Check for entrants without a grade from the club's list.
 	 *
 	 * @param array<int, object> $images The competition's images.
-	 * @return array Array of member info with missing grades.
+	 * @return array Member info keyed by member ID: name, email, grade (as
+	 *               stored, '' for none) and image_count.
 	 */
 	private function check_members_without_grades( array $images ): array {
 		$members_without_grades = array();
@@ -1050,15 +1051,15 @@ class Voting_Controller {
 		// Get unique member IDs from images.
 		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
 
-		// Check each member for missing grade.
 		foreach ( $this->members->find_many( $member_ids ) as $member_id => $member ) {
-			if ( empty( $member->grade ) ) {
+			if ( ! Competition_Settings::is_club_grade( (string) $member->grade ) ) {
 				// Count images for this member.
 				$image_count = count( array_filter( $images, fn( $img ) => (int) $img->member_id === $member_id ) );
 
 				$members_without_grades[ $member_id ] = array(
 					'name'        => $member->name,
 					'email'       => $member->email,
+					'grade'       => (string) $member->grade,
 					'image_count' => $image_count,
 				);
 			}

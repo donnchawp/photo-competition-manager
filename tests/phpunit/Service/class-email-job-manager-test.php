@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
 
 class Email_Job_Manager_Test extends WP_UnitTestCase {
@@ -152,6 +153,21 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Seed an entrant whose grade isn't in the club's list.
+	 *
+	 * @param string $email Member email.
+	 * @param string $grade Invalid grade, or '' for none.
+	 * @return int Member ID.
+	 */
+	private function seed_entrant_with_bad_grade( string $email, string $grade ): int {
+		$member_id = Member_Fixtures::insert_with_grade( 'Entrant', $email, $grade );
+
+		$this->add_entry( $member_id );
+
+		return $member_id;
+	}
+
+	/**
 	 * Add a colour entry for a member.
 	 *
 	 * @param int $member_id Member ID.
@@ -209,7 +225,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->vote_for( $this->seed_entrant( 'beginner-a@example.com', 'beginner' ), 5 );
 		$this->vote_for( $this->seed_entrant( 'beginner-b@example.com', 'beginner' ), 9 );
 		$this->vote_for( $this->seed_entrant( 'advanced@example.com', 'advanced' ), 1 );
-		$this->vote_for( $this->seed_entrant( 'ungraded@example.com', '' ), 7 );
+		$this->vote_for( $this->seed_entrant_with_bad_grade( 'ungraded@example.com', '' ), 7 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
@@ -233,7 +249,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_results_email_shows_the_slug_of_a_grade_not_in_the_list(): void {
-		$this->vote_for( $this->seed_entrant( 'legacy@example.com', 'legacy' ), 9 );
+		$this->vote_for( $this->seed_entrant_with_bad_grade( 'legacy@example.com', 'legacy' ), 9 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
@@ -346,6 +362,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			array(
 				'name'  => 'Member',
 				'email' => $email,
+				'grade' => 'beginner',
 			)
 		);
 	}
