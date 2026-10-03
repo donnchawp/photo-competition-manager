@@ -263,13 +263,33 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'colour', $result[0]['slug'] );
 	}
 
-	public function test_get_grades_extracts_grades(): void {
-		$settings = Competition_Settings::defaults();
-		$result   = Competition_Settings::get_grades( $settings );
+	public function test_club_grades_returns_defaults_when_none_saved(): void {
+		delete_option( 'photo_comp_default_settings' );
 
-		$this->assertIsArray( $result );
-		$this->assertCount( 3, $result );
-		$this->assertEquals( 'beginner', $result[0]['slug'] );
+		$this->assertSame( Competition_Settings::defaults()['grades'], Competition_Settings::club_grades() );
+	}
+
+	public function test_club_grades_returns_saved_grades(): void {
+		$grades = array(
+			array(
+				'slug'  => 'novice',
+				'label' => 'Novice',
+			),
+			array(
+				'slug'  => 'salon',
+				'label' => 'Salon',
+			),
+		);
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'grades' => $grades ) ) );
+
+		$this->assertSame( $grades, Competition_Settings::club_grades() );
+	}
+
+	public function test_validate_competition_settings_ignores_grades(): void {
+		$settings = Competition_Settings::defaults();
+		unset( $settings['grades'] );
+
+		$this->assertTrue( Competition_Settings::validate( $settings, false ) );
 	}
 
 	public function test_get_upload_constraints_extracts_upload_config(): void {
@@ -368,7 +388,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$json   = Competition_Settings::encode( $custom );
 		$parsed = Competition_Settings::parse( $json );
 
-		$grades = Competition_Settings::get_grades( $parsed );
+		$grades = $parsed['grades'];
 		$this->assertCount( 2, $grades );
 		$this->assertEquals( 'novice', $grades[0]['slug'] );
 		$this->assertEquals( 'expert', $grades[1]['slug'] );

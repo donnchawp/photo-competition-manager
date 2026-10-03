@@ -143,7 +143,8 @@ class Competitions_Controller {
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
-				'settings'   => Competition_Settings::global_settings(),
+				// Grades belong to the club, so they aren't copied in.
+				'settings'   => array_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
@@ -502,7 +503,6 @@ class Competitions_Controller {
 			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
 
 			$categories = $this->get_post_array( 'categories' );
-			$grades     = $this->get_post_array( 'grades' );
 
 			$sanitized_categories = array();
 			foreach ( $categories as $category ) {
@@ -516,8 +516,6 @@ class Competitions_Controller {
 					'quota' => absint( $category['quota'] ),
 				);
 			}
-
-			$sanitized_grades = Competition_Settings::sanitize_grades( $grades );
 
 			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 			$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );
@@ -568,7 +566,6 @@ class Competitions_Controller {
 
 			$settings = array(
 				'categories'      => $sanitized_categories,
-				'grades'          => $sanitized_grades,
 				'upload'          => array(
 					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
 					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
@@ -602,7 +599,7 @@ class Competitions_Controller {
 				'results'         => $existing_results,
 			);
 
-			// Allow empty categories/grades for competitions (will fall back to global defaults).
+			// Allow empty categories for competitions (they fall back to the club's).
 			$validation = Competition_Settings::validate( $settings, false );
 
 			if ( is_wp_error( $validation ) ) {
@@ -822,7 +819,6 @@ class Competitions_Controller {
 	private function render_competition_settings_form( object $competition ): string {
 		$settings            = Competition_Settings::parse( $competition->settings );
 		$categories          = Competition_Settings::get_categories( $settings );
-		$grades              = Competition_Settings::get_grades( $settings );
 		$upload              = Competition_Settings::get_upload_constraints( $settings );
 		$voting              = Competition_Settings::get_voting_config( $settings );
 		$slideshow           = $settings['slideshow'] ?? array();
@@ -835,11 +831,6 @@ class Competitions_Controller {
 		$category_rows_html = '';
 		foreach ( $categories as $index => $category ) {
 			$category_rows_html .= $this->render_category_field( $index, $category );
-		}
-
-		$grade_rows_html = '';
-		foreach ( $grades as $index => $grade ) {
-			$grade_rows_html .= $this->render_grade_field( $index, $grade );
 		}
 
 		$auth_mode = $voting['auth_mode'] ?? 'password';
@@ -860,7 +851,6 @@ class Competitions_Controller {
 			array(
 				'competition_id'      => (int) $competition->id,
 				'category_rows_html'  => $category_rows_html,
-				'grade_rows_html'     => $grade_rows_html,
 				'upload'              => $upload,
 				'auth_mode'           => $auth_mode,
 				'password_value'      => $password_value,
@@ -890,24 +880,6 @@ class Competitions_Controller {
 				'label' => $category['label'],
 				'slug'  => $category['slug'],
 				'quota' => $category['quota'],
-			)
-		);
-	}
-
-	/**
-	 * Render grade field row.
-	 *
-	 * @param  int   $index Grade index.
-	 * @param  array $grade Grade data.
-	 * @return string
-	 */
-	private function render_grade_field( int $index, array $grade ): string {
-		return $this->render_template(
-			'admin/shared/grade-field.php',
-			array(
-				'index' => $index,
-				'label' => $grade['label'],
-				'slug'  => $grade['slug'],
 			)
 		);
 	}

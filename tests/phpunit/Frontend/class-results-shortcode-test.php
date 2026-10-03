@@ -11,6 +11,7 @@ use PhotoCompetitionManager\Frontend\Results_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 /**
@@ -174,5 +175,29 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 				'open_date' => '2020-02-01 00:00:00',
 			)
 		);
+	}
+
+	/**
+	 * Grades come from the club's list, not the list the competition has
+	 * stored.
+	 */
+	public function test_uses_club_grade_labels(): void {
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'beginner',
+							'label' => 'Club Starters',
+						),
+					),
+				)
+			)
+		);
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( 'Club Starters', $html );
 	}
 }

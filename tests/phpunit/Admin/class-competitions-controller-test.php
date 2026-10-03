@@ -100,6 +100,16 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A competition's settings as stored, without defaults filled in.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<string, mixed>
+	 */
+	private function stored_settings( int $competition_id ): array {
+		return (array) json_decode( (string) $this->competitions->find( $competition_id, true )->settings, true );
+	}
+
+	/**
 	 * Count votes recorded for a competition/category.
 	 *
 	 * @param int    $competition_id Competition ID.
@@ -168,7 +178,10 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertStringNotContainsString( 'action=edit', $location );
 		$this->assertContains( 'created', $this->settings_error_codes( 'photo_competition_manager' ) );
-		$this->assertNotNull( $this->competitions->find_by_slug( 'autumn-show' ) );
+		$competition = $this->competitions->find_by_slug( 'autumn-show' );
+		$this->assertNotNull( $competition );
+		// Competitions use the club's grades, so none are copied in.
+		$this->assertArrayNotHasKey( 'grades', $this->stored_settings( (int) $competition->id ) );
 	}
 
 	/**
@@ -1087,10 +1100,24 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Renaming a grade keeps the slug its row posts.
+	 * Saving a competition's settings writes no grade list, even if the
+	 * competition had one stored and the form posted one.
 	 */
-	public function test_update_competition_settings_keeps_renamed_grade_slug(): void {
-		$id = $this->create_competition( 'Rename Grade', 'rename-grade' );
+	public function test_update_competition_settings_writes_no_grades(): void {
+		$id = $this->create_competition( 'No Grades', 'no-grades' );
+		$this->competitions->update(
+			$id,
+			array(
+				'settings' => array(
+					'grades' => array(
+						array(
+							'label' => 'Old',
+							'slug'  => 'old',
+						),
+					),
+				),
+			)
+		);
 
 		$this->set_request(
 			array(
@@ -1104,11 +1131,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 					),
 				),
 				'grades'                   => array(
-					array(
-						'label' => 'Senior',
-						'slug'  => 'advanced',
-					),
-					array( 'label' => 'Salon Level' ),
+					array( 'label' => 'Posted' ),
 				),
 				'score_matrix'             => '9, 8, 7, 6, 5',
 			)
@@ -1117,19 +1140,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
 
-		$this->assertSame(
-			array(
-				array(
-					'label' => 'Senior',
-					'slug'  => 'advanced',
-				),
-				array(
-					'label' => 'Salon Level',
-					'slug'  => 'salon-level',
-				),
-			),
-			$this->settings( $id )['grades']
-		);
+		$this->assertContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertArrayNotHasKey( 'grades', $this->stored_settings( $id ) );
 	}
 
 	/**

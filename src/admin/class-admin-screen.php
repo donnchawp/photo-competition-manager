@@ -108,7 +108,7 @@ class Admin_Screen {
 		$this->members_controller         = new Members_Controller( $deps->competitions, $deps->members );
 		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
 		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images, $deps->members, $deps->email_job_manager );
-		$this->settings_controller        = new Settings_Controller( $deps->competitions, $deps->members );
+		$this->settings_controller        = new Settings_Controller( $deps->members );
 		$this->export_screen              = new Export_Screen();
 		$this->results_controller         = new Results_Controller(
 			$deps->competitions,

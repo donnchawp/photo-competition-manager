@@ -1,6 +1,6 @@
 <?php
 /**
- * Single grade row partial (shared by the settings and competition settings forms).
+ * Single grade row partial for the club settings form.
  *
  * Reads $data['index'] (int), $data['label'] (string) and $data['slug'] (string).
  * The slug rides along hidden so renaming a grade keeps its members in it.

@@ -407,7 +407,7 @@ class Results_Controller {
 	private function render_overview( object $competition, array $competitions ): string {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
-		$grades     = Competition_Settings::get_grades( $settings );
+		$grades     = Competition_Settings::club_grades();
 
 		$summary = $this->analytics->get_competition_summary( (int) $competition->id );
 
@@ -824,7 +824,7 @@ class Results_Controller {
 	public function get_export_rows( object $competition ): array {
 		$settings       = Competition_Settings::parse( $competition->settings );
 		$categories     = Competition_Settings::get_categories( $settings );
-		$grades         = Competition_Settings::get_grades( $settings );
+		$grades         = Competition_Settings::club_grades();
 		$members_lookup = $this->get_members_lookup();
 
 		$rows = array(

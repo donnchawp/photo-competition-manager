@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 
 $saved_settings = get_option( 'photo_comp_default_settings', '' );
 $settings       = Competition_Settings::parse( $saved_settings );
-$grades         = Competition_Settings::get_grades( $settings );
+$grades         = Competition_Settings::club_grades();
 $categories     = Competition_Settings::get_categories( $settings );
 
 if ( empty( $grades ) || empty( $categories ) ) {
