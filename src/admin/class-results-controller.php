@@ -376,7 +376,7 @@ class Results_Controller {
 		// Default to the current competition, then the one that opened most
 		// recently, so next month's competition, created early, doesn't win.
 		$competition = 0 === $competition_id
-			? ( $this->competitions->find_current_active() ?? $this->competitions->find_latest_opened() ?? $competitions[0] )
+			? ( $this->competitions->find_current_or_latest_opened() ?? $competitions[0] )
 			: $this->competitions->find( $competition_id );
 		if ( ! $competition ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.

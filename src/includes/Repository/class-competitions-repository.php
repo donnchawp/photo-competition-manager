@@ -226,6 +226,20 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find the competition an admin screen opens on by default.
+	 *
+	 * That's the current competition, or, between competitions, the one that
+	 * opened most recently.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return object|null
+	 */
+	public function find_current_or_latest_opened() {
+		return $this->find_current_active() ?? $this->find_latest_opened();
+	}
+
+	/**
 	 * Find a competition whose dates overlap the given range.
 	 *
 	 * Only one competition may be open at a time from now on, so only the
