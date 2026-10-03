@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
 
@@ -41,18 +42,11 @@ class Results_Shortcode {
 	private $images_repo;
 
 	/**
-	 * Votes repository.
+	 * Results ranking service.
 	 *
-	 * @var Votes_Repository
+	 * @var Results_Ranking
 	 */
-	private $votes_repo;
-
-	/**
-	 * Members repository.
-	 *
-	 * @var Members_Repository
-	 */
-	private $members_repo;
+	private $ranking;
 
 	/**
 	 * Constructor.
@@ -70,8 +64,11 @@ class Results_Shortcode {
 	) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->images_repo       = $images_repo ?? new Images_Repository();
-		$this->votes_repo        = $votes_repo ?? new Votes_Repository();
-		$this->members_repo      = $members_repo ?? new Members_Repository();
+		$this->ranking           = new Results_Ranking(
+			$this->images_repo,
+			$votes_repo ?? new Votes_Repository(),
+			$members_repo ?? new Members_Repository()
+		);
 	}
 
 	/**
@@ -142,67 +139,18 @@ class Results_Shortcode {
 			return;
 		}
 
-		// Get all images for this competition with their scores.
-		$images = $this->images_repo->find_by_competition( (int) $competition->id );
-		if ( empty( $images ) ) {
+		if ( empty( $this->images_repo->find_by_competition( (int) $competition->id ) ) ) {
 			echo '<p class="notice">' . esc_html__( 'No images submitted for this competition yet.', 'photo-competition-manager' ) . '</p>';
 			return;
 		}
 
-		// Get member details for building image URLs and grouping by grade.
-		$member_ids = array_unique( array_map( fn( $img ) => (int) $img->member_id, $images ) );
-		$members    = $this->members_repo->find_many( $member_ids );
-
-		// Get all unique categories from images.
-		$image_categories = array_unique( array_map( fn( $img ) => $img->category, $images ) );
-
-		// Calculate scores for each image, grouped by category.
-		$image_scores_by_category = array();
-		foreach ( $image_categories as $cat ) {
-			$image_scores_by_category[ $cat ] = $this->votes_repo->calculate_averages( (int) $competition->id, $cat );
-		}
-
-		// Group images by category first, then by grade within each category.
+		// Rank each category within the club's grades. Ungraded entries are for admins to fix and aren't shown.
 		$results_by_category = array();
-		foreach ( $images as $image ) {
-			$member = $members[ (int) $image->member_id ] ?? null;
-			if ( ! $member ) {
-				continue;
-			}
-
-			$category        = $image->category;
-			$grade           = ! empty( $member->grade ) ? $member->grade : 'unknown';
-			$category_scores = $image_scores_by_category[ $category ] ?? array();
-			$score_data      = $category_scores[ (int) $image->id ] ?? null;
-			$total_score     = null !== $score_data ? $score_data['total_score'] : 0;
-
-			if ( ! isset( $results_by_category[ $category ] ) ) {
-				$results_by_category[ $category ] = array();
-			}
-
-			if ( ! isset( $results_by_category[ $category ][ $grade ] ) ) {
-				$results_by_category[ $category ][ $grade ] = array();
-			}
-
-			$results_by_category[ $category ][ $grade ][] = array(
-				'image'       => $image,
-				'member'      => $member,
-				'total_score' => $total_score,
-			);
-		}
-
-		// Sort each grade within each category by total score (highest first) and assign positions with tie handling.
-		foreach ( $results_by_category as $category => $grade_results ) {
-			foreach ( $grade_results as $grade => $results ) {
-				usort(
-					$results_by_category[ $category ][ $grade ],
-					function ( $a, $b ) {
-						return $b['total_score'] <=> $a['total_score'];
-					}
-				);
-
-				// Assign display positions accounting for ties.
-				$results_by_category[ $category ][ $grade ] = $this->assign_positions( $results_by_category[ $category ][ $grade ] );
+		foreach ( $categories as $category_config ) {
+			foreach ( $this->ranking->rank_category( (int) $competition->id, $category_config['slug'] ) as $group ) {
+				if ( ! $group['ungraded'] ) {
+					$results_by_category[ $category_config['slug'] ][ $group['slug'] ] = $group['entries'];
+				}
 			}
 		}
 
@@ -286,36 +234,5 @@ class Results_Shortcode {
 			<?php endif; ?>
 		</div>
 		<?php
-	}
-
-	/**
-	 * Assign display positions to sorted results, handling ties.
-	 *
-	 * When scores are tied, entries share the same position. The next different
-	 * score gets the next position (e.g., two 1st places, next is 2nd place).
-	 *
-	 * @param array<int, array{image: object, member: object, total_score: float}> $results Sorted results array.
-	 * @return array<int, array{image: object, member: object, total_score: float, position: int}> Results with positions assigned.
-	 */
-	private function assign_positions( array $results ): array {
-		if ( empty( $results ) ) {
-			return $results;
-		}
-
-		$position       = 0;
-		$previous_score = null;
-
-		foreach ( $results as &$result ) {
-			if ( $result['total_score'] !== $previous_score ) {
-				// New score: advance to next position.
-				++$position;
-			}
-			// Tie or new score: assign current position.
-			$result['position'] = $position;
-			$previous_score     = $result['total_score'];
-		}
-		unset( $result );
-
-		return $results;
 	}
 }

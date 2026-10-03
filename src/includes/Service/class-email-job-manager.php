@@ -103,11 +103,11 @@ class Email_Job_Manager {
 	private $analytics;
 
 	/**
-	 * Score calculator service.
+	 * Results ranking service.
 	 *
-	 * @var Score_Calculator
+	 * @var Results_Ranking
 	 */
-	private $calculator;
+	private $ranking;
 
 	/**
 	 * Email service.
@@ -131,16 +131,15 @@ class Email_Job_Manager {
 	private $upload_links;
 
 	/**
-	 * Category results for the batch being sent, grouped by uploader grade.
+	 * Category rankings for the batch being sent.
 	 *
 	 * Every member in a results batch gets the same results, so each category
-	 * is loaded once per batch. Keyed by "competition_id:category_slug", then
-	 * by grade slug (numeric grade slugs become int keys). Cleared at the
-	 * start of each batch.
+	 * is ranked once per batch. Keyed by "competition_id:category_slug".
+	 * Cleared at the start of each batch.
 	 *
-	 * @var array<string, array<int|string, array<int, object>>>
+	 * @var array<string, array<int, array>>
 	 */
-	private $results_by_grade = array();
+	private $rankings = array();
 
 	/**
 	 * Constructor.
@@ -150,7 +149,7 @@ class Email_Job_Manager {
 	 * @param Members_Repository       $members         Members repository.
 	 * @param Votes_Repository         $votes           Votes repository.
 	 * @param Results_Analytics        $analytics       Results analytics service.
-	 * @param Score_Calculator         $calculator      Score calculator service.
+	 * @param Results_Ranking          $ranking         Results ranking service.
 	 * @param Email_Service            $email_service   Email service.
 	 * @param Image_Processor|null     $image_processor Image processor (optional).
 	 * @param Upload_Link_Service|null $upload_links    Upload link service (optional).
@@ -161,7 +160,7 @@ class Email_Job_Manager {
 		Members_Repository $members,
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
-		Score_Calculator $calculator,
+		Results_Ranking $ranking,
 		Email_Service $email_service,
 		?Image_Processor $image_processor = null,
 		?Upload_Link_Service $upload_links = null
@@ -171,7 +170,7 @@ class Email_Job_Manager {
 		$this->members         = $members;
 		$this->votes           = $votes;
 		$this->analytics       = $analytics;
-		$this->calculator      = $calculator;
+		$this->ranking         = $ranking;
 		$this->email_service   = $email_service;
 		$this->image_processor = $image_processor ?? new Image_Processor();
 		$this->upload_links    = $upload_links ?? new Upload_Link_Service( null, $competitions, $members, $email_service );
@@ -351,7 +350,7 @@ class Email_Job_Manager {
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 		$members   = $this->members->find_many( $batch );
 
-		$this->results_by_grade = array();
+		$this->rankings = array();
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -528,11 +527,6 @@ class Email_Job_Manager {
 			'images' => array(),
 		);
 
-		// Get the member's grade, shown by its label.
-		$member_grade = ! empty( $member->grade ) ? $member->grade : '';
-		$grade_labels = array_column( Competition_Settings::club_grades(), 'label', 'slug' );
-		$grade_label  = $grade_labels[ $member_grade ] ?? $member_grade;
-
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
 			$category_label = $category['label'] ?? $category_slug;
@@ -541,37 +535,29 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			// Only rank against images from the member's grade.
-			// A member with no grade is ranked against all results.
-			$grade_results  = $this->get_results_by_grade( $competition_id, $category_slug )[ $member_grade ] ?? array();
-			$total_in_grade = count( $grade_results );
+			foreach ( $this->get_ranking( $competition_id, $category_slug ) as $group ) {
+				foreach ( $group['entries'] as $entry ) {
+					$image = $entry['image'];
+					if ( (int) $image->member_id !== $member_id ) {
+						continue;
+					}
 
-			// Find this member's images in the grade results. Results are sorted
-			// by total score, and tied scores share a position (1, 1, 2).
-			$position       = 0;
-			$previous_score = null;
-			foreach ( $grade_results as $result ) {
-				if ( $result->total_score !== $previous_score ) {
-					++$position;
-					$previous_score = $result->total_score;
-				}
-
-				if ( (int) $result->member_id === (int) $member_id ) {
-					$image_details = $this->analytics->get_image_details( (int) $result->id );
+					$image_details = $this->analytics->get_image_details( (int) $image->id );
 
 					// Get thumbnail URL.
 					$thumbnail_url = $this->image_processor->get_thumbnail_url(
 						$competition->slug,
 						$category_slug,
-						$result->filename
+						$image->filename
 					);
 
+					// An ungraded entry has no position to report.
 					$member_results['images'][] = array(
 						'category_label' => $category_label,
-						'image_number'   => $result->random_number,
-						'rank'           => $position,
-						'total_in_grade' => $total_in_grade,
-						'grade'          => $grade_label,
+						'image_number'   => $image->random_number,
+						'rank'           => $group['ungraded'] ? null : $entry['position'],
+						'total_in_grade' => count( $group['entries'] ),
+						'grade'          => $group['label'],
 						'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
 						'statistics'     => $image_details['statistics'],
 						'votes'          => $image_details['votes'],
@@ -589,35 +575,20 @@ class Email_Job_Manager {
 	}
 
 	/**
-	 * Get a category's ranked results grouped by the uploader's grade.
-	 *
-	 * The '' key holds all results, for members with no grade.
+	 * Get a category's ranking, loading it once per batch.
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category_slug  Category slug.
-	 * @return array<int|string, array<int, object>> Ranked results keyed by grade slug.
+	 * @return array<int, array> Grade groups from Results_Ranking::rank_category().
 	 */
-	private function get_results_by_grade( int $competition_id, string $category_slug ): array {
+	private function get_ranking( int $competition_id, string $category_slug ): array {
 		$key = $competition_id . ':' . $category_slug;
 
-		if ( isset( $this->results_by_grade[ $key ] ) ) {
-			return $this->results_by_grade[ $key ];
+		if ( ! isset( $this->rankings[ $key ] ) ) {
+			$this->rankings[ $key ] = $this->ranking->rank_category( $competition_id, $category_slug );
 		}
 
-		$results  = $this->calculator->get_results( $competition_id, $category_slug );
-		$members  = $this->members->find_many( array_column( $results, 'member_id' ) );
-		$by_grade = array( '' => $results );
-
-		foreach ( $results as $result ) {
-			$grade = $members[ (int) $result->member_id ]->grade ?? '';
-			if ( '' !== $grade ) {
-				$by_grade[ $grade ][] = $result;
-			}
-		}
-
-		$this->results_by_grade[ $key ] = $by_grade;
-
-		return $by_grade;
+		return $this->rankings[ $key ];
 	}
 
 	/**

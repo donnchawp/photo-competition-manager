@@ -639,25 +639,27 @@ class Email_Service {
 							<?php endif; ?>
 
 							<table style="width: 100%; border-collapse: collapse;">
-								<tr>
-									<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php esc_html_e( 'Rank:', 'photo-competition-manager' ); ?></td>
-									<td style="padding: 8px 0;">
-										<?php
-										$rank_display = $image_data['rank'];
-										if ( ! empty( $image_data['total_in_grade'] ) ) {
-											$rank_display .= ' ' . sprintf(
-												/* translators: %d: Total number of images in the grade */
-												__( 'of %d', 'photo-competition-manager' ),
-												$image_data['total_in_grade']
-											);
-										}
-										if ( ! empty( $image_data['grade'] ) ) {
-											$rank_display .= ' (' . esc_html( $image_data['grade'] ) . ')';
-										}
-										echo esc_html( $rank_display );
-										?>
-									</td>
-								</tr>
+								<?php if ( null !== $image_data['rank'] ) : ?>
+									<tr>
+										<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php esc_html_e( 'Rank:', 'photo-competition-manager' ); ?></td>
+										<td style="padding: 8px 0;">
+											<?php
+											$rank_display = $image_data['rank'];
+											if ( ! empty( $image_data['total_in_grade'] ) ) {
+												$rank_display .= ' ' . sprintf(
+													/* translators: %d: Total number of images in the grade */
+													__( 'of %d', 'photo-competition-manager' ),
+													$image_data['total_in_grade']
+												);
+											}
+											if ( ! empty( $image_data['grade'] ) ) {
+												$rank_display .= ' (' . esc_html( $image_data['grade'] ) . ')';
+											}
+											echo esc_html( $rank_display );
+											?>
+										</td>
+									</tr>
+								<?php endif; ?>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['statistics']['average'] * $image_data['statistics']['count'], 0 ) ); ?></strong></td>

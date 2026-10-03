@@ -21,6 +21,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 
@@ -88,6 +89,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $votes );
 		$calculator  = new Score_Calculator( $this->images, $votes );
+		$ranking     = new Results_Ranking( $this->images, $votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
 			$this->competitions,
@@ -95,7 +97,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$votes,
 			$analytics,
-			$calculator,
+			$ranking,
 			$email
 		);
 
@@ -106,6 +108,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$votes,
 			$analytics,
 			$calculator,
+			$ranking,
 			$job_manager
 		);
 
@@ -564,7 +567,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * @param string $name     Member name.
 	 * @param string $grade    Grade slug.
 	 * @param string $category Category slug.
-	 * @param int    $score    Cached image score (used when there are no votes).
+	 * @param int    $score    Total score, given as one vote.
 	 * @return void
 	 */
 	private function seed_scored_entry( string $name, string $grade, string $category, int $score ): void {
@@ -580,7 +583,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			)
 		);
 
-		$this->images->update_score( (int) $image_id, $score );
+		( new Votes_Repository() )->create_anonymous( $this->competition_id, $category, $member_id, (int) $image_id, $score );
 	}
 
 	/**

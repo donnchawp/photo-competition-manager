@@ -15,7 +15,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
-use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
@@ -59,12 +59,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	private $bodies = array();
 
 	/**
-	 * Score calculator handed to the manager. Records the categories
-	 * get_results() was called for in $calls.
+	 * Ranking handed to the manager. Records the categories
+	 * rank_category() was called for in $calls.
 	 *
-	 * @var Score_Calculator
+	 * @var Results_Ranking
 	 */
-	private $calculator;
+	private $ranking;
 
 	public function set_up(): void {
 		parent::set_up();
@@ -75,15 +75,15 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->members = new Members_Repository();
 		$votes         = new Votes_Repository();
 
-		$this->calculator = new class( $this->images, $votes ) extends Score_Calculator {
+		$this->ranking = new class( $this->images, $votes, $this->members ) extends Results_Ranking {
 			/**
-			 * @var array<int, string|null>
+			 * @var array<int, string>
 			 */
 			public $calls = array();
 
-			public function get_results( int $competition_id, ?string $category = null ): array {
+			public function rank_category( int $competition_id, string $category ): array {
 				$this->calls[] = $category;
-				return parent::get_results( $competition_id, $category );
+				return parent::rank_category( $competition_id, $category );
 			}
 		};
 
@@ -93,7 +93,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			$this->members,
 			$votes,
 			new Results_Analytics( $competitions, $this->images, $this->members, $votes ),
-			$this->calculator,
+			$this->ranking,
 			new Email_Service()
 		);
 
@@ -201,7 +201,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->seed_entrant( 'three@example.com' );
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
-		$calls = $this->calculator->calls;
+		$calls = $this->ranking->calls;
 		$this->assertCount( 3, $this->recipients );
 		$this->assertNotEmpty( $calls );
 		$this->assertSame( array_values( array_unique( $calls ) ), $calls );
@@ -214,12 +214,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$job_id = $this->manager->queue_results( $this->competition_id );
 
 		$this->manager->process_batch( $job_id );
-		$first_batch = $this->calculator->calls;
+		$first_batch = $this->ranking->calls;
 		$this->manager->process_batch( $job_id );
 
 		$this->assertCount( 6, $this->recipients );
 		$this->assertNotEmpty( $first_batch );
-		$this->assertSame( array_merge( $first_batch, $first_batch ), $this->calculator->calls );
+		$this->assertSame( array_merge( $first_batch, $first_batch ), $this->ranking->calls );
 	}
 
 	public function test_results_email_ranks_within_the_members_grade(): void {
@@ -230,11 +230,22 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
+		// The ungraded entry isn't counted in any grade.
 		$this->assertStringContainsString( '2 of 2 (Beginner)', $this->bodies['beginner-a@example.com'] );
 		$this->assertStringContainsString( '1 of 2 (Beginner)', $this->bodies['beginner-b@example.com'] );
 		$this->assertStringContainsString( '1 of 1 (Advanced)', $this->bodies['advanced@example.com'] );
-		// Ranked against every entry, with no grade label after the rank.
-		$this->assertMatchesRegularExpression( '#>\s*2 of 4\s*</td>#', $this->bodies['ungraded@example.com'] );
+	}
+
+	public function test_results_email_to_an_ungraded_member_sends_without_a_position(): void {
+		$this->vote_for( $this->seed_entrant( 'graded@example.com' ), 5 );
+		$this->vote_for( $this->seed_entrant_with_bad_grade( 'ungraded@example.com', '' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertArrayHasKey( 'ungraded@example.com', $this->bodies );
+		$this->assertStringContainsString( 'Final Score:', $this->bodies['ungraded@example.com'] );
+		$this->assertStringNotContainsString( 'Rank:', $this->bodies['ungraded@example.com'] );
+		$this->assertStringContainsString( 'Rank:', $this->bodies['graded@example.com'] );
 	}
 
 	public function test_results_email_uses_club_grade_labels(): void {
@@ -270,12 +281,13 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['behind@example.com'] );
 	}
 
-	public function test_results_email_shows_the_slug_of_a_grade_not_in_the_list(): void {
+	public function test_results_email_gives_no_position_for_a_grade_not_in_the_list(): void {
 		$this->vote_for( $this->seed_entrant_with_bad_grade( 'legacy@example.com', 'legacy' ), 9 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
-		$this->assertStringContainsString( '1 of 1 (legacy)', $this->bodies['legacy@example.com'] );
+		$this->assertArrayHasKey( 'legacy@example.com', $this->bodies );
+		$this->assertStringNotContainsString( 'Rank:', $this->bodies['legacy@example.com'] );
 	}
 
 	public function test_results_email_gives_each_of_a_members_entries_its_own_position(): void {
