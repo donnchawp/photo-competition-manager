@@ -19,8 +19,8 @@ defined( 'ABSPATH' ) || exit;
  * 1. Resolve grades and categories from saved settings.
  * ----------------------------------------------------------------*/
 
-$settings = Competition_Settings::global_settings();
-$grades   = Competition_Settings::club_grades();
+$settings   = Competition_Settings::global_settings();
+$grades     = Competition_Settings::club_grades();
 $categories = Competition_Settings::get_categories( $settings );
 
 if ( empty( $grades ) || empty( $categories ) ) {
@@ -86,7 +86,7 @@ if ( $competition ) {
 	$yesterday = gmdate( 'Y-m-d 00:00:00', strtotime( '-1 day' ) );
 	$in_5_days = gmdate( 'Y-m-d 23:59:59', strtotime( '+5 days' ) );
 
-	$comp_settings                          = $settings;
+	$comp_settings                             = array_diff_key( $settings, array( 'grades' => true ) );
 	$comp_settings['upload']['uploads_closed'] = false;
 
 	$comp_id = $competitions_repo->create(

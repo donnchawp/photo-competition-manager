@@ -12,7 +12,7 @@
 defined( 'ABSPATH' ) || exit;
 
 echo '<h2>' . esc_html__( 'Grades', 'photo-competition-manager' ) . '</h2>';
-echo '<p class="description">' . esc_html__( 'Define default member grade levels.', 'photo-competition-manager' ) . '</p>';
+echo '<p class="description">' . esc_html__( 'The club\'s member grades, used by every competition. Renaming a grade renames it in every competition\'s results.', 'photo-competition-manager' ) . '</p>';
 
 echo '<div id="grades-container">';
 echo $data['grade_rows_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
