@@ -32,11 +32,6 @@ class Score_Calculator_Test extends WP_UnitTestCase {
 	private $votes_repo;
 
 	/**
-	 * @var Members_Repository
-	 */
-	private $members_repo;
-
-	/**
 	 * @var int
 	 */
 	private $competition_id;
@@ -49,10 +44,9 @@ class Score_Calculator_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
-		$this->images_repo  = new Images_Repository();
-		$this->votes_repo   = new Votes_Repository();
-		$this->members_repo = new Members_Repository();
-		$this->calculator   = new Score_Calculator( $this->images_repo, $this->votes_repo );
+		$this->images_repo = new Images_Repository();
+		$this->votes_repo  = new Votes_Repository();
+		$this->calculator  = new Score_Calculator( $this->images_repo, $this->votes_repo );
 
 		$competitions_repo = new Competitions_Repository();
 
@@ -64,7 +58,7 @@ class Score_Calculator_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->member_id = $this->members_repo->create(
+		$this->member_id = ( new Members_Repository() )->create(
 			array(
 				'name'  => 'Alice',
 				'email' => 'alice@example.com',

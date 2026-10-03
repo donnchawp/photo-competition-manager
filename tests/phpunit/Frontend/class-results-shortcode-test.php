@@ -11,9 +11,8 @@ use PhotoCompetitionManager\Frontend\Results_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -22,13 +21,21 @@ use WP_UnitTestCase;
 class Results_Shortcode_Test extends WP_UnitTestCase {
 
 	/**
+	 * The competition setUp() creates.
+	 *
+	 * @var int
+	 */
+	private $competition_id;
+
+
+	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
 	public function setUp(): void {
 		parent::setUp();
 
-		$competitions   = new Competitions_Repository();
-		$competition_id = (int) $competitions->create(
+		$competitions         = new Competitions_Repository();
+		$this->competition_id = (int) $competitions->create(
 			array(
 				'title'     => 'Results Comp',
 				'slug'      => 'results-comp',
@@ -62,7 +69,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 
 		( new Images_Repository() )->create(
 			array(
-				'competition_id' => $competition_id,
+				'competition_id' => $this->competition_id,
 				'member_id'      => $member_id,
 				'category'       => 'colour',
 				'filename'       => 'ann-example-colour.jpg',
@@ -227,9 +234,9 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	 * and they don't move the graded entries' positions.
 	 */
 	public function test_ungraded_entry_is_left_out_and_graded_positions_are_kept(): void {
-		$this->add_scored_entry( 'results-comp', 'Ben Example', 'beginner', 9 );
-		$this->add_scored_entry( 'results-comp', 'No Grade', '', 20 );
-		$this->add_scored_entry( 'results-comp', 'Old Grade', 'retired', 15 );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Ben Example', 'beginner', array( 9 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'No Grade', '', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Old Grade', 'retired', array( 15 ) );
 
 		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
 
@@ -239,26 +246,4 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '#<td class="position">1</td>.*?Ben Example.*?<td class="position">2</td>.*?Ann Example#s', $html );
 	}
 
-	/**
-	 * Add a colour entry with one vote of the given score.
-	 *
-	 * @param string $slug  Competition slug.
-	 * @param string $name  Member name.
-	 * @param string $grade Member grade, valid or not.
-	 * @param int    $score Score of the entry's one vote.
-	 */
-	private function add_scored_entry( string $slug, string $name, string $grade, int $score ): void {
-		$competition_id = (int) ( new Competitions_Repository() )->find_by_slug( $slug )->id;
-		$member_id      = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
-		$image_id       = (int) ( new Images_Repository() )->create(
-			array(
-				'competition_id' => $competition_id,
-				'member_id'      => $member_id,
-				'category'       => 'colour',
-				'filename'       => sanitize_title( $name ) . '.jpg',
-			)
-		);
-
-		( new Votes_Repository() )->create_anonymous( $competition_id, 'colour', $member_id, $image_id, $score );
-	}
 }

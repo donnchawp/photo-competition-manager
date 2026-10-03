@@ -13,7 +13,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 class Results_Ranking_Test extends WP_UnitTestCase {
@@ -29,28 +29,15 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	private $images;
 
 	/**
-	 * @var Votes_Repository
-	 */
-	private $votes;
-
-	/**
 	 * @var int
 	 */
 	private $competition_id;
-
-	/**
-	 * Voter number for the next vote, so every vote has its own voter.
-	 *
-	 * @var int
-	 */
-	private $next_voter = 1;
 
 	public function set_up(): void {
 		parent::set_up();
 
 		$this->images  = new Images_Repository();
-		$this->votes   = new Votes_Repository();
-		$this->ranking = new Results_Ranking( $this->images, $this->votes, new Members_Repository() );
+		$this->ranking = new Results_Ranking( $this->images, new Votes_Repository(), new Members_Repository() );
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
@@ -71,39 +58,13 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	/**
 	 * Seed a colour entry for a member with any grade and score it.
 	 *
-	 * @param string   $name   Member name.
-	 * @param string   $grade  Grade slug, valid or not.
-	 * @param int[]    $scores Votes to give the entry.
+	 * @param string $name   Member name.
+	 * @param string $grade  Grade slug, valid or not.
+	 * @param int[]  $scores Votes to give the entry.
 	 * @return int Image ID.
 	 */
 	private function seed_entry( string $name, string $grade, array $scores ): int {
-		$member_id = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
-
-		return $this->seed_image( $member_id, $scores );
-	}
-
-	/**
-	 * Seed a colour image for a member ID and score it.
-	 *
-	 * @param int   $member_id Member ID, which need not exist.
-	 * @param int[] $scores    Votes to give the image.
-	 * @return int Image ID.
-	 */
-	private function seed_image( int $member_id, array $scores ): int {
-		$image_id = (int) $this->images->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $member_id,
-				'category'       => 'colour',
-				'filename'       => 'entry-' . $member_id . '.jpg',
-			)
-		);
-
-		foreach ( $scores as $score ) {
-			$this->votes->create_anonymous( $this->competition_id, 'colour', $this->next_voter++, $image_id, $score );
-		}
-
-		return $image_id;
+		return Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', $name, $grade, $scores );
 	}
 
 	/**
@@ -170,7 +131,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->seed_entry( 'Graded', 'beginner', array( 5 ) );
 		$this->seed_entry( 'No Grade', '', array( 9 ) );
 		$this->seed_entry( 'Old Grade', 'retired', array( 7 ) );
-		$this->seed_image( 999999, array( 7 ) );
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', 999999, array( 7 ) );
 
 		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
 

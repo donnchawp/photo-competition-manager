@@ -23,7 +23,7 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
-use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -572,18 +572,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	private function seed_scored_entry( string $name, string $grade, string $category, int $score ): void {
 		// Any grade, so a test can seed one that isn't in the club's list.
-		$member_id = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
-
-		$image_id = $this->images->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $member_id,
-				'category'       => $category,
-				'filename'       => sanitize_title( $name ) . '.jpg',
-			)
-		);
-
-		( new Votes_Repository() )->create_anonymous( $this->competition_id, $category, $member_id, (int) $image_id, $score );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, $category, $name, $grade, array( $score ) );
 	}
 
 	/**

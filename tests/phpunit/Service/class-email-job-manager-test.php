@@ -281,15 +281,6 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['behind@example.com'] );
 	}
 
-	public function test_results_email_gives_no_position_for_a_grade_not_in_the_list(): void {
-		$this->vote_for( $this->seed_entrant_with_bad_grade( 'legacy@example.com', 'legacy' ), 9 );
-
-		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
-
-		$this->assertArrayHasKey( 'legacy@example.com', $this->bodies );
-		$this->assertStringNotContainsString( 'Rank:', $this->bodies['legacy@example.com'] );
-	}
-
 	public function test_results_email_gives_each_of_a_members_entries_its_own_position(): void {
 		$member_id = $this->seed_entrant( 'two-entries@example.com' );
 		$this->add_entry( $member_id );

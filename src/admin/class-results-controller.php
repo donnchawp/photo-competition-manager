@@ -650,12 +650,11 @@ class Results_Controller {
 			);
 		}
 
-		$html = '';
-		if ( ! empty( $ungraded_members ) ) {
-			$html .= $this->render_template( 'admin/results/notice-ungraded-entries.php', array( 'members' => array_values( $ungraded_members ) ) );
-		}
+		$notice = empty( $ungraded_members )
+			? ''
+			: $this->render_template( 'admin/results/notice-ungraded-entries.php', array( 'members' => array_values( $ungraded_members ) ) );
 
-		return $html . $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+		return $notice . $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
 	}
 
 	/**

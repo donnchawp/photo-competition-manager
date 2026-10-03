@@ -11,9 +11,8 @@ use PhotoCompetitionManager\Frontend\Top3_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -22,13 +21,21 @@ use WP_UnitTestCase;
 class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 	/**
+	 * The competition setUp() creates.
+	 *
+	 * @var int
+	 */
+	private $competition_id;
+
+
+	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
 	public function setUp(): void {
 		parent::setUp();
 
-		$competitions   = new Competitions_Repository();
-		$competition_id = (int) $competitions->create(
+		$competitions         = new Competitions_Repository();
+		$this->competition_id = (int) $competitions->create(
 			array(
 				'title'     => 'Top3 Comp',
 				'slug'      => 'top3-comp',
@@ -62,7 +69,7 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 		( new Images_Repository() )->create(
 			array(
-				'competition_id' => $competition_id,
+				'competition_id' => $this->competition_id,
 				'member_id'      => $member_id,
 				'category'       => 'colour',
 				'filename'       => 'ann-example-colour.jpg',
@@ -162,11 +169,11 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 	 * entries: 20, 20, 15, 10 take 1st, 1st, 2nd and 3rd, and 5 is left out.
 	 */
 	public function test_ties_can_put_more_than_three_entries_on_the_podium(): void {
-		$this->add_scored_entry( 'top3-comp', 'First A', 'beginner', 20 );
-		$this->add_scored_entry( 'top3-comp', 'First B', 'beginner', 20 );
-		$this->add_scored_entry( 'top3-comp', 'Second', 'beginner', 15 );
-		$this->add_scored_entry( 'top3-comp', 'Third', 'beginner', 10 );
-		$this->add_scored_entry( 'top3-comp', 'Fourth', 'beginner', 5 );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'First A', 'beginner', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'First B', 'beginner', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Second', 'beginner', array( 15 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Third', 'beginner', array( 10 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Fourth', 'beginner', array( 5 ) );
 
 		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
 
@@ -181,7 +188,7 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 	 * Ungraded entries never reach the podium.
 	 */
 	public function test_ungraded_entry_is_left_out(): void {
-		$this->add_scored_entry( 'top3-comp', 'No Grade', '', 20 );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'No Grade', '', array( 20 ) );
 
 		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
 
@@ -189,26 +196,4 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
 	}
 
-	/**
-	 * Add a colour entry with one vote of the given score.
-	 *
-	 * @param string $slug  Competition slug.
-	 * @param string $name  Member name.
-	 * @param string $grade Member grade, valid or not.
-	 * @param int    $score Score of the entry's one vote.
-	 */
-	private function add_scored_entry( string $slug, string $name, string $grade, int $score ): void {
-		$competition_id = (int) ( new Competitions_Repository() )->find_by_slug( $slug )->id;
-		$member_id      = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
-		$image_id       = (int) ( new Images_Repository() )->create(
-			array(
-				'competition_id' => $competition_id,
-				'member_id'      => $member_id,
-				'category'       => 'colour',
-				'filename'       => sanitize_title( $name ) . '.jpg',
-			)
-		);
-
-		( new Votes_Repository() )->create_anonymous( $competition_id, 'colour', $member_id, $image_id, $score );
-	}
 }

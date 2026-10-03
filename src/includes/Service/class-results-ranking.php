@@ -98,7 +98,6 @@ class Results_Ranking {
 		foreach ( $images as $image ) {
 			$member = $members[ (int) $image->member_id ] ?? null;
 			$entry  = array(
-				'position'    => 0,
 				'image'       => $image,
 				'member'      => $member,
 				'total_score' => $votes[ (int) $image->id ]['total_score'] ?? 0,
@@ -106,7 +105,7 @@ class Results_Ranking {
 			);
 
 			$slug = $member ? (string) $member->grade : '';
-			if ( '' !== $slug && isset( $groups[ $slug ] ) ) {
+			if ( isset( $groups[ $slug ] ) ) {
 				$groups[ $slug ]['entries'][] = $entry;
 			} else {
 				$ungraded['entries'][] = $entry;
@@ -131,7 +130,7 @@ class Results_Ranking {
 	/**
 	 * Sort entries by total score, highest first, and give each its dense position.
 	 *
-	 * @param array<int, array{total_score: int}> $entries Entries in one group.
+	 * @param array<int, array{total_score: int}> $entries Entries in one group, without positions.
 	 * @return array<int, array{total_score: int, position: int}>
 	 */
 	private function assign_positions( array $entries ): array {
