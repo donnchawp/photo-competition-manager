@@ -39,28 +39,6 @@ class Competition_Settings {
 	private static $page_urls = array();
 
 	/**
-	 * Get global default settings from WordPress options.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private static function get_global_defaults(): array {
-		$saved = get_option( 'photo_comp_default_settings', '' );
-
-		if ( empty( $saved ) ) {
-			return self::defaults();
-		}
-
-		$decoded = json_decode( $saved, true );
-
-		if ( ! is_array( $decoded ) ) {
-			return self::defaults();
-		}
-
-		// Merge with hard-coded defaults to ensure structure is complete.
-		return array_replace_recursive( self::defaults(), $decoded );
-	}
-
-	/**
 	 * Default settings structure.
 	 *
 	 * @return array<string, mixed>
@@ -193,25 +171,19 @@ class Competition_Settings {
 	private static function merge_with_defaults( array $settings ): array {
 		$defaults = self::defaults();
 
-		// Grades belong to the club and are read through club_grades(), so
-		// they're never filled in. A competition's settings written back
-		// after parsing would otherwise gain the built-in list.
-		unset( $defaults['grades'] );
+		// Grades and categories are read through club_grades() and
+		// get_categories(), which fall back to the club's lists, so the
+		// built-in lists aren't filled in. A stored list is kept whole.
+		unset( $defaults['grades'], $defaults['categories'] );
 
-		// For arrays like categories and grades, replace entirely rather than merge.
-		foreach ( array( 'categories', 'grades' ) as $key ) {
-			if ( isset( $settings[ $key ] ) ) {
-				$defaults[ $key ] = $settings[ $key ];
-				unset( $settings[ $key ] );
-			}
-		}
-
-		// For other nested arrays, merge recursively.
 		return array_replace_recursive( $defaults, $settings );
 	}
 
 	/**
 	 * Validate settings array.
+	 *
+	 * Expects settings built from a form, which always carry a `categories`
+	 * key. Parsed settings may not have one; read those with get_categories().
 	 *
 	 * @param array<string, mixed> $settings      Settings to validate.
 	 * @param bool                 $club_settings True for the club's settings, which need at
@@ -386,19 +358,25 @@ class Competition_Settings {
 	/**
 	 * Get categories from settings.
 	 *
+	 * A competition with no categories of its own uses the club's.
+	 *
 	 * @param array<string, mixed> $settings Parsed settings.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_categories( array $settings ): array {
-		$categories = $settings['categories'] ?? array();
+		return ! empty( $settings['categories'] ) ? $settings['categories'] : self::club_categories();
+	}
 
-		// If empty, fall back to global defaults.
-		if ( empty( $categories ) ) {
-			$global_settings = self::get_global_defaults();
-			$categories      = $global_settings['categories'] ?? self::defaults()['categories'];
-		}
+	/**
+	 * The club's category list, or the built-in one if the club has none saved.
+	 *
+	 * @since 0.4.0
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function club_categories(): array {
+		$categories = self::global_settings()['categories'] ?? array();
 
-		return $categories;
+		return ! empty( $categories ) ? $categories : self::defaults()['categories'];
 	}
 
 	/**

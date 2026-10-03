@@ -143,8 +143,12 @@ class Competitions_Controller {
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
-				// Grades belong to the club, so they aren't copied in.
-				'settings'   => array_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),
+				// Grades belong to the club, so they aren't copied in. The
+				// categories are, so later changes to the club's don't alter it.
+				'settings'   => array_merge(
+					array_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),
+					array( 'categories' => Competition_Settings::club_categories() )
+				),
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 

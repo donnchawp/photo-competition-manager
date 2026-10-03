@@ -185,6 +185,68 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A new competition keeps a copy of the club's categories, even a
+	 * single one, the shape that used to gain "Black & White".
+	 */
+	public function test_create_competition_copies_the_clubs_categories(): void {
+		$open = array(
+			'slug'  => 'open',
+			'label' => 'Open',
+			'quota' => 2,
+		);
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => array( $open ) ) ) );
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'Open Show',
+				'competition_slug'         => 'open-show',
+				'competition_open_date'    => '',
+				'competition_close_date'   => '',
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$competition = $this->competitions->find_by_slug( 'open-show' );
+		$this->assertSame( array( $open ), $this->stored_settings( (int) $competition->id )['categories'] ?? null );
+	}
+
+	/**
+	 * A new competition keeps a copy of the built-in categories when the club
+	 * has never saved its own, so later club changes don't alter it.
+	 */
+	public function test_create_competition_copies_the_built_in_categories_when_the_club_has_none(): void {
+		delete_option( 'photo_comp_default_settings' );
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'First Show',
+				'competition_slug'         => 'first-show',
+				'competition_open_date'    => '',
+				'competition_close_date'   => '',
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$competition = $this->competitions->find_by_slug( 'first-show' );
+		$this->assertSame(
+			array( 'colour', 'black-white' ),
+			wp_list_pluck( $this->stored_settings( (int) $competition->id )['categories'] ?? array(), 'slug' )
+		);
+	}
+
+	/**
 	 * A duplicate slug surfaces the repository error code.
 	 */
 	public function test_create_competition_duplicate_slug_error(): void {
