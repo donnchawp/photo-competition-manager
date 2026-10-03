@@ -917,6 +917,7 @@ class Competitions_Controller {
 			array(
 				'index' => $index,
 				'label' => $grade['label'],
+				'slug'  => $grade['slug'],
 			)
 		);
 	}

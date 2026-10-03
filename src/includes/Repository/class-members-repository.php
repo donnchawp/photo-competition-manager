@@ -313,6 +313,26 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Fetch the members holding a grade, active or inactive.
+	 *
+	 * @since 0.4.0
+	 * @param string $grade Grade slug.
+	 * @return array<int, object>
+	 */
+	public function find_by_grade( string $grade ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE grade = %s ORDER BY name ASC',
+				$this->table(),
+				$grade
+			)
+		);
+	}
+
+	/**
 	 * Fetch all active members (unbounded).
 	 *
 	 * @return array<int, object>

@@ -135,9 +135,13 @@ class Settings_Controller {
 				continue;
 			}
 
+			// An existing grade posts its slug, which stays put when the
+			// label is renamed. A grade added in the browser has none yet.
+			$slug = sanitize_title( $grade['slug'] ?? '' );
+
 			$sanitized_grades[] = array(
 				'label' => sanitize_text_field( $grade['label'] ),
-				'slug'  => sanitize_title( $grade['label'] ),
+				'slug'  => '' !== $slug ? $slug : sanitize_title( $grade['label'] ),
 			);
 		}
 
@@ -229,6 +233,10 @@ class Settings_Controller {
 		);
 		$validation = Competition_Settings::validate( $settings );
 
+		if ( true === $validation ) {
+			$validation = $this->check_removed_grades_unheld( Competition_Settings::get_grades( $existing_settings ), $sanitized_grades );
+		}
+
 		if ( is_wp_error( $validation ) ) {
 			add_settings_error(
 				'photo_competition_settings',
@@ -237,17 +245,11 @@ class Settings_Controller {
 				'error'
 			);
 		} else {
-			// Get old grades before saving for mapping purposes.
-			$old_grades = Competition_Settings::get_grades( $existing_settings );
-
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 
 			// Sync grades to all existing competitions.
 			$this->sync_grades_to_competitions( $sanitized_grades );
-
-			// Sync grades to all members.
-			$this->sync_grades_to_members( $old_grades, $sanitized_grades );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -396,6 +398,7 @@ class Settings_Controller {
 			array(
 				'index' => $index,
 				'label' => $grade['label'],
+				'slug'  => $grade['slug'],
 			)
 		);
 	}
@@ -546,52 +549,48 @@ class Settings_Controller {
 	}
 
 	/**
-	 * Sync member grades when global grades change.
+	 * Refuse to remove a grade that any member, active or inactive, holds.
 	 *
-	 * Maps old grade slugs to new grade slugs based on position/order.
-	 * If a member's grade no longer exists, it's updated to the first available grade.
-	 *
-	 * @param  array<int, array{label: string, slug: string}> $old_grades Old grades array.
-	 * @param  array<int, array{label: string, slug: string}> $new_grades New grades array.
-	 * @return void
+	 * @since 0.4.0
+	 * @param  array<int, array{label: string, slug: string}> $old_grades Grades before the save.
+	 * @param  array<int, array{label: string, slug: string}> $new_grades Grades being saved.
+	 * @return true|\WP_Error
 	 */
-	private function sync_grades_to_members( array $old_grades, array $new_grades ): void {
+	private function check_removed_grades_unheld( array $old_grades, array $new_grades ) {
 		if ( ! $this->members_repository ) {
-			return;
+			return true;
 		}
 
-		// Build a mapping from old grade slugs to new grade slugs based on position.
-		$grade_mapping = array();
-		foreach ( $old_grades as $index => $old_grade ) {
-			$old_slug = $old_grade['slug'] ?? '';
-			// Map to new grade at same position, or first grade if position doesn't exist.
-			$new_slug = isset( $new_grades[ $index ]['slug'] ) ? $new_grades[ $index ]['slug'] : ( $new_grades[0]['slug'] ?? '' );
-			if ( $old_slug && $new_slug ) {
-				$grade_mapping[ $old_slug ] = $new_slug;
+		$kept_slugs = wp_list_pluck( $new_grades, 'slug' );
+		$held       = array();
+
+		foreach ( $old_grades as $grade ) {
+			if ( in_array( $grade['slug'], $kept_slugs, true ) ) {
+				continue;
 			}
-		}
 
-		// If no mapping exists (e.g., no old grades), default to first new grade.
-		$default_grade = $new_grades[0]['slug'] ?? '';
-
-		// Get all members (including inactive).
-		$members = $this->members_repository->all( 10000, false );
-
-		foreach ( $members as $member ) {
-			$current_grade = $member->grade ?? '';
-
-			// Determine new grade based on mapping or default.
-			$new_grade = $grade_mapping[ $current_grade ] ?? $default_grade;
-
-			// Only update if grade has changed.
-			if ( $new_grade && $new_grade !== $current_grade ) {
-				$this->members_repository->update(
-					$member->id,
-					array(
-						'grade' => $new_grade,
-					)
+			$members = $this->members_repository->find_by_grade( $grade['slug'] );
+			if ( $members ) {
+				$held[] = sprintf(
+					/* translators: 1: grade label, 2: comma-separated member names */
+					__( '%1$s (held by %2$s)', 'photo-competition-manager' ),
+					$grade['label'],
+					implode( ', ', wp_list_pluck( $members, 'name' ) )
 				);
 			}
 		}
+
+		if ( ! $held ) {
+			return true;
+		}
+
+		return new \WP_Error(
+			'grade_in_use',
+			sprintf(
+				/* translators: %s: semicolon-separated grades and the members holding them */
+				__( 'Settings not saved. These grades can\'t be removed while members hold them: %s. Change those members\' grades first.', 'photo-competition-manager' ),
+				implode( '; ', $held )
+			)
+		);
 	}
 }

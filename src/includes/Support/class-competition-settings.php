@@ -264,6 +264,9 @@ class Competition_Settings {
 			return new WP_Error( 'missing_grades', __( 'At least one grade is required.', 'photo-competition-manager' ) );
 		}
 
+		$seen_labels = array();
+		$seen_slugs  = array();
+
 		foreach ( $settings['grades'] as $index => $grade ) {
 			if ( ! is_array( $grade ) ) {
 				return new WP_Error(
@@ -286,6 +289,21 @@ class Competition_Settings {
 					)
 				);
 			}
+
+			$label_key = strtolower( $grade['label'] );
+			if ( isset( $seen_labels[ $label_key ] ) || isset( $seen_slugs[ $grade['slug'] ] ) ) {
+				return new WP_Error(
+					'duplicate_grade',
+					sprintf(
+						/* translators: %s: grade label */
+						__( 'The grade "%s" clashes with another grade. Each grade needs its own name.', 'photo-competition-manager' ),
+						$grade['label']
+					)
+				);
+			}
+
+			$seen_labels[ $label_key ]    = true;
+			$seen_slugs[ $grade['slug'] ] = true;
 		}
 
 		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
