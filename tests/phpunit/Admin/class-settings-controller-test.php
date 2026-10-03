@@ -41,7 +41,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		parent::set_up();
 
 		$this->members    = new Members_Repository();
-		$this->controller = new Settings_Controller( new Competitions_Repository(), $this->members );
+		$this->controller = new Settings_Controller( $this->members );
 	}
 
 	/**
@@ -91,7 +91,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	 * @return array<int, array{label: string, slug: string}>
 	 */
 	private function saved_grades(): array {
-		return Competition_Settings::get_grades( Competition_Settings::global_settings() );
+		return Competition_Settings::club_grades();
 	}
 
 	/**
@@ -266,6 +266,35 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->save_grades( $this->default_grade_rows() );
 
 		$this->assertSame( '', $this->grade_of( $member ) );
+	}
+
+	/**
+	 * Saving the club settings leaves every competition's stored settings
+	 * alone.
+	 */
+	public function test_saving_club_settings_leaves_competitions_alone(): void {
+		$competitions = new Competitions_Repository();
+		$id           = $competitions->create(
+			array(
+				'title'    => 'Old Comp',
+				'slug'     => 'old-comp',
+				'settings' => array(
+					'grades' => array(
+						array(
+							'label' => 'Old',
+							'slug'  => 'old',
+						),
+					),
+				),
+			)
+		);
+		$before = $competitions->find( $id, true )->settings;
+
+		$rows             = $this->default_grade_rows();
+		$rows[0]['label'] = 'Starter';
+		$this->save_grades( $rows );
+
+		$this->assertSame( $before, $competitions->find( $id, true )->settings );
 	}
 
 	/**

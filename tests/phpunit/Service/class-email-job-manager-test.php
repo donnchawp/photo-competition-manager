@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
 
@@ -234,6 +235,27 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '1 of 1 (Advanced)', $this->bodies['advanced@example.com'] );
 		// Ranked against every entry, with no grade label after the rank.
 		$this->assertMatchesRegularExpression( '#>\s*2 of 4\s*</td>#', $this->bodies['ungraded@example.com'] );
+	}
+
+	public function test_results_email_uses_club_grade_labels(): void {
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'beginner',
+							'label' => 'Club Starters',
+						),
+					),
+				)
+			)
+		);
+		$this->vote_for( $this->seed_entrant( 'starter@example.com' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 1 (Club Starters)', $this->bodies['starter@example.com'] );
 	}
 
 	public function test_results_email_tied_entries_share_a_position(): void {

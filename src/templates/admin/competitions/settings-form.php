@@ -4,8 +4,7 @@
  *
  * Reads $data['competition_id'] (int), $data['category_rows_html'] (string):
  * pre-rendered category row markup, one row per configured category.
- * $data['grade_rows_html'] (string): pre-rendered grade row markup, one row
- * per configured grade. $data['upload'] (array{max_file_size_mb: int,
+ * $data['upload'] (array{max_file_size_mb: int,
  * max_width: int, max_height: int}): upload constraints. $data['auth_mode']
  * (string): 'password' or 'token'. $data['password_value'] (string):
  * plaintext password to prefill, or '' when unset/legacy-hashed.
@@ -37,17 +36,6 @@ echo '</div>';
 
 echo '<p>';
 echo '<button type="button" id="add-category" class="button">' . esc_html__( 'Add Category', 'photo-competition-manager' ) . '</button>';
-echo '</p>';
-
-echo '<h3>' . esc_html__( 'Grades', 'photo-competition-manager' ) . '</h3>';
-echo '<p class="description">' . esc_html__( 'Define member grade levels for results grouping.', 'photo-competition-manager' ) . '</p>';
-
-echo '<div id="grades-container">';
-echo $data['grade_rows_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-echo '</div>';
-
-echo '<p>';
-echo '<button type="button" id="add-grade" class="button">' . esc_html__( 'Add Grade', 'photo-competition-manager' ) . '</button>';
 echo '</p>';
 
 echo '<h3>' . esc_html__( 'Upload Constraints', 'photo-competition-manager' ) . '</h3>';

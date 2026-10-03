@@ -28,7 +28,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 
 | Feature | Description |
 |----------|-------------|
-| **Competition Management** | Create and manage competitions (e.g., “October 2024”). Define open/close dates, categories, and grade groupings. |
+| **Competition Management** | Create and manage competitions (e.g., “October 2024”). Define open/close dates and categories. Grades are set once for the club, in Settings, and every competition uses them. |
 | **Member Management** | Maintain a separate list of members (not WordPress users). Admins can add/edit members and upload on their behalf. |
 | **Image Upload** | Members can upload a set number of images in defined categories (e.g. Colour, Black & White). Images validated, resized, renamed automatically. |
 | **Voting System** | Voting opens manually or at a defined time. Members can vote via a mobile-friendly page or QR code link. |

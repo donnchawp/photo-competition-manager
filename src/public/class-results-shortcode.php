@@ -156,7 +156,7 @@ class Results_Shortcode {
 	 */
 	private function render_results( object $competition, bool $hide_names = false, bool $valid_share = false ): void {
 		$settings   = Competition_Settings::parse( $competition->settings );
-		$grades     = Competition_Settings::get_grades( $settings );
+		$grades     = Competition_Settings::club_grades();
 		$categories = Competition_Settings::get_categories( $settings );
 
 		$results_visible = $settings['results']['results_visible'] ?? false;

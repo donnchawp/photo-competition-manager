@@ -17,7 +17,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 **Core Features**
 
 * **Member Management** – Maintain active rosters, assign grades, track member status, and bulk import/update via CSV
-* **Competition Setup** – Create competitions with custom categories, grade divisions, submission quotas, and scoring matrices
+* **Competition Setup** – Create competitions with custom categories, submission quotas, and scoring matrices, with results grouped by the club's grades
 * **Secure Submissions** – Members upload via magic-link authentication with automatic file validation, resizing, and quota enforcement
 * **Flexible Voting** – Token-based member voting, password-protected public voting, and full-screen slideshow mode for in-person club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
@@ -113,7 +113,9 @@ Emails going to many members (upload links, voting opened, results, and results 
 
 = Can I customize categories and grades per competition? =
 
-Absolutely. Set default categories, grades, quotas, and scoring matrices in **Competitions → Settings**. Each competition can override these defaults via its Settings tab without affecting future competitions.
+Categories, yes. Set default categories, quotas, and scoring matrices in **Competitions → Settings**, and each competition can override them on its Settings tab without affecting future competitions.
+
+Grades are set once for the club in **Competitions → Settings**, and every competition uses them. Renaming a grade renames it in every competition's results, past ones included.
 
 = What if someone loses their magic link or voting token? =
 

@@ -193,6 +193,11 @@ class Competition_Settings {
 	private static function merge_with_defaults( array $settings ): array {
 		$defaults = self::defaults();
 
+		// Grades belong to the club and are read through club_grades(), so
+		// they're never filled in. A competition's settings written back
+		// after parsing would otherwise gain the built-in list.
+		unset( $defaults['grades'] );
+
 		// For arrays like categories and grades, replace entirely rather than merge.
 		foreach ( array( 'categories', 'grades' ) as $key ) {
 			if ( isset( $settings[ $key ] ) ) {
@@ -208,16 +213,18 @@ class Competition_Settings {
 	/**
 	 * Validate settings array.
 	 *
-	 * @param array<string, mixed> $settings Settings to validate.
-	 * @param bool                 $require_categories_grades Whether to require at least one category/grade.
+	 * @param array<string, mixed> $settings      Settings to validate.
+	 * @param bool                 $club_settings True for the club's settings, which need at
+	 *                                            least one category and a valid grade list;
+	 *                                            false for a competition's.
 	 * @return true|WP_Error
 	 */
-	public static function validate( array $settings, bool $require_categories_grades = true ) {
+	public static function validate( array $settings, bool $club_settings = true ) {
 		if ( ! isset( $settings['categories'] ) || ! is_array( $settings['categories'] ) ) {
 			return new WP_Error( 'invalid_categories', __( 'Categories must be an array.', 'photo-competition-manager' ) );
 		}
 
-		if ( $require_categories_grades && empty( $settings['categories'] ) ) {
+		if ( $club_settings && empty( $settings['categories'] ) ) {
 			return new WP_Error( 'missing_categories', __( 'At least one category is required.', 'photo-competition-manager' ) );
 		}
 
@@ -256,11 +263,67 @@ class Competition_Settings {
 			}
 		}
 
+		// Grades belong to the club, so only the club's settings carry them.
+		if ( $club_settings ) {
+			$grades_valid = self::validate_grades( $settings );
+			if ( true !== $grades_valid ) {
+				return $grades_valid;
+			}
+		}
+
+		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
+			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < 1 ) {
+				return new WP_Error( 'invalid_file_size', __( 'Max file size must be at least 1 MB.', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( isset( $settings['voting']['score_matrix'] ) ) {
+			if ( ! is_array( $settings['voting']['score_matrix'] ) || empty( $settings['voting']['score_matrix'] ) ) {
+				return new WP_Error( 'invalid_score_matrix', __( 'Score matrix must be a non-empty array.', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( isset( $settings['voting']['password'] ) && ! is_string( $settings['voting']['password'] ) ) {
+			return new WP_Error( 'invalid_voting_password', __( 'Voting password must be a string.', 'photo-competition-manager' ) );
+		}
+
+		if ( isset( $settings['voting']['auth_mode'] ) ) {
+			$valid_modes = array( 'password', 'token' );
+			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
+				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( isset( $settings['voting']['ui_type'] ) ) {
+			$valid_ui_types = array( 'default', 'buttons', 'dropdown' );
+			if ( ! in_array( $settings['voting']['ui_type'], $valid_ui_types, true ) ) {
+				return new WP_Error( 'invalid_voting_ui_type', __( 'Voting UI type must be "default", "buttons", or "dropdown".', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
+			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
+			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
+				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Validate the club's grade list.
+	 *
+	 * @since 0.4.0
+	 * @param array<string, mixed> $settings Club settings to validate.
+	 * @return true|WP_Error
+	 */
+	private static function validate_grades( array $settings ) {
 		if ( ! isset( $settings['grades'] ) || ! is_array( $settings['grades'] ) ) {
 			return new WP_Error( 'invalid_grades', __( 'Grades must be an array.', 'photo-competition-manager' ) );
 		}
 
-		if ( $require_categories_grades && empty( $settings['grades'] ) ) {
+		if ( empty( $settings['grades'] ) ) {
 			return new WP_Error( 'missing_grades', __( 'At least one grade is required.', 'photo-competition-manager' ) );
 		}
 
@@ -305,43 +368,6 @@ class Competition_Settings {
 
 			$seen_labels[ $label_key ]    = true;
 			$seen_slugs[ $grade['slug'] ] = true;
-		}
-
-		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
-			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < 1 ) {
-				return new WP_Error( 'invalid_file_size', __( 'Max file size must be at least 1 MB.', 'photo-competition-manager' ) );
-			}
-		}
-
-		if ( isset( $settings['voting']['score_matrix'] ) ) {
-			if ( ! is_array( $settings['voting']['score_matrix'] ) || empty( $settings['voting']['score_matrix'] ) ) {
-				return new WP_Error( 'invalid_score_matrix', __( 'Score matrix must be a non-empty array.', 'photo-competition-manager' ) );
-			}
-		}
-
-		if ( isset( $settings['voting']['password'] ) && ! is_string( $settings['voting']['password'] ) ) {
-			return new WP_Error( 'invalid_voting_password', __( 'Voting password must be a string.', 'photo-competition-manager' ) );
-		}
-
-		if ( isset( $settings['voting']['auth_mode'] ) ) {
-			$valid_modes = array( 'password', 'token' );
-			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
-				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'photo-competition-manager' ) );
-			}
-		}
-
-		if ( isset( $settings['voting']['ui_type'] ) ) {
-			$valid_ui_types = array( 'default', 'buttons', 'dropdown' );
-			if ( ! in_array( $settings['voting']['ui_type'], $valid_ui_types, true ) ) {
-				return new WP_Error( 'invalid_voting_ui_type', __( 'Voting UI type must be "default", "buttons", or "dropdown".', 'photo-competition-manager' ) );
-			}
-		}
-
-		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
-			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
-			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
-				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
-			}
 		}
 
 		return true;
@@ -399,7 +425,7 @@ class Competition_Settings {
 	 * @return array<int, array{label: string, slug: string}>
 	 */
 	public static function club_grades(): array {
-		return self::get_grades( self::global_settings() );
+		return self::global_settings()['grades'] ?? self::defaults()['grades'];
 	}
 
 	/**
@@ -491,24 +517,6 @@ class Competition_Settings {
 
 			$grades[ $index ]['slug'] = $slug;
 			$taken[]                  = $slug;
-		}
-
-		return $grades;
-	}
-
-	/**
-	 * Get grades from settings.
-	 *
-	 * @param array<string, mixed> $settings Parsed settings.
-	 * @return array<int, array<string, mixed>>
-	 */
-	public static function get_grades( array $settings ): array {
-		$grades = $settings['grades'] ?? array();
-
-		// If empty, fall back to global defaults.
-		if ( empty( $grades ) ) {
-			$global_settings = self::get_global_defaults();
-			$grades          = $global_settings['grades'] ?? self::defaults()['grades'];
 		}
 
 		return $grades;

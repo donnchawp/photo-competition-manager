@@ -653,6 +653,44 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Export uses the club's grade labels, not a list the competition has
+	 * stored from before.
+	 */
+	public function test_export_rows_use_club_grades_not_stored_competition_grades(): void {
+		$this->competition_id = $this->create_competition(
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'open',
+							'label' => 'Open',
+						),
+					),
+					'grades'     => array(
+						array(
+							'slug'  => 'beginner',
+							'label' => 'Stale Label',
+						),
+					),
+				),
+			)
+		);
+
+		$this->seed_scored_entry( 'Starter', 'beginner', 'open', 10 );
+		$this->seed_scored_entry( 'Senior', 'advanced', 'open', 20 );
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Open|1|Starter',
+				'Advanced|Open|1|Senior',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+	}
+
+	/**
 	 * Tied scores share a rank, and entrants with an unconfigured grade are
 	 * exported under "Ungraded" rather than dropped.
 	 */

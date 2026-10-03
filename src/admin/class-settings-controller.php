@@ -11,7 +11,6 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
-use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -26,13 +25,6 @@ class Settings_Controller {
 	use Form_Rendering;
 
 	/**
-	 * Competitions repository.
-	 *
-	 * @var Competitions_Repository
-	 */
-	private $competitions_repository;
-
-	/**
 	 * Members repository.
 	 *
 	 * @var Members_Repository
@@ -42,12 +34,10 @@ class Settings_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository $competitions_repository Competitions repository.
-	 * @param Members_Repository      $members_repository      Members repository.
+	 * @param Members_Repository $members_repository Members repository.
 	 */
-	public function __construct( Competitions_Repository $competitions_repository, Members_Repository $members_repository ) {
-		$this->competitions_repository = $competitions_repository;
-		$this->members_repository      = $members_repository;
+	public function __construct( Members_Repository $members_repository ) {
+		$this->members_repository = $members_repository;
 	}
 
 	/**
@@ -222,7 +212,7 @@ class Settings_Controller {
 		$validation = Competition_Settings::validate( $settings );
 
 		if ( true === $validation ) {
-			$validation = $this->check_removed_grades_unheld( Competition_Settings::get_grades( $existing_settings ), $sanitized_grades );
+			$validation = $this->check_removed_grades_unheld( Competition_Settings::club_grades(), $sanitized_grades );
 		}
 
 		if ( is_wp_error( $validation ) ) {
@@ -235,9 +225,6 @@ class Settings_Controller {
 		} else {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
-
-			// Sync grades to all existing competitions.
-			$this->sync_grades_to_competitions( $sanitized_grades );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -271,7 +258,7 @@ class Settings_Controller {
 
 		$settings            = Competition_Settings::global_settings();
 		$categories          = Competition_Settings::get_categories( $settings );
-		$grades              = Competition_Settings::get_grades( $settings );
+		$grades              = Competition_Settings::club_grades();
 		$upload              = Competition_Settings::get_upload_constraints( $settings );
 		$voting              = Competition_Settings::get_voting_config( $settings );
 		$slideshow           = $settings['slideshow'] ?? array();
@@ -503,33 +490,6 @@ class Settings_Controller {
 	 */
 	private function save_global_settings( array $settings ): void {
 		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $settings ) );
-	}
-
-	/**
-	 * Sync grades from global settings to all existing competitions.
-	 *
-	 * @param  array<int, array{label: string, slug: string}> $new_grades New grades array.
-	 * @return void
-	 */
-	private function sync_grades_to_competitions( array $new_grades ): void {
-		// Get all competitions (including archived).
-		$competitions = $this->competitions_repository->all( 1000, true, false );
-
-		foreach ( $competitions as $competition ) {
-			// Parse existing settings.
-			$settings = Competition_Settings::parse( $competition->settings );
-
-			// Update grades.
-			$settings['grades'] = $new_grades;
-
-			// Save updated settings.
-			$this->competitions_repository->update(
-				$competition->id,
-				array(
-					'settings' => $settings,
-				)
-			);
-		}
 	}
 
 	/**
