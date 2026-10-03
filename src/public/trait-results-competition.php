@@ -44,7 +44,8 @@ trait Results_Competition {
 	 * @return object|WP_Error The competition, or an error to show instead.
 	 */
 	private function resolve_competition( string $slug, string $share_hash ) {
-		if ( '' !== $slug ) {
+		// empty() so competition="0" falls back too, as it always has.
+		if ( ! empty( $slug ) ) {
 			$competition = $this->competitions_repo->find_by_slug( $slug );
 
 			return $competition ? $competition : new WP_Error( 'competition_not_found', __( 'Competition not found.', 'photo-competition-manager' ) );

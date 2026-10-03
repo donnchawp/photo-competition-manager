@@ -172,4 +172,23 @@ class Results_Competition_Test extends WP_UnitTestCase {
 
 		$this->assertFalse( $this->page->results_viewable( $hidden, strtoupper( self::HASH ) ) );
 	}
+
+	public function test_hash_of_archived_competition_falls_back_with_results_hidden(): void {
+		$archived = $this->create_competition( 'archived', false, self::HASH );
+		$this->competitions->archive( (int) $archived->id );
+		$other = $this->create_competition( 'other', false );
+
+		$competition = $this->page->resolve_competition( '', self::HASH );
+
+		$this->assertSame( (int) $other->id, (int) $competition->id );
+		$this->assertFalse( $this->page->results_viewable( $competition, self::HASH ) );
+	}
+
+	public function test_zero_slug_falls_back_like_no_slug(): void {
+		$shown = $this->create_competition( 'shown', true );
+
+		$competition = $this->page->resolve_competition( '0', '' );
+
+		$this->assertSame( (int) $shown->id, (int) $competition->id );
+	}
 }

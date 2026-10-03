@@ -106,7 +106,7 @@ class Top3_Shortcode {
 		);
 
 		$share_hash  = $this->requested_share_hash();
-		$competition = $this->resolve_competition( $atts['competition'], $share_hash );
+		$competition = $this->resolve_competition( (string) $atts['competition'], $share_hash );
 
 		if ( is_wp_error( $competition ) ) {
 			return '<p class="error">' . esc_html( $competition->get_error_message() ) . '</p>';
