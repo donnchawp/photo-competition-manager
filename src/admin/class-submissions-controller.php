@@ -534,12 +534,13 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0;
 		if ( ! $competition_id || ! isset( $competition_lookup[ $competition_id ] ) ) {
-			// Try to find the current active competition first.
-			$active_competition = $this->competitions->find_current_active();
-			if ( $active_competition && isset( $competition_lookup[ (int) $active_competition->id ] ) ) {
-				$competition_id = (int) $active_competition->id;
+			// Default to the current competition, then the one that opened most
+			// recently, so next month's competition, created early, doesn't win.
+			$default = $this->competitions->find_current_or_latest_opened();
+			if ( $default && isset( $competition_lookup[ (int) $default->id ] ) ) {
+				$competition_id = (int) $default->id;
 			} else {
-				// Fall back to the first competition in the list if no active competition.
+				// Fall back to the first competition in the list if none has opened.
 				$first          = reset( $competitions );
 				$competition_id = $first ? (int) $first->id : 0;
 			}

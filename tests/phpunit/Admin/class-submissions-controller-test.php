@@ -19,6 +19,8 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * Characterization tests for the submissions controller.
  *
@@ -60,6 +62,13 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 * @var int
 	 */
 	private $competition_id;
+
+	/**
+	 * Competitions made by create_dated_competition(), used to order their created_at.
+	 *
+	 * @var int
+	 */
+	private $created_count = 0;
 
 	/**
 	 * Settings-error group used by this controller.
@@ -548,5 +557,77 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -------------------------------------------------------------------------
+	 * Default competition (no competition_id in the URL).
+	 * -------------------------------------------------------------------------
+	 */
+
+	/**
+	 * Between competitions nothing is current, and next month's competition
+	 * hasn't opened, so the screen opens on the last one to open.
+	 */
+	public function test_default_between_competitions_is_the_latest_opened(): void {
+		// The set_up() competition has no dates, so it would always be current.
+		$this->competitions->archive( $this->competition_id );
+		$this->create_dated_competition( 'Last Month', -10, -5 );
+		$this->create_dated_competition( 'Next Month', 20, 25 );
+
+		$this->assertSame( 'Last Month', $this->selected_competition_title() );
+	}
+
+	public function test_default_is_the_current_competition_not_the_newest(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->create_dated_competition( 'This Month', -3, 1 );
+		$this->create_dated_competition( 'Next Month', 25, 30 );
+
+		$this->assertSame( 'This Month', $this->selected_competition_title() );
+	}
+
+	/**
+	 * Create a competition open from $opens_in to $closes_in days from now.
+	 *
+	 * Each one is stamped as created after every competition before it,
+	 * including the set_up() one, so creation order follows call order.
+	 * Those created_at times are in the future, which is only safe because
+	 * every competition here has an open date: without one, it would count
+	 * as not yet opened.
+	 *
+	 * @param string $title     Title.
+	 * @param int    $opens_in  Days from now until it opens (negative: in the past).
+	 * @param int    $closes_in Days from now until it closes.
+	 * @return int Competition ID.
+	 */
+	private function create_dated_competition( string $title, int $opens_in, int $closes_in ): int {
+		global $wpdb;
+
+		$id = $this->create_competition(
+			$title,
+			sanitize_title( $title ),
+			array(
+				'open_date'  => utc_time( $opens_in * DAY_IN_SECONDS ),
+				'close_date' => utc_time( $closes_in * DAY_IN_SECONDS ),
+			)
+		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $this->competitions->table(), array( 'created_at' => utc_time( ++$this->created_count * MINUTE_IN_SECONDS ) ), array( 'id' => $id ) );
+
+		return $id;
+	}
+
+	/**
+	 * Render the Submissions screen and return the title selected in its competition filter.
+	 *
+	 * @return string|null
+	 */
+	private function selected_competition_title(): ?string {
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		return preg_match( "#<option value=\"\d+\"\s+selected='selected'>([^<]+)</option>#", $html, $match ) ? $match[1] : null;
 	}
 }

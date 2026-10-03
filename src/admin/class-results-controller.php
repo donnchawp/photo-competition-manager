@@ -362,7 +362,7 @@ class Results_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_email_job_notice( $this->email_job_manager );
 
-		// Get selected competition or default to most recent.
+		// Get selected competition.
 		$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		$competitions = $this->competitions->all( 100, false, false );
@@ -373,12 +373,11 @@ class Results_Controller {
 			return;
 		}
 
-		// Default to first competition if none selected.
-		if ( 0 === $competition_id ) {
-			$competition_id = (int) $competitions[0]->id;
-		}
-
-		$competition = $this->competitions->find( $competition_id );
+		// Default to the current competition, then the one that opened most
+		// recently, so next month's competition, created early, doesn't win.
+		$competition = 0 === $competition_id
+			? ( $this->competitions->find_current_or_latest_opened() ?? $competitions[0] )
+			: $this->competitions->find( $competition_id );
 		if ( ! $competition ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/results/notice-competition-not-found.php' );

@@ -207,6 +207,39 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Find the competition that opened most recently.
+	 *
+	 * Competitions that haven't opened yet are left out, so next month's
+	 * competition, created early, doesn't win before it opens. A competition
+	 * without an open date opened when it was created. Archived competitions
+	 * are ignored.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return object|null
+	 */
+	public function find_latest_opened() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL AND COALESCE(open_date, created_at) <= %s ORDER BY COALESCE(open_date, created_at) DESC, created_at DESC LIMIT 1', $this->table(), utc_time() ) );
+	}
+
+	/**
+	 * Find the competition an admin screen opens on by default.
+	 *
+	 * That's the current competition, or, between competitions, the one that
+	 * opened most recently.
+	 *
+	 * @since 0.3.0
+	 *
+	 * @return object|null
+	 */
+	public function find_current_or_latest_opened() {
+		return $this->find_current_active() ?? $this->find_latest_opened();
+	}
+
+	/**
 	 * Find a competition whose dates overlap the given range.
 	 *
 	 * Only one competition may be open at a time from now on, so only the

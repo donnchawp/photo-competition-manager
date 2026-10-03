@@ -1196,6 +1196,143 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	}
 
 	// ---------------------------------------------------------------
+	// find_latest_opened()
+	// ---------------------------------------------------------------
+
+	/**
+	 * Between competitions, next month's competition already exists but
+	 * hasn't opened, so last month's is the one that opened most recently.
+	 */
+	public function test_find_latest_opened_leaves_out_competitions_not_yet_open(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$last_month_id = $repository->create(
+			array(
+				'title'      => 'Last Month',
+				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( -25 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'Next Month',
+				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $last_month_id, (int) $repository->find_latest_opened()->id );
+	}
+
+	public function test_find_latest_opened_ignores_archived_competitions(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$july_id     = $repository->create(
+			array(
+				'title'      => 'July',
+				'open_date'  => '2020-07-01 00:00:00',
+				'close_date' => '2020-08-01 00:00:00',
+			)
+		);
+		$archived_id = $repository->create(
+			array(
+				'title'      => 'Archived',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+			)
+		);
+		$repository->archive( $archived_id );
+
+		$this->assertSame( $july_id, (int) $repository->find_latest_opened()->id );
+	}
+
+	/**
+	 * A competition saved without an open date opened when it was created.
+	 */
+	public function test_find_latest_opened_ranks_missing_open_date_by_creation(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'August',
+				'open_date'  => '2020-08-01 00:00:00',
+				'close_date' => '2020-09-01 00:00:00',
+			)
+		);
+		$undated_id = $repository->create(
+			array(
+				'title'      => 'September',
+				'close_date' => utc_time( -DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $undated_id, (int) $repository->find_latest_opened()->id );
+	}
+
+	public function test_find_latest_opened_returns_null_when_nothing_has_opened(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'title'      => 'Next Month',
+				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertNull( $repository->find_latest_opened() );
+	}
+
+	// ---------------------------------------------------------------
+	// find_current_or_latest_opened()
+	// ---------------------------------------------------------------
+
+	/**
+	 * The current competition wins, even over a closed one that opened later.
+	 */
+	public function test_find_current_or_latest_opened_prefers_the_current_competition(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$current_id = $repository->create(
+			array(
+				'title'      => 'Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 5 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'Short',
+				'open_date'  => utc_time( -3 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( -DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $current_id, (int) $repository->find_current_or_latest_opened()->id );
+	}
+
+	public function test_find_current_or_latest_opened_falls_back_to_the_latest_opened(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$last_month_id = $repository->create(
+			array(
+				'title'      => 'Last Month',
+				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( -25 * DAY_IN_SECONDS ),
+			)
+		);
+		$repository->create(
+			array(
+				'title'      => 'Next Month',
+				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertSame( $last_month_id, (int) $repository->find_current_or_latest_opened()->id );
+	}
+
+	// ---------------------------------------------------------------
 	// find_by_share_hash() / update_share_hash()
 	// ---------------------------------------------------------------
 
