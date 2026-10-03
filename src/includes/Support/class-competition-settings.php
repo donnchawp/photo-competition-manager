@@ -392,6 +392,36 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Sanitize grade rows posted from a settings form.
+	 *
+	 * An existing grade posts its slug, which stays put when the label is
+	 * renamed so its members stay in it. A grade added in the browser has no
+	 * slug yet, and gets one made from its label.
+	 *
+	 * @since 0.4.0
+	 * @param array<int, mixed> $rows Posted grade rows.
+	 * @return array<int, array{label: string, slug: string}>
+	 */
+	public static function sanitize_grades( array $rows ): array {
+		$grades = array();
+
+		foreach ( $rows as $row ) {
+			if ( ! isset( $row['label'] ) ) {
+				continue;
+			}
+
+			$slug = sanitize_title( $row['slug'] ?? '' );
+
+			$grades[] = array(
+				'label' => sanitize_text_field( $row['label'] ),
+				'slug'  => '' !== $slug ? $slug : sanitize_title( $row['label'] ),
+			);
+		}
+
+		return $grades;
+	}
+
+	/**
 	 * Get grades from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.

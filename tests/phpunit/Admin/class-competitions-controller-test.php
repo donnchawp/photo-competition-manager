@@ -1086,6 +1086,52 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Renaming a grade keeps the slug its row posts.
+	 */
+	public function test_update_competition_settings_keeps_renamed_grade_slug(): void {
+		$id = $this->create_competition( 'Rename Grade', 'rename-grade' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'grades'                   => array(
+					array(
+						'label' => 'Senior',
+						'slug'  => 'advanced',
+					),
+					array( 'label' => 'Salon Level' ),
+				),
+				'score_matrix'             => '9, 8, 7, 6, 5',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$this->assertSame(
+			array(
+				array(
+					'label' => 'Senior',
+					'slug'  => 'advanced',
+				),
+				array(
+					'label' => 'Salon Level',
+					'slug'  => 'salon-level',
+				),
+			),
+			$this->settings( $id )['grades']
+		);
+	}
+
+	/**
 	 * Invalid settings (quota below 1) surface a validation error and redirect back.
 	 */
 	public function test_update_competition_settings_validation_error(): void {

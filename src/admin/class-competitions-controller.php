@@ -517,17 +517,7 @@ class Competitions_Controller {
 				);
 			}
 
-			$sanitized_grades = array();
-			foreach ( $grades as $grade ) {
-				if ( ! isset( $grade['label'] ) ) {
-					continue;
-				}
-
-				$sanitized_grades[] = array(
-					'label' => sanitize_text_field( $grade['label'] ),
-					'slug'  => sanitize_title( $grade['label'] ),
-				);
-			}
+			$sanitized_grades = Competition_Settings::sanitize_grades( $grades );
 
 			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 			$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );

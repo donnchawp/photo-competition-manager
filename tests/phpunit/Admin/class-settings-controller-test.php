@@ -155,13 +155,10 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertSame(
 			array(
-				'slug'  => 'advanced',
 				'label' => 'Senior',
+				'slug'  => 'advanced',
 			),
-			array(
-				'slug'  => $this->saved_grades()[2]['slug'],
-				'label' => $this->saved_grades()[2]['label'],
-			)
+			$this->saved_grades()[2]
 		);
 		$this->assertSame( 'advanced', $this->grade_of( $member ) );
 	}

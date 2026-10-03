@@ -129,21 +129,7 @@ class Settings_Controller {
 			);
 		}
 
-		$sanitized_grades = array();
-		foreach ( $grades as $grade ) {
-			if ( ! isset( $grade['label'] ) ) {
-				continue;
-			}
-
-			// An existing grade posts its slug, which stays put when the
-			// label is renamed. A grade added in the browser has none yet.
-			$slug = sanitize_title( $grade['slug'] ?? '' );
-
-			$sanitized_grades[] = array(
-				'label' => sanitize_text_field( $grade['label'] ),
-				'slug'  => '' !== $slug ? $slug : sanitize_title( $grade['label'] ),
-			);
-		}
+		$sanitized_grades = Competition_Settings::sanitize_grades( $grades );
 
 		$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 		$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );
@@ -557,10 +543,6 @@ class Settings_Controller {
 	 * @return true|\WP_Error
 	 */
 	private function check_removed_grades_unheld( array $old_grades, array $new_grades ) {
-		if ( ! $this->members_repository ) {
-			return true;
-		}
-
 		$kept_slugs = wp_list_pluck( $new_grades, 'slug' );
 		$held       = array();
 
