@@ -5,6 +5,9 @@
 	<!-- Check all PHP files in src directory -->
 	<file>./src</file>
 
+	<!-- Matches "Requires at least" in the plugin header and readme.txt. -->
+	<config name="minimum_supported_wp_version" value="6.5"/>
+
 	<!-- Exclude build directory (auto-generated files) -->
 	<exclude-pattern>*/assets/build/*</exclude-pattern>
 

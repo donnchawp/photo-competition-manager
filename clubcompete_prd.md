@@ -142,7 +142,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 |-----------|--------------|
 | **Performance** | Must handle 100+ members and 500+ images without timeout. |
 | **Security** | Validate uploads; prevent malicious file types; optional token-based voting links. |
-| **Compatibility** | WordPress 6.0+, PHP 8.0+, MySQL 5.7+. |
+| **Compatibility** | WordPress 6.5+, PHP 7.4+, MySQL 5.7+. |
 | **Responsiveness** | Upload and voting pages optimized for mobile. |
 | **Accessibility** | Compliant with WCAG 2.1 AA where feasible. |
 | **Localization** | Strings translatable via `.pot` file. |
