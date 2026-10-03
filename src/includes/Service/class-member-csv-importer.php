@@ -111,7 +111,7 @@ class Member_CSV_Importer {
 			$col_active    = array_search( 'active', $header, true );
 			$col_committee = array_search( 'committee', $header, true );
 
-			$row_number = 1; // Start at 1 (header is row 0).
+			$row_number = 1; // The header is row 1, as in a spreadsheet.
 		} else {
 			// First row is data - assume format: name,email or name,email,grade,active,committee.
 			// Rewind to process first row as data.
@@ -254,15 +254,26 @@ class Member_CSV_Importer {
 	}
 
 	/**
-	 * Generate a sample CSV file for download.
+	 * Generate a sample CSV file for download, using the club's grades.
 	 *
 	 * @return string CSV content.
 	 */
 	public function generate_sample_csv(): string {
-		$csv  = "name,email,grade,active,committee\n";
-		$csv .= '"John Doe",john.doe@example.com,Beginner,1,0' . "\n";
-		$csv .= '"Jane Smith",jane.smith@example.com,Advanced,1,1' . "\n";
-		$csv .= '"Bob Johnson",bob.johnson@example.com,Intermediate,0,0' . "\n";
+		$labels = wp_list_pluck( Competition_Settings::club_grades(), 'label' );
+		$rows   = array(
+			array( 'John Doe', 'john.doe@example.com', '1', '0' ),
+			array( 'Jane Smith', 'jane.smith@example.com', '1', '1' ),
+			array( 'Bob Johnson', 'bob.johnson@example.com', '0', '0' ),
+		);
+
+		$csv = "name,email,grade,active,committee\n";
+		foreach ( $rows as $index => $row ) {
+			list( $name, $email, $active, $committee ) = $row;
+
+			// Quote the label, doubling any quotes inside it.
+			$grade = str_replace( '"', '""', $labels[ $index % count( $labels ) ] );
+			$csv  .= sprintf( '"%s",%s,"%s",%s,%s', $name, $email, $grade, $active, $committee ) . "\n";
+		}
 
 		return $csv;
 	}

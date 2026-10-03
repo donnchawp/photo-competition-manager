@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Member_CSV_Importer;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
 class Member_CSV_Importer_Test extends WP_UnitTestCase {
@@ -300,7 +301,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 3, $result['imported'] );
 		$this->assertSame( 0, $result['skipped'] );
-		$this->assertSame( 'intermediate', $this->members_repo->find_by_email( 'bob.johnson@example.com' )->grade );
+		$this->assertSame( 'intermediate', $this->members_repo->find_by_email( 'jane.smith@example.com' )->grade );
 	}
 
 	public function test_import_skips_new_member_without_grade(): void {
@@ -370,5 +371,74 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$alice = $this->members_repo->find( $id );
 		$this->assertSame( 'Alice', $alice->name );
 		$this->assertSame( 'intermediate', $alice->grade );
+	}
+
+	/**
+	 * Save the club's grades.
+	 *
+	 * @param array<int, array{label: string, slug: string}> $grades Grades.
+	 */
+	private function save_club_grades( array $grades ): void {
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'grades' => $grades ) ) );
+	}
+
+	public function test_import_matches_label_before_another_grades_slug(): void {
+		// "Advanced" was renamed "Senior" and kept its slug, then a new
+		// "Advanced" was added.
+		$this->save_club_grades(
+			array(
+				array(
+					'label' => 'Senior',
+					'slug'  => 'advanced',
+				),
+				array(
+					'label' => 'Advanced',
+					'slug'  => 'advanced-2',
+				),
+			)
+		);
+
+		$result = $this->importer->import( $this->make_file( "name,email,grade\nA,a@example.com,Advanced\nB,b@example.com,senior\n" ) );
+
+		$this->assertSame( 2, $result['imported'] );
+		$this->assertSame( 'advanced-2', $this->members_repo->find_by_email( 'a@example.com' )->grade );
+		$this->assertSame( 'advanced', $this->members_repo->find_by_email( 'b@example.com' )->grade );
+	}
+
+	public function test_import_matches_label_ignoring_accents_and_case(): void {
+		$this->save_club_grades(
+			array(
+				array(
+					'label' => 'Ógánach',
+					'slug'  => 'oganach',
+				),
+			)
+		);
+
+		$result = $this->importer->import( $this->make_file( "name,email,grade\nA,a@example.com,ÓGÁNACH\n" ) );
+
+		$this->assertSame( 1, $result['imported'] );
+		$this->assertSame( 'oganach', $this->members_repo->find_by_email( 'a@example.com' )->grade );
+	}
+
+	public function test_sample_csv_uses_the_clubs_grades(): void {
+		$this->save_club_grades(
+			array(
+				array(
+					'label' => 'Novice',
+					'slug'  => 'novice',
+				),
+				array(
+					'label' => 'Senior',
+					'slug'  => 'senior',
+				),
+			)
+		);
+
+		$result = $this->importer->import( $this->make_file( $this->importer->generate_sample_csv() ) );
+
+		$this->assertSame( 3, $result['imported'] );
+		$this->assertSame( 0, $result['skipped'] );
+		$this->assertSame( 'senior', $this->members_repo->find_by_email( 'jane.smith@example.com' )->grade );
 	}
 }

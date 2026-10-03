@@ -203,6 +203,16 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A grade label stored instead of its slug, as the old sample CSV did,
+	 * blocks voting.
+	 */
+	public function test_render_blocks_entrant_with_grade_label_stored(): void {
+		$html = $this->render_with_entrant_grade( 'Beginner' );
+
+		$this->assertStringContainsString( '&quot;Beginner&quot; isn&#039;t one of the club&#039;s grades', $html );
+	}
+
+	/**
 	 * An entrant with no grade blocks voting, and the notice says so.
 	 */
 	public function test_render_blocks_entrant_with_no_grade(): void {

@@ -414,17 +414,31 @@ class Competition_Settings {
 	}
 
 	/**
-	 * Find the club grade a label or slug names, ignoring case.
+	 * Find the club grade a label or slug names, ignoring case and accents.
+	 *
+	 * Labels are checked before slugs. A renamed grade keeps its old slug, so
+	 * a new grade given the old name must still win on its label.
 	 *
 	 * @since 0.4.0
 	 * @param string $label_or_slug Grade label or slug, as typed into a CSV file.
 	 * @return string|null The grade's slug, or null if no club grade matches.
 	 */
 	public static function find_club_grade_slug( string $label_or_slug ): ?string {
-		$wanted = strtolower( trim( $label_or_slug ) );
+		$wanted = sanitize_title( $label_or_slug );
+		$grades = self::club_grades();
 
-		foreach ( self::club_grades() as $grade ) {
-			if ( strtolower( $grade['slug'] ) === $wanted || strtolower( $grade['label'] ) === $wanted ) {
+		if ( '' === $wanted ) {
+			return null;
+		}
+
+		foreach ( $grades as $grade ) {
+			if ( sanitize_title( $grade['label'] ) === $wanted ) {
+				return $grade['slug'];
+			}
+		}
+
+		foreach ( $grades as $grade ) {
+			if ( $grade['slug'] === $wanted ) {
 				return $grade['slug'];
 			}
 		}
