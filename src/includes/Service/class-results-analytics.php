@@ -345,20 +345,29 @@ class Results_Analytics {
 				'image'      => null,
 				'member'     => null,
 				'votes'      => array(),
-				'statistics' => array(
-					'count'   => 0,
-					'average' => 0.0,
-					'median'  => 0.0,
-					'min'     => 0.0,
-					'max'     => 0.0,
-					'std_dev' => 0.0,
-				),
+				'statistics' => $this->get_vote_statistics( array() ),
 			);
 		}
 
-		$member = $this->members->find( (int) $image->member_id );
-		$votes  = $this->votes->find_by_image( $image_id );
+		$votes = $this->votes->find_by_image( $image_id );
 
+		return array(
+			'image'      => $image,
+			'member'     => $this->members->find( (int) $image->member_id ),
+			'votes'      => $votes,
+			'statistics' => $this->get_vote_statistics( $votes ),
+		);
+	}
+
+	/**
+	 * Score statistics for an image's votes.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<object> $votes Vote rows, each with a score.
+	 * @return array{count: int, average: float, median: float, min: float, max: float, std_dev: float}
+	 */
+	public function get_vote_statistics( array $votes ): array {
 		$scores = array_map(
 			function ( $vote ) {
 				return (float) $vote->score;
@@ -369,7 +378,7 @@ class Results_Analytics {
 		$count = count( $scores );
 
 		if ( 0 === $count ) {
-			$statistics = array(
+			return array(
 				'count'   => 0,
 				'average' => 0.0,
 				'median'  => 0.0,
@@ -377,29 +386,18 @@ class Results_Analytics {
 				'max'     => 0.0,
 				'std_dev' => 0.0,
 			);
-		} else {
-			sort( $scores );
-			$average = array_sum( $scores ) / $count;
-			$median  = $this->calculate_median( $scores );
-			$min     = min( $scores );
-			$max     = max( $scores );
-			$std_dev = $this->calculate_std_dev( $scores, $average );
-
-			$statistics = array(
-				'count'   => $count,
-				'average' => round( $average, 2 ),
-				'median'  => round( $median, 2 ),
-				'min'     => round( $min, 2 ),
-				'max'     => round( $max, 2 ),
-				'std_dev' => round( $std_dev, 2 ),
-			);
 		}
 
+		sort( $scores );
+		$average = array_sum( $scores ) / $count;
+
 		return array(
-			'image'      => $image,
-			'member'     => $member,
-			'votes'      => $votes,
-			'statistics' => $statistics,
+			'count'   => $count,
+			'average' => round( $average, 2 ),
+			'median'  => round( $this->calculate_median( $scores ), 2 ),
+			'min'     => round( min( $scores ), 2 ),
+			'max'     => round( max( $scores ), 2 ),
+			'std_dev' => round( $this->calculate_std_dev( $scores, $average ), 2 ),
 		);
 	}
 
