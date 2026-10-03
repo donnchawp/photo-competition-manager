@@ -415,7 +415,7 @@ class Voting_Shortcode {
 
 		// Get score matrix from settings.
 		$voting_config = Competition_Settings::get_voting_config( $settings );
-		$score_matrix  = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_matrix  = $voting_config['score_matrix'];
 
 		// Verify voting is still open for this category.
 		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $token_record->category ) ) {
@@ -620,7 +620,7 @@ class Voting_Shortcode {
 		);
 
 		// Get score matrix, UI type, and image click setting.
-		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_matrix        = $voting_config['score_matrix'];
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
 
@@ -913,7 +913,7 @@ class Voting_Shortcode {
 		);
 
 		// Get score matrix and image click setting.
-		$score_matrix        = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_matrix        = $voting_config['score_matrix'];
 		$voting_password     = $voting_config['password'] ?? '';
 		$password_enabled    = '' !== $voting_password;
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
@@ -1173,7 +1173,7 @@ class Voting_Shortcode {
 		}
 
 		$voting_config   = Competition_Settings::get_voting_config( $settings );
-		$score_matrix    = $voting_config['score_matrix'] ?? array( 9, 8, 7, 6, 5 );
+		$score_matrix    = $voting_config['score_matrix'];
 		$sanitized_votes = $this->sanitize_vote_selections( $raw_votes, $score_matrix );
 
 		return $sanitized_votes;
