@@ -27,7 +27,6 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	private $competition_id;
 
-
 	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
@@ -195,5 +194,4 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'No Grade', $html );
 		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
 	}
-
 }

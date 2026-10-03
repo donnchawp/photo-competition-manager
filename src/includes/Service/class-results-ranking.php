@@ -18,7 +18,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  * The one ranking used by the admin Results screen and export, the results
  * email, and the results and top 3 pages.
  *
- * @since 0.3.0
+ * @since 0.4.0
  */
 class Results_Ranking {
 

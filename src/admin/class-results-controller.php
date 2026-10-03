@@ -428,6 +428,13 @@ class Results_Controller {
 			$selected_category = $categories[0]['slug'] ?? '';
 		}
 
+		// Rank every category: the ungraded warning covers the whole competition, not just the open tab.
+		$rankings = array();
+		foreach ( $categories as $category ) {
+			$cat_slug              = $category['slug'] ?? '';
+			$rankings[ $cat_slug ] = $this->ranking->rank_category( (int) $competition->id, $cat_slug );
+		}
+
 		// Competition selector options.
 		$competition_options = array();
 		foreach ( $competitions as $comp ) {
@@ -481,7 +488,8 @@ class Results_Controller {
 		if ( ! empty( $selected_category ) ) {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
-			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category );
+			$groups             = $rankings[ $selected_category ] ?? $this->ranking->rank_category( (int) $competition->id, $selected_category );
+			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category, $groups );
 		}
 
 		// Action buttons.
@@ -560,20 +568,21 @@ class Results_Controller {
 		return $this->render_template(
 			'admin/results/overview.php',
 			array(
-				'competition_options' => $competition_options,
-				'summary_cards_html'  => $summary_cards_html,
-				'category_tabs'       => $category_tabs,
-				'selected_category'   => $selected_category,
-				'breakdown'           => $breakdown,
-				'results_table_html'  => $results_table_html,
-				'recalculate_url'     => $recalculate_url,
-				'export_url'          => $export_url,
-				'email_url'           => $email_url,
-				'share_hash'          => $share_hash,
-				'results_page'        => $results_page,
-				'share_url'           => $share_url,
-				'send_committee_url'  => $send_committee_url,
-				'send_all_url'        => $send_all_url,
+				'competition_options'  => $competition_options,
+				'summary_cards_html'   => $summary_cards_html,
+				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),
+				'category_tabs'        => $category_tabs,
+				'selected_category'    => $selected_category,
+				'breakdown'            => $breakdown,
+				'results_table_html'   => $results_table_html,
+				'recalculate_url'      => $recalculate_url,
+				'export_url'           => $export_url,
+				'email_url'            => $email_url,
+				'share_hash'           => $share_hash,
+				'results_page'         => $results_page,
+				'share_url'            => $share_url,
+				'send_committee_url'   => $send_committee_url,
+				'send_all_url'         => $send_all_url,
 			)
 		);
 	}
@@ -598,31 +607,68 @@ class Results_Controller {
 	}
 
 	/**
-	 * Render results table grouped by grade.
+	 * Render the warning listing ungraded entries in any category, or '' when there are none.
 	 *
-	 * When any entries are ungraded, a warning naming their members comes first.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param string $category       Category slug.
+	 * @param array<int, array>    $categories Category definitions.
+	 * @param array<string, array> $rankings   Category slug => Results_Ranking::rank_category() groups.
 	 * @return string
 	 */
-	private function render_results_table( int $competition_id, string $category ): string {
-		$grade_tables     = array();
-		$ungraded_members = array();
+	private function render_ungraded_notice( array $categories, array $rankings ): string {
+		$members = array();
+		$orphans = array();
 
-		foreach ( $this->ranking->rank_category( $competition_id, $category ) as $group ) {
+		foreach ( $categories as $category ) {
+			foreach ( $rankings[ $category['slug'] ?? '' ] as $group ) {
+				if ( ! $group['ungraded'] ) {
+					continue;
+				}
+
+				foreach ( $group['entries'] as $entry ) {
+					if ( $entry['member'] ) {
+						$members[ (int) $entry['member']->id ] = array(
+							'name'  => $entry['member']->name,
+							'email' => $entry['member']->email,
+						);
+					} else {
+						$orphans[] = array(
+							'image_number' => (int) $entry['image']->random_number,
+							'category'     => $category['label'] ?? $category['slug'] ?? '',
+						);
+					}
+				}
+			}
+		}
+
+		if ( empty( $members ) && empty( $orphans ) ) {
+			return '';
+		}
+
+		return $this->render_template(
+			'admin/results/notice-ungraded-entries.php',
+			array(
+				'members' => array_values( $members ),
+				'orphans' => $orphans,
+			)
+		);
+	}
+
+	/**
+	 * Render results table grouped by grade.
+	 *
+	 * @param int               $competition_id Competition ID.
+	 * @param string            $category       Category slug.
+	 * @param array<int, array> $groups         The category's Results_Ranking::rank_category() groups.
+	 * @return string
+	 */
+	private function render_results_table( int $competition_id, string $category, array $groups ): string {
+		$grade_tables = array();
+
+		foreach ( $groups as $group ) {
 			$rows = array();
 
 			foreach ( $group['entries'] as $entry ) {
 				$image  = $entry['image'];
 				$member = $entry['member'];
-
-				if ( $group['ungraded'] ) {
-					$ungraded_members[ (int) $image->member_id ] ??= array(
-						'name'         => $member ? $member->name : null,
-						'image_number' => (int) $image->random_number,
-					);
-				}
 
 				$detail_url = add_query_arg(
 					array(
@@ -650,11 +696,7 @@ class Results_Controller {
 			);
 		}
 
-		$notice = empty( $ungraded_members )
-			? ''
-			: $this->render_template( 'admin/results/notice-ungraded-entries.php', array( 'members' => array_values( $ungraded_members ) ) );
-
-		return $notice . $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
 	}
 
 	/**

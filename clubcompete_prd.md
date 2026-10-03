@@ -179,14 +179,15 @@ Admins can upload or replace images for any member directly from the dashboard.
 ### Results Display Features
 
 **`[competition_results]`** - Complete Results Table
-- Groups results by member grade (Beginner, Intermediate, Advanced)
-- Sorts by total score (highest to lowest)
+- Groups results by member grade, in the club's grade order
+- Sorts by total score (highest to lowest); tied entries share a position (1, 1, 2)
+- Leaves out ungraded entries; the admin Results screen lists them with a warning
 - Shows position, image thumbnail, member name, category, score, and vote count
 - Responsive table design with mobile-friendly layout
 - Clickable thumbnails link to full-size images
 
 **`[competition_top3]`** - Top 3 Podium Display
-- Shows top 3 winners for each grade
+- Shows the entries in positions 1 to 3 for each grade, which can be more than three images when there are ties
 - Podium-style layout with 1st, 2nd, and 3rd place styling
 - Visual distinction with gold, silver, and bronze colors
 - Displays image thumbnails, member names, categories, and scores

@@ -27,7 +27,6 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	private $competition_id;
 
-
 	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
@@ -245,5 +244,4 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Ungraded', $html );
 		$this->assertMatchesRegularExpression( '#<td class="position">1</td>.*?Ben Example.*?<td class="position">2</td>.*?Ann Example#s', $html );
 	}
-
 }

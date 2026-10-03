@@ -539,8 +539,34 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_normalized( array( $comp_id ) );
 
 		$this->assertStringContainsString( '<h3>Ungraded</h3>', $html );
-		$this->assertMatchesRegularExpression( '#<div class="notice notice-warning inline">.*Old Grade Member.*a member who no longer exists.*</div>#s', $html );
-		$this->assertStringNotContainsString( 'Ada Lovelace</li>', $html );
+		$this->assertMatchesRegularExpression( '#<div class="notice notice-warning inline">.*<li>Old Grade Member \(old@example.com\)</li>.*<li>Image \#3 \(Colour\)</li>.*</div>#s', $html );
+		$this->assertStringNotContainsString( 'Ada Lovelace (', $html );
+	}
+
+	public function test_render_warns_about_ungraded_entries_in_another_category(): void {
+		// The warning is about the whole competition, so it shows whichever
+		// category tab is open.
+		$comp_id  = $this->seed_competition( 'Ungraded Show', 'ungraded-show' );
+		$ungraded = Member_Fixtures::insert_with_grade( 'Mono Only', 'mono@example.com', '' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ungraded,
+				'category'  => 'black-white',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<li>Mono Only (mono@example.com)</li>', $html );
+		$this->assertStringNotContainsString( '<h3>Ungraded</h3>', $html );
 	}
 
 	public function test_render_no_warning_when_every_entry_is_graded(): void {

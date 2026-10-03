@@ -6,6 +6,7 @@
  *
  * $data['competition_options'] array<int, array{url: string, selected: bool, title: string}> Competition selector options.
  * $data['summary_cards_html']  string Pre-rendered summary card HTML (trusted, pre-escaped).
+ * $data['ungraded_notice_html'] string Pre-rendered warning about ungraded entries in any category (trusted, pre-escaped); empty when there are none.
  * $data['category_tabs']       array<int, array{url: string, label: string, active: bool, count: int}> Category tab data; empty when the competition has no categories.
  * $data['selected_category']   string Selected category slug, empty when there are no categories.
  * $data['breakdown']           array{images?: int, votes?: int, average_score?: float, min_score?: float, max_score?: float, participation_rate?: float} Category breakdown stats; empty when no category is selected.
@@ -43,6 +44,10 @@ echo '<div class="photo-comp-summary-cards" style="display: grid; grid-template-
 echo $data['summary_cards_html'];
 
 echo '</div>';
+
+// Ungraded entries warning, for every category.
+// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+echo $data['ungraded_notice_html'];
 
 // Category tabs.
 if ( ! empty( $data['category_tabs'] ) ) {
