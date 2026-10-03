@@ -173,10 +173,35 @@ class Competition_Settings {
 
 		// Grades and categories are read through club_grades() and
 		// get_categories(), which fall back to the club's lists, so the
-		// built-in lists aren't filled in. A stored list is kept whole.
+		// built-in lists aren't filled in.
 		unset( $defaults['grades'], $defaults['categories'] );
 
-		return array_replace_recursive( $defaults, $settings );
+		return self::merge_recursive( $defaults, $settings );
+	}
+
+	/**
+	 * Merge stored settings over defaults, key by key.
+	 *
+	 * A default that's a list, such as the score matrix, is replaced whole.
+	 * array_replace_recursive() would merge it by position, so a stored
+	 * [10, 8, 6] would keep the default's trailing 6 and 5. A section such
+	 * as `voting` is merged key by key, even when stored empty as [].
+	 *
+	 * @since 0.4.0
+	 * @param array<string, mixed> $defaults Default values.
+	 * @param array<string, mixed> $stored   Stored values.
+	 * @return array<string, mixed>
+	 */
+	private static function merge_recursive( array $defaults, array $stored ): array {
+		foreach ( $stored as $key => $value ) {
+			if ( is_array( $value ) && is_array( $defaults[ $key ] ?? null ) && ! array_is_list( $defaults[ $key ] ) ) {
+				$value = self::merge_recursive( $defaults[ $key ], $value );
+			}
+
+			$defaults[ $key ] = $value;
+		}
+
+		return $defaults;
 	}
 
 	/**
