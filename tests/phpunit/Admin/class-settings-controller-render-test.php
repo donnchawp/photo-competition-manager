@@ -14,6 +14,8 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Settings_Controller;
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -26,7 +28,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function set_up(): void {
 		parent::set_up();
-		$this->controller = new Settings_Controller();
+		$this->controller = new Settings_Controller( new Competitions_Repository(), new Members_Repository() );
 	}
 
 	public function tear_down(): void {

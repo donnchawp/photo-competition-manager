@@ -264,6 +264,9 @@ class Competition_Settings {
 			return new WP_Error( 'missing_grades', __( 'At least one grade is required.', 'photo-competition-manager' ) );
 		}
 
+		$seen_labels = array();
+		$seen_slugs  = array();
+
 		foreach ( $settings['grades'] as $index => $grade ) {
 			if ( ! is_array( $grade ) ) {
 				return new WP_Error(
@@ -286,6 +289,22 @@ class Competition_Settings {
 					)
 				);
 			}
+
+			// Ignores case and accents, so "Ógánach" and "oganach" clash.
+			$label_key = sanitize_title( $grade['label'] );
+			if ( isset( $seen_labels[ $label_key ] ) || isset( $seen_slugs[ $grade['slug'] ] ) ) {
+				return new WP_Error(
+					'duplicate_grade',
+					sprintf(
+						/* translators: %s: grade label */
+						__( 'The grade "%s" clashes with another grade. Each grade needs its own name.', 'photo-competition-manager' ),
+						$grade['label']
+					)
+				);
+			}
+
+			$seen_labels[ $label_key ]    = true;
+			$seen_slugs[ $grade['slug'] ] = true;
 		}
 
 		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
@@ -371,6 +390,56 @@ class Competition_Settings {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Sanitize grade rows posted from a settings form.
+	 *
+	 * An existing grade posts its slug, which stays put when the label is
+	 * renamed so its members stay in it. A grade added in the browser has no
+	 * slug yet, and gets one made from its label, with a number added if a
+	 * renamed grade still holds that slug.
+	 *
+	 * @since 0.4.0
+	 * @param array<int, mixed> $rows Posted grade rows.
+	 * @return array<int, array{label: string, slug: string}>
+	 */
+	public static function sanitize_grades( array $rows ): array {
+		$rows = array_filter(
+			$rows,
+			static function ( $row ) {
+				return isset( $row['label'] );
+			}
+		);
+
+		$grades = array();
+		foreach ( $rows as $row ) {
+			$grades[] = array(
+				'label' => sanitize_text_field( $row['label'] ),
+				'slug'  => sanitize_title( $row['slug'] ?? '' ),
+			);
+		}
+
+		$taken = array_filter( wp_list_pluck( $grades, 'slug' ) );
+
+		foreach ( $grades as $index => $grade ) {
+			if ( '' !== $grade['slug'] ) {
+				continue;
+			}
+
+			$base   = sanitize_title( $grade['label'] );
+			$slug   = $base;
+			$suffix = 1;
+			while ( in_array( $slug, $taken, true ) ) {
+				++$suffix;
+				$slug = $base . '-' . $suffix;
+			}
+
+			$grades[ $index ]['slug'] = $slug;
+			$taken[]                  = $slug;
+		}
+
+		return $grades;
 	}
 
 	/**
