@@ -24,6 +24,7 @@ use PhotoCompetitionManager\Support\Image_Processor;
 class Top3_Shortcode {
 
 	use Image_Urls;
+	use Results_Competition;
 
 	/**
 	 * Competitions repository.
@@ -104,41 +105,15 @@ class Top3_Shortcode {
 			'competition_top3'
 		);
 
-		$share_hash  = isset( $_GET['share'] ) ? sanitize_text_field( wp_unslash( $_GET['share'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public read-only parameter for share link access.
-		$competition = null;
-		$valid_share = false;
+		$share_hash  = $this->requested_share_hash();
+		$competition = $this->resolve_competition( $atts['competition'], $share_hash );
 
-		if ( empty( $atts['competition'] ) ) {
-			// When a share hash is provided, resolve the competition it belongs to.
-			if ( ! empty( $share_hash ) ) {
-				$competition = $this->competitions_repo->find_by_share_hash( $share_hash );
-				if ( $competition ) {
-					$valid_share = true;
-				}
-			}
-
-			// Fall back to the latest competition with results out.
-			if ( ! $competition ) {
-				$competition = $this->competitions_repo->find_for_results();
-				if ( ! $competition ) {
-					return '<p class="error">' . esc_html__( 'No competitions found.', 'photo-competition-manager' ) . '</p>';
-				}
-			}
-		} else {
-			$competition = $this->competitions_repo->find_by_slug( $atts['competition'] );
-			if ( ! $competition ) {
-				return '<p class="error">' . esc_html__( 'Competition not found.', 'photo-competition-manager' ) . '</p>';
-			}
-
-			// Validate share hash against the explicit competition.
-			if ( ! empty( $share_hash ) ) {
-				$stored_hash = $competition->share_hash ?? '';
-				$valid_share = ! empty( $stored_hash ) && hash_equals( $stored_hash, $share_hash );
-			}
+		if ( is_wp_error( $competition ) ) {
+			return '<p class="error">' . esc_html( $competition->get_error_message() ) . '</p>';
 		}
 
 		ob_start();
-		$this->render_top3_results( $competition, $valid_share );
+		$this->render_top3_results( $competition, $share_hash );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -147,17 +122,15 @@ class Top3_Shortcode {
 	 * Render top 3 results display.
 	 *
 	 * @param object $competition  Competition object.
-	 * @param bool   $valid_share  Whether a valid share hash was provided.
+	 * @param string $share_hash   Share hash from the request, or ''.
 	 * @return void
 	 */
-	private function render_top3_results( object $competition, bool $valid_share = false ): void {
+	private function render_top3_results( object $competition, string $share_hash ): void {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$grades     = Competition_Settings::club_grades();
 		$categories = Competition_Settings::get_categories( $settings );
 
-		$results_visible = $settings['results']['results_visible'] ?? false;
-
-		if ( ! $results_visible && ! $valid_share ) {
+		if ( ! $this->results_viewable( $competition, $share_hash ) ) {
 			echo '<div class="photo-comp-top3">';
 			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Top 3 Winners', 'photo-competition-manager' ) . '</h2>';
 			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';

@@ -200,4 +200,23 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Club Starters', $html );
 	}
+
+	/**
+	 * A named competition with hidden results shows them only with its
+	 * share link.
+	 */
+	public function test_named_competition_shows_hidden_results_only_with_its_share_link(): void {
+		$competitions = new Competitions_Repository();
+		$competition  = $competitions->find_by_slug( 'results-comp' );
+		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+		$competitions->update_share_hash( (int) $competition->id, 'share-hash' );
+
+		$hidden = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$_GET['share'] = 'share-hash';
+		$shared        = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( 'Results are not yet available.', $hidden );
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $shared );
+	}
 }
