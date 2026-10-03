@@ -185,7 +185,9 @@ class Competition_Settings {
 	 * A default that's a list, such as the score matrix, is replaced whole.
 	 * array_replace_recursive() would merge it by position, so a stored
 	 * [10, 8, 6] would keep the default's trailing 6 and 5. A section such
-	 * as `voting` is merged key by key, even when stored empty as [].
+	 * as `voting` is merged key by key, even when stored empty as []. An
+	 * empty default counts as a list, so a map that must merge with its
+	 * default needs at least one default key.
 	 *
 	 * @since 0.4.0
 	 * @param array<string, mixed> $defaults Default values.

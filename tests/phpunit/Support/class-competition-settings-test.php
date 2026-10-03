@@ -123,15 +123,12 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_parse_fills_in_the_rest_of_a_partly_stored_section(): void {
-		$parsed   = Competition_Settings::parse( '{"voting":{"password":"x"}}' );
-		$defaults = Competition_Settings::defaults();
+		$parsed = Competition_Settings::parse( '{"voting":{"password":"x"}}' );
 
-		$this->assertSame( 'x', $parsed['voting']['password'] );
-		$this->assertSame( $defaults['voting']['score_matrix'], $parsed['voting']['score_matrix'] );
-		$this->assertSame( $defaults['voting']['auth_mode'], $parsed['voting']['auth_mode'] );
-		$this->assertSame( $defaults['voting']['ui_type'], $parsed['voting']['ui_type'] );
-		$this->assertSame( $defaults['upload'], $parsed['upload'] );
-		$this->assertSame( $defaults['slideshow'], $parsed['slideshow'] );
+		$this->assertSame(
+			array_merge( Competition_Settings::defaults()['voting'], array( 'password' => 'x' ) ),
+			$parsed['voting']
+		);
 	}
 
 	public function test_parse_fills_in_a_section_stored_empty(): void {
