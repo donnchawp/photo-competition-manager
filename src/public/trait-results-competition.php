@@ -50,7 +50,7 @@ trait Results_Competition {
 			return $competition ? $competition : new WP_Error( 'competition_not_found', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		$competition = '' !== $share_hash ? $this->competitions_repo->find_by_share_hash( $share_hash ) : null;
+		$competition = $this->competitions_repo->find_by_share_hash( $share_hash );
 
 		if ( ! $competition ) {
 			$competition = $this->competitions_repo->find_for_results();
@@ -76,6 +76,6 @@ trait Results_Competition {
 
 		$stored_hash = (string) ( $competition->share_hash ?? '' );
 
-		return '' !== $share_hash && '' !== $stored_hash && hash_equals( $stored_hash, $share_hash );
+		return '' !== $stored_hash && hash_equals( $stored_hash, $share_hash );
 	}
 }

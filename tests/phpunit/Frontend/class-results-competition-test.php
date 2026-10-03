@@ -140,7 +140,7 @@ class Results_Competition_Test extends WP_UnitTestCase {
 
 		$competition = $this->page->resolve_competition( '', 'ffffffffffffffffffffffffffffffff' );
 
-		$this->assertSame( (int) $this->competitions->find_for_results()->id, (int) $competition->id );
+		$this->assertSame( (int) $hidden->id, (int) $this->competitions->find_for_results()->id );
 		$this->assertSame( (int) $hidden->id, (int) $competition->id );
 		$this->assertFalse( $this->page->results_viewable( $competition, 'ffffffffffffffffffffffffffffffff' ) );
 	}
