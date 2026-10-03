@@ -19,10 +19,9 @@ defined( 'ABSPATH' ) || exit;
  * 1. Resolve grades and categories from saved settings.
  * ----------------------------------------------------------------*/
 
-$saved_settings = get_option( 'photo_comp_default_settings', '' );
-$settings       = Competition_Settings::parse( $saved_settings );
-$grades         = Competition_Settings::club_grades();
-$categories     = Competition_Settings::get_categories( $settings );
+$settings = Competition_Settings::global_settings();
+$grades   = Competition_Settings::club_grades();
+$categories = Competition_Settings::get_categories( $settings );
 
 if ( empty( $grades ) || empty( $categories ) ) {
 	WP_CLI::error( 'No grades or categories configured. Save default settings first.' );

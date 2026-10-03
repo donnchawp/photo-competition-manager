@@ -193,6 +193,11 @@ class Competition_Settings {
 	private static function merge_with_defaults( array $settings ): array {
 		$defaults = self::defaults();
 
+		// Grades belong to the club and are read through club_grades(), so
+		// they're never filled in. A competition's settings written back
+		// after parsing would otherwise gain the built-in list.
+		unset( $defaults['grades'] );
+
 		// For arrays like categories and grades, replace entirely rather than merge.
 		foreach ( array( 'categories', 'grades' ) as $key ) {
 			if ( isset( $settings[ $key ] ) ) {
@@ -420,7 +425,7 @@ class Competition_Settings {
 	 * @return array<int, array{label: string, slug: string}>
 	 */
 	public static function club_grades(): array {
-		return self::global_settings()['grades'];
+		return self::global_settings()['grades'] ?? self::defaults()['grades'];
 	}
 
 	/**
