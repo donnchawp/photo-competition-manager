@@ -11,6 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -26,24 +28,24 @@ class Settings_Controller {
 	/**
 	 * Competitions repository.
 	 *
-	 * @var \PhotoCompetitionManager\Repository\Competitions_Repository
+	 * @var Competitions_Repository
 	 */
 	private $competitions_repository;
 
 	/**
 	 * Members repository.
 	 *
-	 * @var \PhotoCompetitionManager\Repository\Members_Repository
+	 * @var Members_Repository
 	 */
 	private $members_repository;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param \PhotoCompetitionManager\Repository\Competitions_Repository $competitions_repository Competitions repository.
-	 * @param \PhotoCompetitionManager\Repository\Members_Repository      $members_repository Members repository.
+	 * @param Competitions_Repository $competitions_repository Competitions repository.
+	 * @param Members_Repository      $members_repository      Members repository.
 	 */
-	public function __construct( $competitions_repository = null, $members_repository = null ) {
+	public function __construct( Competitions_Repository $competitions_repository, Members_Repository $members_repository ) {
 		$this->competitions_repository = $competitions_repository;
 		$this->members_repository      = $members_repository;
 	}
@@ -510,10 +512,6 @@ class Settings_Controller {
 	 * @return void
 	 */
 	private function sync_grades_to_competitions( array $new_grades ): void {
-		if ( ! $this->competitions_repository ) {
-			return;
-		}
-
 		// Get all competitions (including archived).
 		$competitions = $this->competitions_repository->all( 1000, true, false );
 

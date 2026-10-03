@@ -290,7 +290,8 @@ class Competition_Settings {
 				);
 			}
 
-			$label_key = strtolower( $grade['label'] );
+			// Ignores case and accents, so "Ógánach" and "oganach" clash.
+			$label_key = sanitize_title( $grade['label'] );
 			if ( isset( $seen_labels[ $label_key ] ) || isset( $seen_slugs[ $grade['slug'] ] ) ) {
 				return new WP_Error(
 					'duplicate_grade',
@@ -396,26 +397,46 @@ class Competition_Settings {
 	 *
 	 * An existing grade posts its slug, which stays put when the label is
 	 * renamed so its members stay in it. A grade added in the browser has no
-	 * slug yet, and gets one made from its label.
+	 * slug yet, and gets one made from its label, with a number added if a
+	 * renamed grade still holds that slug.
 	 *
 	 * @since 0.4.0
 	 * @param array<int, mixed> $rows Posted grade rows.
 	 * @return array<int, array{label: string, slug: string}>
 	 */
 	public static function sanitize_grades( array $rows ): array {
-		$grades = array();
+		$rows = array_filter(
+			$rows,
+			static function ( $row ) {
+				return isset( $row['label'] );
+			}
+		);
 
+		$grades = array();
 		foreach ( $rows as $row ) {
-			if ( ! isset( $row['label'] ) ) {
+			$grades[] = array(
+				'label' => sanitize_text_field( $row['label'] ),
+				'slug'  => sanitize_title( $row['slug'] ?? '' ),
+			);
+		}
+
+		$taken = array_filter( wp_list_pluck( $grades, 'slug' ) );
+
+		foreach ( $grades as $index => $grade ) {
+			if ( '' !== $grade['slug'] ) {
 				continue;
 			}
 
-			$slug = sanitize_title( $row['slug'] ?? '' );
+			$base   = sanitize_title( $grade['label'] );
+			$slug   = $base;
+			$suffix = 1;
+			while ( in_array( $slug, $taken, true ) ) {
+				++$suffix;
+				$slug = $base . '-' . $suffix;
+			}
 
-			$grades[] = array(
-				'label' => sanitize_text_field( $row['label'] ),
-				'slug'  => '' !== $slug ? $slug : sanitize_title( $row['label'] ),
-			);
+			$grades[ $index ]['slug'] = $slug;
+			$taken[]                  = $slug;
 		}
 
 		return $grades;

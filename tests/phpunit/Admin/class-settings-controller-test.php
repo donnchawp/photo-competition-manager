@@ -164,6 +164,60 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * After a rename, a new grade can take the old name. Its slug is made
+	 * unique because the renamed grade kept the old one.
+	 */
+	public function test_new_grade_can_reuse_a_renamed_grades_old_name(): void {
+		$member = $this->create_member( 'Ann Advanced', 'advanced' );
+
+		$rows             = $this->default_grade_rows();
+		$rows[2]['label'] = 'Senior';
+		$this->save_grades( $rows );
+
+		$rows[] = array( 'label' => 'Advanced' );
+		$this->save_grades( $rows );
+
+		$this->assertSame(
+			array(
+				array(
+					'label' => 'Senior',
+					'slug'  => 'advanced',
+				),
+				array(
+					'label' => 'Advanced',
+					'slug'  => 'advanced-2',
+				),
+			),
+			array_slice( $this->saved_grades(), 2 )
+		);
+		$this->assertSame( 'advanced', $this->grade_of( $member ) );
+	}
+
+	/**
+	 * A member whose grade isn't in the list keeps it.
+	 */
+	public function test_member_with_unknown_grade_is_unchanged(): void {
+		$member = $this->create_member( 'Uma Unknown', 'expert' );
+
+		$this->save_grades( $this->default_grade_rows() );
+
+		$this->assertSame( 'expert', $this->grade_of( $member ) );
+	}
+
+	/**
+	 * Labels differing only by case or accents are duplicates.
+	 */
+	public function test_labels_differing_by_accent_are_rejected(): void {
+		$rows             = $this->default_grade_rows();
+		$rows[0]['label'] = 'Ógánach';
+		$rows[1]['label'] = 'ógánach';
+		$this->save_grades( $rows );
+
+		$this->assertSame( 'Beginner', $this->saved_grades()[0]['label'] );
+		$this->assertSame( array( 'duplicate_grade' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+	}
+
+	/**
 	 * A grade added in the browser gets a slug made from its label.
 	 */
 	public function test_new_grade_gets_slug_from_label(): void {
