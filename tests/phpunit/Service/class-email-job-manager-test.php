@@ -294,16 +294,54 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '2 of 3 (Beginner)', $this->bodies['two-entries@example.com'] );
 	}
 
+	public function test_results_email_shows_the_entrys_vote_statistics(): void {
+		$member_id = $this->seed_entrant( 'scored@example.com' );
+		foreach ( array( 9, 7, 6, 5 ) as $i => $score ) {
+			$this->vote_for( $member_id, $score, 0, "Judge $i" );
+		}
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$text = preg_replace( '/\s+/', ' ', wp_strip_all_tags( $this->bodies['scored@example.com'] ) );
+		$this->assertStringContainsString( 'Final Score: 27 Total Votes: 4 Average Score: 6.75 Median Score: 6.50 Score Range: 5 - 9', $text );
+		$this->assertMatchesRegularExpression( '/Vote # Score( \d \d){4} /', $text );
+	}
+
+	public function test_results_email_does_not_reload_the_entry_or_member(): void {
+		global $wpdb;
+
+		$this->vote_for( $this->seed_entrant( 'one@example.com' ), 9 );
+		$this->vote_for( $this->seed_entrant( 'two@example.com' ), 7 );
+		$job_id = $this->manager->queue_results( $this->competition_id );
+
+		$queries = array();
+		$record  = function ( $query ) use ( &$queries ) {
+			$queries[] = $query;
+			return $query;
+		};
+		add_filter( 'query', $record );
+		$this->manager->process_batch( $job_id );
+		remove_filter( 'query', $record );
+
+		$this->assertCount( 2, $this->recipients );
+		$this->assertNotEmpty( preg_grep( '/photocomp_votes/', $queries ), 'No queries were recorded' );
+		foreach ( array( 'photocomp_images', 'photocomp_members' ) as $table ) {
+			$by_id = preg_grep( '/FROM `' . $wpdb->prefix . $table . '` WHERE id = \d+/', $queries );
+			$this->assertSame( array(), array_values( $by_id ), "$table rows were loaded one at a time" );
+		}
+	}
+
 	/**
 	 * Score a member's colour entry.
 	 *
-	 * @param int $member_id Member ID.
-	 * @param int $score     Score to give the entry.
-	 * @param int $entry     Which of the member's entries to score.
+	 * @param int    $member_id Member ID.
+	 * @param int    $score     Score to give the entry.
+	 * @param int    $entry     Which of the member's entries to score.
+	 * @param string $voter     Voter name.
 	 */
-	private function vote_for( int $member_id, int $score, int $entry = 0 ): void {
+	private function vote_for( int $member_id, int $score, int $entry = 0, string $voter = 'Judge' ): void {
 		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[ $entry ];
-		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Judge', (int) $image->id, $score );
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', $voter, (int) $image->id, $score );
 	}
 
 	public function test_queue_results_returns_false_when_every_entrant_is_inactive(): void {

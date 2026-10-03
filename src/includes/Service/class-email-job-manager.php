@@ -542,7 +542,7 @@ class Email_Job_Manager {
 						continue;
 					}
 
-					$image_details = $this->analytics->get_image_details( (int) $image->id );
+					$votes = $this->votes->find_by_image( (int) $image->id );
 
 					// Get thumbnail URL.
 					$thumbnail_url = $this->image_processor->get_thumbnail_url(
@@ -559,8 +559,8 @@ class Email_Job_Manager {
 						'total_in_grade' => count( $group['entries'] ),
 						'grade'          => $group['label'],
 						'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
-						'statistics'     => $image_details['statistics'],
-						'votes'          => $image_details['votes'],
+						'statistics'     => $this->analytics->get_vote_statistics( $votes ),
+						'votes'          => $votes,
 					);
 				}
 			}
