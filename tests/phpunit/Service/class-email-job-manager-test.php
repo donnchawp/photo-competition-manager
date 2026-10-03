@@ -324,6 +324,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		remove_filter( 'query', $record );
 
 		$this->assertCount( 2, $this->recipients );
+		$this->assertNotEmpty( preg_grep( '/photocomp_votes/', $queries ), 'No queries were recorded' );
 		foreach ( array( 'photocomp_images', 'photocomp_members' ) as $table ) {
 			$by_id = preg_grep( '/FROM `' . $wpdb->prefix . $table . '` WHERE id = \d+/', $queries );
 			$this->assertSame( array(), array_values( $by_id ), "$table rows were loaded one at a time" );
