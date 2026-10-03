@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -20,13 +21,20 @@ use WP_UnitTestCase;
 class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 	/**
+	 * The competition setUp() creates.
+	 *
+	 * @var int
+	 */
+	private $competition_id;
+
+	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
 	public function setUp(): void {
 		parent::setUp();
 
-		$competitions   = new Competitions_Repository();
-		$competition_id = (int) $competitions->create(
+		$competitions         = new Competitions_Repository();
+		$this->competition_id = (int) $competitions->create(
 			array(
 				'title'     => 'Top3 Comp',
 				'slug'      => 'top3-comp',
@@ -60,7 +68,7 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 		( new Images_Repository() )->create(
 			array(
-				'competition_id' => $competition_id,
+				'competition_id' => $this->competition_id,
 				'member_id'      => $member_id,
 				'category'       => 'colour',
 				'filename'       => 'ann-example-colour.jpg',
@@ -153,5 +161,37 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		unset( $_GET['share'] );
 
 		parent::tearDown();
+	}
+
+	/**
+	 * Tied entries share a place, so a grade can show more than three
+	 * entries: 20, 20, 15, 10 take 1st, 1st, 2nd and 3rd, and 5 is left out.
+	 */
+	public function test_ties_can_put_more_than_three_entries_on_the_podium(): void {
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'First A', 'beginner', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'First B', 'beginner', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Second', 'beginner', array( 15 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Third', 'beginner', array( 10 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Fourth', 'beginner', array( 5 ) );
+
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		preg_match_all( '#<div class="position-badge">\s*(.+?)\s*</div>.*?<div class="member-name">(.+?)</div>#s', $html, $matches );
+		$this->assertSame(
+			array( '1st Place:First A', '1st Place:First B', '2nd Place:Second', '3rd Place:Third' ),
+			array_map( static fn( $place, $name ) => $place . ':' . $name, $matches[1], $matches[2] )
+		);
+	}
+
+	/**
+	 * Ungraded entries never reach the podium.
+	 */
+	public function test_ungraded_entry_is_left_out(): void {
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'No Grade', '', array( 20 ) );
+
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		$this->assertStringNotContainsString( 'No Grade', $html );
+		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
 	}
 }

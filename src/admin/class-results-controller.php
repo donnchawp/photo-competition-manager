@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Results_Analytics;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
@@ -77,6 +78,13 @@ class Results_Controller {
 	private $calculator;
 
 	/**
+	 * Results ranking service.
+	 *
+	 * @var Results_Ranking
+	 */
+	private $ranking;
+
+	/**
 	 * Email job manager.
 	 *
 	 * @var Email_Job_Manager
@@ -92,6 +100,7 @@ class Results_Controller {
 	 * @param Votes_Repository        $votes             Votes repository.
 	 * @param Results_Analytics       $analytics         Results analytics service.
 	 * @param Score_Calculator        $calculator        Score calculator service.
+	 * @param Results_Ranking         $ranking           Results ranking service.
 	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 */
 	public function __construct(
@@ -101,6 +110,7 @@ class Results_Controller {
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
+		Results_Ranking $ranking,
 		Email_Job_Manager $email_job_manager
 	) {
 		$this->competitions      = $competitions;
@@ -109,6 +119,7 @@ class Results_Controller {
 		$this->votes             = $votes;
 		$this->analytics         = $analytics;
 		$this->calculator        = $calculator;
+		$this->ranking           = $ranking;
 		$this->email_job_manager = $email_job_manager;
 	}
 
@@ -407,7 +418,6 @@ class Results_Controller {
 	private function render_overview( object $competition, array $competitions ): string {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
-		$grades     = Competition_Settings::club_grades();
 
 		$summary = $this->analytics->get_competition_summary( (int) $competition->id );
 
@@ -416,6 +426,13 @@ class Results_Controller {
 
 		if ( empty( $selected_category ) && ! empty( $categories ) ) {
 			$selected_category = $categories[0]['slug'] ?? '';
+		}
+
+		// Rank every category: the ungraded warning covers the whole competition, not just the open tab.
+		$rankings = array();
+		foreach ( $categories as $category ) {
+			$cat_slug              = $category['slug'] ?? '';
+			$rankings[ $cat_slug ] = $this->ranking->rank_category( (int) $competition->id, $cat_slug );
 		}
 
 		// Competition selector options.
@@ -471,7 +488,8 @@ class Results_Controller {
 		if ( ! empty( $selected_category ) ) {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
-			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category, $grades );
+			$groups             = $rankings[ $selected_category ] ?? $this->ranking->rank_category( (int) $competition->id, $selected_category );
+			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category, $groups );
 		}
 
 		// Action buttons.
@@ -550,20 +568,21 @@ class Results_Controller {
 		return $this->render_template(
 			'admin/results/overview.php',
 			array(
-				'competition_options' => $competition_options,
-				'summary_cards_html'  => $summary_cards_html,
-				'category_tabs'       => $category_tabs,
-				'selected_category'   => $selected_category,
-				'breakdown'           => $breakdown,
-				'results_table_html'  => $results_table_html,
-				'recalculate_url'     => $recalculate_url,
-				'export_url'          => $export_url,
-				'email_url'           => $email_url,
-				'share_hash'          => $share_hash,
-				'results_page'        => $results_page,
-				'share_url'           => $share_url,
-				'send_committee_url'  => $send_committee_url,
-				'send_all_url'        => $send_all_url,
+				'competition_options'  => $competition_options,
+				'summary_cards_html'   => $summary_cards_html,
+				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),
+				'category_tabs'        => $category_tabs,
+				'selected_category'    => $selected_category,
+				'breakdown'            => $breakdown,
+				'results_table_html'   => $results_table_html,
+				'recalculate_url'      => $recalculate_url,
+				'export_url'           => $export_url,
+				'email_url'            => $email_url,
+				'share_hash'           => $share_hash,
+				'results_page'         => $results_page,
+				'share_url'            => $share_url,
+				'send_committee_url'   => $send_committee_url,
+				'send_all_url'         => $send_all_url,
 			)
 		);
 	}
@@ -588,39 +607,85 @@ class Results_Controller {
 	}
 
 	/**
+	 * Render the warning listing ungraded entries in any category, or '' when there are none.
+	 *
+	 * @param array<int, array>    $categories Category definitions.
+	 * @param array<string, array> $rankings   Category slug => Results_Ranking::rank_category() groups.
+	 * @return string
+	 */
+	private function render_ungraded_notice( array $categories, array $rankings ): string {
+		$members = array();
+		$orphans = array();
+
+		foreach ( $categories as $category ) {
+			foreach ( $rankings[ $category['slug'] ?? '' ] as $group ) {
+				if ( ! $group['ungraded'] ) {
+					continue;
+				}
+
+				foreach ( $group['entries'] as $entry ) {
+					if ( $entry['member'] ) {
+						$members[ (int) $entry['member']->id ] = array(
+							'name'  => $entry['member']->name,
+							'email' => $entry['member']->email,
+						);
+					} else {
+						$orphans[] = array(
+							'image_number' => (int) $entry['image']->random_number,
+							'category'     => $category['label'] ?? $category['slug'] ?? '',
+						);
+					}
+				}
+			}
+		}
+
+		if ( empty( $members ) && empty( $orphans ) ) {
+			return '';
+		}
+
+		return $this->render_template(
+			'admin/results/notice-ungraded-entries.php',
+			array(
+				'members' => array_values( $members ),
+				'orphans' => $orphans,
+			)
+		);
+	}
+
+	/**
 	 * Render results table grouped by grade.
 	 *
 	 * @param int               $competition_id Competition ID.
 	 * @param string            $category       Category slug.
-	 * @param array<int, array> $grades         Grade definitions.
+	 * @param array<int, array> $groups         The category's Results_Ranking::rank_category() groups.
 	 * @return string
 	 */
-	private function render_results_table( int $competition_id, string $category, array $grades ): string {
-		$results      = $this->calculator->get_results( $competition_id, $category );
+	private function render_results_table( int $competition_id, string $category, array $groups ): string {
 		$grade_tables = array();
 
-		foreach ( $this->rank_results_by_grade( $results, $grades, $this->get_members_lookup() ) as $group ) {
+		foreach ( $groups as $group ) {
 			$rows = array();
 
 			foreach ( $group['entries'] as $entry ) {
-				$result = $entry['result'];
+				$image  = $entry['image'];
+				$member = $entry['member'];
 
 				$detail_url = add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
 						'competition' => $competition_id,
 						'category'    => rawurlencode( $category ),
-						'image'       => (int) $result->id,
+						'image'       => (int) $image->id,
 					),
 					admin_url( 'admin.php' )
 				);
 
 				$rows[] = array(
-					'rank'        => $entry['rank'],
-					'image_url'   => $this->get_image_url( $competition_id, $category, $result->filename ),
-					'member_name' => $entry['member'] ? $entry['member']->name : null,
-					'total_score' => $result->total_score,
-					'vote_count'  => $result->vote_count,
+					'rank'        => $entry['position'],
+					'image_url'   => $this->get_image_url( $competition_id, $category, $image->filename ),
+					'member_name' => $member ? $member->name : null,
+					'total_score' => $entry['total_score'],
+					'vote_count'  => $entry['vote_count'],
 					'detail_url'  => $detail_url,
 				);
 			}
@@ -632,93 +697,6 @@ class Results_Controller {
 		}
 
 		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
-	}
-
-	/**
-	 * Build a member ID => member lookup table.
-	 *
-	 * @return array<int, object>
-	 */
-	private function get_members_lookup(): array {
-		$lookup = array();
-		foreach ( $this->members->all( 10000, false ) as $member ) {
-			$lookup[ $member->id ] = $member;
-		}
-
-		return $lookup;
-	}
-
-	/**
-	 * Group a category's results by the entrant's grade and rank them within each grade.
-	 *
-	 * Groups follow the configured grade order; entrants whose grade is missing
-	 * or not configured are collected in a trailing "Ungraded" group so no
-	 * entry is dropped. Ranking is dense: tied scores share a rank.
-	 *
-	 * @since 0.3.0
-	 *
-	 * @param array<int, object> $results        Results sorted by score, highest first.
-	 * @param array<int, array>  $grades         Grade definitions.
-	 * @param array<int, object> $members_lookup Member ID => member.
-	 * @return array<int, array{slug: string, label: string, entries: array<int, array{rank: int, result: object, member: object|null}>}>
-	 */
-	private function rank_results_by_grade( array $results, array $grades, array $members_lookup ): array {
-		$groups = array();
-		foreach ( $grades as $grade ) {
-			$slug            = (string) ( $grade['slug'] ?? '' );
-			$groups[ $slug ] = array(
-				'slug'    => $slug,
-				'label'   => (string) ( $grade['label'] ?? $slug ),
-				'entries' => array(),
-			);
-		}
-
-		$ungraded = array(
-			'slug'    => '',
-			'label'   => __( 'Ungraded', 'photo-competition-manager' ),
-			'entries' => array(),
-		);
-
-		foreach ( $results as $result ) {
-			$member = $members_lookup[ $result->member_id ] ?? null;
-			$slug   = $member ? (string) $member->grade : '';
-			$entry  = array(
-				'rank'   => 0,
-				'result' => $result,
-				'member' => $member,
-			);
-
-			if ( '' !== $slug && isset( $groups[ $slug ] ) ) {
-				$groups[ $slug ]['entries'][] = $entry;
-			} else {
-				$ungraded['entries'][] = $entry;
-			}
-		}
-
-		$groups[] = $ungraded;
-
-		$ranked = array();
-		foreach ( $groups as $group ) {
-			if ( empty( $group['entries'] ) ) {
-				continue;
-			}
-
-			// Advance rank only when score changes.
-			$rank           = 0;
-			$previous_score = null;
-			foreach ( $group['entries'] as $index => $entry ) {
-				$score = (int) $entry['result']->total_score;
-				if ( null === $previous_score || $score !== $previous_score ) {
-					++$rank;
-					$previous_score = $score;
-				}
-				$group['entries'][ $index ]['rank'] = $rank;
-			}
-
-			$ranked[] = $group;
-		}
-
-		return $ranked;
 	}
 
 	/**
@@ -822,10 +800,8 @@ class Results_Controller {
 	 * @return array<int, array<int, string|int>>
 	 */
 	public function get_export_rows( object $competition ): array {
-		$settings       = Competition_Settings::parse( $competition->settings );
-		$categories     = Competition_Settings::get_categories( $settings );
-		$grades         = Competition_Settings::club_grades();
-		$members_lookup = $this->get_members_lookup();
+		$settings   = Competition_Settings::parse( $competition->settings );
+		$categories = Competition_Settings::get_categories( $settings );
 
 		$rows = array(
 			array(
@@ -843,31 +819,29 @@ class Results_Controller {
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
-		$rows_by_grade     = array_fill_keys( array_column( $grades, 'slug' ), array() );
+		$rows_by_grade     = array_fill_keys( array_column( Competition_Settings::club_grades(), 'slug' ), array() );
 		$rows_by_grade[''] = array();
 
 		foreach ( $categories as $category ) {
 			$category_slug  = $category['slug'] ?? '';
 			$category_label = $category['label'] ?? $category_slug;
 
-			$results = $this->calculator->get_results( (int) $competition->id, $category_slug );
-
-			foreach ( $this->rank_results_by_grade( $results, $grades, $members_lookup ) as $group ) {
+			foreach ( $this->ranking->rank_category( (int) $competition->id, $category_slug ) as $group ) {
 				foreach ( $group['entries'] as $entry ) {
-					$result = $entry['result'];
+					$image  = $entry['image'];
 					$member = $entry['member'];
 
 					$rows_by_grade[ $group['slug'] ][] = array(
 						$competition->title,
 						$group['label'],
 						$category_label,
-						$entry['rank'],
-						$result->random_number,
+						$entry['position'],
+						$image->random_number,
 						$member ? $member->name : '',
 						$member ? $member->email : '',
-						number_format( $result->total_score, 0 ),
-						$result->vote_count,
-						$result->filename,
+						number_format( $entry['total_score'], 0 ),
+						$entry['vote_count'],
+						$image->filename,
 					);
 				}
 			}

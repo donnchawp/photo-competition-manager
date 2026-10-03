@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -20,13 +21,20 @@ use WP_UnitTestCase;
 class Results_Shortcode_Test extends WP_UnitTestCase {
 
 	/**
+	 * The competition setUp() creates.
+	 *
+	 * @var int
+	 */
+	private $competition_id;
+
+	/**
 	 * Create a competition with visible results and one graded entry.
 	 */
 	public function setUp(): void {
 		parent::setUp();
 
-		$competitions   = new Competitions_Repository();
-		$competition_id = (int) $competitions->create(
+		$competitions         = new Competitions_Repository();
+		$this->competition_id = (int) $competitions->create(
 			array(
 				'title'     => 'Results Comp',
 				'slug'      => 'results-comp',
@@ -60,7 +68,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 
 		( new Images_Repository() )->create(
 			array(
-				'competition_id' => $competition_id,
+				'competition_id' => $this->competition_id,
 				'member_id'      => $member_id,
 				'category'       => 'colour',
 				'filename'       => 'ann-example-colour.jpg',
@@ -218,5 +226,22 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Results are not yet available.', $hidden );
 		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $shared );
+	}
+
+	/**
+	 * Ungraded entries are for admins to fix and never appear on the page,
+	 * and they don't move the graded entries' positions.
+	 */
+	public function test_ungraded_entry_is_left_out_and_graded_positions_are_kept(): void {
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Ben Example', 'beginner', array( 9 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'No Grade', '', array( 20 ) );
+		Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Old Grade', 'retired', array( 15 ) );
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringNotContainsString( 'No Grade', $html );
+		$this->assertStringNotContainsString( 'Old Grade', $html );
+		$this->assertStringNotContainsString( 'Ungraded', $html );
+		$this->assertMatchesRegularExpression( '#<td class="position">1</td>.*?Ben Example.*?<td class="position">2</td>.*?Ann Example#s', $html );
 	}
 }

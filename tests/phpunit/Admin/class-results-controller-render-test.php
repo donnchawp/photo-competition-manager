@@ -24,7 +24,9 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Results_Controller
@@ -63,6 +65,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
 		$calculator  = new Score_Calculator( $this->images, $this->votes );
+		$ranking     = new Results_Ranking( $this->images, $this->votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
 			$this->competitions,
@@ -70,7 +73,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$this->votes,
 			$analytics,
-			$calculator,
+			$ranking,
 			$email
 		);
 
@@ -81,6 +84,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$this->votes,
 			$analytics,
 			$calculator,
+			$ranking,
 			$job_manager
 		);
 	}
@@ -491,6 +495,95 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		// Fixture filename retained; it captures the default-category fallback.
 		$this->assert_matches_snapshot( 'overview-no-categories', array( $comp_id ) );
+	}
+
+	public function test_render_ungraded_entries_are_listed_with_a_warning(): void {
+		// An entrant whose grade isn't in the club's list, and an image whose
+		// member row is gone: both are ranked under "Ungraded", and the
+		// warning names who needs a grade.
+		$comp_id  = $this->seed_competition( 'Ungraded Show', 'ungraded-show' );
+		$graded   = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$ungraded = Member_Fixtures::insert_with_grade( 'Old Grade Member', 'old@example.com', 'retired' );
+
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $graded,
+				'filename'  => 'ada.jpg',
+			)
+		);
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => $ungraded,
+				'filename'      => 'old.jpg',
+				'random_number' => 2,
+			)
+		);
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => 999999,
+				'filename'      => 'orphan.jpg',
+				'random_number' => 3,
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<h3>Ungraded</h3>', $html );
+		$this->assertMatchesRegularExpression( '#<div class="notice notice-warning inline">.*<li>Old Grade Member \(old@example.com\)</li>.*<li>Image \#3 \(Colour\)</li>.*</div>#s', $html );
+		$this->assertStringNotContainsString( 'Ada Lovelace (', $html );
+	}
+
+	public function test_render_warns_about_ungraded_entries_in_another_category(): void {
+		// The warning is about the whole competition, so it shows whichever
+		// category tab is open.
+		$comp_id  = $this->seed_competition( 'Ungraded Show', 'ungraded-show' );
+		$ungraded = Member_Fixtures::insert_with_grade( 'Mono Only', 'mono@example.com', '' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ungraded,
+				'category'  => 'black-white',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<li>Mono Only (mono@example.com)</li>', $html );
+		$this->assertStringNotContainsString( '<h3>Ungraded</h3>', $html );
+	}
+
+	public function test_render_no_warning_when_every_entry_is_graded(): void {
+		$comp_id = $this->seed_competition( 'Graded Show', 'graded-show' );
+		$this->seed_image( $comp_id, array( 'member_id' => $this->seed_member( 'Ada Lovelace', 'ada@example.com' ) ) );
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringNotContainsString( 'Ungraded', $html );
+		$this->assertStringNotContainsString( 'notice-warning', $html );
 	}
 
 	public function test_render_image_details_happy_path(): void {
