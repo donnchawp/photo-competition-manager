@@ -1162,6 +1162,33 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A score matrix with a non-number in it is stored as a plain list.
+	 */
+	public function test_update_competition_settings_stores_the_score_matrix_as_a_list(): void {
+		$id = $this->create_competition( 'Matrix', 'matrix' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'score_matrix'             => '10, x, 8',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$this->assertSame( array( 10, 8 ), $this->stored_settings( $id )['voting']['score_matrix'] );
+	}
+
+	/**
 	 * Saving a competition's settings writes no grade list, even if the
 	 * competition had one stored and the form posted one.
 	 */

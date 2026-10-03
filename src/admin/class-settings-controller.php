@@ -124,7 +124,7 @@ class Settings_Controller {
 		$sanitized_grades = Competition_Settings::sanitize_grades( $grades );
 
 		$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
-		$score_matrix     = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) );
+		$score_matrix     = array_values( array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) ) );
 
 		if ( empty( $score_matrix ) ) {
 			$score_matrix = array( 9, 8, 7, 6, 5 );
