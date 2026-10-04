@@ -17,7 +17,6 @@ use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Manage competitions dashboard and CRUD operations.

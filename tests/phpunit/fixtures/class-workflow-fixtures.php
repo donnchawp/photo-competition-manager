@@ -22,10 +22,8 @@ class Workflow_Fixtures {
 	 * @param int $competition_id Competition ID.
 	 */
 	public static function publish_results( int $competition_id ): void {
-		$workflow = new Competition_Workflow();
-
-		self::check( $workflow->close_uploads( $competition_id ) );
-		self::check( $workflow->publish_results( $competition_id ) );
+		self::close_uploads( $competition_id );
+		self::check( ( new Competition_Workflow() )->publish_results( $competition_id ) );
 	}
 
 	/**
@@ -48,21 +46,25 @@ class Workflow_Fixtures {
 	 */
 	public static function set_stage( int $competition_id, string $category_slug, string $stage ): void {
 		$workflow = new Competition_Workflow();
-		$steps    = array(
-			Competition_Workflow::STAGE_PREVIEWED       => fn() => $workflow->advance( $competition_id, $category_slug, Competition_Workflow::STAGE_PREVIEWED ),
-			Competition_Workflow::STAGE_VOTING          => function () use ( $workflow, $competition_id, $category_slug ) {
-				$workflow->close_uploads( $competition_id );
-				return $workflow->open_voting( $competition_id, $category_slug );
-			},
-			Competition_Workflow::STAGE_SLIDESHOW_SHOWN => fn() => $workflow->advance( $competition_id, $category_slug, Competition_Workflow::STAGE_SLIDESHOW_SHOWN ),
-			Competition_Workflow::STAGE_CRITIQUE        => fn() => $workflow->close_voting( $competition_id, $category_slug ),
-			Competition_Workflow::STAGE_DONE            => fn() => $workflow->advance( $competition_id, $category_slug, Competition_Workflow::STAGE_DONE ),
+		$night    = array(
+			Competition_Workflow::STAGE_PREVIEWED,
+			Competition_Workflow::STAGE_VOTING,
+			Competition_Workflow::STAGE_SLIDESHOW_SHOWN,
+			Competition_Workflow::STAGE_CRITIQUE,
+			Competition_Workflow::STAGE_DONE,
 		);
 
-		foreach ( $steps as $step_stage => $step ) {
-			self::check( $step() );
+		foreach ( $night as $next ) {
+			if ( Competition_Workflow::STAGE_VOTING === $next ) {
+				$workflow->close_uploads( $competition_id );
+				self::check( $workflow->open_voting( $competition_id, $category_slug ) );
+			} elseif ( Competition_Workflow::STAGE_CRITIQUE === $next ) {
+				self::check( $workflow->close_voting( $competition_id, $category_slug ) );
+			} else {
+				self::check( $workflow->advance( $competition_id, $category_slug, $next ) );
+			}
 
-			if ( $step_stage === $stage ) {
+			if ( $next === $stage ) {
 				return;
 			}
 		}

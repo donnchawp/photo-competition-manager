@@ -9,11 +9,11 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
-use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -113,14 +113,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->competition = $competitions->find( (int) $competition_id );
 
 		foreach ( array( 'colour', 'mono' ) as $category ) {
-			$this->images[ $category ] = (int) ( new Images_Repository() )->create(
-				array(
-					'competition_id' => (int) $competition_id,
-					'member_id'      => $this->make_member( $category . '-entrant@example.com', true ),
-					'category'       => $category,
-					'filename'       => $category . '-entry.jpg',
-				)
-			);
+			$this->images[ $category ] = Entry_Fixtures::insert_entry( (int) $competition_id, $category, $this->make_member( $category . '-entrant@example.com', true ), array() );
 		}
 
 		$this->set_open_categories( array( 'colour' ) );

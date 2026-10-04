@@ -540,12 +540,6 @@ class Voting_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_competition_status_bar( $active_competition );
 
-		// The workflow can't start until uploads are closed and results hidden.
-		$open_check     = $this->workflow->can_open_voting( $active_competition, $active_category_data['category']['slug'] ?? '' );
-		$prereq_refusal = is_wp_error( $open_check ) && in_array( $open_check->get_error_code(), array( 'uploads_open', 'results_published' ), true )
-			? $open_check->get_error_message()
-			: '';
-
 		// Render category tabs (attached to the workflow card postbox).
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug );
@@ -565,7 +559,7 @@ class Voting_Controller {
 			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_workflow_steps( $active_category_data, $prereq_refusal, $voting_open_globally, $open_competition_id, $open_category_slug, $global_settings, count( $all_categories ) );
+			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
 		}
 
 		// Render Quick Actions.
@@ -735,16 +729,12 @@ class Voting_Controller {
 	 *
 	 * Replaces the old render_category_control_panel() method.
 	 *
-	 * @param array       $category_data        Category data array with competition, settings, etc.
-	 * @param string      $prereq_refusal       Why the workflow can't start yet, or '' when it can.
-	 * @param bool        $voting_open_globally Whether voting is open for any category.
-	 * @param int|null    $open_competition_id  Competition ID with voting open.
-	 * @param string|null $open_category_slug   Category slug with voting open.
-	 * @param array       $global_settings      Global default settings.
-	 * @param int         $total_categories     Total number of categories (for single-category heading).
+	 * @param array $category_data    Category data array with competition, settings, etc.
+	 * @param array $global_settings  Global default settings.
+	 * @param int   $total_categories Total number of categories (for single-category heading).
 	 * @return string
 	 */
-	private function render_workflow_steps( array $category_data, string $prereq_refusal, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $global_settings, int $total_categories = 1 ): string {
+	private function render_workflow_steps( array $category_data, array $global_settings, int $total_categories = 1 ): string {
 		$competition    = $category_data['competition'];
 		$category       = $category_data['category'];
 		$image_count    = $category_data['image_count'];
@@ -758,11 +748,14 @@ class Voting_Controller {
 		$voting_duration   = $global_settings['slideshow']['voting_duration'] ?? 15;
 		$critique_duration = $global_settings['slideshow']['critique_duration'] ?? 0;
 
-		// Why the Open Voting button is disabled, if it is.
-		$open_check       = $this->workflow->can_open_voting( $competition, $category_slug );
-		$open_voting_hint = is_wp_error( $open_check ) && 'another_category_voting' === $open_check->get_error_code()
-			? $open_check->get_error_message()
-			: '';
+		// Why the workflow can't start, and why Open Voting is disabled.
+		// Only the previewed step shows the Open Voting button.
+		$ready_check      = $this->workflow->can_start_voting( $competition );
+		$prereq_refusal   = is_wp_error( $ready_check ) ? $ready_check->get_error_message() : '';
+		$open_check       = '' === $prereq_refusal && Competition_Workflow::STAGE_PREVIEWED === self::STEP_STAGES[ $current_step ]
+			? $this->workflow->can_open_voting( $competition, $category_slug )
+			: true;
+		$open_voting_hint = is_wp_error( $open_check ) ? $open_check->get_error_message() : '';
 
 		// Build action URLs for Open/Close voting.
 		$focus_args = array(
@@ -815,10 +808,7 @@ class Voting_Controller {
 			'photo_competition_reset_category_' . $comp_id . '_' . $category_slug
 		);
 
-		// Is voting currently open for THIS category?
-		$voting_open_here = $voting_open_globally
-			&& $open_competition_id === $comp_id
-			&& $open_category_slug === $category_slug;
+		$voting_open_here = $this->workflow->is_accepting_votes( $competition, $category_slug );
 
 		$steps = array(
 			1 => array(
@@ -865,7 +855,6 @@ class Voting_Controller {
 				'image_count'      => $image_count,
 				'current_step'     => $current_step,
 				'comp_id'          => $comp_id,
-				'is_ready'         => '' === $prereq_refusal,
 				'prereq_refusal'   => $prereq_refusal,
 				'total_categories' => $total_categories,
 				'open_voting_hint' => $open_voting_hint,

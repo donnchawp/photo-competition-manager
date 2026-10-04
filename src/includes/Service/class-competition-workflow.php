@@ -84,6 +84,15 @@ class Competition_Workflow {
 	private $voting_tokens;
 
 	/**
+	 * Category slugs of competitions with categories of their own, keyed by
+	 * their settings JSON. Nearly every question needs them, and parsing
+	 * settings isn't cheap.
+	 *
+	 * @var array<string, array<int, string>>
+	 */
+	private $category_slugs = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions  Competitions repository.
@@ -114,14 +123,8 @@ class Competition_Workflow {
 			return self::PHASE_ARCHIVED;
 		}
 
-		$now = utc_time();
-
-		if ( ! empty( $competition->open_date ) && $competition->open_date > $now ) {
-			return self::PHASE_SCHEDULED;
-		}
-
-		if ( ! empty( $competition->close_date ) && $competition->close_date <= $now ) {
-			return self::PHASE_CLOSED;
+		if ( ! $this->is_open( $competition ) ) {
+			return ! empty( $competition->open_date ) && $competition->open_date > utc_time() ? self::PHASE_SCHEDULED : self::PHASE_CLOSED;
 		}
 
 		$state = $this->state( $competition );
@@ -163,8 +166,8 @@ class Competition_Workflow {
 	 * @return bool
 	 */
 	public function is_accepting_votes( object $competition, string $category_slug ): bool {
-		return in_array( $this->stage( $competition, $category_slug ), self::VOTING_STAGES, true )
-			&& $this->is_open( $competition );
+		return $this->is_open( $competition )
+			&& in_array( $this->stage( $competition, $category_slug ), self::VOTING_STAGES, true );
 	}
 
 	/**
@@ -177,7 +180,11 @@ class Competition_Workflow {
 	 * @return bool
 	 */
 	public function is_open( object $competition ): bool {
-		return ! in_array( $this->phase( $competition ), array( self::PHASE_SCHEDULED, self::PHASE_CLOSED, self::PHASE_ARCHIVED ), true );
+		$now = utc_time();
+
+		return empty( $competition->deleted_at )
+			&& ( empty( $competition->open_date ) || $competition->open_date <= $now )
+			&& ( empty( $competition->close_date ) || $competition->close_date > $now );
 	}
 
 	/**
@@ -197,14 +204,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error
 	 */
 	public function close_uploads( int $competition_id ) {
-		return $this->transition(
-			$competition_id,
-			fn() => true,
-			function ( array $state ) {
-				$state['uploads_closed'] = true;
-				return $state;
-			}
-		);
+		return $this->set_flag( $competition_id, 'uploads_closed', true, fn() => true );
 	}
 
 	/**
@@ -221,7 +221,7 @@ class Competition_Workflow {
 			return new WP_Error( 'voting_open', __( 'Close voting before reopening uploads.', 'photo-competition-manager' ) );
 		}
 
-		if ( ! empty( $this->votes->find_by_competition( (int) $competition->id ) ) ) {
+		if ( $this->votes->has_votes( (int) $competition->id ) ) {
 			return new WP_Error( 'votes_exist', __( 'Votes have been cast, so uploads can\'t reopen. Reset the competition\'s votes first.', 'photo-competition-manager' ) );
 		}
 
@@ -235,14 +235,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error
 	 */
 	public function reopen_uploads( int $competition_id ) {
-		return $this->transition(
-			$competition_id,
-			fn( $competition ) => $this->can_reopen_uploads( $competition ),
-			function ( array $state ) {
-				$state['uploads_closed'] = false;
-				return $state;
-			}
-		);
+		return $this->set_flag( $competition_id, 'uploads_closed', false, array( $this, 'can_reopen_uploads' ) );
 	}
 
 	/**
@@ -281,14 +274,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error
 	 */
 	public function publish_results( int $competition_id ) {
-		return $this->transition(
-			$competition_id,
-			fn( $competition ) => $this->can_publish_results( $competition ),
-			function ( array $state ) {
-				$state['results_published'] = true;
-				return $state;
-			}
-		);
+		return $this->set_flag( $competition_id, 'results_published', true, array( $this, 'can_publish_results' ) );
 	}
 
 	/**
@@ -298,14 +284,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error
 	 */
 	public function unpublish_results( int $competition_id ) {
-		return $this->transition(
-			$competition_id,
-			fn() => true,
-			function ( array $state ) {
-				$state['results_published'] = false;
-				return $state;
-			}
-		);
+		return $this->set_flag( $competition_id, 'results_published', false, fn() => true );
 	}
 
 	/**
@@ -321,17 +300,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error 'unknown_category' or 'wrong_stage'.
 	 */
 	public function can_advance( object $competition, string $category_slug, string $to ) {
-		$known = $this->check_category( $competition, $category_slug );
-
-		if ( true !== $known ) {
-			return $known;
-		}
-
-		if ( ( self::ADVANCES[ $this->stage( $competition, $category_slug ) ] ?? null ) !== $to ) {
-			return $this->wrong_stage();
-		}
-
-		return true;
+		return $this->require_stage( $competition, $category_slug, array_keys( self::ADVANCES, $to, true ) );
 	}
 
 	/**
@@ -351,17 +320,13 @@ class Competition_Workflow {
 	}
 
 	/**
-	 * Whether voting may open on a category.
+	 * Whether the voting workflow can start at all: uploads are closed and
+	 * results are hidden.
 	 *
-	 * @param object $competition   Competition row.
-	 * @param string $category_slug Category slug.
-	 * @return true|WP_Error
+	 * @param object $competition Competition row.
+	 * @return true|WP_Error 'uploads_open' or 'results_published'.
 	 */
-	public function can_open_voting( object $competition, string $category_slug ) {
-		if ( ! $this->is_open( $competition ) ) {
-			return $this->competition_closed();
-		}
-
+	public function can_start_voting( object $competition ) {
 		$state = $this->state( $competition );
 
 		if ( ! $state['uploads_closed'] ) {
@@ -372,17 +337,34 @@ class Competition_Workflow {
 			return new WP_Error( 'results_published', __( 'Hide results before starting the voting workflow.', 'photo-competition-manager' ) );
 		}
 
-		$known = $this->check_category( $competition, $category_slug );
+		return true;
+	}
 
-		if ( true !== $known ) {
-			return $known;
+	/**
+	 * Whether voting may open on a category.
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Category slug.
+	 * @return true|WP_Error
+	 */
+	public function can_open_voting( object $competition, string $category_slug ) {
+		if ( ! $this->is_open( $competition ) ) {
+			return new WP_Error( 'competition_closed', __( 'This competition is closed, so voting can\'t open.', 'photo-competition-manager' ) );
 		}
 
-		if ( self::STAGE_PREVIEWED !== $this->stage( $competition, $category_slug ) ) {
-			return $this->wrong_stage();
+		$ready = $this->can_start_voting( $competition );
+
+		if ( true !== $ready ) {
+			return $ready;
 		}
 
-		if ( empty( $this->images->find_by_competition( (int) $competition->id, $category_slug ) ) ) {
+		$at_stage = $this->require_stage( $competition, $category_slug, array( self::STAGE_PREVIEWED ) );
+
+		if ( true !== $at_stage ) {
+			return $at_stage;
+		}
+
+		if ( ! $this->images->has_images( (int) $competition->id, $category_slug ) ) {
 			return new WP_Error( 'no_images', __( 'That category has no images to vote on.', 'photo-competition-manager' ) );
 		}
 
@@ -419,17 +401,7 @@ class Competition_Workflow {
 	 * @return true|WP_Error 'unknown_category' or 'wrong_stage'.
 	 */
 	public function can_close_voting( object $competition, string $category_slug ) {
-		$known = $this->check_category( $competition, $category_slug );
-
-		if ( true !== $known ) {
-			return $known;
-		}
-
-		if ( ! in_array( $this->stage( $competition, $category_slug ), self::VOTING_STAGES, true ) ) {
-			return $this->wrong_stage();
-		}
-
-		return true;
+		return $this->require_stage( $competition, $category_slug, self::VOTING_STAGES );
 	}
 
 	/**
@@ -521,27 +493,19 @@ class Competition_Workflow {
 	 * @return true|WP_Error
 	 */
 	public function close_competition( int $competition_id ) {
-		$competition = $this->load( $competition_id );
+		$closed = $this->transition(
+			$competition_id,
+			array( $this, 'can_close_competition' ),
+			function ( array $state, object $competition ) {
+				foreach ( $this->categories_accepting_votes( $competition ) as $category_slug ) {
+					$state = $this->with_stage( $state, $category_slug, self::STAGE_CRITIQUE );
+				}
+				return $state;
+			}
+		);
 
-		if ( is_wp_error( $competition ) ) {
-			return $competition;
-		}
-
-		$allowed = $this->can_close_competition( $competition );
-
-		if ( true !== $allowed ) {
-			return $allowed;
-		}
-
-		$state = $this->state( $competition );
-		foreach ( $this->categories_accepting_votes( $competition ) as $category_slug ) {
-			$state = $this->with_stage( $state, $category_slug, self::STAGE_CRITIQUE );
-		}
-
-		$saved = $this->save( $competition, $state );
-
-		if ( true !== $saved ) {
-			return $saved;
+		if ( true !== $closed ) {
+			return $closed;
 		}
 
 		// Use the current time, not a date-only "today": that is stored as
@@ -581,12 +545,16 @@ class Competition_Workflow {
 	 * @return array<int, string>
 	 */
 	public function categories_accepting_votes( object $competition ): array {
-		return array_values(
-			array_filter(
-				array_keys( $this->state( $competition )['stages'] ),
-				fn( $slug ) => $this->is_accepting_votes( $competition, (string) $slug )
-			)
+		if ( ! $this->is_open( $competition ) ) {
+			return array();
+		}
+
+		$voting = array_filter(
+			$this->state( $competition )['stages'],
+			fn( $stage ) => in_array( $stage, self::VOTING_STAGES, true )
 		);
+
+		return array_map( 'strval', array_keys( $voting ) );
 	}
 
 	/**
@@ -618,6 +586,28 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Check a category belongs to the competition and is at one of the given stages.
+	 *
+	 * @param object             $competition   Competition row.
+	 * @param string             $category_slug Category slug.
+	 * @param array<int, string> $stages        Stages the category may be at.
+	 * @return true|WP_Error 'unknown_category' or 'wrong_stage'.
+	 */
+	private function require_stage( object $competition, string $category_slug, array $stages ) {
+		$known = $this->check_category( $competition, $category_slug );
+
+		if ( true !== $known ) {
+			return $known;
+		}
+
+		if ( ! in_array( $this->stage( $competition, $category_slug ), $stages, true ) ) {
+			return new WP_Error( 'wrong_stage', __( 'That category has moved on since this page loaded. Reload Voting Controls.', 'photo-competition-manager' ) );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Check a category belongs to the competition.
 	 *
 	 * @param object $competition   Competition row.
@@ -633,33 +623,47 @@ class Competition_Workflow {
 	}
 
 	/**
-	 * The refusal for opening voting on a competition outside its dates.
-	 *
-	 * @return WP_Error
-	 */
-	private function competition_closed(): WP_Error {
-		return new WP_Error( 'competition_closed', __( 'This competition is closed, so voting can\'t open.', 'photo-competition-manager' ) );
-	}
-
-	/**
-	 * The refusal for a stage move the stage graph doesn't allow.
-	 *
-	 * @return WP_Error
-	 */
-	private function wrong_stage(): WP_Error {
-		return new WP_Error( 'wrong_stage', __( 'That category has moved on since this page loaded. Reload Voting Controls.', 'photo-competition-manager' ) );
-	}
-
-	/**
 	 * Slugs of the competition's categories.
 	 *
 	 * @param object $competition Competition row.
 	 * @return array<int, string>
 	 */
 	private function category_slugs( object $competition ): array {
-		$settings = Competition_Settings::parse( $competition->settings ?? '' );
+		$json = (string) ( $competition->settings ?? '' );
 
-		return wp_list_pluck( Competition_Settings::get_categories( $settings ), 'slug' );
+		if ( isset( $this->category_slugs[ $json ] ) ) {
+			return $this->category_slugs[ $json ];
+		}
+
+		$settings = Competition_Settings::parse( $json );
+		$slugs    = wp_list_pluck( Competition_Settings::get_categories( $settings ), 'slug' );
+
+		// A competition without categories uses the club's, which can change.
+		if ( ! empty( $settings['categories'] ) ) {
+			$this->category_slugs[ $json ] = $slugs;
+		}
+
+		return $slugs;
+	}
+
+	/**
+	 * Set one of the competition-wide flags.
+	 *
+	 * @param int      $competition_id Competition ID.
+	 * @param string   $flag           'uploads_closed' or 'results_published'.
+	 * @param bool     $value          New value.
+	 * @param callable $check          Given the competition, returns true or a WP_Error.
+	 * @return true|WP_Error
+	 */
+	private function set_flag( int $competition_id, string $flag, bool $value, callable $check ) {
+		return $this->transition(
+			$competition_id,
+			$check,
+			function ( array $state ) use ( $flag, $value ) {
+				$state[ $flag ] = $value;
+				return $state;
+			}
+		);
 	}
 
 	/**
@@ -681,7 +685,7 @@ class Competition_Workflow {
 	 *
 	 * @param int      $competition_id Competition ID.
 	 * @param callable $check          Given the competition, returns true or a WP_Error.
-	 * @param callable $apply          Given the state, returns the new state.
+	 * @param callable $apply          Given the state and the competition, returns the new state.
 	 * @return true|WP_Error
 	 */
 	private function transition( int $competition_id, callable $check, callable $apply ) {
@@ -697,7 +701,7 @@ class Competition_Workflow {
 			return $allowed;
 		}
 
-		return $this->save( $competition, $apply( $this->state( $competition ) ) );
+		return $this->competitions->save_workflow( $competition_id, $apply( $this->state( $competition ), $competition ) );
 	}
 
 	/**
@@ -714,17 +718,6 @@ class Competition_Workflow {
 		}
 
 		return $competition;
-	}
-
-	/**
-	 * Save the workflow state.
-	 *
-	 * @param object                                                                              $competition Competition row.
-	 * @param array{uploads_closed: bool, results_published: bool, stages: array<string, string>} $state       Workflow state.
-	 * @return true|WP_Error
-	 */
-	private function save( object $competition, array $state ) {
-		return $this->competitions->save_workflow( (int) $competition->id, $state );
 	}
 
 	/**

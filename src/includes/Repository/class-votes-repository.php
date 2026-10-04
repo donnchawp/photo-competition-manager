@@ -181,6 +181,21 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Whether any votes have been cast in a competition.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return bool
+	 */
+	public function has_votes( int $competition_id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE competition_id = %d LIMIT 1', $this->table(), $competition_id ) );
+	}
+
+	/**
 	 * Remove existing anonymous votes recorded with a given token.
 	 *
 	 * @param int $voting_token_id Voting token ID.

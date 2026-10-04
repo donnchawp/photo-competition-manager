@@ -3,7 +3,7 @@
  * Workflow steps partial for the admin voting controls page.
  *
  * Reads $data keys: comp_id, competition, category_slug, category_label,
- * total_categories, image_count, is_ready, prereq_refusal, current_step,
+ * total_categories, image_count, prereq_refusal, current_step,
  * steps, open_voting_hint, voting_open_here, open_voting_url,
  * close_voting_url, reset_url.
  *
@@ -11,6 +11,8 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+$is_ready = '' === $data['prereq_refusal'];
 ?>
 		<div id="focus-panel" class="postbox photo-comp-workflow-card"
 			data-competition-id="<?php echo esc_attr( $data['comp_id'] ); ?>"
@@ -18,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
 			data-category="<?php echo esc_attr( $data['category_slug'] ); ?>"
 			data-category-label="<?php echo esc_attr( $data['category_label'] ); ?>">
 
-			<div class="inside <?php echo ! $data['is_ready'] ? 'photo-comp-workflow-disabled' : ''; ?>">
+			<div class="inside <?php echo ! $is_ready ? 'photo-comp-workflow-disabled' : ''; ?>">
 				<?php if ( $data['total_categories'] < 2 ) : ?>
 					<h2 class="photo-comp-single-category-heading">
 						<?php echo esc_html( $data['category_label'] ); ?>
@@ -50,7 +52,7 @@ defined( 'ABSPATH' ) || exit;
 					</div>
 				<?php endif; ?>
 
-				<?php if ( ! $data['is_ready'] ) : ?>
+				<?php if ( ! $is_ready ) : ?>
 					<div class="notice notice-warning inline photo-comp-prereq-notice">
 						<p>
 						<?php echo esc_html( $data['prereq_refusal'] ); ?>
@@ -62,8 +64,8 @@ defined( 'ABSPATH' ) || exit;
 					<?php
 					foreach ( $data['steps'] as $step_num => $step ) :
 						$is_completed = $data['current_step'] > $step_num;
-						$is_active    = $data['current_step'] === $step_num && $data['is_ready'];
-						$is_upcoming  = $data['current_step'] < $step_num || ! $data['is_ready'];
+						$is_active    = $data['current_step'] === $step_num && $is_ready;
+						$is_upcoming  = $data['current_step'] < $step_num || ! $is_ready;
 						?>
 						<div class="photo-comp-step <?php echo $is_completed ? 'step-completed' : ''; ?> <?php echo $is_active ? 'step-active' : ''; ?> <?php echo $is_upcoming ? 'step-upcoming' : ''; ?>">
 							<div class="step-indicator">

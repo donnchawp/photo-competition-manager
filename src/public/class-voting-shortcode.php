@@ -238,7 +238,7 @@ class Voting_Shortcode {
 		// Handle token request form submission.
 		$message = '';
 		if ( isset( $_POST['photo_competition_request_voting_token'] ) && check_admin_referer( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
-			$message = $this->handle_token_request( $competition, $settings, $_POST );
+			$message = $this->handle_token_request( $competition, $_POST );
 		}
 
 		$submitted_votes = array();
@@ -315,11 +315,10 @@ class Voting_Shortcode {
 	 * Handle token request form submission.
 	 *
 	 * @param object $competition Competition object.
-	 * @param array  $settings    Competition settings.
 	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.
 	 * @return string Message to display.
 	 */
-	private function handle_token_request( object $competition, array $settings, array $request ): string {
+	private function handle_token_request( object $competition, array $request ): string {
 		$member_email = isset( $request['member_email'] ) ? sanitize_email( wp_unslash( $request['member_email'] ) ) : '';
 		$category     = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
 

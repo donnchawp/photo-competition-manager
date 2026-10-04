@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -54,8 +55,8 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 				array(
 					'title'      => 'Workflow ' . $n,
 					'slug'       => 'workflow-' . $n,
-					'open_date'  => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
-					'close_date' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ),
+					'open_date'  => utc_time( -DAY_IN_SECONDS ),
+					'close_date' => utc_time( DAY_IN_SECONDS ),
 					'settings'   => array(
 						'categories' => array(
 							array(
@@ -201,8 +202,8 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$id = $this->ready_to_open(
 			'colour',
 			array(
-				'open_date'  => gmdate( 'Y-m-d H:i:s', strtotime( '+10 days' ) ),
-				'close_date' => gmdate( 'Y-m-d H:i:s', strtotime( '+11 days' ) ),
+				'open_date'  => utc_time( 10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 11 * DAY_IN_SECONDS ),
 			)
 		);
 		$this->set_dates( $id, '-1 day', '+1 day' );
@@ -446,7 +447,7 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 	 */
 	public function test_results_pages_show_the_latest_competition_with_results_published(): void {
 		$published = $this->create_competition( array( 'open_date' => utc_time( -30 * DAY_IN_SECONDS ), 'close_date' => utc_time( DAY_IN_SECONDS ) ) );
-		$this->publish( $published );
+		Workflow_Fixtures::publish_results( $published );
 		$this->create_competition( array( 'open_date' => utc_time( DAY_IN_SECONDS ), 'close_date' => utc_time( 31 * DAY_IN_SECONDS ) ) );
 
 		$this->assertSame( $published, (int) $this->workflow->find_for_results()->id );
@@ -455,8 +456,8 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 	public function test_results_pages_pick_the_latest_opened_of_several_published(): void {
 		$august = $this->create_competition( array( 'open_date' => '2020-08-01 00:00:00', 'close_date' => '2020-09-01 00:00:00' ) );
 		$july   = $this->create_competition( array( 'open_date' => '2020-07-01 00:00:00', 'close_date' => '2020-08-01 00:00:00' ) );
-		$this->publish( $august );
-		$this->publish( $july );
+		Workflow_Fixtures::publish_results( $august );
+		Workflow_Fixtures::publish_results( $july );
 
 		$this->assertSame( $august, (int) $this->workflow->find_for_results()->id );
 	}
@@ -472,7 +473,7 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$august = $this->create_competition( array( 'open_date' => '2020-08-01 00:00:00', 'close_date' => '2020-09-01 00:00:00' ) );
 		$this->create_competition( array( 'open_date' => '2020-07-01 00:00:00', 'close_date' => '2020-08-01 00:00:00' ) );
 		$archived = $this->create_competition( array( 'open_date' => '2020-10-01 00:00:00', 'close_date' => '2020-11-01 00:00:00' ) );
-		$this->publish( $archived );
+		Workflow_Fixtures::publish_results( $archived );
 		$this->competitions->archive( $archived );
 
 		$this->assertSame( $august, (int) $this->workflow->find_for_results()->id );
@@ -484,9 +485,9 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 	 */
 	public function test_results_pages_rank_a_missing_open_date_by_creation(): void {
 		$august = $this->create_competition( array( 'open_date' => '2020-08-01 00:00:00', 'close_date' => '2020-09-01 00:00:00' ) );
-		$this->publish( $august );
+		Workflow_Fixtures::publish_results( $august );
 		$undated = $this->create_competition( array( 'open_date' => null, 'close_date' => utc_time( DAY_IN_SECONDS ) ) );
-		$this->publish( $undated );
+		Workflow_Fixtures::publish_results( $undated );
 
 		$this->assertSame( $undated, (int) $this->workflow->find_for_results()->id );
 	}
@@ -515,16 +516,6 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->workflow->advance( $id, 'colour', Competition_Workflow::STAGE_PREVIEWED );
 		$this->competitions->update( $id, array( 'settings' => $both ) );
 		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, $this->workflow->stage( $this->row( $id ), 'mono' ), 'Its stage was dropped on the next write.' );
-	}
-
-	/**
-	 * Close uploads and publish a competition's results.
-	 *
-	 * @param int $id Competition ID.
-	 */
-	private function publish( int $id ): void {
-		$this->workflow->close_uploads( $id );
-		$this->assertTrue( $this->workflow->publish_results( $id ) );
 	}
 
 	/**

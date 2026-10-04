@@ -156,6 +156,22 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Whether a competition's category has any images.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return bool
+	 */
+	public function has_images( int $competition_id, string $category ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s LIMIT 1', $this->table(), $competition_id, $category ) );
+	}
+
+	/**
 	 * Get next random number for a competition category.
 	 *
 	 * @param int    $competition_id Competition ID.

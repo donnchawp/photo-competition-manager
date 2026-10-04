@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
 /**
@@ -85,6 +86,8 @@ class Activator {
 
 	/**
 	 * Old voting steps, as stored in settings, and the stage each one is now.
+	 * Voting_Controller::STEP_STAGES has the same numbers today, but this is
+	 * what the stored data meant, so it stays as it is if the page changes.
 	 */
 	const LEGACY_STEP_STAGES = array(
 		1 => Competition_Workflow::STAGE_NOT_STARTED,
@@ -136,7 +139,7 @@ class Activator {
 		// New competitions copy the club's settings, so clean those too.
 		$club = json_decode( (string) get_option( 'photo_comp_default_settings', '' ), true );
 		if ( is_array( $club ) ) {
-			update_option( 'photo_comp_default_settings', wp_json_encode( self::without_workflow( $club ) ) );
+			update_option( 'photo_comp_default_settings', Competition_Settings::encode( self::without_workflow( $club ) ) );
 		}
 
 		return true;
@@ -189,8 +192,7 @@ class Activator {
 			}
 		}
 
-		$step_of = array_flip( self::LEGACY_STEP_STAGES );
-		$prefix  = $id . '_';
+		$prefix = $id . '_';
 
 		foreach ( (array) ( $voting['voted_categories'] ?? array() ) as $key ) {
 			if ( 0 !== strpos( (string) $key, $prefix ) ) {
@@ -198,7 +200,7 @@ class Activator {
 			}
 
 			$slug = substr( (string) $key, strlen( $prefix ) );
-			if ( ( $step_of[ $stages[ $slug ] ?? '' ] ?? 1 ) < 5 ) {
+			if ( ! in_array( $stages[ $slug ] ?? '', array( Competition_Workflow::STAGE_CRITIQUE, Competition_Workflow::STAGE_DONE ), true ) ) {
 				$stages[ $slug ] = Competition_Workflow::STAGE_CRITIQUE;
 			}
 		}

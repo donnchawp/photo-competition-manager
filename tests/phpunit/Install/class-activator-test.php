@@ -13,6 +13,8 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use WP_UnitTestCase;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 class Activator_Test extends WP_UnitTestCase {
 
 	public function setUp(): void {
@@ -248,9 +250,9 @@ class Activator_Test extends WP_UnitTestCase {
 			array(
 				'title'      => 'Old',
 				'slug'       => 'old-' . wp_generate_password( 6, false ),
-				'open_date'  => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
-				'close_date' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ),
-				'created_at' => gmdate( 'Y-m-d H:i:s' ),
+				'open_date'  => utc_time( -DAY_IN_SECONDS ),
+				'close_date' => utc_time( DAY_IN_SECONDS ),
+				'created_at' => utc_time(),
 			)
 		);
 		$id = (int) $wpdb->insert_id;
