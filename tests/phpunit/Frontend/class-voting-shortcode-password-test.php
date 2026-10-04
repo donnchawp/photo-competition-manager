@@ -164,6 +164,22 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->vote_count() );
 	}
 
+	public function test_voter_with_a_very_long_name_sees_their_ballot_recorded(): void {
+		$this->submit_ballot(
+			array(
+				$this->images['colour'][0] => 9,
+				$this->images['colour'][1] => 8,
+			),
+			str_repeat( 'Ann ', 50 ) . 'Voter'
+		);
+		$_POST    = array();
+		$_REQUEST = array();
+
+		$page = ( new Voting_Shortcode() )->render();
+
+		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $page );
+	}
+
 	public function test_ballot_padded_with_another_category_is_rejected(): void {
 		$result = $this->submit_ballot(
 			array(

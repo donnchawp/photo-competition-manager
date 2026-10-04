@@ -1142,6 +1142,7 @@ class Voting_Shortcode {
 	 */
 	private function collect_password_submission_data( array $request, array $settings ): array {
 		$voter_name      = isset( $request['voter_name'] ) ? sanitize_text_field( wp_unslash( $request['voter_name'] ) ) : '';
+		$voter_name      = mb_substr( $voter_name, 0, 191 ); // The votes table holds 191 characters, so the cookie and lookups must use the same name.
 		$category        = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
 		$voting_password = isset( $request['voting_password'] ) ? sanitize_text_field( wp_unslash( $request['voting_password'] ) ) : '';
 		$votes           = $this->collect_vote_selections_from_request( $request, $settings );
