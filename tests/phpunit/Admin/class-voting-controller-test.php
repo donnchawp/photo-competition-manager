@@ -132,10 +132,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * @param string $category       Category slug.
 	 */
 	private function seed_vote( int $competition_id, string $category ): void {
-		static $image_id = 1234;
-
-		$votes = new Votes_Repository();
-		$votes->create_anonymous( $competition_id, $category, 4321, $image_id++, 5 );
+		Entry_Fixtures::insert_entry( $competition_id, $category, $this->admin_id, array( 5 ) );
 	}
 
 	/**

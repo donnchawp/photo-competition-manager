@@ -49,23 +49,7 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$inserted = $wpdb->query(
-			$wpdb->prepare(
-				'INSERT INTO %i (competition_id, category, voting_token_id, image_id, score, created_at)
-				VALUES (%d, %s, %d, %d, %d, %s)
-				ON DUPLICATE KEY UPDATE id = id',
-				$this->table(),
-				$competition_id,
-				$category,
-				$voting_token_id,
-				$image_id,
-				$score,
-				utc_time()
-			)
-		);
-
-		return $this->inserted_vote( $inserted );
+		return $this->insert_vote( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $image_id, $score );
 	}
 
 	/**
@@ -89,34 +73,42 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
 		}
 
+		return $this->insert_vote( $competition_id, $category, 'voter_name', $voter_name, $image_id, $score );
+	}
+
+	/**
+	 * Insert a vote. A voter gets one vote per image: the table's unique keys
+	 * turn a second one into an insert of no rows.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param string $voter_column   voting_token_id or voter_name.
+	 * @param string $voter          The voter's token ID or name.
+	 * @param int    $image_id       Image ID.
+	 * @param int    $score          Score value.
+	 * @return int|WP_Error Vote ID or error.
+	 */
+	private function insert_vote( int $competition_id, string $category, string $voter_column, string $voter, int $image_id, int $score ) {
+		global $wpdb;
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->query(
 			$wpdb->prepare(
-				'INSERT INTO %i (competition_id, category, voter_name, image_id, score, created_at)
+				'INSERT INTO %i (competition_id, category, %i, image_id, score, created_at)
 				VALUES (%d, %s, %s, %d, %d, %s)
 				ON DUPLICATE KEY UPDATE id = id',
 				$this->table(),
+				$voter_column,
 				$competition_id,
 				$category,
-				$voter_name,
+				$voter,
 				$image_id,
 				$score,
 				utc_time()
 			)
 		);
-
-		return $this->inserted_vote( $inserted );
-	}
-
-	/**
-	 * The outcome of inserting a vote. A voter gets one vote per image: the
-	 * table's unique keys turn a second one into an insert of no rows.
-	 *
-	 * @param int|bool $inserted Rows inserted, or false on failure.
-	 * @return int|WP_Error Vote ID or error.
-	 */
-	private function inserted_vote( $inserted ) {
-		global $wpdb;
 
 		if ( false === $inserted ) {
 			return new WP_Error( 'insert_failed', $wpdb->last_error );

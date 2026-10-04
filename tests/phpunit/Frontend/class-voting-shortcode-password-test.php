@@ -150,6 +150,20 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->vote_count() );
 	}
 
+	public function test_voter_name_differing_only_in_case_is_the_same_voter(): void {
+		$ballot = array(
+			$this->images['colour'][0] => 9,
+			$this->images['colour'][1] => 8,
+		);
+		$this->submit_ballot( $ballot, 'Ann Voter' );
+		unset( $_COOKIE['photo_competition_voter'] );
+
+		$result = $this->submit_ballot( $ballot, 'ann voter' );
+
+		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $result );
+		$this->assertSame( 2, $this->vote_count() );
+	}
+
 	public function test_ballot_padded_with_another_category_is_rejected(): void {
 		$result = $this->submit_ballot(
 			array(

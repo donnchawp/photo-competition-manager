@@ -11,6 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
@@ -119,8 +121,7 @@ class Activator {
 
 		// Requests run upgrades without activating, so add the column here.
 		// Only when it's missing: DDL ends the running transaction.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $repository->table(), 'workflow' ) ) ) {
+		if ( ! self::column_exists( $repository->table(), 'workflow' ) ) {
 			self::create_tables();
 		}
 
@@ -174,7 +175,7 @@ class Activator {
 	private static function make_votes_unique(): bool {
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'photocomp_votes';
+		$table = ( new Votes_Repository() )->table();
 
 		// Only when the keys are missing: DDL ends the running transaction.
 		if ( self::votes_are_unique( $table ) ) {
@@ -219,6 +220,8 @@ class Activator {
 	/**
 	 * Whether the votes table has its unique keys.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param string $table Votes table.
 	 * @return bool
 	 */
@@ -232,6 +235,22 @@ class Activator {
 	}
 
 	/**
+	 * Whether a table has a column.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table  Table name.
+	 * @param string $column Column name.
+	 * @return bool
+	 */
+	private static function column_exists( string $table, string $column ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $table, $column ) );
+	}
+
+	/**
 	 * Drop voting_tokens.used_at. Nothing ever set it.
 	 *
 	 * @since 0.4.0
@@ -241,10 +260,9 @@ class Activator {
 	private static function drop_token_used_at(): bool {
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'photocomp_voting_tokens';
+		$table = ( new Voting_Token_Repository() )->table();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $table, 'used_at' ) ) ) {
+		if ( ! self::column_exists( $table, 'used_at' ) ) {
 			return true;
 		}
 

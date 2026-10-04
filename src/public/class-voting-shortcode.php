@@ -443,7 +443,7 @@ class Voting_Shortcode {
 
 			// Another submission of this ballot got there first.
 			if ( $this->is_duplicate_vote( $result ) ) {
-				return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+				return $this->already_voted_notice();
 			}
 
 			if ( ! is_wp_error( $result ) ) {
@@ -566,7 +566,7 @@ class Voting_Shortcode {
 				$this->refresh_voter_cookie( $voter_name, $provided_pass );
 				return array(
 					'status'   => 'already_voted',
-					'message'  => '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>',
+					'message'  => $this->already_voted_notice(),
 					'category' => $category,
 				);
 			}
@@ -704,7 +704,7 @@ class Voting_Shortcode {
 				}
 
 				if ( ! empty( $existing_votes ) ) {
-					echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+					echo wp_kses_post( $this->already_voted_notice() );
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
@@ -981,7 +981,7 @@ class Voting_Shortcode {
 					if ( $has_voted ) {
 						echo '<div class="voting-category-section voting-category-complete">';
 						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
-						echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+						echo wp_kses_post( $this->already_voted_notice() );
 						echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 						echo '</div>';
 						continue;
@@ -1216,16 +1216,31 @@ class Voting_Shortcode {
 	 * Keep only the votes for the given images, so votes for images outside
 	 * the category can't make up the count of a ballot.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param array<int, int> $votes  Vote selections keyed by image ID.
 	 * @param array<object>   $images The category's images.
 	 * @return array<int, int>
 	 */
 	private function votes_for_images( array $votes, array $images ): array {
-		return array_intersect_key( $votes, array_column( $images, null, 'id' ) );
+		return array_intersect_key( $votes, array_flip( array_column( $images, 'id' ) ) );
+	}
+
+	/**
+	 * The notice shown to a voter whose ballot for the category is already saved.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string
+	 */
+	private function already_voted_notice(): string {
+		return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
 	}
 
 	/**
 	 * Whether a vote was refused because the voter already has one for the image.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param int|WP_Error $result Outcome of recording a vote.
 	 * @return bool
@@ -1287,7 +1302,9 @@ class Voting_Shortcode {
 			'password' => $password, // Store password for accessibility on mobile devices.
 		);
 
-		// The shortcode renders inside the page, so headers may have gone already.
+		// The ballot is handled while the shortcode renders, inside the page, so
+		// headers can already be sent (classic themes, and PHPUnit). Handling
+		// the POST on template_redirect would fix this and the redirect after it.
 		if ( ! headers_sent() ) {
 			setcookie(
 				'photo_competition_voter',

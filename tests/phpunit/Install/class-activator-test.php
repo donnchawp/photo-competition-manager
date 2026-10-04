@@ -292,6 +292,9 @@ class Activator_Test extends WP_UnitTestCase {
 
 		$kept = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $wpdb->prefix . 'photocomp_votes' ) );
 		$this->assertSame( array( $ann_first, $token_first, $other_token, $other_image ), array_map( 'intval', $kept ) );
+		// The swallowed ALTER means the keys never appear, so the upgrade
+		// stops there and runs again on the next request.
+		$this->assertSame( 3, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	/**
