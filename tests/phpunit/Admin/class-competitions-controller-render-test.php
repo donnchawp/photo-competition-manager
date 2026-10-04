@@ -230,6 +230,18 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-active-with-rows', array( $spring_id, $winter_id ) );
 	}
 
+	public function test_render_greys_out_open_uploads_when_reopening_is_refused(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<span title="Hide results before reopening uploads." style="color: #888">Open Uploads</span>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( 'Spring Show', 'spring-show' );
 		$this->insert_overlapping_competition( 'Autumn Show', 'autumn-show' );

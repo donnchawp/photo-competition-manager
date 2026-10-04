@@ -693,6 +693,7 @@ class Members_Controller {
 	 */
 	private function render_uploads_status_notice( object $competition ): string {
 		$uploads_closed = $this->workflow->uploads_closed( $competition );
+		$reopen_check   = $uploads_closed ? $this->workflow->can_reopen_uploads( $competition ) : true;
 
 		$toggle_url = wp_nonce_url(
 			add_query_arg(
@@ -718,11 +719,12 @@ class Members_Controller {
 		return $this->render_template(
 			'admin/members/uploads-status-notice.php',
 			array(
-				'notice_class' => $notice_class,
-				'title'        => $competition->title,
-				'status_text'  => $status_text,
-				'toggle_url'   => $toggle_url,
-				'button_text'  => $button_text,
+				'notice_class'   => $notice_class,
+				'title'          => $competition->title,
+				'status_text'    => $status_text,
+				'toggle_url'     => $toggle_url,
+				'button_text'    => $button_text,
+				'reopen_refusal' => is_wp_error( $reopen_check ) ? $reopen_check->get_error_message() : '',
 			)
 		);
 	}

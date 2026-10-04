@@ -898,8 +898,13 @@ class Competitions_Controller {
 
 			$toggle_uploads_url = '';
 			$uploads_closed     = false;
+			$reopen_refusal     = '';
 			if ( ! $is_archived ) {
-				$uploads_closed     = $this->workflow->uploads_closed( $competition );
+				$uploads_closed = $this->workflow->uploads_closed( $competition );
+				if ( $uploads_closed ) {
+					$reopen_check   = $this->workflow->can_reopen_uploads( $competition );
+					$reopen_refusal = is_wp_error( $reopen_check ) ? $reopen_check->get_error_message() : '';
+				}
 				$toggle_uploads_url = wp_nonce_url(
 					add_query_arg(
 						array(
@@ -1016,6 +1021,7 @@ class Competitions_Controller {
 				'is_archived'        => $is_archived,
 				'toggle_uploads_url' => $toggle_uploads_url,
 				'uploads_closed'     => $uploads_closed,
+				'reopen_refusal'     => $reopen_refusal,
 				'is_open'            => $is_open,
 				'send_email_url'     => $send_email_url,
 				'close_url'          => $close_url,

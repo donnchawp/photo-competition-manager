@@ -6,7 +6,8 @@
  * string, is_current: bool}>): the Active/Archived view-switcher links.
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
  * string, last_updated: string, edit_url: string, is_archived: bool,
- * toggle_uploads_url: string, uploads_closed: bool, is_open: bool,
+ * toggle_uploads_url: string, uploads_closed: bool, reopen_refusal: string
+ * (why uploads can't reopen; empty when they can), is_open: bool,
  * send_email_url: string, close_url: string, generate_link_url: string,
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
@@ -80,7 +81,11 @@ foreach ( $data['rows'] as $row ) {
 			? __( 'Open Uploads', 'photo-competition-manager' )
 			: __( 'Close Uploads', 'photo-competition-manager' );
 
-		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['toggle_uploads_url'] ), esc_html( $toggle_label ) );
+		if ( '' !== $row['reopen_refusal'] ) {
+			$actions[] = sprintf( '<span title="%s" style="color: #888;">%s</span>', esc_attr( $row['reopen_refusal'] ), esc_html( $toggle_label ) );
+		} else {
+			$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['toggle_uploads_url'] ), esc_html( $toggle_label ) );
+		}
 	}
 
 	if ( $row['is_open'] && ! $row['is_archived'] ) {

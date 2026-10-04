@@ -233,6 +233,19 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-uploads-closed', array( $comp_id ), array( $dave ) );
 	}
 
+	public function test_render_greys_out_open_uploads_when_reopening_is_refused(): void {
+		$comp_id = $this->seed_competition( 'Winter Salon', 'winter-salon' );
+		Workflow_Fixtures::publish_results( $comp_id );
+		$this->seed_member( 'Dave Evans', 'dave@example.com' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<button type="button" class="button" disabled title="Hide results before reopening uploads.">Open Uploads</button>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
 	public function test_render_filtered_no_match(): void {
 		// Search filter that matches nothing: "No members found matching the
 		// selected filters." message plus the "Clear Filters" link.
