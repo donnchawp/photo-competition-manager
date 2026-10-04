@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
@@ -182,11 +183,13 @@ class Activator {
 			return true;
 		}
 
+		$removed = array();
+
 		foreach ( array( 'voting_token_id', 'voter_name' ) as $voter ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$duplicates = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT image_id, %i AS voter, MIN(id) AS earliest FROM %i
+					'SELECT MIN(competition_id) AS competition_id, image_id, %i AS voter, MIN(id) AS earliest FROM %i
 					WHERE %i IS NOT NULL
 					GROUP BY image_id, %i
 					HAVING COUNT(*) > 1',
@@ -198,8 +201,10 @@ class Activator {
 			);
 
 			foreach ( $duplicates as $duplicate ) {
+				$competition_id = (int) $duplicate->competition_id;
+
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-				$wpdb->query(
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + (int) $wpdb->query(
 					$wpdb->prepare(
 						'DELETE FROM %i WHERE image_id = %d AND %i = %s AND id <> %d',
 						$table,
@@ -210,6 +215,26 @@ class Activator {
 					)
 				);
 			}
+		}
+
+		// Totals come from the votes, so say which competitions' results changed.
+		foreach ( $removed as $competition_id => $count ) {
+			( new Event_Logger() )->log(
+				$competition_id,
+				'duplicate_votes_removed',
+				'voting',
+				sprintf(
+					/* translators: %d: number of votes removed */
+					_n(
+						'Upgrade removed %d duplicate vote, keeping each voter\'s earliest vote for an image.',
+						'Upgrade removed %d duplicate votes, keeping each voter\'s earliest vote for an image.',
+						$count,
+						'photo-competition-manager'
+					),
+					$count
+				),
+				array( 'removed' => $count )
+			);
 		}
 
 		self::create_tables();

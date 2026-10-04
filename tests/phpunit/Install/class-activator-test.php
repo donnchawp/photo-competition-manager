@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Install;
 
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use WP_UnitTestCase;
@@ -297,6 +298,35 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 3, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_4_logs_the_duplicate_votes_it_removes(): void {
+		$this->shadow_v3_votes_table();
+		$this->insert_v3_vote( 42, 100, null, 9 );
+		$this->insert_v3_vote( 42, 100, null, 3 );
+		$this->insert_v3_vote( 42, null, 'Ann', 7 );
+		$this->insert_v3_vote( 42, null, 'Ann', 2 );
+		$this->insert_v3_vote( 50, 200, null, 6, 2 );
+		$this->insert_v3_vote( 50, 200, null, 5, 2 );
+		$this->insert_v3_vote( 60, 300, null, 4, 3 );
+		update_option( 'photo_comp_db_version', 3 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array( 2, 1, 0 ), array_map( array( $this, 'removed_votes_logged' ), array( 1, 2, 3 ) ) );
+	}
+
+	/**
+	 * How many removed duplicate votes the upgrade logged for a competition.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return int
+	 */
+	private function removed_votes_logged( int $competition_id ): int {
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'duplicate_votes_removed' ) );
+		$this->assertLessThanOrEqual( 1, count( $logs ) );
+
+		return $logs ? (int) json_decode( $logs[0]->metadata, true )['removed'] : 0;
+	}
+
 	/**
 	 * Hide the votes table behind a temporary one shaped as version 3 left
 	 * it, without unique keys, so duplicates can be stored.
@@ -339,15 +369,16 @@ class Activator_Test extends WP_UnitTestCase {
 	 * @param int|null    $voting_token_id Token, in token mode.
 	 * @param string|null $voter_name      Voter name, in password mode.
 	 * @param int         $score           Score.
+	 * @param int         $competition_id  Competition ID.
 	 * @return int Vote ID.
 	 */
-	private function insert_v3_vote( int $image_id, ?int $voting_token_id, ?string $voter_name, int $score ): int {
+	private function insert_v3_vote( int $image_id, ?int $voting_token_id, ?string $voter_name, int $score, int $competition_id = 1 ): int {
 		global $wpdb;
 
 		$wpdb->insert(
 			$this->shadowed,
 			array(
-				'competition_id'  => 1,
+				'competition_id'  => $competition_id,
 				'category'        => 'colour',
 				'voter_name'      => $voter_name,
 				'voting_token_id' => $voting_token_id,
