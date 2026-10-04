@@ -50,24 +50,22 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$inserted = $wpdb->insert(
-			$this->table(),
-			array(
-				'competition_id'  => $competition_id,
-				'category'        => $category,
-				'voting_token_id' => $voting_token_id,
-				'image_id'        => $image_id,
-				'score'           => $score,
-				'created_at'      => utc_time(),
-			),
-			array( '%d', '%s', '%d', '%d', '%d', '%s' )
+		$inserted = $wpdb->query(
+			$wpdb->prepare(
+				'INSERT INTO %i (competition_id, category, voting_token_id, image_id, score, created_at)
+				VALUES (%d, %s, %d, %d, %d, %s)
+				ON DUPLICATE KEY UPDATE id = id',
+				$this->table(),
+				$competition_id,
+				$category,
+				$voting_token_id,
+				$image_id,
+				$score,
+				utc_time()
+			)
 		);
 
-		if ( false === $inserted ) {
-			return new WP_Error( 'insert_failed', $wpdb->last_error );
-		}
-
-		return (int) $wpdb->insert_id;
+		return $this->inserted_vote( $inserted );
 	}
 
 	/**
@@ -92,21 +90,40 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$inserted = $wpdb->insert(
-			$this->table(),
-			array(
-				'competition_id' => $competition_id,
-				'category'       => $category,
-				'voter_name'     => $voter_name,
-				'image_id'       => $image_id,
-				'score'          => $score,
-				'created_at'     => utc_time(),
-			),
-			array( '%d', '%s', '%s', '%d', '%d', '%s' )
+		$inserted = $wpdb->query(
+			$wpdb->prepare(
+				'INSERT INTO %i (competition_id, category, voter_name, image_id, score, created_at)
+				VALUES (%d, %s, %s, %d, %d, %s)
+				ON DUPLICATE KEY UPDATE id = id',
+				$this->table(),
+				$competition_id,
+				$category,
+				$voter_name,
+				$image_id,
+				$score,
+				utc_time()
+			)
 		);
+
+		return $this->inserted_vote( $inserted );
+	}
+
+	/**
+	 * The outcome of inserting a vote. A voter gets one vote per image: the
+	 * table's unique keys turn a second one into an insert of no rows.
+	 *
+	 * @param int|bool $inserted Rows inserted, or false on failure.
+	 * @return int|WP_Error Vote ID or error.
+	 */
+	private function inserted_vote( $inserted ) {
+		global $wpdb;
 
 		if ( false === $inserted ) {
 			return new WP_Error( 'insert_failed', $wpdb->last_error );
+		}
+
+		if ( 0 === $inserted ) {
+			return new WP_Error( 'duplicate_vote', __( 'This image already has a vote from this voter.', 'photo-competition-manager' ) );
 		}
 
 		return (int) $wpdb->insert_id;

@@ -25,7 +25,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 3;
+	const DB_VERSION = 4;
 
 	/**
 	 * Option holding the installed data version.
@@ -78,6 +78,12 @@ class Activator {
 		// The competition workflow moved out of the settings blob into its
 		// own column, so saving settings can't wipe it.
 		if ( $installed < 3 && ! self::move_workflow_out_of_settings() ) {
+			return;
+		}
+
+		// A voter gets one vote per image. Unique keys enforce it, and votes
+		// are the only record of a used voting token.
+		if ( $installed < 4 && ( ! self::make_votes_unique() || ! self::drop_token_used_at() ) ) {
 			return;
 		}
 
@@ -155,6 +161,95 @@ class Activator {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Delete all but the earliest vote each voter has on an image, then add
+	 * the unique keys that stop a second one.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the keys couldn't be added.
+	 */
+	private static function make_votes_unique(): bool {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'photocomp_votes';
+
+		// Only when the keys are missing: DDL ends the running transaction.
+		if ( self::votes_are_unique( $table ) ) {
+			return true;
+		}
+
+		foreach ( array( 'voting_token_id', 'voter_name' ) as $voter ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$duplicates = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT image_id, %i AS voter, MIN(id) AS earliest FROM %i
+					WHERE %i IS NOT NULL
+					GROUP BY image_id, %i
+					HAVING COUNT(*) > 1',
+					$voter,
+					$table,
+					$voter,
+					$voter
+				)
+			);
+
+			foreach ( $duplicates as $duplicate ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query(
+					$wpdb->prepare(
+						'DELETE FROM %i WHERE image_id = %d AND %i = %s AND id <> %d',
+						$table,
+						$duplicate->image_id,
+						$voter,
+						$duplicate->voter,
+						$duplicate->earliest
+					)
+				);
+			}
+		}
+
+		self::create_tables();
+
+		return self::votes_are_unique( $table );
+	}
+
+	/**
+	 * Whether the votes table has its unique keys.
+	 *
+	 * @param string $table Votes table.
+	 * @return bool
+	 */
+	private static function votes_are_unique( string $table ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$keys = $wpdb->get_col( $wpdb->prepare( "SHOW INDEX FROM %i WHERE Key_name IN ('image_token', 'image_voter')", $table ), 2 );
+
+		return 2 === count( array_unique( $keys ) );
+	}
+
+	/**
+	 * Drop voting_tokens.used_at. Nothing ever set it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the column couldn't be dropped.
+	 */
+	private static function drop_token_used_at(): bool {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'photocomp_voting_tokens';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $table, 'used_at' ) ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		return false !== $wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP COLUMN used_at', $table ) );
 	}
 
 	/**
@@ -342,7 +437,9 @@ class Activator {
 			KEY competition (competition_id),
 			KEY image (image_id),
 			KEY voting_token (voting_token_id),
-			KEY voter_name (voter_name)
+			KEY voter_name (voter_name),
+			UNIQUE KEY image_token (image_id, voting_token_id),
+			UNIQUE KEY image_voter (image_id, voter_name)
 		) {$charset_collate};";
 
 		$upload_tokens = "CREATE TABLE {$wpdb->prefix}photocomp_upload_tokens (
@@ -367,7 +464,6 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			token_hash VARCHAR(64) NOT NULL,
 			expires_at DATETIME NOT NULL,
-			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
 			sent_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

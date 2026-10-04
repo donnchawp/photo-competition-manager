@@ -206,12 +206,26 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Add another entry to a category, from a new member.
+	 *
+	 * @param string $category Category slug.
+	 * @return int Image ID.
+	 */
+	private function add_entry( string $category ): int {
+		static $entrant = 0;
+		++$entrant;
+
+		return Entry_Fixtures::insert_entry( (int) $this->competition->id, $category, $this->make_member( 'entrant-' . $entrant . '@example.com', true ), array() );
+	}
+
+	/**
 	 * Submit a ballot with a token.
 	 *
 	 * @param string             $token_string Voting token.
 	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
+	 * @return string Rendered output.
 	 */
-	private function submit_vote( string $token_string, $votes ): void {
+	private function submit_vote( string $token_string, $votes ): string {
 		$nonce = wp_create_nonce( 'photo_competition_vote_with_token' );
 
 		$_GET['token']                            = $token_string;
@@ -220,7 +234,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_REQUEST['photo_competition_vote_nonce'] = $nonce;
 		$_POST['votes']                           = is_array( $votes ) ? array_map( 'strval', $votes ) : array( $votes => '9' );
 
-		$this->shortcode->render();
+		return $this->shortcode->render();
 	}
 
 	private function vote_count(): int {
@@ -285,6 +299,49 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$votes = ( new Votes_Repository() )->find_by_competition( (int) $this->competition->id );
 		$this->assertSame( array( $colour_id ), array_map( 'intval', array_column( $votes, 'image_id' ) ) );
+	}
+
+	public function test_token_ballot_for_every_image_is_accepted(): void {
+		$first  = $this->make_image( 'colour' );
+		$second = $this->add_entry( 'colour' );
+
+		$output = $this->submit_vote(
+			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
+			array(
+				$first  => 9,
+				$second => 8,
+			)
+		);
+
+		$this->assertStringContainsString( 'Thank you for voting!', $output );
+		$this->assertSame( 2, $this->vote_count() );
+	}
+
+	public function test_token_ballot_padded_with_another_category_is_rejected(): void {
+		$this->add_entry( 'colour' );
+
+		$output = $this->submit_vote(
+			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
+			array(
+				$this->make_image( 'colour' ) => 9,
+				$this->make_image( 'mono' )   => 8,
+			)
+		);
+
+		$this->assertStringContainsString( 'You have voted for 1 of 2 images.', $output );
+		$this->assertSame( 0, $this->vote_count() );
+	}
+
+	public function test_second_token_ballot_is_reported_as_already_voted(): void {
+		$token = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$this->submit_vote( $token, $this->make_image() );
+
+		$output = $this->submit_vote( $token, $this->make_image() );
+
+		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $output );
+		$this->assertStringNotContainsString( 'Thank you for voting!', $output );
+		$this->assertStringNotContainsString( 'class="error"', $output );
+		$this->assertSame( 1, $this->vote_count() );
 	}
 
 	public function test_inactive_member_token_cannot_vote(): void {

@@ -28,28 +28,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		parent::setUp();
 		$this->repository = new Voting_Token_Repository();
 
-		// Ensure table exists for testing.
 		global $wpdb;
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-		$charset_collate = $wpdb->get_charset_collate();
-
-		$sql = "CREATE TABLE {$wpdb->prefix}photocomp_voting_tokens (
-			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			member_id BIGINT UNSIGNED NOT NULL,
-			competition_id BIGINT UNSIGNED NOT NULL,
-			category VARCHAR(100) NOT NULL,
-			token_hash VARCHAR(64) NOT NULL,
-			expires_at DATETIME NOT NULL,
-			used_at DATETIME NULL,
-			first_accessed_at DATETIME NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			UNIQUE KEY member_competition_category (member_id, competition_id, category),
-			KEY token_hash (token_hash),
-			KEY expires_at (expires_at)
-		) {$charset_collate};";
-
-		dbDelta( $sql );
 
 		// find_valid_token() only returns tokens belonging to active members.
 		foreach ( array( 1, 2, 3 ) as $member_id ) {
@@ -166,7 +145,6 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertEquals( 2, $token->competition_id );
 		$this->assertEquals( 'black-white', $token->category );
 		$this->assertEquals( $token_hash, $token->token_hash );
-		$this->assertNull( $token->used_at );
 	}
 
 	/**

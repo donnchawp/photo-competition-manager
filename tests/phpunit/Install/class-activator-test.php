@@ -17,9 +17,26 @@ use function PhotoCompetitionManager\Support\utc_time;
 
 class Activator_Test extends WP_UnitTestCase {
 
+	/**
+	 * Table hidden behind a temporary one by the test, if any.
+	 *
+	 * @var string
+	 */
+	private $shadowed = '';
+
 	public function setUp(): void {
 		parent::setUp();
 		Activator::activate();
+	}
+
+	public function tearDown(): void {
+		global $wpdb;
+
+		if ( '' !== $this->shadowed ) {
+			$wpdb->query( "DROP TEMPORARY TABLE {$this->shadowed}" );
+		}
+
+		parent::tearDown();
 	}
 
 	public function test_maybe_upgrade_marks_inactive_members_from_older_version(): void {
@@ -257,6 +274,86 @@ class Activator_Test extends WP_UnitTestCase {
 			array( 'voting' => array( 'auth_mode' => 'token' ) ),
 			json_decode( get_option( 'photo_comp_default_settings' ), true )
 		);
+	}
+
+	public function test_upgrade_to_4_keeps_the_earliest_of_duplicate_votes(): void {
+		global $wpdb;
+		$this->shadow_v3_votes_table();
+		$ann_first = $this->insert_v3_vote( 42, null, 'Ann', 7 );
+		$this->insert_v3_vote( 42, null, 'ann', 2 );
+		$token_first = $this->insert_v3_vote( 42, 100, null, 9 );
+		$this->insert_v3_vote( 42, 100, null, 3 );
+		$this->insert_v3_vote( 42, 100, null, 1 );
+		$other_token = $this->insert_v3_vote( 42, 101, null, 4 );
+		$other_image = $this->insert_v3_vote( 43, 100, null, 5 );
+		update_option( 'photo_comp_db_version', 3 );
+
+		Activator::maybe_upgrade();
+
+		$kept = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $wpdb->prefix . 'photocomp_votes' ) );
+		$this->assertSame( array( $ann_first, $token_first, $other_token, $other_image ), array_map( 'intval', $kept ) );
+	}
+
+	/**
+	 * Hide the votes table behind a temporary one shaped as version 3 left
+	 * it, without unique keys, so duplicates can be stored.
+	 *
+	 * Creating a temporary table doesn't end the test's transaction. ALTER
+	 * TABLE would, so it's swallowed: nothing the upgrade does to the schema
+	 * reaches the database.
+	 */
+	private function shadow_v3_votes_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_votes';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				voter_name VARCHAR(191) NULL,
+				voting_token_id BIGINT UNSIGNED NULL,
+				image_id BIGINT UNSIGNED NOT NULL,
+				score INT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				KEY image (image_id)
+			) {$wpdb->get_charset_collate()}"
+		);
+
+		add_filter(
+			'query',
+			function ( $query ) {
+				return 0 === stripos( ltrim( $query ), 'ALTER TABLE' ) ? 'SELECT 1' : $query;
+			}
+		);
+	}
+
+	/**
+	 * Insert a vote into the version 3 votes table.
+	 *
+	 * @param int         $image_id        Image ID.
+	 * @param int|null    $voting_token_id Token, in token mode.
+	 * @param string|null $voter_name      Voter name, in password mode.
+	 * @param int         $score           Score.
+	 * @return int Vote ID.
+	 */
+	private function insert_v3_vote( int $image_id, ?int $voting_token_id, ?string $voter_name, int $score ): int {
+		global $wpdb;
+
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'competition_id'  => 1,
+				'category'        => 'colour',
+				'voter_name'      => $voter_name,
+				'voting_token_id' => $voting_token_id,
+				'image_id'        => $image_id,
+				'score'           => $score,
+			)
+		);
+
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
