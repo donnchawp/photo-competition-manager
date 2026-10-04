@@ -199,6 +199,31 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertTrue( $workflow->results_published( $competition ) );
 	}
 
+	/**
+	 * A failed upgrade leaves the version behind, so the step runs again on
+	 * the next request. Competitions it already moved must keep their state.
+	 */
+	public function test_upgrade_to_3_running_again_keeps_moved_state(): void {
+		$id = $this->insert_v2_competition(
+			array(
+				'upload'  => array( 'uploads_closed' => true ),
+				'voting'  => array( 'category_steps' => array( 'colour' => 5 ) ),
+				'results' => array( 'results_visible' => true ),
+			)
+		);
+		update_option( 'photo_comp_db_version', 2 );
+		Activator::maybe_upgrade();
+
+		update_option( 'photo_comp_db_version', 2 );
+		Activator::maybe_upgrade();
+
+		$workflow    = new Competition_Workflow();
+		$competition = ( new Competitions_Repository() )->find( $id, true );
+		$this->assertTrue( $workflow->uploads_closed( $competition ) );
+		$this->assertTrue( $workflow->results_published( $competition ) );
+		$this->assertSame( Competition_Workflow::STAGE_CRITIQUE, $workflow->stage( $competition, 'colour' ) );
+	}
+
 	public function test_upgrade_to_3_moves_archived_competitions_too(): void {
 		$id = $this->insert_v2_competition( array( 'upload' => array( 'uploads_closed' => true ) ) );
 		( new Competitions_Repository() )->archive( $id );

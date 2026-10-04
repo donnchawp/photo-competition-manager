@@ -118,20 +118,32 @@ class Activator {
 			self::create_tables();
 		}
 
+		// A failed run leaves the version behind and runs again, so only move
+		// competitions not moved yet: a moved one's settings no longer hold
+		// its workflow. Both columns change in one UPDATE, so a competition
+		// is either moved or untouched.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, settings FROM %i', $repository->table() ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, settings FROM %i WHERE workflow IS NULL', $repository->table() ) );
 
 		foreach ( $rows as $row ) {
 			$id       = (int) $row->id;
 			$settings = json_decode( (string) $row->settings, true );
 			$settings = is_array( $settings ) ? $settings : array();
 
-			if ( true !== $repository->save_workflow( $id, self::legacy_workflow( $id, $settings ) ) ) {
-				return false;
-			}
-
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			if ( false === $wpdb->update( $repository->table(), array( 'settings' => wp_json_encode( self::without_workflow( $settings ) ) ), array( 'id' => $id ) ) ) {
+			$moved = $wpdb->update(
+				$repository->table(),
+				array(
+					'workflow' => wp_json_encode( self::legacy_workflow( $id, $settings ) ),
+					'settings' => wp_json_encode( self::without_workflow( $settings ) ),
+				),
+				array(
+					'id'       => $id,
+					'workflow' => null,
+				)
+			);
+
+			if ( false === $moved ) {
 				return false;
 			}
 		}

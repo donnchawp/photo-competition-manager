@@ -42,6 +42,18 @@ class Competition_Workflow {
 	const STAGE_DONE            = 'done';
 
 	/**
+	 * Every stage, in the order a category goes through them.
+	 */
+	const STAGES = array(
+		self::STAGE_NOT_STARTED,
+		self::STAGE_PREVIEWED,
+		self::STAGE_VOTING,
+		self::STAGE_SLIDESHOW_SHOWN,
+		self::STAGE_CRITIQUE,
+		self::STAGE_DONE,
+	);
+
+	/**
 	 * Stages that accept votes.
 	 */
 	const VOTING_STAGES = array( self::STAGE_VOTING, self::STAGE_SLIDESHOW_SHOWN );
@@ -210,13 +222,18 @@ class Competition_Workflow {
 	/**
 	 * Whether uploads may reopen.
 	 *
-	 * Not while a category is accepting votes, or once any votes are cast:
-	 * a new image would leave the ballots already cast incomplete.
+	 * Not while results are published, since uploads stay shut then. Not
+	 * while a category is accepting votes, or once any votes are cast: a
+	 * new image would leave the ballots already cast incomplete.
 	 *
 	 * @param object $competition Competition row.
-	 * @return true|WP_Error 'voting_open' or 'votes_exist'.
+	 * @return true|WP_Error 'results_published', 'voting_open' or 'votes_exist'.
 	 */
 	public function can_reopen_uploads( object $competition ) {
+		if ( $this->results_published( $competition ) ) {
+			return new WP_Error( 'results_published', __( 'Hide results before reopening uploads.', 'photo-competition-manager' ) );
+		}
+
 		if ( ! empty( $this->categories_accepting_votes( $competition ) ) ) {
 			return new WP_Error( 'voting_open', __( 'Close voting before reopening uploads.', 'photo-competition-manager' ) );
 		}
@@ -732,8 +749,10 @@ class Competition_Workflow {
 
 		$stages = is_array( $stored['stages'] ?? null ) ? $stored['stages'] : array();
 
-		// A category the competition no longer has keeps no stage.
+		// A category the competition no longer has keeps no stage, and an
+		// unknown stage counts as not started.
 		$stages = array_intersect_key( $stages, array_flip( $this->category_slugs( $competition ) ) );
+		$stages = array_filter( $stages, fn( $stage ) => in_array( $stage, self::STAGES, true ) );
 
 		return array(
 			'uploads_closed'    => ! empty( $stored['uploads_closed'] ),

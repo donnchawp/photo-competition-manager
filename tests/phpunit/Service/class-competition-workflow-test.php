@@ -275,6 +275,20 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
 	}
 
+	public function test_reopening_uploads_while_results_are_published_is_refused(): void {
+		$id = $this->create_competition();
+		Workflow_Fixtures::publish_results( $id );
+
+		$this->assertSame( 'results_published', $this->workflow->reopen_uploads( $id )->get_error_code() );
+	}
+
+	public function test_a_stage_that_is_not_a_known_stage_is_ignored(): void {
+		$id = $this->create_competition();
+		$this->competitions->save_workflow( $id, array( 'stages' => array( 'colour' => 'judging' ) ) );
+
+		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, $this->workflow->stage( $this->row( $id ), 'colour' ) );
+	}
+
 	public function test_publishing_results_is_saved_and_can_be_undone(): void {
 		$id = $this->create_competition();
 		$this->workflow->close_uploads( $id );

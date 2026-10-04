@@ -343,14 +343,23 @@ class Competitions_Controller {
 			}
 
 			if ( 'reset_votes' === $action ) {
-				$this->workflow->reset_competition( $competition_id );
+				$result = $this->workflow->reset_competition( $competition_id );
 
-				add_settings_error(
-					'photo_competition_manager',
-					'votes_reset',
-					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
-					'updated'
-				);
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'photo_competition_manager',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition_manager',
+						'votes_reset',
+						__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
+						'updated'
+					);
+				}
 
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}

@@ -943,6 +943,28 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Resetting votes on a missing competition reports the error, not success.
+	 */
+	public function test_reset_votes_not_found_error(): void {
+		$missing = 999999;
+		$this->set_request(
+			array(
+				'action'      => 'reset_votes',
+				'competition' => $missing,
+			)
+		);
+		$this->set_nonce( 'photo_competition_reset_votes_' . $missing );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
 	 * A missing/invalid nonce aborts reset_votes via wp_die().
 	 */
 	public function test_reset_votes_bad_nonce_dies(): void {
