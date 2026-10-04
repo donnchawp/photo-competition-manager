@@ -10,7 +10,10 @@ namespace PhotoCompetitionManager\Install;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
@@ -25,7 +28,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 3;
+	const DB_VERSION = 4;
 
 	/**
 	 * Option holding the installed data version.
@@ -81,6 +84,12 @@ class Activator {
 			return;
 		}
 
+		// A voter gets one vote per image. Unique keys enforce it, and votes
+		// are the only record of a used voting token.
+		if ( $installed < 4 && ( ! self::make_votes_unique() || ! self::drop_token_used_at() ) ) {
+			return;
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 	}
 
@@ -113,8 +122,7 @@ class Activator {
 
 		// Requests run upgrades without activating, so add the column here.
 		// Only when it's missing: DDL ends the running transaction.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $repository->table(), 'workflow' ) ) ) {
+		if ( ! self::column_exists( $repository->table(), 'workflow' ) ) {
 			self::create_tables();
 		}
 
@@ -155,6 +163,134 @@ class Activator {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Delete all but the earliest vote each voter has on an image, then add
+	 * the unique keys that stop a second one.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the keys couldn't be added.
+	 */
+	private static function make_votes_unique(): bool {
+		global $wpdb;
+
+		$table = ( new Votes_Repository() )->table();
+
+		// Only when the keys are missing: DDL ends the running transaction.
+		if ( self::votes_are_unique( $table ) ) {
+			return true;
+		}
+
+		$removed = array();
+
+		foreach ( array( 'voting_token_id', 'voter_name' ) as $voter ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$duplicates = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT MIN(competition_id) AS competition_id, image_id, %i AS voter, MIN(id) AS earliest FROM %i
+					WHERE %i IS NOT NULL
+					GROUP BY image_id, %i
+					HAVING COUNT(*) > 1',
+					$voter,
+					$table,
+					$voter,
+					$voter
+				)
+			);
+
+			foreach ( $duplicates as $duplicate ) {
+				$competition_id = (int) $duplicate->competition_id;
+
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + (int) $wpdb->query(
+					$wpdb->prepare(
+						'DELETE FROM %i WHERE image_id = %d AND %i = %s AND id <> %d',
+						$table,
+						$duplicate->image_id,
+						$voter,
+						$duplicate->voter,
+						$duplicate->earliest
+					)
+				);
+			}
+		}
+
+		// Totals come from the votes, so say which competitions' results changed.
+		// The upgrade runs on whichever request comes first, so the system is
+		// the actor, not the current user. It runs before translations can
+		// load, so the description is in English.
+		foreach ( array_filter( $removed ) as $competition_id => $count ) {
+			( new Logs_Repository() )->create(
+				array(
+					'competition_id' => $competition_id,
+					'event_type'     => 'duplicate_votes_removed',
+					'event_category' => 'voting',
+					'actor_type'     => 'system',
+					'actor_name'     => 'System',
+					'description'    => sprintf( 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.', $count ),
+					'metadata'       => array( 'removed' => $count ),
+				)
+			);
+		}
+
+		self::create_tables();
+
+		return self::votes_are_unique( $table );
+	}
+
+	/**
+	 * Whether the votes table has its unique keys.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Votes table.
+	 * @return bool
+	 */
+	private static function votes_are_unique( string $table ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$keys = $wpdb->get_col( $wpdb->prepare( "SHOW INDEX FROM %i WHERE Key_name IN ('image_token', 'image_voter')", $table ), 2 );
+
+		return 2 === count( array_unique( $keys ) );
+	}
+
+	/**
+	 * Whether a table has a column.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table  Table name.
+	 * @param string $column Column name.
+	 * @return bool
+	 */
+	private static function column_exists( string $table, string $column ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $table, $column ) );
+	}
+
+	/**
+	 * Drop voting_tokens.used_at. Nothing ever set it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the column couldn't be dropped.
+	 */
+	private static function drop_token_used_at(): bool {
+		global $wpdb;
+
+		$table = ( new Voting_Token_Repository() )->table();
+
+		if ( ! self::column_exists( $table, 'used_at' ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		return false !== $wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP COLUMN used_at', $table ) );
 	}
 
 	/**
@@ -342,7 +478,9 @@ class Activator {
 			KEY competition (competition_id),
 			KEY image (image_id),
 			KEY voting_token (voting_token_id),
-			KEY voter_name (voter_name)
+			KEY voter_name (voter_name),
+			UNIQUE KEY image_token (image_id, voting_token_id),
+			UNIQUE KEY image_voter (image_id, voter_name)
 		) {$charset_collate};";
 
 		$upload_tokens = "CREATE TABLE {$wpdb->prefix}photocomp_upload_tokens (
@@ -367,7 +505,6 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			token_hash VARCHAR(64) NOT NULL,
 			expires_at DATETIME NOT NULL,
-			used_at DATETIME NULL,
 			first_accessed_at DATETIME NULL,
 			sent_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

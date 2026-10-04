@@ -162,7 +162,8 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_photocomp_images`
   - id, member_id, competition_id, category, filename, random_number, score, created_at
 - `wp_photocomp_votes`
-  - id, competition_id, category, voter_name, image_id, score, created_at
+  - id, competition_id, category, voter_name, voting_token_id, image_id, score, created_at
+  - A voter gets one vote per image: unique keys on (image_id, voting_token_id) and (image_id, voter_name) refuse a second ballot, which the voting page reports as already voted.
 
 ---
 

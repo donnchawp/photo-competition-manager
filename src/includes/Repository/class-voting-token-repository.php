@@ -84,7 +84,6 @@ class Voting_Token_Repository extends Abstract_Repository {
 				'SELECT t.* FROM %i AS t
 				INNER JOIN %i AS m ON m.id = t.member_id AND m.active = 1
 				WHERE t.token_hash = %s
-				AND t.used_at IS NULL
 				AND t.expires_at > %s
 				LIMIT 1',
 				$this->table(),
@@ -163,7 +162,6 @@ class Voting_Token_Repository extends Abstract_Repository {
 				WHERE member_id = %d
 				AND competition_id = %d
 				AND category = %s
-				AND used_at IS NULL
 				AND expires_at > %s
 				AND created_at > %s',
 				$this->table(),

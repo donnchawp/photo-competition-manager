@@ -396,9 +396,9 @@ class Voting_Shortcode {
 	 */
 	private function handle_vote_submission_token( object $competition, object $token_record, array $settings, array $submitted_votes ): string {
 		// Get all images for this category to validate all have been voted for.
-		$images       = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
-		$images_by_id = array_column( $images, null, 'id' );
-		$image_count  = count( $images );
+		$images          = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
+		$image_count     = count( $images );
+		$submitted_votes = $this->votes_for_images( $submitted_votes, $images );
 
 		if ( empty( $submitted_votes ) ) {
 			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>';
@@ -430,19 +430,9 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		$existing_scores = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
-		if ( ! empty( $existing_scores ) ) {
-			return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
-		}
-
 		// Process votes.
 		$success_count = 0;
 		foreach ( $submitted_votes as $image_id => $score ) {
-			// Only accept votes for images in this competition and category.
-			if ( ! isset( $images_by_id[ $image_id ] ) ) {
-				continue;
-			}
-
 			$result = $this->votes_repo->create_anonymous(
 				(int) $competition->id,
 				$token_record->category,
@@ -450,6 +440,11 @@ class Voting_Shortcode {
 				$image_id,
 				(int) $score
 			);
+
+			// Another submission of this ballot got there first.
+			if ( $this->is_duplicate_vote( $result ) ) {
+				return $this->already_voted_notice();
+			}
 
 			if ( ! is_wp_error( $result ) ) {
 				++$success_count;
@@ -528,9 +523,9 @@ class Voting_Shortcode {
 		}
 
 		// Get all images for this category to validate all have been voted for.
-		$images       = $this->images_repo->find_by_competition( (int) $competition->id, $category );
-		$images_by_id = array_column( $images, null, 'id' );
-		$image_count  = count( $images );
+		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$image_count = count( $images );
+		$votes       = $this->votes_for_images( $votes, $images );
 
 		if ( empty( $votes ) ) {
 			return array(
@@ -561,24 +556,20 @@ class Voting_Shortcode {
 			);
 		}
 
-		if ( $this->votes_repo->has_voted( (int) $competition->id, $category, $voter_name ) ) {
-			$this->refresh_voter_cookie( $voter_name, $provided_pass );
-			return array(
-				'status'   => 'already_voted',
-				'message'  => '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
 		// Process votes.
 		$success_count = 0;
 		foreach ( $votes as $image_id => $score ) {
-			// Only accept votes for images in this competition and category.
-			if ( ! isset( $images_by_id[ $image_id ] ) ) {
-				continue;
-			}
-
 			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (int) $score );
+
+			// Another submission of this ballot got there first.
+			if ( $this->is_duplicate_vote( $result ) ) {
+				$this->refresh_voter_cookie( $voter_name, $provided_pass );
+				return array(
+					'status'   => 'already_voted',
+					'message'  => $this->already_voted_notice(),
+					'category' => $category,
+				);
+			}
 
 			if ( ! is_wp_error( $result ) ) {
 				++$success_count;
@@ -713,7 +704,7 @@ class Voting_Shortcode {
 				}
 
 				if ( ! empty( $existing_votes ) ) {
-					echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+					echo wp_kses_post( $this->already_voted_notice() );
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
@@ -990,7 +981,7 @@ class Voting_Shortcode {
 					if ( $has_voted ) {
 						echo '<div class="voting-category-section voting-category-complete">';
 						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
-						echo '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+						echo wp_kses_post( $this->already_voted_notice() );
 						echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 						echo '</div>';
 						continue;
@@ -1151,6 +1142,7 @@ class Voting_Shortcode {
 	 */
 	private function collect_password_submission_data( array $request, array $settings ): array {
 		$voter_name      = isset( $request['voter_name'] ) ? sanitize_text_field( wp_unslash( $request['voter_name'] ) ) : '';
+		$voter_name      = rtrim( mb_substr( $voter_name, 0, 191 ) ); // The votes table holds 191 characters, and the cookie and lookups must use the same name.
 		$category        = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
 		$voting_password = isset( $request['voting_password'] ) ? sanitize_text_field( wp_unslash( $request['voting_password'] ) ) : '';
 		$votes           = $this->collect_vote_selections_from_request( $request, $settings );
@@ -1222,6 +1214,43 @@ class Voting_Shortcode {
 	}
 
 	/**
+	 * Keep only the votes for the given images, so votes for images outside
+	 * the category can't make up the count of a ballot.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<int, int> $votes  Vote selections keyed by image ID.
+	 * @param array<object>   $images The category's images.
+	 * @return array<int, int>
+	 */
+	private function votes_for_images( array $votes, array $images ): array {
+		return array_intersect_key( $votes, array_flip( array_column( $images, 'id' ) ) );
+	}
+
+	/**
+	 * The notice shown to a voter whose ballot for the category is already saved.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string
+	 */
+	private function already_voted_notice(): string {
+		return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+	}
+
+	/**
+	 * Whether a vote was refused because the voter already has one for the image.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int|WP_Error $result Outcome of recording a vote.
+	 * @return bool
+	 */
+	private function is_duplicate_vote( $result ): bool {
+		return is_wp_error( $result ) && 'duplicate_vote' === $result->get_error_code();
+	}
+
+	/**
 	 * Retrieve the persisted voter cookie values.
 	 *
 	 * @return array{name:string,password:string}
@@ -1274,18 +1303,23 @@ class Voting_Shortcode {
 			'password' => $password, // Store password for accessibility on mobile devices.
 		);
 
-		setcookie(
-			'photo_competition_voter',
-			wp_json_encode( $payload ),
-			array(
-				'expires'  => time() + YEAR_IN_SECONDS,
-				'path'     => COOKIEPATH ? COOKIEPATH : '/',
-				'domain'   => COOKIE_DOMAIN,
-				'secure'   => is_ssl(),
-				'samesite' => 'Lax',
-				'httponly' => true, // Prevent JavaScript access for security.
-			)
-		);
+		// The ballot is handled while the shortcode renders, inside the page, so
+		// headers can already be sent (classic themes, and PHPUnit). Handling
+		// the POST on template_redirect would fix this and the redirect after it.
+		if ( ! headers_sent() ) {
+			setcookie(
+				'photo_competition_voter',
+				wp_json_encode( $payload ),
+				array(
+					'expires'  => time() + YEAR_IN_SECONDS,
+					'path'     => COOKIEPATH ? COOKIEPATH : '/',
+					'domain'   => COOKIE_DOMAIN,
+					'secure'   => is_ssl(),
+					'samesite' => 'Lax',
+					'httponly' => true, // Prevent JavaScript access for security.
+				)
+			);
+		}
 
 		// Make the cookie immediately available during this request.
 		$_COOKIE['photo_competition_voter'] = wp_json_encode( $payload );

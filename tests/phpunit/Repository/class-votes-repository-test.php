@@ -52,6 +52,17 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( 9, (int) $votes[0]->score );
 	}
 
+	public function test_create_refuses_a_second_vote_from_the_same_voter(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+		$repository->create( 1, 'colour', 'John Doe', 42, 9 );
+
+		$result = $repository->create( 1, 'colour', 'John Doe', 42, 3 );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'duplicate_vote', $result->get_error_code() );
+		$this->assertSame( array( 42 => 9.0 ), $repository->get_votes_by_voter( 1, 'colour', 'John Doe' ) );
+	}
+
 	/**
 	 * Create requires voter name.
 	 *
@@ -232,6 +243,17 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'invalid_score', $result->get_error_code() );
+	}
+
+	public function test_create_anonymous_refuses_a_second_vote_from_the_same_token(): void {
+		$repository = new Votes_Repository( $GLOBALS['wpdb'] );
+		$repository->create_anonymous( 1, 'colour', 100, 42, 9 );
+
+		$result = $repository->create_anonymous( 1, 'colour', 100, 42, 3 );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'duplicate_vote', $result->get_error_code() );
+		$this->assertSame( array( 42 => 9.0 ), $repository->get_votes_by_token( 100 ) );
 	}
 
 	public function test_has_voted_with_token_detects_votes(): void {
