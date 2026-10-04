@@ -9,7 +9,10 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
 /**
@@ -22,7 +25,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 2;
+	const DB_VERSION = 3;
 
 	/**
 	 * Option holding the installed data version.
@@ -72,7 +75,153 @@ class Activator {
 			}
 		}
 
+		// The competition workflow moved out of the settings blob into its
+		// own column, so saving settings can't wipe it.
+		if ( $installed < 3 && ! self::move_workflow_out_of_settings() ) {
+			return;
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * Old voting steps, as stored in settings, and the stage each one is now.
+	 * Voting_Controller::STEP_STAGES has the same numbers today, but this is
+	 * what the stored data meant, so it stays as it is if the page changes.
+	 */
+	const LEGACY_STEP_STAGES = array(
+		1 => Competition_Workflow::STAGE_NOT_STARTED,
+		2 => Competition_Workflow::STAGE_PREVIEWED,
+		3 => Competition_Workflow::STAGE_VOTING,
+		4 => Competition_Workflow::STAGE_SLIDESHOW_SHOWN,
+		5 => Competition_Workflow::STAGE_CRITIQUE,
+		6 => Competition_Workflow::STAGE_DONE,
+	);
+
+	/**
+	 * Move every competition's workflow state from its settings into the
+	 * workflow column, and remove it from settings.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if a competition couldn't be saved.
+	 */
+	private static function move_workflow_out_of_settings(): bool {
+		global $wpdb;
+
+		$repository = new Competitions_Repository();
+
+		// Requests run upgrades without activating, so add the column here.
+		// Only when it's missing: DDL ends the running transaction.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $repository->table(), 'workflow' ) ) ) {
+			self::create_tables();
+		}
+
+		// A failed run leaves the version behind and runs again, so only move
+		// competitions not moved yet: a moved one's settings no longer hold
+		// its workflow. Both columns change in one UPDATE, so a competition
+		// is either moved or untouched.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, settings FROM %i WHERE workflow IS NULL', $repository->table() ) );
+
+		foreach ( $rows as $row ) {
+			$id       = (int) $row->id;
+			$settings = json_decode( (string) $row->settings, true );
+			$settings = is_array( $settings ) ? $settings : array();
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$moved = $wpdb->update(
+				$repository->table(),
+				array(
+					'workflow' => wp_json_encode( self::legacy_workflow( $id, $settings ) ),
+					'settings' => wp_json_encode( self::without_workflow( $settings ) ),
+				),
+				array(
+					'id'       => $id,
+					'workflow' => null,
+				)
+			);
+
+			if ( false === $moved ) {
+				return false;
+			}
+		}
+
+		// New competitions copy the club's settings, so clean those too.
+		$club = json_decode( (string) get_option( 'photo_comp_default_settings', '' ), true );
+		if ( is_array( $club ) ) {
+			update_option( 'photo_comp_default_settings', Competition_Settings::encode( self::without_workflow( $club ) ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove the old workflow keys from a settings array.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $settings Settings.
+	 * @return array<string, mixed>
+	 */
+	private static function without_workflow( array $settings ): array {
+		unset(
+			$settings['upload']['uploads_closed'],
+			$settings['voting']['open_categories'],
+			$settings['voting']['category_steps'],
+			$settings['voting']['voted_categories'],
+			$settings['results']
+		);
+
+		return array_filter( $settings, fn( $value ) => array() !== $value );
+	}
+
+	/**
+	 * Work out a competition's workflow from its old settings.
+	 *
+	 * Old pages reconciled the stored step with the live state on every
+	 * load. This applies that once: an open category is voting, unless its
+	 * slideshow was already shown, and a voted one is at least at critique.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int                  $id       Competition ID.
+	 * @param array<string, mixed> $settings Old settings.
+	 * @return array<string, mixed>
+	 */
+	private static function legacy_workflow( int $id, array $settings ): array {
+		$voting = is_array( $settings['voting'] ?? null ) ? $settings['voting'] : array();
+		$stages = array();
+
+		foreach ( (array) ( $voting['category_steps'] ?? array() ) as $slug => $step ) {
+			$stages[ $slug ] = self::LEGACY_STEP_STAGES[ (int) $step ] ?? Competition_Workflow::STAGE_NOT_STARTED;
+		}
+
+		foreach ( (array) ( $voting['open_categories'] ?? array() ) as $slug ) {
+			if ( Competition_Workflow::STAGE_SLIDESHOW_SHOWN !== ( $stages[ $slug ] ?? '' ) ) {
+				$stages[ $slug ] = Competition_Workflow::STAGE_VOTING;
+			}
+		}
+
+		$prefix = $id . '_';
+
+		foreach ( (array) ( $voting['voted_categories'] ?? array() ) as $key ) {
+			if ( 0 !== strpos( (string) $key, $prefix ) ) {
+				continue;
+			}
+
+			$slug = substr( (string) $key, strlen( $prefix ) );
+			if ( ! in_array( $stages[ $slug ] ?? '', array( Competition_Workflow::STAGE_CRITIQUE, Competition_Workflow::STAGE_DONE ), true ) ) {
+				$stages[ $slug ] = Competition_Workflow::STAGE_CRITIQUE;
+			}
+		}
+
+		return array(
+			'uploads_closed'    => ! empty( $settings['upload']['uploads_closed'] ),
+			'results_published' => ! empty( $settings['results']['results_visible'] ),
+			'stages'            => array_diff( $stages, array( Competition_Workflow::STAGE_NOT_STARTED ) ),
+		);
 	}
 
 	/**
@@ -153,6 +302,7 @@ class Activator {
 			open_date DATETIME NULL,
 			close_date DATETIME NULL,
 			settings LONGTEXT NULL,
+			workflow LONGTEXT NULL,
 			share_hash VARCHAR(64) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,

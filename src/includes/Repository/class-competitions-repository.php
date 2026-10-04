@@ -60,7 +60,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 	/**
 	 * WHERE clause for competitions open now: not archived, and
-	 * open_date <= now < close_date. Matches is_open().
+	 * open_date <= now < close_date. Matches Competition_Workflow::is_open().
 	 *
 	 * @since 0.3.0
 	 *
@@ -170,40 +170,19 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Find the competition the results pages show by default.
+	 * Fetch unarchived competitions, the one that opened last first.
 	 *
-	 * That's the latest competition, by open date, whose results are
-	 * visible, so last month's results stay up until the next ones are
-	 * shown. With none visible, it's the current competition, then the one
-	 * with the latest open date, so the page can still name a competition.
 	 * A competition without an open date opened when it was created.
-	 * Archived competitions are ignored.
 	 *
-	 * @since 0.3.0
+	 * @since 0.4.0
 	 *
-	 * @return object|null
+	 * @return array<int, object>
 	 */
-	public function find_for_results() {
+	public function all_by_opening(): array {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$competitions = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY COALESCE(open_date, created_at) DESC, created_at DESC', $this->table() ) );
-
-		$open = null;
-
-		foreach ( $competitions as $competition ) {
-			$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
-
-			if ( ! empty( $settings['results']['results_visible'] ) ) {
-				return $competition;
-			}
-
-			if ( null === $open && $this->is_open( $competition ) ) {
-				$open = $competition;
-			}
-		}
-
-		return $open ?? ( $competitions[0] ?? null );
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL ORDER BY COALESCE(open_date, created_at) DESC, created_at DESC', $this->table() ) );
 	}
 
 	/**
@@ -248,8 +227,8 @@ class Competitions_Repository extends Abstract_Repository {
 	 * date means the range starts now; a missing close date means it never
 	 * ends, so a competition with no close date overlaps everything after it
 	 * opens. A range that starts at the moment another closes does not
-	 * overlap it, the same rule is_open() uses. Archived competitions are
-	 * ignored.
+	 * overlap it, the same rule Competition_Workflow::is_open() uses.
+	 * Archived competitions are ignored.
 	 *
 	 * @since 0.3.0
 	 *
@@ -655,6 +634,40 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Save a competition's workflow state.
+	 *
+	 * Only Competition_Workflow calls this. update() never touches the
+	 * column, so saving a competition's settings can't wipe it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int                  $id       Competition ID.
+	 * @param array<string, mixed> $workflow Workflow state.
+	 * @return bool|WP_Error
+	 */
+	public function save_workflow( int $id, array $workflow ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'workflow'   => wp_json_encode( $workflow ),
+				'updated_at' => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update competition.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Check whether a slug already exists.
 	 *
 	 * @param string   $slug        Competition slug.
@@ -710,80 +723,5 @@ class Competitions_Repository extends Abstract_Repository {
 	 */
 	protected function table_suffix(): string {
 		return 'photocomp_competitions';
-	}
-
-	/**
-	 * Check if a competition is open (within date range and not deleted).
-	 *
-	 * A competition is open while open_date <= now < close_date. A missing
-	 * date is unbounded on that side.
-	 *
-	 * @param object $competition Competition object.
-	 * @return bool
-	 */
-	public function is_open( object $competition ): bool {
-		if ( ! empty( $competition->deleted_at ) ) {
-			return false;
-		}
-
-		$current = utc_time();
-
-		// Check if open_date has passed (or is null).
-		if ( ! empty( $competition->open_date ) && $competition->open_date > $current ) {
-			return false;
-		}
-
-		// Check if close_date has not arrived (or is null).
-		if ( ! empty( $competition->close_date ) && $competition->close_date <= $current ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if a competition is accepting uploads.
-	 *
-	 * @param object $competition Competition object.
-	 * @return bool
-	 */
-	public function is_accepting_uploads( object $competition ): bool {
-		if ( ! $this->is_open( $competition ) ) {
-			return false;
-		}
-
-		// Check uploads_closed setting.
-		$settings = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
-		if ( ! empty( $settings['upload']['uploads_closed'] ) ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if a competition is accepting votes for a specific category.
-	 *
-	 * @param object      $competition Competition object.
-	 * @param string|null $category    Category slug (optional).
-	 * @return bool
-	 */
-	public function is_accepting_votes( object $competition, ?string $category = null ): bool {
-		if ( ! $this->is_open( $competition ) ) {
-			return false;
-		}
-
-		// Check open_categories setting.
-		if ( null !== $category ) {
-			$settings        = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings ?? '' );
-			$open_categories = $settings['open_categories'] ?? array();
-
-			// If open_categories is set and category is not in it, voting is closed for this category.
-			if ( ! empty( $open_categories ) && ! in_array( $category, $open_categories, true ) ) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 }

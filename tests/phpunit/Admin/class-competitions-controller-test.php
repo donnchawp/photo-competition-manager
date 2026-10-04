@@ -18,7 +18,10 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
@@ -575,7 +578,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_close_competition_sets_close_date_to_now(): void {
 		$id = $this->create_competition( 'To Close', 'to-close', '2020-01-01 00:00:00' );
-		$this->assertTrue( $this->competitions->is_open( $this->competitions->find( $id ) ) );
+		$this->assertTrue( ( new Competition_Workflow() )->is_open( $this->competitions->find( $id ) ) );
 
 		$this->set_request(
 			array(
@@ -599,7 +602,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'competition_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertGreaterThanOrEqual( $before, $closed_at );
 		$this->assertLessThanOrEqual( time(), $closed_at );
-		$this->assertFalse( $this->competitions->is_open( $competition ) );
+		$this->assertFalse( ( new Competition_Workflow() )->is_open( $competition ) );
 	}
 
 	/**
@@ -608,11 +611,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_close_competition_closes_open_voting(): void {
 		$id = $this->create_competition( 'Mid Vote', 'mid-vote', '2020-01-01 00:00:00' );
-
-		$settings                                       = $this->settings( $id );
-		$settings['voting']['open_categories']          = array( 'colour' );
-		$settings['voting']['category_steps']['colour'] = 3;
-		$this->competitions->update( $id, array( 'settings' => $settings ) );
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
 
 		$this->set_request(
 			array(
@@ -628,10 +628,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$after = $this->settings( $id );
-		$this->assertSame( array(), $after['voting']['open_categories'] );
-		$this->assertSame( 5, $after['voting']['category_steps']['colour'] );
-		$this->assertContains( $id . '_colour', $after['voting']['voted_categories'] );
+		$this->assertSame( Competition_Workflow::STAGE_CRITIQUE, ( new Competition_Workflow() )->stage( $this->competitions->find( $id, true ), 'colour' ) );
 	}
 
 	/**
@@ -921,10 +918,8 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		// Seed a vote and pre-existing workflow state.
 		( new Votes_Repository() )->create_anonymous( $id, 'colour', 4321, 1234, 5 );
 		( new Voting_Token_Repository() )->create( $this->admin_id, $id, 'colour', 'hash_colour', '2099-12-31 00:00:00' );
-		$settings                               = $this->settings( $id );
-		$settings['voting']['category_steps']   = array( 'colour' => 5 );
-		$settings['voting']['voted_categories'] = array( $id . '_colour' );
-		$this->competitions->update( $id, array( 'settings' => $settings ) );
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_CRITIQUE );
 
 		$this->set_request(
 			array(
@@ -944,10 +939,29 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'votes_reset', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertSame( 0, $this->vote_count( $id, 'colour' ), 'Votes must be deleted on reset.' );
 
-		$after = $this->settings( $id );
-		$this->assertSame( array(), $after['voting']['category_steps'] );
-		$this->assertSame( array(), $after['voting']['voted_categories'] );
-		$this->assertSame( array(), $after['voting']['open_categories'] );
+		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, ( new Competition_Workflow() )->stage( $this->competitions->find( $id ), 'colour' ) );
+	}
+
+	/**
+	 * Resetting votes on a missing competition reports the error, not success.
+	 */
+	public function test_reset_votes_not_found_error(): void {
+		$missing = 999999;
+		$this->set_request(
+			array(
+				'action'      => 'reset_votes',
+				'competition' => $missing,
+			)
+		);
+		$this->set_nonce( 'photo_competition_reset_votes_' . $missing );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**
@@ -1059,7 +1073,33 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'page=photo-competition-manager', $location );
 		$this->assertContains( 'uploads_toggled', $this->settings_error_codes( 'photo_competition_manager' ) );
-		$this->assertTrue( ! empty( $this->settings( $id )['upload']['uploads_closed'] ) );
+		$this->assertTrue( ( new Competition_Workflow() )->uploads_closed( $this->competitions->find( $id ) ) );
+	}
+
+	/**
+	 * Reopening uploads once votes are cast is refused with the workflow's reason.
+	 */
+	public function test_toggle_uploads_refuses_to_reopen_after_votes(): void {
+		$id = $this->create_competition( 'Voted Comp', 'voted-comp' );
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array( 9 ) );
+		Workflow_Fixtures::close_uploads( $id );
+
+		$this->set_request(
+			array(
+				'action'      => 'toggle_uploads',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_toggle_uploads_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'votes_exist', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertTrue( ( new Competition_Workflow() )->uploads_closed( $this->competitions->find( $id ) ) );
 	}
 
 	/**
@@ -1159,6 +1199,46 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$settings = $this->settings( $id );
 		$this->assertSame( 'colour', $settings['categories'][0]['slug'] );
 		$this->assertSame( 2, $settings['categories'][0]['quota'] );
+	}
+
+	/**
+	 * Saving the Settings tab during competition night used to reopen
+	 * uploads and reset the voting stages (#121).
+	 */
+	public function test_update_competition_settings_leaves_the_workflow_alone(): void {
+		$id = $this->create_competition( 'Night', 'night', '2020-01-01 00:00:00' );
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_CRITIQUE );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'score_matrix'             => '9, 8, 7',
+				'voting_password'          => 'changed',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$workflow    = new Competition_Workflow();
+		$competition = $this->competitions->find( $id );
+		$this->assertContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertTrue( $workflow->uploads_closed( $competition ) );
+		$this->assertSame( Competition_Workflow::STAGE_CRITIQUE, $workflow->stage( $competition, 'colour' ) );
+		$this->assertSame( 'changed', $this->settings( $id )['voting']['password'] );
 	}
 
 	/**

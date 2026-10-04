@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -42,6 +43,13 @@ class Members_Controller {
 	private $members;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
@@ -52,6 +60,7 @@ class Members_Controller {
 		Members_Repository $members
 	) {
 		$this->competitions = $competitions;
+		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->members      = $members;
 	}
 
@@ -140,7 +149,7 @@ class Members_Controller {
 			$competition = $this->competitions->find( $competition_id );
 			$member      = $this->members->find( $member_id );
 
-			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
+			if ( ! $competition || ! $this->workflow->is_open( $competition ) ) {
 				add_settings_error(
 					'photo_competition_members',
 					'invalid_competition',
@@ -683,8 +692,8 @@ class Members_Controller {
 	 * @return string
 	 */
 	private function render_uploads_status_notice( object $competition ): string {
-		$comp_settings  = Competition_Settings::parse( $competition->settings ?? '' );
-		$uploads_closed = ! empty( $comp_settings['upload']['uploads_closed'] );
+		$uploads_closed = $this->workflow->uploads_closed( $competition );
+		$reopen_check   = $uploads_closed ? $this->workflow->can_reopen_uploads( $competition ) : true;
 
 		$toggle_url = wp_nonce_url(
 			add_query_arg(
@@ -710,11 +719,12 @@ class Members_Controller {
 		return $this->render_template(
 			'admin/members/uploads-status-notice.php',
 			array(
-				'notice_class' => $notice_class,
-				'title'        => $competition->title,
-				'status_text'  => $status_text,
-				'toggle_url'   => $toggle_url,
-				'button_text'  => $button_text,
+				'notice_class'   => $notice_class,
+				'title'          => $competition->title,
+				'status_text'    => $status_text,
+				'toggle_url'     => $toggle_url,
+				'button_text'    => $button_text,
+				'reopen_refusal' => is_wp_error( $reopen_check ) ? $reopen_check->get_error_message() : '',
 			)
 		);
 	}

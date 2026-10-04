@@ -153,7 +153,6 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 			),
 			'voting'     => array(
 				'score_matrix'        => array( 10, 8, 6, 4, 2 ),
-				'open_categories'     => array(),
 				'auth_mode'           => 'token',
 				'password'            => 'secret123',
 				'click_image_to_zoom' => true,

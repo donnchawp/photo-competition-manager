@@ -22,6 +22,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Competitions_Controller
@@ -215,8 +216,11 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array(
 				'open_date'  => null,
 				'close_date' => '2020-01-01 00:00:00',
-				'settings'   => array( 'upload' => array( 'uploads_closed' => true ) ),
-			),
+			)
+		);
+		Workflow_Fixtures::close_uploads( $winter_id );
+		$this->force_fields(
+			$winter_id,
 			array(
 				'created_at' => '2026-02-01 00:00:00',
 				'updated_at' => null,
@@ -224,6 +228,18 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'list-active-with-rows', array( $spring_id, $winter_id ) );
+	}
+
+	public function test_render_greys_out_open_uploads_when_reopening_is_refused(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<span title="Hide results before reopening uploads." style="color: #888">Open Uploads</span>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
 	}
 
 	public function test_render_warns_when_multiple_competitions_open(): void {

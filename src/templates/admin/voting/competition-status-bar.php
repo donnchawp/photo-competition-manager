@@ -2,8 +2,8 @@
 /**
  * Competition status bar partial for the admin voting controls page.
  *
- * Reads $data keys: competition, uploads_closed, toggle_uploads_url,
- * results_visible, hide_results_url.
+ * Reads $data keys: competition, uploads_closed, reopen_refusal,
+ * toggle_uploads_url, results_visible, hide_results_url.
  *
  * @package PhotoCompetitionManager
  */
@@ -19,7 +19,11 @@ defined( 'ABSPATH' ) || exit;
 							<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>
 							<?php if ( $data['uploads_closed'] ) : ?>
 								<span class="photo-comp-badge photo-comp-badge-success"><?php esc_html_e( 'Closed', 'photo-competition-manager' ); ?></span>
-								<a href="<?php echo esc_url( $data['toggle_uploads_url'] ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
+								<?php if ( '' !== $data['reopen_refusal'] ) : ?>
+									<button type="button" class="button button-small" disabled title="<?php echo esc_attr( $data['reopen_refusal'] ); ?>"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></button>
+								<?php else : ?>
+									<a href="<?php echo esc_url( $data['toggle_uploads_url'] ); ?>" class="button button-small"><?php esc_html_e( 'Reopen', 'photo-competition-manager' ); ?></a>
+								<?php endif; ?>
 							<?php else : ?>
 								<span class="photo-comp-badge photo-comp-badge-warning"><?php esc_html_e( 'Open', 'photo-competition-manager' ); ?></span>
 								<a href="<?php echo esc_url( $data['toggle_uploads_url'] ); ?>" class="button button-primary button-small"><?php esc_html_e( 'Close Uploads', 'photo-competition-manager' ); ?></a>

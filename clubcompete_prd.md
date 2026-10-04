@@ -157,6 +157,8 @@ Admins can upload or replace images for any member directly from the dashboard.
   - id, name, email, grade, active, created_at
 - `wp_photocomp_competitions`
   - Date normalization for open_date, close_date
+  - `settings`: the competition's configuration (categories, upload limits, voting options)
+  - `workflow`: uploads closed, results published, and each category's voting stage. Only `Competition_Workflow` reads or writes it, so saving settings can't change it.
 - `wp_photocomp_images`
   - id, member_id, competition_id, category, filename, random_number, score, created_at
 - `wp_photocomp_votes`

@@ -11,8 +11,10 @@ use PhotoCompetitionManager\Frontend\Results_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -53,10 +55,10 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 							'label' => 'Beginner',
 						),
 					),
-					'results'    => array( 'results_visible' => true ),
 				),
 			)
 		);
+		Workflow_Fixtures::publish_results( $this->competition_id );
 
 		$member_id = (int) ( new Members_Repository() )->create(
 			array(
@@ -122,7 +124,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	public function test_default_without_visible_results_shows_not_available(): void {
 		$competitions = new Competitions_Repository();
 		$competition  = $competitions->find_by_slug( 'results-comp' );
-		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+		( new Competition_Workflow() )->unpublish_results( (int) $competition->id );
 
 		$html = ( new Results_Shortcode() )->render( array() );
 
@@ -136,7 +138,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	public function test_share_link_shows_hidden_results(): void {
 		$competitions = new Competitions_Repository();
 		$competition  = $competitions->find_by_slug( 'results-comp' );
-		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+		( new Competition_Workflow() )->unpublish_results( (int) $competition->id );
 		$competitions->update_share_hash( (int) $competition->id, 'share-hash' );
 		$_GET['share'] = 'share-hash';
 
@@ -216,7 +218,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	public function test_named_competition_shows_hidden_results_only_with_its_share_link(): void {
 		$competitions = new Competitions_Repository();
 		$competition  = $competitions->find_by_slug( 'results-comp' );
-		$competitions->update( (int) $competition->id, array( 'settings' => array( 'results' => array( 'results_visible' => false ) ) ) );
+		( new Competition_Workflow() )->unpublish_results( (int) $competition->id );
 		$competitions->update_share_hash( (int) $competition->id, 'share-hash' );
 
 		$hidden = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );

@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Results_Competition;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -64,12 +66,20 @@ class Results_Competition_Test extends WP_UnitTestCase {
 			private $competitions_repo;
 
 			/**
+			 * Competition workflow, as the shortcodes hold it.
+			 *
+			 * @var Competition_Workflow
+			 */
+			private $workflow;
+
+			/**
 			 * Constructor.
 			 *
 			 * @param Competitions_Repository $competitions_repo Competitions repository.
 			 */
 			public function __construct( Competitions_Repository $competitions_repo ) {
 				$this->competitions_repo = $competitions_repo;
+				$this->workflow          = new Competition_Workflow( $competitions_repo );
 			}
 		};
 	}
@@ -89,9 +99,12 @@ class Results_Competition_Test extends WP_UnitTestCase {
 				'slug'       => $slug,
 				'open_date'  => sprintf( '2020-%02d-01 00:00:00', ++$this->created ),
 				'close_date' => sprintf( '2020-%02d-05 00:00:00', $this->created ),
-				'settings'   => array( 'results' => array( 'results_visible' => $visible ) ),
 			)
 		);
+
+		if ( $visible ) {
+			Workflow_Fixtures::publish_results( $id );
+		}
 
 		if ( '' !== $hash ) {
 			$this->competitions->update_share_hash( $id, $hash );
@@ -140,7 +153,7 @@ class Results_Competition_Test extends WP_UnitTestCase {
 
 		$competition = $this->page->resolve_competition( '', 'ffffffffffffffffffffffffffffffff' );
 
-		$this->assertSame( (int) $hidden->id, (int) $this->competitions->find_for_results()->id );
+		$this->assertSame( (int) $hidden->id, (int) ( new Competition_Workflow( $this->competitions ) )->find_for_results()->id );
 		$this->assertSame( (int) $hidden->id, (int) $competition->id );
 		$this->assertFalse( $this->page->results_viewable( $competition, 'ffffffffffffffffffffffffffffffff' ) );
 	}

@@ -51,6 +51,13 @@ class Upload_Link_Service {
 	private $email_service;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Upload_Token_Repository|null $token_repo        Token repository.
@@ -66,6 +73,7 @@ class Upload_Link_Service {
 	) {
 		$this->token_repo        = $token_repo ?? new Upload_Token_Repository();
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
+		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
 		$this->members_repo      = $members_repo ?? new Members_Repository();
 		$this->email_service     = $email_service ?? new Email_Service();
 	}
@@ -208,7 +216,7 @@ class Upload_Link_Service {
 			return new WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( ! $this->competitions_repo->is_open( $competition ) ) {
+		if ( ! $this->workflow->is_open( $competition ) ) {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 

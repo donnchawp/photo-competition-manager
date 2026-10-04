@@ -87,9 +87,8 @@ if ( $competition ) {
 	$yesterday = gmdate( 'Y-m-d 00:00:00', strtotime( '-1 day' ) );
 	$in_5_days = gmdate( 'Y-m-d 23:59:59', strtotime( '+5 days' ) );
 
-	$comp_settings                             = array_diff_key( $settings, array( 'grades' => true ) );
-	$comp_settings['categories']               = $categories;
-	$comp_settings['upload']['uploads_closed'] = false;
+	$comp_settings               = array_diff_key( $settings, array( 'grades' => true ) );
+	$comp_settings['categories'] = $categories;
 
 	$comp_id = $competitions_repo->create(
 		array(

@@ -1,9 +1,7 @@
 <?php
 /**
- * Characterization tests for Voting_Controller.
- *
- * Pins current behavior of the voting action router and the AJAX step-machine
- * ahead of the dispatcher/template refactors.
+ * Tests for Voting_Controller's request handling: nonces, capability,
+ * which competition it may act on, and how it reports the workflow's answers.
  *
  * @package PhotoCompetitionManager\Tests\Admin
  */
@@ -18,8 +16,10 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
-use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * Characterization tests for the voting controller.
@@ -77,19 +77,42 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				// seeded competition reading as open) doesn't rot after any fixed date.
 				'open_date'  => null,
 				'close_date' => null,
-				'settings'   => array(),
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Mono',
+							'quota' => 1,
+						),
+					),
+				),
 			)
 		);
 	}
 
 	/**
-	 * Parsed settings for the seeded competition.
+	 * The seeded competition's colour stage.
 	 *
-	 * @return array<string, mixed>
+	 * @return string
 	 */
-	private function settings(): array {
-		$competition = $this->competitions->find( $this->competition_id );
-		return Competition_Settings::parse( $competition->settings );
+	private function colour_stage(): string {
+		return ( new Competition_Workflow() )->stage( $this->competitions->find( $this->competition_id, true ), 'colour' );
+	}
+
+	/**
+	 * Give the seeded competition a colour entry and walk colour to a stage.
+	 *
+	 * @param string $stage Stage to stop at.
+	 */
+	private function colour_at( string $stage ): void {
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', 1, array() );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', $stage );
 	}
 
 	/**
@@ -165,16 +188,18 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
 
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
 		$this->controller->handle_actions();
 
-		$settings = $this->settings();
-		$this->assertArrayNotHasKey( 'colour', $settings['voting']['category_steps'] ?? array() );
+		$this->assertSame( Competition_Workflow::STAGE_PREVIEWED, $this->colour_stage() );
 	}
 
 	/**
-	 * Opening a category sets it as the only open category at step 3.
+	 * Opening voting on a previewed category starts voting on it.
 	 */
 	public function test_open_category_voting_success(): void {
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
 		$this->set_request(
 			array(
 				'action'      => 'open_category_voting',
@@ -193,9 +218,33 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'page=photo-competition-manager-voting', $location );
 		$this->assertContains( 'voting_opened', $this->settings_error_codes( 'photo_competition_voting' ) );
 
-		$settings = $this->settings();
-		$this->assertSame( array( 'colour' ), $settings['voting']['open_categories'] );
-		$this->assertSame( 3, $settings['voting']['category_steps']['colour'] );
+		$this->assertSame( Competition_Workflow::STAGE_VOTING, $this->colour_stage() );
+	}
+
+	/**
+	 * A refused open voting shows the workflow's reason and changes nothing.
+	 */
+	public function test_open_category_voting_refused_while_uploads_are_open(): void {
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', Competition_Workflow::STAGE_PREVIEWED );
+		$this->set_request(
+			array(
+				'action'      => 'open_category_voting',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'page=photo-competition-manager-voting', $location );
+		$this->assertContains( 'uploads_open', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertSame( Competition_Workflow::STAGE_PREVIEWED, $this->colour_stage() );
 	}
 
 	/**
@@ -222,6 +271,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'grade' => 'beginner',
 			)
 		);
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
 		$mail_count = 0;
 		add_filter(
 			'pre_wp_mail',
@@ -274,6 +324,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'grade' => 'beginner',
 			)
 		);
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
 
 		$this->set_request(
 			array(
@@ -291,7 +342,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringNotContainsString( 'job_id=', $location );
-		$this->assertSame( array( 'colour' ), $this->settings()['voting']['open_categories'] );
+		$this->assertSame( Competition_Workflow::STAGE_VOTING, $this->colour_stage() );
 		$this->assertSame(
 			'0',
 			$wpdb->get_var(
@@ -308,11 +359,10 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * Opening is blocked when another active competition already has voting open.
 	 */
 	public function test_open_category_voting_blocked_when_another_open(): void {
-		$other                          = $this->insert_overlapping_competition( 'Other', 'other', array( 'created_at' => '2020-01-01 00:00:00' ) );
-		$comp                           = $this->competitions->find( $other );
-		$s                              = Competition_Settings::parse( $comp->settings );
-		$s['voting']['open_categories'] = array( 'mono' );
-		$this->competitions->update( $other, array( 'settings' => $s ) );
+		$other = $this->insert_overlapping_competition( 'Other', 'other', array( 'created_at' => '2020-01-01 00:00:00' ) );
+		Entry_Fixtures::insert_entry( $other, 'colour', 2, array() );
+		Workflow_Fixtures::set_stage( $other, 'colour', Competition_Workflow::STAGE_VOTING );
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
 
 		$this->set_request(
 			array(
@@ -329,9 +379,8 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertContains( 'voting_already_open', $this->settings_error_codes( 'photo_competition_voting' ) );
-		$settings = $this->settings();
-		$this->assertArrayNotHasKey( 'colour', $settings['voting']['category_steps'] ?? array() );
+		$this->assertContains( 'another_category_voting', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertSame( Competition_Workflow::STAGE_PREVIEWED, $this->colour_stage() );
 	}
 
 	/**
@@ -374,9 +423,10 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Closing a category clears open categories, sets step 5, and records the vote.
+	 * Closing voting moves the category on to critique.
 	 */
 	public function test_close_category_voting_success(): void {
+		$this->colour_at( Competition_Workflow::STAGE_VOTING );
 		$this->set_request(
 			array(
 				'action'      => 'close_category_voting',
@@ -394,16 +444,14 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'voting_closed', $this->settings_error_codes( 'photo_competition_voting' ) );
 
-		$settings = $this->settings();
-		$this->assertSame( array(), $settings['voting']['open_categories'] );
-		$this->assertSame( 5, $settings['voting']['category_steps']['colour'] );
-		$this->assertContains( $this->competition_id . '_colour', $settings['voting']['voted_categories'] );
+		$this->assertSame( Competition_Workflow::STAGE_CRITIQUE, $this->colour_stage() );
 	}
 
 	/**
 	 * Resetting with clear_votes=0 returns to step 1 and keeps votes and tokens.
 	 */
 	public function test_reset_category_keeps_votes(): void {
+		$this->colour_at( Competition_Workflow::STAGE_CRITIQUE );
 		$this->seed_vote( $this->competition_id, 'colour' );
 		$this->seed_token( $this->competition_id, 'colour' );
 
@@ -425,7 +473,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'category_reset', $this->settings_error_codes( 'photo_competition_voting' ) );
 		$this->assertStringContainsString( 'kept', $this->first_voting_error_message() );
-		$this->assertSame( 1, $this->settings()['voting']['category_steps']['colour'] );
+		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, $this->colour_stage() );
 		$this->assertSame( 1, $this->vote_count( $this->competition_id, 'colour' ), 'Votes must survive clear_votes=0.' );
 		$this->assertSame( 1, $this->token_count( $this->competition_id, 'colour' ), 'Tokens must survive clear_votes=0.' );
 	}
@@ -466,9 +514,10 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Showing results marks them visible.
+	 * Showing results publishes them.
 	 */
 	public function test_show_results_makes_visible(): void {
+		Workflow_Fixtures::close_uploads( $this->competition_id );
 		$this->set_request(
 			array(
 				'action'      => 'show_results',
@@ -484,13 +533,14 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
-		$this->assertTrue( $this->settings()['results']['results_visible'] );
+		$this->assertTrue( ( new Competition_Workflow() )->results_published( $this->competitions->find( $this->competition_id ) ) );
 	}
 
 	/**
-	 * Hiding results marks them not visible.
+	 * Hiding results unpublishes them.
 	 */
 	public function test_hide_results_makes_hidden(): void {
+		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->set_request(
 			array(
 				'action'      => 'hide_results',
@@ -506,13 +556,37 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'results_hidden', $this->settings_error_codes( 'photo_competition_voting' ) );
-		$this->assertFalse( $this->settings()['results']['results_visible'] );
+		$this->assertFalse( ( new Competition_Workflow() )->results_published( $this->competitions->find( $this->competition_id ) ) );
 	}
 
 	/**
-	 * The AJAX step handler persists the requested step.
+	 * The AJAX step handler moves the category on after its preview.
 	 */
 	public function test_advance_step_updates_step(): void {
+		$this->set_request(
+			array(
+				'competition_id' => $this->competition_id,
+				'category_slug'  => 'colour',
+				'step'           => 2,
+			)
+		);
+		$this->set_nonce( 'photo_comp_voting_step' );
+
+		$json = $this->capture_json(
+			function () {
+				$this->controller->handle_advance_step();
+			}
+		);
+
+		$this->assertTrue( $json['success'] );
+		$this->assertSame( Competition_Workflow::STAGE_PREVIEWED, $this->colour_stage() );
+	}
+
+	/**
+	 * A crafted step can't skip opening voting (#121).
+	 */
+	public function test_advance_step_refuses_to_skip_opening_voting(): void {
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
 		$this->set_request(
 			array(
 				'competition_id' => $this->competition_id,
@@ -528,14 +602,15 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertTrue( $json['success'] );
-		$this->assertSame( 3, $this->settings()['voting']['category_steps']['colour'] );
+		$this->assertFalse( $json['success'] );
+		$this->assertSame( Competition_Workflow::STAGE_PREVIEWED, $this->colour_stage() );
 	}
 
 	/**
-	 * Advancing to step 6 also records the category as voted.
+	 * Continuing after the critique marks the category done.
 	 */
 	public function test_advance_step_6_records_voted_category(): void {
+		$this->colour_at( Competition_Workflow::STAGE_CRITIQUE );
 		$this->set_request(
 			array(
 				'competition_id' => $this->competition_id,
@@ -552,9 +627,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertTrue( $json['success'] );
-		$settings = $this->settings();
-		$this->assertSame( 6, $settings['voting']['category_steps']['colour'] );
-		$this->assertContains( $this->competition_id . '_colour', $settings['voting']['voted_categories'] );
+		$this->assertSame( Competition_Workflow::STAGE_DONE, $this->colour_stage() );
 	}
 
 	/**
@@ -622,7 +695,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_voting_action_refuses_competition_that_is_not_current( string $action, string $nonce_prefix, bool $has_category ): void {
 		$older_id = $this->insert_older_open_competition();
-		$before   = $this->competitions->find( $older_id )->settings;
+		$before   = $this->competitions->find( $older_id )->workflow;
 		$request  = array(
 			'action'      => $action,
 			'competition' => $older_id,
@@ -642,7 +715,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'competition_not_current', $this->settings_error_codes( 'photo_competition_voting' ) );
-		$this->assertSame( $before, $this->competitions->find( $older_id )->settings );
+		$this->assertSame( $before, $this->competitions->find( $older_id )->workflow );
 	}
 
 	/**
@@ -650,6 +723,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_voting_action_accepts_current_competition_when_another_is_open(): void {
 		$this->insert_older_open_competition();
+		Workflow_Fixtures::close_uploads( $this->competition_id );
 
 		$this->set_request(
 			array(
@@ -666,7 +740,6 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'results_shown', $this->settings_error_codes( 'photo_competition_voting' ) );
-		$this->assertTrue( $this->settings()['results']['results_visible'] );
 	}
 
 	/**
@@ -674,6 +747,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * Voting Controls open, and the last steps must still work then.
 	 */
 	public function test_show_results_allowed_when_no_competition_is_current(): void {
+		Workflow_Fixtures::close_uploads( $this->competition_id );
 		$this->competitions->update( $this->competition_id, array( 'close_date' => '2020-02-01 00:00:00' ) );
 
 		$this->set_request(
@@ -716,6 +790,6 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertFalse( $json['success'] );
 		$this->assertStringContainsString( "isn't the current competition", $json['data']['message'] );
-		$this->assertNull( $this->competitions->find( $older_id )->settings );
+		$this->assertNull( $this->competitions->find( $older_id )->workflow );
 	}
 }

@@ -52,6 +52,13 @@ class Upload_Handler {
 	private $image_processor;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
@@ -66,6 +73,7 @@ class Upload_Handler {
 		?Image_Processor $image_processor = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
+		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
 		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
 		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
@@ -114,7 +122,7 @@ class Upload_Handler {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( $enforce_time_gate && ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
+		if ( $enforce_time_gate && ! $this->workflow->is_accepting_uploads( $competition ) ) {
 			return new WP_Error( 'competition_closed', __( 'Competition is not open for submissions.', 'photo-competition-manager' ) );
 		}
 
@@ -257,7 +265,7 @@ class Upload_Handler {
 
 		// Check if competition is still open.
 		$competition = $this->competitions_repo->find( $competition_id );
-		if ( ! $competition || ! $this->competitions_repo->is_accepting_uploads( $competition ) ) {
+		if ( ! $competition || ! $this->workflow->is_accepting_uploads( $competition ) ) {
 			return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'photo-competition-manager' ) );
 		}
 

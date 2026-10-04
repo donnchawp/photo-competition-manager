@@ -13,10 +13,10 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Manage competitions dashboard and CRUD operations.
@@ -44,6 +44,13 @@ class Competitions_Controller {
 	private $email_jobs;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
@@ -51,6 +58,7 @@ class Competitions_Controller {
 	 */
 	public function __construct( Competitions_Repository $competitions, ?Email_Job_Manager $email_jobs = null ) {
 		$this->competitions = $competitions;
+		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 	}
 
@@ -276,36 +284,7 @@ class Competitions_Controller {
 
 			check_admin_referer( 'photo_competition_close_' . $competition_id );
 
-			$competition = $this->competitions->find( $competition_id );
-
-			// A replayed link must not move an existing close date forward.
-			if ( ! $competition || ! $this->competitions->is_open( $competition ) ) {
-				add_settings_error(
-					'photo_competition_manager',
-					$competition ? 'competition_already_closed' : 'competition_not_found',
-					$competition
-						? __( 'Competition is already closed.', 'photo-competition-manager' )
-						: __( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $this->dashboard_url() );
-			}
-
-			$settings = Competition_Settings::parse( $competition->settings );
-			foreach ( Competition_Settings::get_open_voting_categories( $settings ) as $category_slug ) {
-				$settings = Competition_Settings::close_category_voting( $settings, $competition_id, $category_slug );
-			}
-
-			// Use the current time, not a date-only "today": that is stored as
-			// midnight UTC, which is still in the future just after midnight on
-			// sites ahead of UTC.
-			$result = $this->competitions->update(
-				$competition_id,
-				array(
-					'close_date' => utc_time(),
-					'settings'   => $settings,
-				)
-			);
+			$result = $this->workflow->close_competition( $competition_id );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -364,30 +343,23 @@ class Competitions_Controller {
 			}
 
 			if ( 'reset_votes' === $action ) {
-				// Delete all votes.
-				$votes_repo = new \PhotoCompetitionManager\Repository\Votes_Repository();
-				$votes_repo->delete_by_competition( $competition_id );
+				$result = $this->workflow->reset_competition( $competition_id );
 
-				// Delete all voting tokens.
-				$token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
-				$token_repo->delete_by_competition( $competition_id );
-
-				// Reset voting workflow state.
-				$competition = $this->competitions->find( $competition_id );
-				if ( $competition ) {
-					$settings                               = \PhotoCompetitionManager\Support\Competition_Settings::parse( $competition->settings );
-					$settings['voting']['category_steps']   = array();
-					$settings['voting']['voted_categories'] = array();
-					$settings['voting']['open_categories']  = array();
-					$this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+				if ( is_wp_error( $result ) ) {
+					add_settings_error(
+						'photo_competition_manager',
+						$result->get_error_code(),
+						$result->get_error_message(),
+						'error'
+					);
+				} else {
+					add_settings_error(
+						'photo_competition_manager',
+						'votes_reset',
+						__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
+						'updated'
+					);
 				}
-
-				add_settings_error(
-					'photo_competition_manager',
-					'votes_reset',
-					__( 'All votes, tokens, and voting progress have been reset for this competition.', 'photo-competition-manager' ),
-					'updated'
-				);
 
 				$this->redirect_with_settings_errors( $this->dashboard_url() );
 			}
@@ -458,12 +430,10 @@ class Competitions_Controller {
 			$competition = $this->competitions->find( $competition_id );
 
 			if ( $competition ) {
-				$settings       = Competition_Settings::parse( $competition->settings );
-				$uploads_closed = ! empty( $settings['upload']['uploads_closed'] );
-
-				$settings['upload']['uploads_closed'] = ! $uploads_closed;
-
-				$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+				$uploads_closed = $this->workflow->uploads_closed( $competition );
+				$result         = $uploads_closed
+					? $this->workflow->reopen_uploads( $competition_id )
+					: $this->workflow->close_uploads( $competition_id );
 
 				if ( is_wp_error( $result ) ) {
 					add_settings_error(
@@ -501,10 +471,8 @@ class Competitions_Controller {
 
 			check_admin_referer( 'photo_competition_update_settings_' . $competition_id, 'photo_competition_nonce' );
 
-			// Get existing competition to preserve open_categories (controlled via Voting Controls page).
-			$existing_competition     = $this->competitions->find( $competition_id );
-			$existing_settings        = $existing_competition ? Competition_Settings::parse( $existing_competition->settings ) : array();
-			$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
+			$existing_competition = $this->competitions->find( $competition_id );
+			$existing_settings    = $existing_competition ? Competition_Settings::parse( $existing_competition->settings ) : array();
 
 			$categories = $this->get_post_array( 'categories' );
 
@@ -565,9 +533,6 @@ class Competitions_Controller {
 				$hashed_password = $existing_password;
 			}
 
-			// Preserve existing results settings (results_visible) controlled via Voting Controls page.
-			$existing_results = $existing_settings['results'] ?? array();
-
 			$settings = array(
 				'categories'      => $sanitized_categories,
 				'upload'          => array(
@@ -578,7 +543,6 @@ class Competitions_Controller {
 				),
 				'voting'          => array(
 					'score_matrix'        => $score_matrix,
-					'open_categories'     => $existing_open_categories,
 					'auth_mode'           => $auth_mode_input,
 					'password'            => $hashed_password,
 					'click_image_to_zoom' => $click_image_to_zoom,
@@ -600,7 +564,6 @@ class Competitions_Controller {
 					'upload_page' => $upload_page_url,
 					'voting_page' => $voting_page_url,
 				),
-				'results'         => $existing_results,
 			);
 
 			// Allow empty categories for competitions (they fall back to the club's).
@@ -935,9 +898,13 @@ class Competitions_Controller {
 
 			$toggle_uploads_url = '';
 			$uploads_closed     = false;
+			$reopen_refusal     = '';
 			if ( ! $is_archived ) {
-				$comp_settings      = Competition_Settings::parse( $competition->settings );
-				$uploads_closed     = ! empty( $comp_settings['upload']['uploads_closed'] );
+				$uploads_closed = $this->workflow->uploads_closed( $competition );
+				if ( $uploads_closed ) {
+					$reopen_check   = $this->workflow->can_reopen_uploads( $competition );
+					$reopen_refusal = is_wp_error( $reopen_check ) ? $reopen_check->get_error_message() : '';
+				}
 				$toggle_uploads_url = wp_nonce_url(
 					add_query_arg(
 						array(
@@ -951,7 +918,7 @@ class Competitions_Controller {
 				);
 			}
 
-			$is_open        = $this->competitions->is_open( $competition );
+			$is_open        = $this->workflow->is_open( $competition );
 			$send_email_url = '';
 			$close_url      = '';
 			if ( $is_open ) {
@@ -1054,6 +1021,7 @@ class Competitions_Controller {
 				'is_archived'        => $is_archived,
 				'toggle_uploads_url' => $toggle_uploads_url,
 				'uploads_closed'     => $uploads_closed,
+				'reopen_refusal'     => $reopen_refusal,
 				'is_open'            => $is_open,
 				'send_email_url'     => $send_email_url,
 				'close_url'          => $close_url,

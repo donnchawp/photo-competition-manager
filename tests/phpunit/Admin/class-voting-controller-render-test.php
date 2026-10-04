@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 
@@ -288,7 +289,6 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'settings'   => wp_json_encode(
 					array(
 						'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ),
-						'voting'     => array( 'open_categories' => $current_open ),
 					)
 				),
 				'created_at' => '2020-01-01 00:00:00',
@@ -302,7 +302,6 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'settings'  => wp_json_encode(
 					array(
 						'categories' => array( array( 'slug' => 'mono', 'label' => 'Mono' ) ),
-						'voting'     => array( 'open_categories' => $older_open ),
 					)
 				),
 			)
@@ -318,6 +317,16 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 					'filename'       => $cat . '.jpg',
 					'random_number'  => 100,
 				)
+			);
+		}
+
+		// Two categories voting at once can't be reached through the workflow
+		// any more, but competitions saved before only one could be open may
+		// have it, so this writes the state directly.
+		foreach ( array( $current_id => $current_open, $older_id => $older_open ) as $comp_id => $open ) {
+			$this->competitions->save_workflow(
+				$comp_id,
+				array( 'stages' => array_fill_keys( $open, Competition_Workflow::STAGE_VOTING ) )
 			);
 		}
 
