@@ -10,11 +10,11 @@ namespace PhotoCompetitionManager\Install;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
-use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
@@ -218,22 +218,20 @@ class Activator {
 		}
 
 		// Totals come from the votes, so say which competitions' results changed.
-		foreach ( $removed as $competition_id => $count ) {
-			( new Event_Logger() )->log(
-				$competition_id,
-				'duplicate_votes_removed',
-				'voting',
-				sprintf(
-					/* translators: %d: number of votes removed */
-					_n(
-						'Upgrade removed %d duplicate vote, keeping each voter\'s earliest vote for an image.',
-						'Upgrade removed %d duplicate votes, keeping each voter\'s earliest vote for an image.',
-						$count,
-						'photo-competition-manager'
-					),
-					$count
-				),
-				array( 'removed' => $count )
+		// The upgrade runs on whichever request comes first, so the system is
+		// the actor, not the current user. It runs before translations can
+		// load, so the description is in English.
+		foreach ( array_filter( $removed ) as $competition_id => $count ) {
+			( new Logs_Repository() )->create(
+				array(
+					'competition_id' => $competition_id,
+					'event_type'     => 'duplicate_votes_removed',
+					'event_category' => 'voting',
+					'actor_type'     => 'system',
+					'actor_name'     => 'System',
+					'description'    => sprintf( 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.', $count ),
+					'metadata'       => array( 'removed' => $count ),
+				)
 			);
 		}
 

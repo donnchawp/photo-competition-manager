@@ -180,6 +180,19 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $page );
 	}
 
+	public function test_long_voter_name_cut_at_a_space_is_stored_without_it(): void {
+		$this->submit_ballot(
+			array(
+				$this->images['colour'][0] => 9,
+				$this->images['colour'][1] => 8,
+			),
+			str_repeat( 'a', 190 ) . ' Voter'
+		);
+
+		$votes = ( new Votes_Repository() )->find_by_competition( $this->competition_id );
+		$this->assertSame( array( str_repeat( 'a', 190 ) ), array_values( array_unique( array_column( $votes, 'voter_name' ) ) ) );
+	}
+
 	public function test_ballot_padded_with_another_category_is_rejected(): void {
 		$result = $this->submit_ballot(
 			array(

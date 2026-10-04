@@ -314,6 +314,20 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 2, 1, 0 ), array_map( array( $this, 'removed_votes_logged' ), array( 1, 2, 3 ) ) );
 	}
 
+	public function test_upgrade_to_4_logs_removed_votes_as_the_system_whoever_loads_the_page(): void {
+		$this->shadow_v3_votes_table();
+		$this->insert_v3_vote( 42, 100, null, 9 );
+		$this->insert_v3_vote( 42, 100, null, 3 );
+		update_option( 'photo_comp_db_version', 3 );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+
+		Activator::maybe_upgrade();
+
+		$logs = ( new Logs_Repository() )->find_by_competition( 1, 50, 0, array( 'event_type' => 'duplicate_votes_removed' ) );
+		$this->assertSame( 'system', $logs[0]->actor_type );
+		$this->assertNull( $logs[0]->actor_id );
+	}
+
 	/**
 	 * How many removed duplicate votes the upgrade logged for a competition.
 	 *
