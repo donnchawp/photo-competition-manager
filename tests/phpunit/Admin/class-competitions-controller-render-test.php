@@ -22,6 +22,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Competitions_Controller
@@ -215,8 +216,11 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array(
 				'open_date'  => null,
 				'close_date' => '2020-01-01 00:00:00',
-				'settings'   => array( 'upload' => array( 'uploads_closed' => true ) ),
-			),
+			)
+		);
+		Workflow_Fixtures::close_uploads( $winter_id );
+		$this->force_fields(
+			$winter_id,
 			array(
 				'created_at' => '2026-02-01 00:00:00',
 				'updated_at' => null,

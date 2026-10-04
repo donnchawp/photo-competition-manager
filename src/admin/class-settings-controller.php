@@ -130,10 +130,6 @@ class Settings_Controller {
 			$score_matrix = array( 9, 8, 7, 6, 5 );
 		}
 
-		// Get existing settings to preserve open_categories (controlled via Voting Controls page).
-		$existing_settings        = Competition_Settings::global_settings();
-		$existing_open_categories = $existing_settings['voting']['open_categories'] ?? array();
-
 		$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
 		if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
 			$auth_mode_input = 'password';
@@ -180,7 +176,6 @@ class Settings_Controller {
 			),
 			'voting'          => array(
 				'score_matrix'        => $score_matrix,
-				'open_categories'     => $existing_open_categories,
 				'auth_mode'           => $auth_mode_input,
 				'password'            => $voting_password,
 				'click_image_to_zoom' => $click_image_to_zoom,

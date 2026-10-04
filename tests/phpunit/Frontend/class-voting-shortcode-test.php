@@ -13,7 +13,8 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
-use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -45,6 +46,13 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	 * @var int
 	 */
 	private $mail_count = 0;
+
+	/**
+	 * Each category's one entry, keyed by category slug.
+	 *
+	 * @var array<string, int>
+	 */
+	private $images = array();
 
 	public function setUp(): void {
 		parent::setUp();
@@ -97,13 +105,25 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 						),
 					),
 					'voting'     => array(
-						'auth_mode'       => 'token',
-						'open_categories' => array( 'colour' ),
+						'auth_mode' => 'token',
 					),
 				),
 			)
 		);
 		$this->competition = $competitions->find( (int) $competition_id );
+
+		foreach ( array( 'colour', 'mono' ) as $category ) {
+			$this->images[ $category ] = (int) ( new Images_Repository() )->create(
+				array(
+					'competition_id' => (int) $competition_id,
+					'member_id'      => $this->make_member( $category . '-entrant@example.com', true ),
+					'category'       => $category,
+					'filename'       => $category . '-entry.jpg',
+				)
+			);
+		}
+
+		$this->set_open_categories( array( 'colour' ) );
 	}
 
 	/**
@@ -112,11 +132,18 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	 * @param array<string> $open_categories Category slugs open for voting.
 	 */
 	private function set_open_categories( array $open_categories ): void {
-		$competitions                          = new Competitions_Repository();
-		$settings                              = Competition_Settings::parse( $this->competition->settings );
-		$settings['voting']['open_categories'] = $open_categories;
-		$competitions->update( (int) $this->competition->id, array( 'settings' => $settings ) );
-		$this->competition = $competitions->find( (int) $this->competition->id );
+		$id       = (int) $this->competition->id;
+		$workflow = new Competition_Workflow();
+
+		foreach ( array( 'colour', 'mono' ) as $category ) {
+			$workflow->reset_category( $id, $category, false );
+		}
+
+		foreach ( $open_categories as $category ) {
+			Workflow_Fixtures::set_stage( $id, $category, Competition_Workflow::STAGE_VOTING );
+		}
+
+		$this->competition = ( new Competitions_Repository() )->find( $id );
 	}
 
 	/**
@@ -175,15 +202,14 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return $token_string;
 	}
 
+	/**
+	 * The category's one entry, created with the competition.
+	 *
+	 * @param string $category Category slug.
+	 * @return int Image ID.
+	 */
 	private function make_image( string $category = 'colour' ): int {
-		return (int) ( new Images_Repository() )->create(
-			array(
-				'competition_id' => (int) $this->competition->id,
-				'member_id'      => $this->make_member( $category . '-entrant@example.com', true ),
-				'category'       => $category,
-				'filename'       => $category . '-entry.jpg',
-			)
-		);
+		return $this->images[ $category ];
 	}
 
 	/**

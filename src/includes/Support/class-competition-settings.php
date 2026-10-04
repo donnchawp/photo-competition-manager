@@ -82,13 +82,10 @@ class Competition_Settings {
 			),
 			'voting'          => array(
 				'score_matrix'        => array( 9, 8, 7, 6, 5 ),
-				'open_categories'     => array(), // Array of category slugs where voting is open.
 				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 				'ui_type'             => 'default',
-				'category_steps'      => array(),
-				'voted_categories'    => array(),
 			),
 			'slideshow'       => array(
 				'duration_seconds'    => 10,
@@ -106,9 +103,6 @@ class Competition_Settings {
 			'urls'            => array(
 				'upload_page' => '',
 				'voting_page' => '',
-			),
-			'results'         => array(
-				'results_visible' => false, // Whether results are displayed on frontend.
 			),
 		);
 	}
@@ -570,69 +564,6 @@ class Competition_Settings {
 		$global_ui_type = get_option( 'photo_comp_voting_ui_type', 'buttons' );
 
 		return in_array( $global_ui_type, array( 'buttons', 'dropdown' ), true ) ? $global_ui_type : 'buttons';
-	}
-
-	/**
-	 * Check if voting is open for a specific category.
-	 *
-	 * @param array<string, mixed> $settings Parsed settings.
-	 * @param string               $category Category slug.
-	 * @return bool
-	 */
-	public static function is_voting_open_for_category( array $settings, string $category ): bool {
-		$voting_config   = self::get_voting_config( $settings );
-		$open_categories = $voting_config['open_categories'] ?? array();
-
-		return in_array( $category, $open_categories, true );
-	}
-
-	/**
-	 * Get categories where voting is currently open.
-	 *
-	 * @param array<string, mixed> $settings Parsed settings.
-	 * @return array<string> Array of category slugs.
-	 */
-	public static function get_open_voting_categories( array $settings ): array {
-		$voting_config = self::get_voting_config( $settings );
-		return $voting_config['open_categories'] ?? array();
-	}
-
-	/**
-	 * Close voting for a category.
-	 *
-	 * Clears the open category, advances it to step 5, and records it as voted.
-	 *
-	 * @since 0.3.0
-	 *
-	 * @param array<string, mixed> $settings       Parsed settings.
-	 * @param int                  $competition_id Competition ID.
-	 * @param string               $category_slug  Category slug.
-	 * @return array<string, mixed> Updated settings.
-	 */
-	public static function close_category_voting( array $settings, int $competition_id, string $category_slug ): array {
-		$settings['voting']['open_categories']                  = array();
-		$settings['voting']['category_steps'][ $category_slug ] = 5;
-
-		return self::mark_category_voted( $settings, $competition_id, $category_slug );
-	}
-
-	/**
-	 * Record a category as voted, once.
-	 *
-	 * @since 0.3.0
-	 *
-	 * @param array<string, mixed> $settings       Parsed settings.
-	 * @param int                  $competition_id Competition ID.
-	 * @param string               $category_slug  Category slug.
-	 * @return array<string, mixed> Updated settings.
-	 */
-	public static function mark_category_voted( array $settings, int $competition_id, string $category_slug ): array {
-		$category_key = $competition_id . '_' . $category_slug;
-		if ( ! in_array( $category_key, $settings['voting']['voted_categories'] ?? array(), true ) ) {
-			$settings['voting']['voted_categories'][] = $category_key;
-		}
-
-		return $settings;
 	}
 
 	/**

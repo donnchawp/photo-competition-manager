@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Upload_Handler;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
@@ -82,6 +83,13 @@ class Upload_Shortcode {
 	private $upload_link_service;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Upload_Handler|null          $upload_handler      Upload handler.
@@ -101,6 +109,7 @@ class Upload_Shortcode {
 	) {
 		$this->upload_handler      = $upload_handler ?? new Upload_Handler();
 		$this->competitions_repo   = $competitions_repo ?? new Competitions_Repository();
+		$this->workflow            = new Competition_Workflow( $this->competitions_repo );
 		$this->members_repo        = $members_repo ?? new Members_Repository();
 		$this->token_repo          = $token_repo ?? new Upload_Token_Repository();
 		$this->email_service       = $email_service ?? new Email_Service();
@@ -444,7 +453,7 @@ class Upload_Shortcode {
 				<?php echo wp_kses_post( $message ); ?>
 			<?php endif; ?>
 
-			<?php if ( ! $this->competitions_repo->is_accepting_uploads( $competition ) ) : ?>
+			<?php if ( ! $this->workflow->is_accepting_uploads( $competition ) ) : ?>
 				<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
 				<?php return; ?>
 			<?php endif; ?>

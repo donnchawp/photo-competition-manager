@@ -9,7 +9,6 @@ namespace PhotoCompetitionManager\Frontend;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -54,24 +53,22 @@ trait Results_Competition {
 		$competition = $this->competitions_repo->find_by_share_hash( $share_hash );
 
 		if ( ! $competition ) {
-			$competition = $this->competitions_repo->find_for_results();
+			$competition = $this->workflow->find_for_results();
 		}
 
 		return $competition ? $competition : new WP_Error( 'no_competitions', __( 'No competitions found.', 'photo-competition-manager' ) );
 	}
 
 	/**
-	 * Whether a competition's results may be shown: they've been made
-	 * visible, or the request carries the competition's share hash.
+	 * Whether a competition's results may be shown: they've been
+	 * published, or the request carries the competition's share hash.
 	 *
 	 * @param object $competition Competition.
 	 * @param string $share_hash  Share hash from the request, or ''.
 	 * @return bool
 	 */
 	private function results_viewable( object $competition, string $share_hash ): bool {
-		$settings = Competition_Settings::parse( $competition->settings );
-
-		if ( ! empty( $settings['results']['results_visible'] ) ) {
+		if ( $this->workflow->results_published( $competition ) ) {
 			return true;
 		}
 

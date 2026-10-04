@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
@@ -78,6 +79,13 @@ class Voting_Shortcode {
 	private $image_processor;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
@@ -98,6 +106,7 @@ class Voting_Shortcode {
 		?Image_Processor $image_processor = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
+		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
 		$this->votes_repo        = $votes_repo ? $votes_repo : new Votes_Repository();
 		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
@@ -326,7 +335,7 @@ class Voting_Shortcode {
 		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive a voting link shortly. Please check your inbox.', 'photo-competition-manager' ) . '</p>';
 
 		// Verify category is open for voting.
-		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
+		if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
@@ -418,7 +427,7 @@ class Voting_Shortcode {
 		$score_matrix  = $voting_config['score_matrix'];
 
 		// Verify voting is still open for this category.
-		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $token_record->category ) ) {
+		if ( ! $this->workflow->is_accepting_votes( $competition, $token_record->category ) ) {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
@@ -511,7 +520,7 @@ class Voting_Shortcode {
 			}
 		}
 
-		if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
+		if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
 			return array(
 				'status'   => 'error',
 				'message'  => '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>',
@@ -611,7 +620,7 @@ class Voting_Shortcode {
 		$categories    = Competition_Settings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
-		$open_categories   = Competition_Settings::get_open_voting_categories( $settings );
+		$open_categories   = $this->workflow->categories_accepting_votes( $competition );
 		$voting_categories = array_filter(
 			$categories,
 			function ( $cat ) use ( $open_categories ) {
@@ -691,7 +700,7 @@ class Voting_Shortcode {
 				<!-- Member is authenticated with valid token, show voting form -->
 				<?php
 				// Verify voting is still open for this category.
-				if ( ! Competition_Settings::is_voting_open_for_category( $settings, $category ) ) {
+				if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
 					// Another category is open, so drop the token: the bare page lets the voter request a link for it.
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
@@ -904,7 +913,7 @@ class Voting_Shortcode {
 		$categories    = Competition_Settings::get_categories( $settings );
 
 		// Filter to only show categories where voting is open.
-		$open_categories   = Competition_Settings::get_open_voting_categories( $settings );
+		$open_categories   = $this->workflow->categories_accepting_votes( $competition );
 		$voting_categories = array_filter(
 			$categories,
 			function ( $cat ) use ( $open_categories ) {

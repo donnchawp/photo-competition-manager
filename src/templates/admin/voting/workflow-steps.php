@@ -3,9 +3,9 @@
  * Workflow steps partial for the admin voting controls page.
  *
  * Reads $data keys: comp_id, competition, category_slug, category_label,
- * total_categories, image_count, is_ready, current_step, steps, settings,
- * another_cat_voting, voting_open_here, open_voting_url, close_voting_url,
- * reset_url.
+ * total_categories, image_count, is_ready, prereq_refusal, current_step,
+ * steps, open_voting_hint, voting_open_here, open_voting_url,
+ * close_voting_url, reset_url.
  *
  * @package PhotoCompetitionManager
  */
@@ -53,15 +53,7 @@ defined( 'ABSPATH' ) || exit;
 				<?php if ( ! $data['is_ready'] ) : ?>
 					<div class="notice notice-warning inline photo-comp-prereq-notice">
 						<p>
-						<?php
-						$uploads_closed  = $data['settings']['upload']['uploads_closed'] ?? false;
-						$results_visible = $data['settings']['results']['results_visible'] ?? false;
-						if ( ! $uploads_closed ) {
-							esc_html_e( 'Close uploads before starting the voting workflow.', 'photo-competition-manager' );
-						} elseif ( $results_visible ) {
-							esc_html_e( 'Hide results before starting the voting workflow.', 'photo-competition-manager' );
-						}
-						?>
+						<?php echo esc_html( $data['prereq_refusal'] ); ?>
 						</p>
 					</div>
 				<?php endif; ?>
@@ -130,11 +122,11 @@ defined( 'ABSPATH' ) || exit;
 												<?php esc_html_e( 'Continue', 'photo-competition-manager' ); ?> &rarr;
 											</button>
 										<?php elseif ( 'voting_open' === $step['type'] ) : ?>
-											<?php if ( $data['another_cat_voting'] ) : ?>
-												<button type="button" class="button" disabled title="<?php esc_attr_e( 'Close voting in the other category first', 'photo-competition-manager' ); ?>">
+											<?php if ( '' !== $data['open_voting_hint'] ) : ?>
+												<button type="button" class="button" disabled title="<?php echo esc_attr( $data['open_voting_hint'] ); ?>">
 													<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>
 												</button>
-												<span class="step-hint"><?php esc_html_e( 'Close voting in the other category first.', 'photo-competition-manager' ); ?></span>
+												<span class="step-hint"><?php echo esc_html( $data['open_voting_hint'] ); ?></span>
 											<?php else : ?>
 												<a href="<?php echo esc_url( $data['open_voting_url'] ); ?>" class="button button-primary">
 													<?php esc_html_e( 'Open Voting', 'photo-competition-manager' ); ?>

@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Admin\Members_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Members_Controller
@@ -224,13 +225,8 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function test_render_list_uploads_closed(): void {
 		// Active, open competition with uploads explicitly closed: exercises
 		// the "Uploads are closed" / "Open Uploads" notice-warning branch.
-		$comp_id = $this->seed_competition(
-			'Winter Salon',
-			'winter-salon',
-			array(
-				'upload' => array( 'uploads_closed' => true ),
-			)
-		);
+		$comp_id = $this->seed_competition( 'Winter Salon', 'winter-salon' );
+		Workflow_Fixtures::close_uploads( $comp_id );
 
 		$dave = $this->seed_member( 'Dave Evans', 'dave@example.com', array( 'grade' => 'intermediate', 'active' => 1 ) );
 

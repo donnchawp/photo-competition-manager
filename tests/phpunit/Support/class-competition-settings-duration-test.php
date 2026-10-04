@@ -18,13 +18,6 @@ class CompetitionSettingsDurationTest extends WP_UnitTestCase {
 		$this->assertSame( 0, $defaults['slideshow']['critique_duration'] );
 	}
 
-	public function test_defaults_include_category_steps(): void {
-		$defaults = Competition_Settings::defaults();
-
-		$this->assertArrayHasKey( 'category_steps', $defaults['voting'] );
-		$this->assertIsArray( $defaults['voting']['category_steps'] );
-	}
-
 	public function test_parse_preserves_new_duration_defaults(): void {
 		$parsed = Competition_Settings::parse( '' );
 

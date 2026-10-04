@@ -16,8 +16,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -33,6 +32,18 @@ class Voting_Controller {
 	use Date_Formatting;
 	use Email_Job_Notice;
 	use Form_Rendering;
+
+	/**
+	 * The step number the page shows for each voting stage.
+	 */
+	const STEP_STAGES = array(
+		1 => Competition_Workflow::STAGE_NOT_STARTED,
+		2 => Competition_Workflow::STAGE_PREVIEWED,
+		3 => Competition_Workflow::STAGE_VOTING,
+		4 => Competition_Workflow::STAGE_SLIDESHOW_SHOWN,
+		5 => Competition_Workflow::STAGE_CRITIQUE,
+		6 => Competition_Workflow::STAGE_DONE,
+	);
 
 	/**
 	 * Competitions repository.
@@ -63,6 +74,13 @@ class Voting_Controller {
 	private $email_jobs;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
@@ -77,6 +95,7 @@ class Voting_Controller {
 		?Email_Job_Manager $email_jobs = null
 	) {
 		$this->competitions = $competitions;
+		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->images       = $images;
 		$this->members      = $members ?? new Members_Repository();
 		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
@@ -131,11 +150,7 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Open voting for a single category.
-	 *
-	 * Enforces the global constraint that only one category may have voting open
-	 * across all active competitions, then opens the requested category at step 3
-	 * and notifies members.
+	 * Open voting for a single category and notify members.
 	 *
 	 * @param string $focus Focus-panel key to preserve across the redirect.
 	 * @return void
@@ -143,27 +158,10 @@ class Voting_Controller {
 	private function handle_open_category_voting( string $focus ): void {
 		$competition_id = $this->query_int( 'competition' );
 		$category_slug  = $this->query_text( 'category' );
-
-		// Global constraint: no other ACTIVE competition may have a category open.
-		foreach ( $this->competitions->all_open() as $comp ) {
-			$comp_settings = Competition_Settings::parse( $comp->settings );
-			if ( ! empty( Competition_Settings::get_open_voting_categories( $comp_settings ) ) ) {
-				$this->fail_voting(
-					'voting_already_open',
-					__( 'Cannot open voting. Another category already has voting open. Close it first.', 'photo-competition-manager' )
-				);
-			}
-		}
-
-		$competition = $this->load_competition_or_fail( $competition_id );
-
-		$settings                              = Competition_Settings::parse( $competition->settings );
-		$settings['voting']['open_categories'] = array( $category_slug );
-		$settings['voting']['category_steps'][ $category_slug ] = 3;
+		$competition    = $this->load_competition_or_fail( $competition_id );
 
 		$this->finish_voting_update(
-			$competition_id,
-			$settings,
+			$this->workflow->open_voting( $competition_id, $category_slug ),
 			'voting_opened',
 			__( 'Voting opened successfully.', 'photo-competition-manager' ),
 			$focus,
@@ -176,26 +174,16 @@ class Voting_Controller {
 	/**
 	 * Close voting for a single category.
 	 *
-	 * Clears the open category, advances it to step 5, and records it as voted.
-	 *
 	 * @param string $focus Focus-panel key to preserve across the redirect.
 	 * @return void
 	 */
 	private function handle_close_category_voting( string $focus ): void {
 		$competition_id = $this->query_int( 'competition' );
 		$category_slug  = $this->query_text( 'category' );
-
-		$competition = $this->load_competition_or_fail( $competition_id );
-
-		$settings = Competition_Settings::close_category_voting(
-			Competition_Settings::parse( $competition->settings ),
-			$competition_id,
-			$category_slug
-		);
+		$this->load_competition_or_fail( $competition_id );
 
 		$this->finish_voting_update(
-			$competition_id,
-			$settings,
+			$this->workflow->close_voting( $competition_id, $category_slug ),
 			'voting_closed',
 			__( 'Voting closed successfully.', 'photo-competition-manager' ),
 			$focus
@@ -212,47 +200,17 @@ class Voting_Controller {
 		$competition_id = $this->query_int( 'competition' );
 		$category_slug  = $this->query_text( 'category' );
 		$clear_votes    = 1 === $this->query_int( 'clear_votes' );
-
-		$competition = $this->load_competition_or_fail( $competition_id );
-
-		$settings = Competition_Settings::parse( $competition->settings );
-
-		// Close voting if currently open for this category.
-		$open_categories = Competition_Settings::get_open_voting_categories( $settings );
-		if ( in_array( $category_slug, $open_categories, true ) ) {
-			$settings['voting']['open_categories'] = array();
-		}
-
-		// Reset step back to 1.
-		$settings['voting']['category_steps'][ $category_slug ] = 1;
-
-		// Remove from voted_categories if present.
-		$category_key                           = $competition_id . '_' . $category_slug;
-		$voted_categories                       = $settings['voting']['voted_categories'] ?? array();
-		$voted_categories                       = array_values( array_diff( $voted_categories, array( $category_key ) ) );
-		$settings['voting']['voted_categories'] = $voted_categories;
+		$this->load_competition_or_fail( $competition_id );
 
 		$message = $clear_votes
 			? __( 'Category reset to step 1 and all votes cleared.', 'photo-competition-manager' )
 			: __( 'Category reset to step 1. Existing votes were kept.', 'photo-competition-manager' );
 
-		$on_success = $clear_votes
-			? function () use ( $competition_id, $category_slug ) {
-				$votes_repo = new Votes_Repository();
-				$votes_repo->delete_by_competition_and_category( $competition_id, $category_slug );
-
-				$token_repo = new Voting_Token_Repository();
-				$token_repo->delete_by_competition_and_category( $competition_id, $category_slug );
-			}
-			: null;
-
 		$this->finish_voting_update(
-			$competition_id,
-			$settings,
+			$this->workflow->reset_category( $competition_id, $category_slug, $clear_votes ),
 			'category_reset',
 			$message,
-			$focus,
-			$on_success
+			$focus
 		);
 	}
 
@@ -264,15 +222,10 @@ class Voting_Controller {
 	 */
 	private function handle_show_results( string $focus ): void {
 		$competition_id = $this->query_int( 'competition' );
-
-		$competition = $this->load_competition_or_fail( $competition_id );
-
-		$settings                               = Competition_Settings::parse( $competition->settings );
-		$settings['results']['results_visible'] = true;
+		$this->load_competition_or_fail( $competition_id );
 
 		$this->finish_voting_update(
-			$competition_id,
-			$settings,
+			$this->workflow->publish_results( $competition_id ),
 			'results_shown',
 			__( 'Results are now visible to the public.', 'photo-competition-manager' ),
 			$focus
@@ -287,15 +240,10 @@ class Voting_Controller {
 	 */
 	private function handle_hide_results( string $focus ): void {
 		$competition_id = $this->query_int( 'competition' );
-
-		$competition = $this->load_competition_or_fail( $competition_id );
-
-		$settings                               = Competition_Settings::parse( $competition->settings );
-		$settings['results']['results_visible'] = false;
+		$this->load_competition_or_fail( $competition_id );
 
 		$this->finish_voting_update(
-			$competition_id,
-			$settings,
+			$this->workflow->unpublish_results( $competition_id ),
 			'results_hidden',
 			__( 'Results are now hidden from the public.', 'photo-competition-manager' ),
 			$focus
@@ -372,23 +320,21 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Persist settings, register the outcome, and redirect back to the category.
+	 * Register a workflow change's outcome, and redirect back to the category.
 	 *
-	 * On a repository error the error message is surfaced; on success the given
-	 * success message is registered, the optional side-effect runs, and the
-	 * request redirects to the voting page focused on the active category.
+	 * A refusal's message is surfaced; on success the given success message
+	 * is registered, the optional side-effect runs, and the request
+	 * redirects to the voting page focused on the active category.
 	 *
-	 * @param int           $competition_id  Competition ID.
-	 * @param array         $settings        Settings array to persist.
-	 * @param string        $success_code    Settings-error code for the success notice.
-	 * @param string        $success_message Human-readable success message.
-	 * @param string        $focus           Focus-panel key to preserve across the redirect.
-	 * @param callable|null $on_success      Optional side-effect to run only on success. If it
-	 *                                       returns an email job ID, the page shows the job's progress.
+	 * @param true|\WP_Error $result          The workflow's answer.
+	 * @param string         $success_code    Settings-error code for the success notice.
+	 * @param string         $success_message Human-readable success message.
+	 * @param string         $focus           Focus-panel key to preserve across the redirect.
+	 * @param callable|null  $on_success      Optional side-effect to run only on success. If it
+	 *                                        returns an email job ID, the page shows the job's progress.
 	 * @return void
 	 */
-	private function finish_voting_update( int $competition_id, array $settings, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
-		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+	private function finish_voting_update( $result, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
 		$job_id = null;
 
 		if ( is_wp_error( $result ) ) {
@@ -492,32 +438,29 @@ class Voting_Controller {
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
-		// Check if any category has voting open globally. This matches the
-		// guard in handle_open_category_voting(), so the page doesn't offer
-		// to open voting the guard would refuse. The current competition is
-		// checked first, since that's the voting members can reach.
+		// Find the category accepting votes, checking the current competition
+		// first, since that's the voting members can reach. Only one
+		// category in the club can accept votes, but competitions saved
+		// before that rule may still overlap.
 		$voting_open_globally = false;
 		$open_competition_id  = null;
 		$open_category_slug   = null;
-		$other_competitions   = array_filter(
-			$open_competitions,
-			fn( $comp ) => (int) $comp->id !== (int) $active_competition->id
-		);
+		$open_here            = $this->workflow->categories_accepting_votes( $active_competition );
+		$open                 = ! empty( $open_here )
+			? array(
+				'competition' => $active_competition,
+				'category'    => $open_here[0],
+			)
+			: $this->workflow->category_accepting_votes();
 
-		foreach ( array_merge( array( $active_competition ), $other_competitions ) as $competition ) {
-			$settings        = Competition_Settings::parse( $competition->settings );
-			$open_categories = Competition_Settings::get_open_voting_categories( $settings );
+		if ( $open ) {
+			$voting_open_globally = true;
+			$open_competition_id  = (int) $open['competition']->id;
+			$open_category_slug   = $open['category'];
 
-			if ( ! empty( $open_categories ) ) {
-				$voting_open_globally = true;
-				$open_competition_id  = (int) $competition->id;
-				$open_category_slug   = $open_categories[0];
-
-				if ( $competition !== $active_competition ) {
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-					echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $competition->title ) );
-				}
-				break;
+			if ( $open_competition_id !== (int) $active_competition->id ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+				echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $open['competition']->title ) );
 			}
 		}
 
@@ -545,24 +488,9 @@ class Voting_Controller {
 			return;
 		}
 
-		// Page load recovery: live state wins over stored step.
-		$open_cats = Competition_Settings::get_open_voting_categories( $active_settings );
-		$voted     = $active_settings['voting']['voted_categories'] ?? array();
+		$step_of = array_flip( self::STEP_STAGES );
 		foreach ( $all_categories as &$cat_data ) {
-			$cat_slug    = $cat_data['category']['slug'] ?? '';
-			$stored_step = $active_settings['voting']['category_steps'][ $cat_slug ] ?? 1;
-
-			// If voting is currently open for this category and step < 3, jump to 3.
-			if ( in_array( $cat_slug, $open_cats, true ) && $stored_step < 3 ) {
-				$stored_step = 3;
-			}
-
-			// If category is in voted_categories and step < 5, jump to 5.
-			if ( in_array( $cat_data['key'], $voted, true ) && $stored_step < 5 ) {
-				$stored_step = 5;
-			}
-
-			$cat_data['current_step'] = $stored_step;
+			$cat_data['current_step'] = $step_of[ $this->workflow->stage( $active_competition, $cat_data['category']['slug'] ?? '' ) ];
 		}
 		unset( $cat_data );
 
@@ -599,9 +527,6 @@ class Voting_Controller {
 
 		$current_key = $active_category_data['key'];
 
-		// Get voted categories from settings.
-		$voted_categories = $active_settings['voting']['voted_categories'] ?? array();
-
 		// Get voting page URL.
 		$voting_page_url = '';
 		$comp_urls       = $active_settings['urls'] ?? array();
@@ -613,16 +538,17 @@ class Voting_Controller {
 
 		// Render Competition Status Bar.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_competition_status_bar( $active_competition, $active_settings );
+		echo $this->render_competition_status_bar( $active_competition );
 
-		// Determine readiness.
-		$uploads_closed  = $active_settings['upload']['uploads_closed'] ?? false;
-		$results_visible = $active_settings['results']['results_visible'] ?? false;
-		$is_ready        = $uploads_closed && ! $results_visible;
+		// The workflow can't start until uploads are closed and results hidden.
+		$open_check     = $this->workflow->can_open_voting( $active_competition, $active_category_data['category']['slug'] ?? '' );
+		$prereq_refusal = is_wp_error( $open_check ) && in_array( $open_check->get_error_code(), array( 'uploads_open', 'results_published' ), true )
+			? $open_check->get_error_message()
+			: '';
 
 		// Render category tabs (attached to the workflow card postbox).
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug, $voted_categories );
+		echo $this->render_category_tabs( $all_categories, $current_key, $voting_open_globally, $open_competition_id, $open_category_slug );
 
 		// Check completion: all categories must have completed critique (step 6).
 		$all_complete = true;
@@ -636,10 +562,10 @@ class Voting_Controller {
 
 		if ( $all_complete && ! $voting_open_globally ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_competition_complete( $active_competition, $all_categories, $voted_categories, $active_settings, $global_settings );
+			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_workflow_steps( $active_category_data, $is_ready, $voting_open_globally, $open_competition_id, $open_category_slug, $global_settings, count( $all_categories ) );
+			echo $this->render_workflow_steps( $active_category_data, $prereq_refusal, $voting_open_globally, $open_competition_id, $open_category_slug, $global_settings, count( $all_categories ) );
 		}
 
 		// Render Quick Actions.
@@ -714,20 +640,15 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Render results page links section.
-	 *
-	 * @return void
-	 */
-	/**
 	 * Render the competition status bar with competition-wide controls.
 	 *
 	 * @param object $competition The active competition object.
-	 * @param array  $settings    Parsed competition settings.
 	 * @return string
 	 */
-	private function render_competition_status_bar( object $competition, array $settings ): string {
-		$uploads_closed  = $settings['upload']['uploads_closed'] ?? false;
-		$results_visible = $settings['results']['results_visible'] ?? false;
+	private function render_competition_status_bar( object $competition ): string {
+		$uploads_closed  = $this->workflow->uploads_closed( $competition );
+		$results_visible = $this->workflow->results_published( $competition );
+		$reopen_check    = $uploads_closed ? $this->workflow->can_reopen_uploads( $competition ) : true;
 
 		// Build action URLs.
 		$toggle_uploads_url = wp_nonce_url(
@@ -772,6 +693,7 @@ class Voting_Controller {
 			array(
 				'competition'        => $competition,
 				'uploads_closed'     => $uploads_closed,
+				'reopen_refusal'     => is_wp_error( $reopen_check ) ? $reopen_check->get_error_message() : '',
 				'results_visible'    => $results_visible,
 				'toggle_uploads_url' => $toggle_uploads_url,
 				'show_results_url'   => $show_results_url,
@@ -790,10 +712,9 @@ class Voting_Controller {
 	 * @param bool        $voting_open_globally Whether voting is open globally.
 	 * @param int|null    $open_competition_id  Competition ID with voting open.
 	 * @param string|null $open_category_slug   Category slug with voting open.
-	 * @param array       $voted_categories     Array of category keys that have been voted.
 	 * @return string
 	 */
-	private function render_category_tabs( array $all_categories, string $current_key, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $voted_categories = array() ): string {
+	private function render_category_tabs( array $all_categories, string $current_key, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug ): string {
 		if ( count( $all_categories ) < 2 ) {
 			return ''; // Single category: no tabs.
 		}
@@ -805,7 +726,6 @@ class Voting_Controller {
 				'voting_open_globally' => $voting_open_globally,
 				'open_competition_id'  => $open_competition_id,
 				'open_category_slug'   => $open_category_slug,
-				'voted_categories'     => $voted_categories,
 			)
 		);
 	}
@@ -816,7 +736,7 @@ class Voting_Controller {
 	 * Replaces the old render_category_control_panel() method.
 	 *
 	 * @param array       $category_data        Category data array with competition, settings, etc.
-	 * @param bool        $is_ready             Whether uploads are closed and results hidden.
+	 * @param string      $prereq_refusal       Why the workflow can't start yet, or '' when it can.
 	 * @param bool        $voting_open_globally Whether voting is open for any category.
 	 * @param int|null    $open_competition_id  Competition ID with voting open.
 	 * @param string|null $open_category_slug   Category slug with voting open.
@@ -824,14 +744,13 @@ class Voting_Controller {
 	 * @param int         $total_categories     Total number of categories (for single-category heading).
 	 * @return string
 	 */
-	private function render_workflow_steps( array $category_data, bool $is_ready, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $global_settings, int $total_categories = 1 ): string {
+	private function render_workflow_steps( array $category_data, string $prereq_refusal, bool $voting_open_globally, ?int $open_competition_id, ?string $open_category_slug, array $global_settings, int $total_categories = 1 ): string {
 		$competition    = $category_data['competition'];
 		$category       = $category_data['category'];
 		$image_count    = $category_data['image_count'];
 		$category_slug  = $category['slug'] ?? '';
 		$category_label = $category['label'] ?? '';
 		$current_step   = $category_data['current_step'] ?? 1;
-		$settings       = $category_data['settings'];
 		$comp_id        = (int) $competition->id;
 
 		// Duration defaults from global settings.
@@ -839,9 +758,11 @@ class Voting_Controller {
 		$voting_duration   = $global_settings['slideshow']['voting_duration'] ?? 15;
 		$critique_duration = $global_settings['slideshow']['critique_duration'] ?? 0;
 
-		// Check if another category has voting open (blocks step 2).
-		$another_cat_voting = $voting_open_globally
-			&& ! ( $open_competition_id === $comp_id && $open_category_slug === $category_slug );
+		// Why the Open Voting button is disabled, if it is.
+		$open_check       = $this->workflow->can_open_voting( $competition, $category_slug );
+		$open_voting_hint = is_wp_error( $open_check ) && 'another_category_voting' === $open_check->get_error_code()
+			? $open_check->get_error_message()
+			: '';
 
 		// Build action URLs for Open/Close voting.
 		$focus_args = array(
@@ -938,21 +859,21 @@ class Voting_Controller {
 		return $this->render_template(
 			'admin/voting/workflow-steps.php',
 			array(
-				'competition'        => $competition,
-				'category_slug'      => $category_slug,
-				'category_label'     => $category_label,
-				'image_count'        => $image_count,
-				'current_step'       => $current_step,
-				'settings'           => $settings,
-				'comp_id'            => $comp_id,
-				'is_ready'           => $is_ready,
-				'total_categories'   => $total_categories,
-				'another_cat_voting' => $another_cat_voting,
-				'voting_open_here'   => $voting_open_here,
-				'open_voting_url'    => $open_voting_url,
-				'close_voting_url'   => $close_voting_url,
-				'reset_url'          => $reset_url,
-				'steps'              => $steps,
+				'competition'      => $competition,
+				'category_slug'    => $category_slug,
+				'category_label'   => $category_label,
+				'image_count'      => $image_count,
+				'current_step'     => $current_step,
+				'comp_id'          => $comp_id,
+				'is_ready'         => '' === $prereq_refusal,
+				'prereq_refusal'   => $prereq_refusal,
+				'total_categories' => $total_categories,
+				'open_voting_hint' => $open_voting_hint,
+				'voting_open_here' => $voting_open_here,
+				'open_voting_url'  => $open_voting_url,
+				'close_voting_url' => $close_voting_url,
+				'reset_url'        => $reset_url,
+				'steps'            => $steps,
 			)
 		);
 	}
@@ -993,13 +914,11 @@ class Voting_Controller {
 	 *
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
-	 * @param array  $voted_categories  Array of voted category keys.
-	 * @param array  $settings          Parsed competition settings.
 	 * @param array  $global_settings   Global settings.
 	 * @return string
 	 */
-	private function render_competition_complete( object $competition, array $all_categories, array $voted_categories, array $settings, array $global_settings ): string {
-		$results_visible = $settings['results']['results_visible'] ?? false;
+	private function render_competition_complete( object $competition, array $all_categories, array $global_settings ): string {
+		$results_visible = $this->workflow->results_published( $competition );
 		$results_url     = $global_settings['urls']['results_page'] ?? '';
 		$top3_url        = $global_settings['urls']['top3_page'] ?? '';
 
@@ -1093,15 +1012,7 @@ class Voting_Controller {
 			wp_send_json_error( array( 'message' => $competition->get_error_message() ) );
 		}
 
-		$settings = Competition_Settings::parse( $competition->settings );
-		$settings['voting']['category_steps'][ $category_slug ] = $step;
-
-		// Step 6 = category complete. Also write to voted_categories for backward compat.
-		if ( 6 === $step ) {
-			$settings = Competition_Settings::mark_category_voted( $settings, $competition_id, $category_slug );
-		}
-
-		$result = $this->competitions->update( $competition_id, array( 'settings' => $settings ) );
+		$result = $this->workflow->advance( $competition_id, $category_slug, self::STEP_STAGES[ $step ] );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );

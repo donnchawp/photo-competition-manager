@@ -133,9 +133,9 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 	public function test_parse_fills_in_a_section_stored_empty(): void {
 		// wp_json_encode() writes an empty section as [], not {}.
-		$parsed = Competition_Settings::parse( '{"results":[]}' );
+		$parsed = Competition_Settings::parse( '{"slideshow":[]}' );
 
-		$this->assertSame( Competition_Settings::defaults()['results'], $parsed['results'] );
+		$this->assertSame( Competition_Settings::defaults()['slideshow'], $parsed['slideshow'] );
 	}
 
 	public function test_parse_uses_the_default_score_matrix_when_stored_empty(): void {
@@ -150,12 +150,6 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$parsed = Competition_Settings::parse( '{"voting":{"score_matrix":{"0":10,"2":8}}}' );
 
 		$this->assertSame( array( 10, 8 ), array_values( $parsed['voting']['score_matrix'] ) );
-	}
-
-	public function test_parse_keeps_category_steps_keyed_by_slug(): void {
-		$parsed = Competition_Settings::parse( '{"voting":{"category_steps":{"colour":3}}}' );
-
-		$this->assertSame( array( 'colour' => 3 ), $parsed['voting']['category_steps'] );
 	}
 
 	public function test_parse_valid_json_merges_with_defaults(): void {
@@ -524,56 +518,6 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertCount( 2, $grades );
 		$this->assertEquals( 'novice', $grades[0]['slug'] );
 		$this->assertEquals( 'expert', $grades[1]['slug'] );
-	}
-
-	// ---------------------------------------------------------------
-	// is_voting_open_for_category()
-	// ---------------------------------------------------------------
-
-	public function test_is_voting_open_for_category_returns_true_when_listed(): void {
-		$settings = array(
-			'voting' => array( 'open_categories' => array( 'colour', 'black-white' ) ),
-		);
-
-		$this->assertTrue( Competition_Settings::is_voting_open_for_category( $settings, 'colour' ) );
-	}
-
-	public function test_is_voting_open_for_category_returns_false_when_not_listed(): void {
-		$settings = array(
-			'voting' => array( 'open_categories' => array( 'colour' ) ),
-		);
-
-		$this->assertFalse( Competition_Settings::is_voting_open_for_category( $settings, 'black-white' ) );
-	}
-
-	public function test_is_voting_open_for_category_returns_false_when_empty(): void {
-		$settings = array(
-			'voting' => array( 'open_categories' => array() ),
-		);
-
-		$this->assertFalse( Competition_Settings::is_voting_open_for_category( $settings, 'colour' ) );
-	}
-
-	// ---------------------------------------------------------------
-	// get_open_voting_categories()
-	// ---------------------------------------------------------------
-
-	public function test_get_open_voting_categories_returns_list(): void {
-		$settings = array(
-			'voting' => array( 'open_categories' => array( 'colour', 'black-white' ) ),
-		);
-
-		$result = Competition_Settings::get_open_voting_categories( $settings );
-
-		$this->assertSame( array( 'colour', 'black-white' ), $result );
-	}
-
-	public function test_get_open_voting_categories_returns_empty_when_not_set(): void {
-		$settings = array();
-
-		$result = Competition_Settings::get_open_voting_categories( $settings );
-
-		$this->assertSame( array(), $result );
 	}
 
 	// ---------------------------------------------------------------
