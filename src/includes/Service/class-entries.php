@@ -638,6 +638,8 @@ class Entries {
 	 * Each carries its file's modified time, so an entry replaced by one with the same
 	 * filename isn't shown from the browser's cache.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param object $competition Competition record.
 	 * @param object $entry       Entry record.
 	 * @return array{full: string, thumb: string} Each '' when its file is missing.
