@@ -261,7 +261,88 @@ class Entries {
 			}
 		}
 
-		$deleted = $this->images_repo->delete( $entry_id );
+		return $this->remove_entry( $competition, $entry );
+	}
+
+	/**
+	 * Remove every entry in a competition, then the competition's folder.
+	 *
+	 * Only an admin may do this, at any phase. It stops at the first row that won't delete,
+	 * leaving that entry and the ones after it in place, and the folder goes only once every
+	 * entry is gone.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor          Who is removing the entries.
+	 * @param int   $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function remove_competition_entries( Actor $actor, int $competition_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can remove a competition\'s entries.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+			$removed = $this->remove_entry( $competition, $entry );
+			if ( is_wp_error( $removed ) ) {
+				return $removed;
+			}
+		}
+
+		$this->remove_competition_directory( $competition->slug );
+
+		return true;
+	}
+
+	/**
+	 * Remove every entry a member has, in every competition.
+	 *
+	 * Only an admin may do this, at any phase. It stops at the first row that won't delete,
+	 * leaving that entry and the ones after it in place.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor     Who is removing the entries.
+	 * @param int   $member_id Member ID.
+	 * @return true|WP_Error
+	 */
+	public function remove_member_entries( Actor $actor, int $member_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can remove a member\'s entries.', 'photo-competition-manager' ) );
+		}
+
+		$competitions = array();
+		foreach ( $this->images_repo->find_by_member( $member_id ) as $entry ) {
+			$competition_id                  = (int) $entry->competition_id;
+			$competitions[ $competition_id ] = $competitions[ $competition_id ] ?? $this->competitions_repo->find( $competition_id, true );
+
+			// Without its competition there's no folder to look in, so only the row can go.
+			$removed = $competitions[ $competition_id ]
+				? $this->remove_entry( $competitions[ $competition_id ], $entry )
+				: $this->images_repo->delete( (int) $entry->id );
+
+			if ( is_wp_error( $removed ) ) {
+				return $removed;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove an entry's row and votes, then its files and original.
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @return true|WP_Error
+	 */
+	private function remove_entry( object $competition, object $entry ) {
+		$deleted = $this->images_repo->delete( (int) $entry->id );
 		if ( is_wp_error( $deleted ) ) {
 			return $deleted;
 		}
@@ -494,6 +575,26 @@ class Entries {
 	}
 
 	/**
+	 * Path of a competition's folder, which may not exist.
+	 *
+	 * @param string $competition_slug Competition slug.
+	 * @return string|WP_Error
+	 */
+	private function competition_directory( string $competition_slug ) {
+		$wp_upload_dir = wp_upload_dir();
+		if ( $wp_upload_dir['error'] ) {
+			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
+		}
+
+		// Security: Explicitly check for path traversal sequences.
+		if ( strpos( $competition_slug, '..' ) !== false ) {
+			return new WP_Error( 'invalid_path', __( 'Invalid directory name.', 'photo-competition-manager' ) );
+		}
+
+		return trailingslashit( $wp_upload_dir['basedir'] ) . 'competitions/' . sanitize_file_name( $competition_slug );
+	}
+
+	/**
 	 * Path of a category's folder, which may not exist yet.
 	 *
 	 * @param string $competition_slug Competition slug.
@@ -501,17 +602,58 @@ class Entries {
 	 * @return string|WP_Error
 	 */
 	private function category_directory( string $competition_slug, string $category_slug ) {
-		$wp_upload_dir = wp_upload_dir();
-		if ( $wp_upload_dir['error'] ) {
-			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
+		$directory = $this->competition_directory( $competition_slug );
+		if ( is_wp_error( $directory ) ) {
+			return $directory;
 		}
 
 		// Security: Explicitly check for path traversal sequences.
-		if ( strpos( $competition_slug, '..' ) !== false || strpos( $category_slug, '..' ) !== false ) {
+		if ( strpos( $category_slug, '..' ) !== false ) {
 			return new WP_Error( 'invalid_path', __( 'Invalid directory name.', 'photo-competition-manager' ) );
 		}
 
-		return trailingslashit( $wp_upload_dir['basedir'] ) . 'competitions/' . sanitize_file_name( $competition_slug ) . '/' . sanitize_file_name( $category_slug );
+		return $directory . '/' . sanitize_file_name( $category_slug );
+	}
+
+	/**
+	 * Remove a competition's folder and its category folders, if nothing but their index.php is left.
+	 *
+	 * A file that wouldn't delete has already been logged, so its folder stays.
+	 *
+	 * @param string $competition_slug Competition slug.
+	 * @return void
+	 */
+	private function remove_competition_directory( string $competition_slug ): void {
+		$directory = $this->competition_directory( $competition_slug );
+		if ( is_wp_error( $directory ) || ! is_dir( $directory ) ) {
+			return;
+		}
+
+		foreach ( glob( $directory . '/*', GLOB_ONLYDIR ) as $category_directory ) {
+			$this->remove_empty_directory( $category_directory );
+		}
+
+		$this->remove_empty_directory( $directory );
+	}
+
+	/**
+	 * Remove a folder whose only file is the index.php that stops directory browsing.
+	 *
+	 * @param string $directory Folder path.
+	 * @return void
+	 */
+	private function remove_empty_directory( string $directory ): void {
+		$index = $directory . '/index.php';
+		if ( array_diff( scandir( $directory ), array( '.', '..', 'index.php' ) ) ) {
+			return;
+		}
+
+		if ( file_exists( $index ) ) {
+			wp_delete_file( $index );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+		rmdir( $directory );
 	}
 
 	/**

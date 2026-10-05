@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -667,6 +668,125 @@ class Entries_Test extends WP_UnitTestCase {
 		foreach ( glob( dirname( $full_size ) . '/jane-doe-colour-original*' ) as $leftover ) {
 			wp_delete_file( $leftover );
 		}
+	}
+
+	public function test_an_admin_removes_a_competitions_entries_and_its_folder(): void {
+		$competition_id = $this->create_competition( 'gone-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entry_ids      = array(
+			$this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) ),
+			$this->add( Actor::admin(), $competition_id, $jane_id, 'mono', array( 90, 90, 90 ) ),
+			$this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) ),
+		);
+		$files          = array_merge( ...array_map( array( $this, 'entry_files' ), $entry_ids ) );
+
+		$this->assertTrue( $this->entries->remove_competition_entries( Actor::admin(), $competition_id ) );
+
+		foreach ( $entry_ids as $entry_id ) {
+			$this->assertNull( $this->images_repo->find( $entry_id ) );
+		}
+		foreach ( $files as $file ) {
+			$this->assertFileDoesNotExist( $file );
+		}
+		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/gone-comp' );
+	}
+
+	public function test_removing_a_competitions_entries_leaves_other_competitions_alone(): void {
+		$competition_id = $this->create_competition( 'gone-comp' );
+		$other_id       = $this->create_competition( 'kept-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$kept_id = $this->add( Actor::admin(), $other_id, $member_id, 'colour', array( 0, 0, 200 ) );
+
+		$this->assertTrue( $this->entries->remove_competition_entries( Actor::admin(), $competition_id ) );
+
+		$this->assertNotNull( $this->images_repo->find( $kept_id ) );
+		$this->entry_files( $kept_id );
+	}
+
+	public function test_removing_a_competitions_entries_stops_at_a_row_that_wont_delete(): void {
+		$competition_id = $this->create_competition( 'stuck-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) );
+		$stuck_id = $this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) );
+
+		$failing_repo        = new class() extends Images_Repository {
+			/**
+			 * @var int
+			 */
+			public $stuck_id = 0;
+
+			public function delete( int $id ) {
+				return $id === $this->stuck_id ? new \WP_Error( 'db_delete_failed', 'Could not delete image record.' ) : parent::delete( $id );
+			}
+		};
+		$failing_repo->stuck_id = $stuck_id;
+		$entries                = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$result = $entries->remove_competition_entries( Actor::admin(), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'db_delete_failed', $result->get_error_code() );
+		$this->assertNotNull( $this->images_repo->find( $stuck_id ) );
+		$this->entry_files( $stuck_id );
+	}
+
+	public function test_a_member_cant_remove_a_competitions_entries(): void {
+		$competition_id = $this->create_competition( 'kept-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->remove_competition_entries( Actor::member( $member_id ), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->entry_files( $entry_id );
+	}
+
+	public function test_an_admin_removes_a_members_entries_in_every_competition(): void {
+		$competition_id = $this->create_competition( 'first-comp', 1, '2020-02-01 00:00:00' );
+		$other_id       = $this->create_competition( 'second-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entry_ids      = array(
+			$this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) ),
+			$this->add( Actor::admin(), $other_id, $jane_id, 'mono', array( 90, 90, 90 ) ),
+		);
+		$files          = array_merge( ...array_map( array( $this, 'entry_files' ), $entry_ids ) );
+		$kept_id        = $this->add( Actor::admin(), $other_id, $john_id, 'colour', array( 0, 200, 0 ) );
+
+		$this->assertTrue( $this->entries->remove_member_entries( Actor::admin(), $jane_id ) );
+
+		foreach ( $entry_ids as $entry_id ) {
+			$this->assertNull( $this->images_repo->find( $entry_id ) );
+		}
+		foreach ( $files as $file ) {
+			$this->assertFileDoesNotExist( $file );
+		}
+		$this->entry_files( $kept_id );
+	}
+
+	public function test_a_members_entry_whose_competition_is_gone_is_still_removed(): void {
+		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id  = Entry_Fixtures::insert_entry( 999999, 'colour', $member_id, array() );
+
+		$this->assertTrue( $this->entries->remove_member_entries( Actor::admin(), $member_id ) );
+
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+	}
+
+	public function test_a_member_cant_remove_their_own_entries_all_at_once(): void {
+		$competition_id = $this->create_competition( 'kept-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->remove_member_entries( Actor::member( $member_id ), $member_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->entry_files( $entry_id );
 	}
 
 	public function test_removing_an_entry_that_doesnt_exist_fails(): void {
