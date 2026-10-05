@@ -167,6 +167,12 @@ class Entries {
 			$directory,
 			$filename,
 			$title,
+			// Uninstall finds the plugin's originals by this meta.
+			array(
+				'_photo_comp_slug'     => $competition->slug,
+				'_photo_comp_category' => $category,
+				'_photo_comp_member'   => $username,
+			),
 			$constraints
 		);
 
@@ -176,11 +182,6 @@ class Entries {
 
 		$filename      = $result['filename'];
 		$attachment_id = $result['attachment_id'];
-
-		// Uninstall finds the plugin's originals by this meta.
-		update_post_meta( $attachment_id, '_photo_comp_slug', $competition->slug );
-		update_post_meta( $attachment_id, '_photo_comp_category', $category );
-		update_post_meta( $attachment_id, '_photo_comp_member', $username );
 
 		$entry_id = $this->images_repo->create(
 			array(
@@ -522,12 +523,15 @@ class Entries {
 		}
 
 		if ( $attachment_id > 0 ) {
-			// False when the original is already gone from the media library.
-			$original = get_attached_file( $attachment_id );
+			// A large original's attached file is a -scaled copy, so check the full-size file too.
+			// Both are false when the original is already gone from the media library.
+			$originals = array_unique( array_filter( array( get_attached_file( $attachment_id ), wp_get_original_image_path( $attachment_id ) ) ) );
 			wp_delete_attachment( $attachment_id, true );
 
-			if ( $original && file_exists( $original ) ) {
-				$this->log_undeleted( $competition, $original );
+			foreach ( $originals as $original ) {
+				if ( file_exists( $original ) ) {
+					$this->log_undeleted( $competition, $original );
+				}
 			}
 		}
 	}

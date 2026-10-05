@@ -137,20 +137,25 @@ class Image_Processor {
 	 * Process and store uploaded image.
 	 *
 	 * Saves the original to the media library, then a resized copy and its thumbnail in the directory given.
-	 * The caller validates the file first, before it creates the directory.
 	 *
-	 * @since 0.4.0 Takes the directory, filename and original's title instead of working them out, and no longer validates.
+	 * This doesn't validate the file. Call validate() first, before creating the directory: the
+	 * upload's MIME type, extension and size checks depend on it. The Entries module does both.
+	 *
+	 * @internal Use Entries::add(), which validates the upload first.
+	 *
+	 * @since 0.4.0 Takes the directory, filename and original's title and meta instead of working them out, and no longer validates.
 	 *
 	 * @param array<string, mixed> $file        Uploaded file array from $_FILES.
 	 * @param string               $directory   Existing directory to save the resized image and thumbnail in.
 	 * @param string               $filename    Name to give the resized image, suffixed if the directory has it already.
 	 * @param string               $title       Title for the original's media library attachment.
+	 * @param array<string, mixed> $meta        Post meta for the original's attachment, written as soon as it exists.
 	 * @param array<string, mixed> $constraints Upload constraints from settings.
 	 * @return array<string, mixed>|WP_Error Array with 'filename' and 'attachment_id' on success, WP_Error on failure.
 	 */
-	public function process( array $file, string $directory, string $filename, string $title, array $constraints ) {
+	public function process( array $file, string $directory, string $filename, string $title, array $meta, array $constraints ) {
 		// Save original to media library first.
-		$attachment_id = $this->save_original_to_media_library( $file, $filename, $title, $constraints );
+		$attachment_id = $this->save_original_to_media_library( $file, $filename, $title, $meta, $constraints );
 		if ( is_wp_error( $attachment_id ) ) {
 			return $attachment_id;
 		}
@@ -193,10 +198,11 @@ class Image_Processor {
 	 * @param array<string, mixed> $file        Uploaded file array from $_FILES.
 	 * @param string               $filename    Name of the resized image; the original is named after it.
 	 * @param string               $title       Attachment title.
+	 * @param array<string, mixed> $meta        Post meta for the attachment.
 	 * @param array<string, mixed> $constraints Upload constraints from settings.
 	 * @return int|WP_Error Attachment ID on success, WP_Error on failure.
 	 */
-	private function save_original_to_media_library( array $file, string $filename, string $title, array $constraints ) {
+	private function save_original_to_media_library( array $file, string $filename, string $title, array $meta, array $constraints ) {
 		if ( ! function_exists( 'wp_crop_image' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
@@ -249,6 +255,7 @@ class Image_Processor {
 			'post_title'     => $title,
 			'post_content'   => '',
 			'post_status'    => 'inherit',
+			'meta_input'     => $meta,
 		);
 
 		// Insert the attachment.

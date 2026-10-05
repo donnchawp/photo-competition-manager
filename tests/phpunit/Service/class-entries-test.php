@@ -477,6 +477,43 @@ class Entries_Test extends WP_UnitTestCase {
 		wp_delete_file( $original );
 	}
 
+	public function test_a_large_original_that_wont_delete_is_logged_at_full_size(): void {
+		$competition_id = $this->create_competition( 'large-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		// Wider than WordPress's 2560px threshold, so the attachment's file is a -scaled copy.
+		$entry_id = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ), 2600, 20 ) );
+		$this->assertIsInt( $entry_id );
+		$full_size = wp_get_original_image_path( (int) $this->images_repo->find( $entry_id )->original_attachment_id );
+		$this->assertNotSame( $full_size, $this->original_path( $entry_id ) );
+
+		add_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+		remove_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+
+		$logs  = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$paths = array_map(
+			function ( $log ) {
+				return json_decode( $log->metadata, true )['path'];
+			},
+			$logs
+		);
+		$this->assertContains( $full_size, $paths );
+
+		foreach ( glob( dirname( $full_size ) . '/jane-doe-colour-original*' ) as $leftover ) {
+			wp_delete_file( $leftover );
+		}
+	}
+
+	public function test_removing_an_entry_that_doesnt_exist_fails(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+
+		$result = $this->entries->remove( Actor::admin(), $competition_id, 999999 );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_image', $result->get_error_code() );
+	}
+
 	/**
 	 * Filter for wp_delete_file that refuses to delete originals.
 	 *
@@ -552,11 +589,13 @@ class Entries_Test extends WP_UnitTestCase {
 	/**
 	 * A solid-colour JPEG in the shape of a $_FILES entry.
 	 *
-	 * @param int[] $rgb Fill colour, so each upload is a different picture.
+	 * @param int[] $rgb    Fill colour, so each upload is a different picture.
+	 * @param int   $width  Width in pixels.
+	 * @param int   $height Height in pixels.
 	 * @return array<string, mixed>
 	 */
-	private function photo( array $rgb ): array {
-		$image = imagecreatetruecolor( 64, 48 );
+	private function photo( array $rgb, int $width = 64, int $height = 48 ): array {
+		$image = imagecreatetruecolor( $width, $height );
 		imagefill( $image, 0, 0, imagecolorallocate( $image, $rgb[0], $rgb[1], $rgb[2] ) );
 
 		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.

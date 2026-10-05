@@ -251,7 +251,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		// The image editor warns when the save fails, and the test is about what process() returns.
 		set_error_handler( '__return_true' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.prevent_path_disclosure_error_reporting,WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_set_error_handler
-		$result = $this->processor->process( $file, $not_a_directory, 'john-doe-colour.jpg', 'John Doe', array() );
+		$result = $this->processor->process( $file, $not_a_directory, 'john-doe-colour.jpg', 'John Doe', array(), array() );
 		restore_error_handler();
 
 		$this->assertWPError( $result );
@@ -292,7 +292,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		wp_mkdir_p( $directory );
 		$this->directories[] = $directory;
 
-		$result = $this->processor->process( $file, $directory, 'john-doe-colour-1.jpg', 'John Doe', $constraints );
+		$result = $this->processor->process( $file, $directory, 'john-doe-colour-1.jpg', 'John Doe', array(), $constraints );
 
 		// Should succeed and return array with filename and attachment_id.
 		$this->assertIsArray( $result );
