@@ -156,9 +156,6 @@ class Image_Processor {
 			return $upload_dir;
 		}
 
-		// Generate filename: username-categoryslug-[counter].jpg, suffixed when another entry has it.
-		$filename = wp_unique_filename( $upload_dir['path'], $this->generate_filename( $username, $category_slug, $counter ) );
-
 		// Save original to media library first.
 		$attachment_id = $this->save_original_to_media_library( $file, $competition_slug, $category_slug, $username, $counter, $constraints );
 		if ( is_wp_error( $attachment_id ) ) {
@@ -176,7 +173,9 @@ class Image_Processor {
 		$max_height = $constraints['max_height'] ?? 1920;
 		$image->resize( $max_width, $max_height, false );
 
-		// Save slideshow image.
+		// Save slideshow image as username-categoryslug-[counter].jpg, suffixed when another entry has it.
+		// The name is picked here, just before the write, to keep the gap for a concurrent upload small.
+		$filename    = wp_unique_filename( $upload_dir['path'], $this->generate_filename( $username, $category_slug, $counter ) );
 		$target_path = trailingslashit( $upload_dir['path'] ) . $filename;
 		$saved       = $image->save( $target_path );
 

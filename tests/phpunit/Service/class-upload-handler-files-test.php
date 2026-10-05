@@ -75,18 +75,16 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 	}
 
 	public function tearDown(): void {
-		// The originals are attachments in the month folder.
+		// Deletes every file the test added under uploads, leaving the competition folders empty.
 		$this->remove_added_uploads();
 
 		$basedir = wp_upload_dir()['basedir'];
 		foreach ( $this->slugs as $slug ) {
-			$this->remove_dir( trailingslashit( $basedir ) . 'competitions/' . $slug );
+			$this->delete_folders( trailingslashit( $basedir ) . 'competitions/' . $slug );
 		}
 
 		foreach ( $this->tmp_files as $tmp_file ) {
-			if ( file_exists( $tmp_file ) ) {
-				wp_delete_file( $tmp_file );
-			}
+			wp_delete_file( $tmp_file );
 		}
 
 		parent::tearDown();
@@ -127,18 +125,18 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 		$open_id   = $this->create_competition( 'open-comp' );
 		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
 
-		$closed = $this->upload( $closed_id, $member_id, 'colour', array( 200, 0, 0 ), false );
-		$open   = $this->upload( $open_id, $member_id, 'colour', array( 0, 200, 0 ) );
-
+		$closed          = $this->upload( $closed_id, $member_id, 'colour', array( 200, 0, 0 ), false );
 		$closed_original = $this->original_path( $closed );
 		$closed_hash     = md5_file( $closed_original );
+
+		$open = $this->upload( $open_id, $member_id, 'colour', array( 0, 200, 0 ) );
 
 		$this->assertNotSame( $closed_original, $this->original_path( $open ) );
 
 		$this->assertTrue( $this->handler->delete_submission( $open, $member_id, $open_id ) );
 
 		$this->assertFileExists( $closed_original, "Deleting one competition's entry deleted the other's original." );
-		$this->assertSame( $closed_hash, md5_file( $closed_original ) );
+		$this->assertSame( $closed_hash, md5_file( $closed_original ), "The other competition's upload overwrote the original." );
 	}
 
 	public function test_moving_an_entry_to_another_category_keeps_the_image_already_there(): void {
@@ -159,7 +157,7 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create an open competition with colour and mono categories.
+	 * Create a competition with colour and mono categories.
 	 *
 	 * @param string      $slug       Competition slug.
 	 * @param int         $quota      Images allowed per member in each category.
@@ -223,10 +221,13 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 		$image = imagecreatetruecolor( 64, 48 );
 		imagefill( $image, 0, 0, imagecolorallocate( $image, $rgb[0], $rgb[1], $rgb[2] ) );
 
-		$tmp_file = wp_tempnam( 'upload-test' ) . '.jpg';
+		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.
+		$tmp_name          = wp_tempnam( 'photo.jpg' );
+		$tmp_file          = $tmp_name . '.jpg';
+		$this->tmp_files[] = $tmp_name;
+		$this->tmp_files[] = $tmp_file;
 		imagejpeg( $image, $tmp_file, 90 );
 		imagedestroy( $image );
-		$this->tmp_files[] = $tmp_file;
 
 		$file   = array(
 			'name'     => 'photo.jpg',
@@ -273,28 +274,5 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 		$this->assertFileExists( $path );
 
 		return $path;
-	}
-
-	/**
-	 * Remove a directory and everything in it.
-	 *
-	 * @param string $dir Directory path.
-	 */
-	private function remove_dir( string $dir ): void {
-		if ( ! is_dir( $dir ) ) {
-			return;
-		}
-
-		foreach ( array_diff( scandir( $dir ), array( '.', '..' ) ) as $entry ) {
-			$path = $dir . '/' . $entry;
-			if ( is_dir( $path ) ) {
-				$this->remove_dir( $path );
-			} else {
-				wp_delete_file( $path );
-			}
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
-		rmdir( $dir );
 	}
 }
