@@ -11,8 +11,11 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 class Entries_Test extends WP_UnitTestCase {
@@ -359,6 +362,165 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( $closed_hash, md5_file( $closed_original ), "The other competition's upload overwrote the original." );
 	}
 
+	public function test_a_member_swaps_two_entries_between_full_categories(): void {
+		$competition_id = $this->create_competition( 'swap-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+		$colour         = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$mono           = $this->add( $member, $competition_id, $member_id, 'mono', array( 0, 200, 0 ) );
+		$colour_hash    = $this->file_hash( $colour );
+		$mono_hash      = $this->file_hash( $mono );
+
+		$result = $this->entries->change_categories(
+			$member,
+			$competition_id,
+			$member_id,
+			array(
+				$colour => 'mono',
+				$mono   => 'colour',
+			)
+		);
+
+		$this->assertTrue( $result );
+		$this->assertSame( 'mono', $this->images_repo->find( $colour )->category );
+		$this->assertSame( 'colour', $this->images_repo->find( $mono )->category );
+		$this->assertSame( $colour_hash, $this->file_hash( $colour ) );
+		$this->assertSame( $mono_hash, $this->file_hash( $mono ) );
+	}
+
+	public function test_a_member_cant_change_categories_once_uploads_close(): void {
+		$competition_id = $this->create_competition( 'closed-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->change_categories( Actor::member( $member_id ), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'competition_closed', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+		$this->assertFileExists( $this->entry_path( $entry_id ) );
+	}
+
+	public function test_a_set_of_changes_that_overfills_a_category_moves_nothing(): void {
+		$competition_id = $this->create_competition( 'quota-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+		$colour         = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$mono           = $this->add( $member, $competition_id, $member_id, 'mono', array( 0, 200, 0 ) );
+
+		$result = $this->entries->change_categories( $member, $competition_id, $member_id, array( $colour => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'quota_exceeded', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $colour )->category );
+		$this->assertSame( 'mono', $this->images_repo->find( $mono )->category );
+		$this->assertFileExists( $this->entry_path( $colour ) );
+	}
+
+	public function test_an_admin_changes_categories_after_uploads_close_until_voting_starts(): void {
+		$competition_id = $this->create_competition( 'admin-move-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$colour         = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$mono           = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'mono', array( 0, 200, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+
+		$swap = array(
+			$colour => 'mono',
+			$mono   => 'colour',
+		);
+		$this->assertTrue( $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, $swap ) );
+		$this->assertSame( 'mono', $this->images_repo->find( $colour )->category );
+
+		Workflow_Fixtures::set_stage( $competition_id, 'mono', Competition_Workflow::STAGE_VOTING );
+
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $colour => 'colour' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'mono', $this->images_repo->find( $colour )->category );
+	}
+
+	public function test_an_entry_with_votes_cant_move_even_after_its_category_is_reset(): void {
+		$competition_id = $this->create_competition( 'voted-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+
+		// What a reset that keeps the votes leaves behind: the stage is Not started, the votes remain.
+		( new Votes_Repository() )->create( $competition_id, 'colour', 'A Voter', $entry_id, 5 );
+
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'entry_has_votes', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
+	public function test_an_admin_can_move_at_previewed_but_not_into_a_category_thats_voting(): void {
+		$competition_id = $this->create_competition( 'stage-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$first          = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$second         = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_PREVIEWED );
+
+		$this->assertTrue( $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $first => 'mono' ) ) );
+
+		Workflow_Fixtures::set_stage( $competition_id, 'mono', Competition_Workflow::STAGE_VOTING );
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $second => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $second )->category );
+	}
+
+	public function test_a_move_that_fails_partway_puts_the_earlier_moves_back(): void {
+		$competition_id = $this->create_competition( 'partway-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+		$colour         = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$mono           = $this->add( $member, $competition_id, $member_id, 'mono', array( 0, 200, 0 ) );
+		$colour_hash    = $this->file_hash( $colour );
+		$mono_hash      = $this->file_hash( $mono );
+
+		// The first move's row updates, the second one's doesn't.
+		$failing_repo = new class() extends Images_Repository {
+			private $updates = 0;
+
+			public function update_category( int $id, string $category, string $filename ) {
+				return 2 === ++$this->updates ? new \WP_Error( 'db_update_failed', 'Could not update image category.' ) : parent::update_category( $id, $category, $filename );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$swap = array(
+			$colour => 'mono',
+			$mono   => 'colour',
+		);
+		$this->assertWPError( $entries->change_categories( $member, $competition_id, $member_id, $swap ) );
+
+		$this->assertSame( 'colour', $this->images_repo->find( $colour )->category );
+		$this->assertSame( 'mono', $this->images_repo->find( $mono )->category );
+		$this->assertSame( $colour_hash, $this->file_hash( $colour ), "The first entry's image isn't back where its row says." );
+		$this->assertSame( $mono_hash, $this->file_hash( $mono ), "The second entry's image isn't back where its row says." );
+	}
+
+	public function test_an_entry_in_a_category_the_competition_no_longer_has_can_move_out_of_it(): void {
+		$competition_id = $this->create_competition( 'renamed-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'nature',
+				'filename'       => 'jane-doe-nature.jpg',
+			)
+		);
+
+		$this->assertTrue( $this->entries->change_categories( Actor::member( $member_id ), $competition_id, $member_id, array( $entry_id => 'colour' ) ) );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
 	public function test_moving_an_entry_to_another_category_keeps_the_image_already_there(): void {
 		$competition_id = $this->create_competition( 'move-comp', 2 );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -366,12 +528,12 @@ class Entries_Test extends WP_UnitTestCase {
 
 		// Both are the member's first colour upload, so both are named jane-doe-colour-1.jpg.
 		$moved_first = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
-		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved_first, 'mono' ) );
+		$this->assertTrue( $this->entries->change_categories( $member, $competition_id, $member_id, array( $moved_first => 'mono' ) ) );
 		$first_hash = $this->file_hash( $moved_first );
 
 		$moved_second = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
 		$second_hash  = $this->file_hash( $moved_second );
-		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved_second, 'mono' ) );
+		$this->assertTrue( $this->entries->change_categories( $member, $competition_id, $member_id, array( $moved_second => 'mono' ) ) );
 
 		$this->assertSame( 'mono', $this->images_repo->find( $moved_second )->category );
 		$this->assertSame( $first_hash, $this->file_hash( $moved_first ), 'The move overwrote the image already in the category.' );
@@ -386,7 +548,7 @@ class Entries_Test extends WP_UnitTestCase {
 
 		// Take jane-doe-colour-1.jpg in mono, so the next move into mono is renamed.
 		$moved = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
-		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved, 'mono' ) );
+		$this->assertTrue( $this->entries->change_categories( $member, $competition_id, $member_id, array( $moved => 'mono' ) ) );
 
 		$entry_id = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
 		$hash     = $this->file_hash( $entry_id );
@@ -398,7 +560,7 @@ class Entries_Test extends WP_UnitTestCase {
 		};
 		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
 
-		$this->assertWPError( $entries->change_category( $member, $competition_id, $entry_id, 'mono' ) );
+		$this->assertWPError( $entries->change_categories( $member, $competition_id, $member_id, array( $entry_id => 'mono' ) ) );
 
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
 		$this->assertSame( $hash, $this->file_hash( $entry_id ), "The image isn't back at the name its row has." );
@@ -410,10 +572,12 @@ class Entries_Test extends WP_UnitTestCase {
 		$other_id       = $this->create_member( 'John Murphy', 'john@example.com' );
 		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 
-		$result = $this->entries->change_category( Actor::member( $other_id ), $competition_id, $entry_id, 'mono' );
+		$as_other            = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+		$as_owner_of_the_set = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $other_id, array( $entry_id => 'mono' ) );
 
-		$this->assertWPError( $result );
-		$this->assertSame( 'permission_denied', $result->get_error_code() );
+		$this->assertSame( 'permission_denied', $as_other->get_error_code() );
+		// Someone else's entry looks the same as a missing one.
+		$this->assertSame( 'submission_not_found', $as_owner_of_the_set->get_error_code() );
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
 	}
 
@@ -423,10 +587,10 @@ class Entries_Test extends WP_UnitTestCase {
 		$member         = Actor::member( $member_id );
 		$entry_id       = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 
-		$this->assertSame( 'submission_not_found', $this->entries->change_category( $member, $competition_id, 999999, 'mono' )->get_error_code() );
-		$this->assertSame( 'invalid_competition', $this->entries->change_category( $member, 999999, $entry_id, 'mono' )->get_error_code() );
-		$this->assertSame( 'invalid_category', $this->entries->change_category( $member, $competition_id, $entry_id, 'nature' )->get_error_code() );
-		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $entry_id, 'colour' ) );
+		$this->assertSame( 'submission_not_found', $this->entries->change_categories( $member, $competition_id, $member_id, array( 999999 => 'mono' ) )->get_error_code() );
+		$this->assertSame( 'invalid_competition', $this->entries->change_categories( $member, 999999, $member_id, array( $entry_id => 'mono' ) )->get_error_code() );
+		$this->assertSame( 'invalid_category', $this->entries->change_categories( $member, $competition_id, $member_id, array( $entry_id => 'nature' ) )->get_error_code() );
+		$this->assertTrue( $this->entries->change_categories( $member, $competition_id, $member_id, array( $entry_id => 'colour' ) ) );
 	}
 
 	public function test_quota_status_counts_a_members_entries_in_each_category(): void {

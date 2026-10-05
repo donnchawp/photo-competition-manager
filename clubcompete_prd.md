@@ -74,6 +74,8 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Filenames automatically reformatted to:
     **`username-categoryslug-[counter].jpg`**
     - If another entry's image already has that name in the folder (a namesake, a reused counter, or an entry moved in from another category), a numeric suffix is added (`…-1.jpg`) so no upload or move overwrites another entry's image. The Media Library original (`…-original.jpg`) gets the same treatment in the shared month folder.
+  - Members can move their entries between categories on the upload page while uploads are open. All the changes are saved together: quota is checked against where the entries end up, so two entries can swap categories, and if any move fails none of them happen.
+  - An admin who opens a member's upload link from the Submissions screen can add, remove and move that member's entries after uploads close. Moves stop once either category's voting has started, or once the entry has votes, because votes are stored against the category; reset the category and clear its votes first.
   - Images stored in Media Library, tagged with:
     - Competition tag (e.g. `2024-10`)
     - Category tag (e.g. `colour`)

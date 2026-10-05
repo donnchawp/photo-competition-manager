@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -113,6 +114,29 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->shortcode->render( array() );
 
 		$this->assertFalse( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
+	}
+
+	public function test_a_member_sees_only_the_closed_notice_once_uploads_close(): void {
+		$_GET['token'] = $this->issue_token( true );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'not currently open for submissions', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	public function test_an_admin_following_a_members_link_can_still_manage_their_entries_once_uploads_close(): void {
+		$_GET['token'] = $this->issue_token( true );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+		$admin_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		get_userdata( $admin_id )->add_cap( 'manage_photo_competitions' );
+		wp_set_current_user( $admin_id );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
+		$this->assertStringContainsString( 'Uploads are closed', $output );
 	}
 
 	public function test_inactive_member_token_falls_back_to_request_form(): void {

@@ -185,71 +185,57 @@ document.addEventListener('DOMContentLoaded', () => {
 		const apiUrl = config.apiUrl || '';
 		const nonce = config.nonce || '';
 
-		let successCount = 0;
-		let errorCount = 0;
-		const errorMessages = [];
+		// Send every change in one request: the server checks quota against where
+		// the entries end up, and applies all of them or none.
+		const showError = (message) => {
+			// Nothing moved, so the pending changes stay for the member to fix and save again.
+			statusDiv.className = 'category-change-status error';
+			statusDiv.textContent = `No categories were changed: ${message}`;
+		};
 
-		// Process each change
-		for (const [submissionId, newCategory] of pendingChanges) {
-			try {
-				const response = await fetch(
-					`${apiUrl}photo-comp/v1/upload/${submissionId}/category?token=${encodeURIComponent(token)}`,
-					{
-						method: 'PUT',
-						headers: {
-							'Content-Type': 'application/json',
-							'X-WP-Nonce': nonce,
-						},
-						body: JSON.stringify({
-							category: newCategory,
-						}),
-					}
-				);
+		try {
+			const response = await fetch(
+				`${apiUrl}photo-comp/v1/upload/categories?token=${encodeURIComponent(token)}`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-WP-Nonce': nonce,
+					},
+					body: JSON.stringify({
+						changes: Object.fromEntries(pendingChanges),
+					}),
+				}
+			);
 
-				const data = await response.json();
+			const data = await response.json();
 
-				if (response.ok) {
-					successCount++;
-					// Update original category
+			if (response.ok) {
+				statusDiv.className = 'category-change-status success';
+				statusDiv.textContent = `✓ Successfully updated ${pendingChanges.size} category assignment(s).`;
+				setTimeout(() => {
+					statusDiv.style.display = 'none';
+				}, 5000);
+
+				pendingChanges.forEach((newCategory, submissionId) => {
 					const select = document.querySelector(`.submission-category-select[data-submission-id="${submissionId}"]`);
 					if (select) {
 						select.dataset.originalCategory = newCategory;
 					}
-				} else {
-					errorCount++;
-					errorMessages.push(`Image ${submissionId}: ${data.message || 'Failed'}`);
-				}
-			} catch (error) {
-				errorCount++;
-				errorMessages.push(`Image ${submissionId}: Network error`);
+				});
+				pendingChanges.clear();
+				saveButton.style.display = 'none';
+			} else {
+				showError(data.message || 'Failed');
 			}
-		}
-
-		// Clear pending changes
-		pendingChanges.clear();
-
-		// Show results
-		if (errorCount === 0) {
-			statusDiv.className = 'category-change-status success';
-			statusDiv.textContent = `✓ Successfully updated ${successCount} category assignment(s).`;
-			setTimeout(() => {
-				statusDiv.style.display = 'none';
-			}, 5000);
-		} else {
+		} catch (error) {
+			// The request may have gone through, so don't claim nothing changed.
 			statusDiv.className = 'category-change-status error';
-			statusDiv.innerHTML = `
-				<strong>Completed with errors:</strong>
-				<p>${successCount} succeeded, ${errorCount} failed.</p>
-				<ul>
-					${errorMessages.map((msg) => `<li>${msg}</li>`).join('')}
-				</ul>
-			`;
+			statusDiv.textContent = "Couldn't confirm whether the categories changed. Reload the page to check.";
 		}
 
-		// Reset button
 		saveButton.textContent = 'Save Category Changes';
 		saveButton.disabled = false;
-		saveButton.style.display = 'none';
 	});
 
 	// Initial status check
