@@ -318,13 +318,20 @@ class Entries {
 
 		$competitions = array();
 		foreach ( $this->images_repo->find_by_member( $member_id ) as $entry ) {
-			$competition_id                  = (int) $entry->competition_id;
-			$competitions[ $competition_id ] = $competitions[ $competition_id ] ?? $this->competitions_repo->find( $competition_id, true );
+			$competition_id = (int) $entry->competition_id;
+			if ( ! array_key_exists( $competition_id, $competitions ) ) {
+				$competitions[ $competition_id ] = $this->competitions_repo->find( $competition_id, true );
+			}
 
-			// Without its competition there's no folder to look in, so only the row can go.
-			$removed = $competitions[ $competition_id ]
-				? $this->remove_entry( $competitions[ $competition_id ], $entry )
-				: $this->images_repo->delete( (int) $entry->id );
+			if ( $competitions[ $competition_id ] ) {
+				$removed = $this->remove_entry( $competitions[ $competition_id ], $entry );
+			} else {
+				// Without its competition there's no folder to look in, but the original is in the media library.
+				$removed = $this->images_repo->delete( (int) $entry->id );
+				if ( ! is_wp_error( $removed ) && $entry->original_attachment_id ) {
+					wp_delete_attachment( (int) $entry->original_attachment_id, true );
+				}
+			}
 
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
@@ -335,7 +342,7 @@ class Entries {
 	}
 
 	/**
-	 * Remove an entry's row and votes, then its files and original.
+	 * Remove an entry's row and votes, then its files and original, without checking any rules.
 	 *
 	 * @param object $competition Competition record.
 	 * @param object $entry       Entry record.
@@ -629,7 +636,8 @@ class Entries {
 			return;
 		}
 
-		foreach ( glob( $directory . '/*', GLOB_ONLYDIR ) as $category_directory ) {
+		$category_directories = glob( $directory . '/*', GLOB_ONLYDIR );
+		foreach ( false === $category_directories ? array() : $category_directories as $category_directory ) {
 			$this->remove_empty_directory( $category_directory );
 		}
 
@@ -643,11 +651,13 @@ class Entries {
 	 * @return void
 	 */
 	private function remove_empty_directory( string $directory ): void {
-		$index = $directory . '/index.php';
-		if ( array_diff( scandir( $directory ), array( '.', '..', 'index.php' ) ) ) {
+		// A folder that can't be read is left alone, like a file that won't delete.
+		$items = @scandir( $directory ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- false is handled below.
+		if ( false === $items || array_diff( $items, array( '.', '..', 'index.php' ) ) ) {
 			return;
 		}
 
+		$index = $directory . '/index.php';
 		if ( file_exists( $index ) ) {
 			wp_delete_file( $index );
 		}

@@ -733,6 +733,25 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->entry_files( $stuck_id );
 	}
 
+	public function test_a_competition_folder_that_cant_be_read_doesnt_fail_the_removal(): void {
+		$competition_id = $this->create_competition( 'locked-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$locked         = dirname( $this->entry_path( $entry_id ), 2 ) . '/locked';
+		mkdir( $locked );
+		chmod( $locked, 0 );
+
+		try {
+			$result = $this->entries->remove_competition_entries( Actor::admin(), $competition_id );
+		} finally {
+			chmod( $locked, 0755 );
+		}
+
+		$this->assertTrue( $result );
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		$this->assertDirectoryExists( $locked );
+	}
+
 	public function test_a_member_cant_remove_a_competitions_entries(): void {
 		$competition_id = $this->create_competition( 'kept-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -769,12 +788,22 @@ class Entries_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_members_entry_whose_competition_is_gone_is_still_removed(): void {
-		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
-		$entry_id  = Entry_Fixtures::insert_entry( 999999, 'colour', $member_id, array() );
+		$member_id     = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$attachment_id = self::factory()->attachment->create();
+		$entry_id      = $this->images_repo->create(
+			array(
+				'competition_id'         => 999999,
+				'member_id'              => $member_id,
+				'category'               => 'colour',
+				'filename'               => 'jane-doe-colour.jpg',
+				'original_attachment_id' => $attachment_id,
+			)
+		);
 
 		$this->assertTrue( $this->entries->remove_member_entries( Actor::admin(), $member_id ) );
 
 		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		$this->assertNull( get_post( $attachment_id ) );
 	}
 
 	public function test_a_member_cant_remove_their_own_entries_all_at_once(): void {
