@@ -324,7 +324,7 @@ class Upload_Shortcode {
 		}
 
 		// Process upload.
-		$result = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, $category, $image_file );
+		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
 			$this->redirect_with_message( 'error', 'upload_failed' );
@@ -348,7 +348,7 @@ class Upload_Shortcode {
 			return;
 		}
 
-		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $image_id );
+		$result = $this->entries->remove( Actor::for_upload_link( $member_id ), $competition_id, $image_id );
 
 		if ( is_wp_error( $result ) ) {
 			$this->redirect_with_message( 'error', 'delete_failed' );
@@ -457,8 +457,11 @@ class Upload_Shortcode {
 			<?php endif; ?>
 
 			<?php if ( ! $this->workflow->is_accepting_uploads( $competition ) ) : ?>
-				<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
-				<?php return; ?>
+				<?php if ( ! $member || ! $token_record || ! Actor::for_upload_link( (int) $member->id )->is_admin() ) : ?>
+					<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
+					<?php return; ?>
+				<?php endif; ?>
+				<p class="notice"><?php esc_html_e( 'Uploads are closed. You are an admin, so you can still manage this member\'s entries.', 'photo-competition-manager' ); ?></p>
 			<?php endif; ?>
 
 			<?php if ( ! $token_record || ! $member ) : ?>

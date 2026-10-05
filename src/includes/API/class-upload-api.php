@@ -124,16 +124,16 @@ class Upload_API extends WP_REST_Controller {
 			)
 		);
 
-		// Update submission category endpoint.
+		// Change the categories of the member's entries, all in one go.
 		register_rest_route(
 			$this->namespace,
-			'/' . $this->rest_base . '/(?P<submission_id>\d+)/category',
+			'/' . $this->rest_base . '/categories',
 			array(
 				array(
-					'methods'             => WP_REST_Server::EDITABLE,
-					'callback'            => array( $this, 'update_category' ),
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'change_categories' ),
 					'permission_callback' => array( $this, 'validate_token_permission' ),
-					'args'                => $this->get_update_category_params(),
+					'args'                => $this->get_change_categories_params(),
 				),
 			)
 		);
@@ -329,7 +329,7 @@ class Upload_API extends WP_REST_Controller {
 
 			// Attempt upload.
 			$result = $this->entries->add(
-				Actor::member( $member_id ),
+				Actor::for_upload_link( $member_id ),
 				(int) $competition->id,
 				$member_id,
 				$category,
@@ -400,25 +400,27 @@ class Upload_API extends WP_REST_Controller {
 	}
 
 	/**
-	 * Update submission category.
+	 * Change the categories of the token member's entries, all at once or not at all.
+	 *
+	 * @since 0.4.0 Replaces the per-entry PUT /upload/{id}/category.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return WP_REST_Response|WP_Error
 	 */
-	public function update_category( WP_REST_Request $request ) {
-		$submission_id = $request->get_param( 'submission_id' );
-		$category      = $request->get_param( 'category' );
-		$token_record  = $request->get_param( '_token_record' );
+	public function change_categories( WP_REST_Request $request ) {
+		$token_record = $request->get_param( '_token_record' );
+		$member_id    = (int) $token_record->member_id;
 
-		$member_id      = (int) $token_record->member_id;
-		$competition_id = (int) $token_record->competition_id;
+		$changes = array();
+		foreach ( (array) $request->get_param( 'changes' ) as $entry_id => $category ) {
+			$changes[ absint( $entry_id ) ] = sanitize_text_field( (string) $category );
+		}
 
-		// Update the submission category.
-		$result = $this->entries->change_category(
-			Actor::member( $member_id ),
-			$competition_id,
-			(int) $submission_id,
-			$category
+		$result = $this->entries->change_categories(
+			Actor::for_upload_link( $member_id ),
+			(int) $token_record->competition_id,
+			$member_id,
+			$changes
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -428,30 +430,29 @@ class Upload_API extends WP_REST_Controller {
 		return new WP_REST_Response(
 			array(
 				'success' => true,
-				'message' => __( 'Category updated successfully.', 'photo-competition-manager' ),
+				'message' => __( 'Categories updated successfully.', 'photo-competition-manager' ),
 			),
 			200
 		);
 	}
 
 	/**
-	 * Get parameters for update category endpoint.
+	 * Get parameters for the change categories endpoint.
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
-	private function get_update_category_params(): array {
+	private function get_change_categories_params(): array {
 		return array(
-			'token'    => array(
+			'token'   => array(
 				'description'       => __( 'Upload token string.', 'photo-competition-manager' ),
 				'type'              => 'string',
 				'required'          => true,
 				'sanitize_callback' => 'sanitize_text_field',
 			),
-			'category' => array(
-				'description'       => __( 'New category slug.', 'photo-competition-manager' ),
-				'type'              => 'string',
-				'required'          => true,
-				'sanitize_callback' => 'sanitize_text_field',
+			'changes' => array(
+				'description' => __( 'New category slug, keyed by entry ID.', 'photo-competition-manager' ),
+				'type'        => 'object',
+				'required'    => true,
 			),
 		);
 	}

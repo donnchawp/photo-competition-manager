@@ -261,79 +261,162 @@ class Entries {
 	}
 
 	/**
-	 * Move an entry to another category, renaming its files if the new folder has the name already.
+	 * Move a member's entries to other categories, all at once or not at all.
 	 *
-	 * A member may move only their own entries. This is a straight copy of the old
-	 * Upload_Handler::update_submission_category(); #125 replaces it with change_categories().
+	 * A member may move only their own entries, and only while the competition accepts uploads.
+	 * An admin may move them whatever the phase, while both categories are at Not started or
+	 * Previewed: votes store their category, so a voted entry can't move until it's reset.
+	 * Quota is checked against where the entries end up, so two entries can swap categories.
+	 * If a move fails, the moves already made are undone.
 	 *
-	 * @param Actor  $actor          Who is moving the entry.
-	 * @param int    $competition_id Competition the entry must belong to.
-	 * @param int    $entry_id       Entry ID.
-	 * @param string $new_category   New category slug.
+	 * @since 0.4.0
+	 *
+	 * @param Actor              $actor          Who is moving the entries.
+	 * @param int                $competition_id Competition ID.
+	 * @param int                $member_id      The member whose entries they are.
+	 * @param array<int, string> $changes        New category slug, keyed by entry ID.
 	 * @return true|WP_Error
 	 */
-	public function change_category( Actor $actor, int $competition_id, int $entry_id, string $new_category ) {
-		$entry = $this->images_repo->find( $entry_id );
-		if ( ! $entry ) {
-			return new WP_Error( 'submission_not_found', __( 'Submission not found.', 'photo-competition-manager' ) );
-		}
-
-		if ( ! $actor->is_admin() && ! $actor->is_member( (int) $entry->member_id ) ) {
-			return new WP_Error( 'permission_denied', __( 'You do not have permission to modify this submission.', 'photo-competition-manager' ) );
-		}
-
-		if ( (int) $entry->competition_id !== $competition_id ) {
-			return new WP_Error( 'invalid_competition', __( 'Submission does not belong to this competition.', 'photo-competition-manager' ) );
-		}
-
-		if ( $entry->category === $new_category ) {
-			return true;
-		}
-
+	public function change_categories( Actor $actor, int $competition_id, int $member_id, array $changes ) {
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		$settings        = Competition_Settings::parse( $competition->settings );
-		$category_config = Competition_Settings::find_category( $settings, $new_category );
+		if ( ! $actor->is_admin() ) {
+			if ( ! $actor->is_member( $member_id ) ) {
+				return new WP_Error( 'permission_denied', __( 'You can only move your own entries.', 'photo-competition-manager' ) );
+			}
 
-		if ( ! $category_config ) {
-			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
+			if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
+				return new WP_Error( 'competition_closed', __( 'Entries can only change category while the competition is open for submissions.', 'photo-competition-manager' ) );
+			}
 		}
 
-		// Moving into a category at quota is allowed so the upload page can swap two entries
-		// one move at a time. Only a category already over quota is refused.
-		$current_count = $this->images_repo->count_by_member_category( $competition_id, (int) $entry->member_id, $new_category );
-		$quota         = $category_config['quota'] ?? 1;
+		$settings = Competition_Settings::parse( $competition->settings );
+		$moves    = array();
 
-		if ( $current_count > $quota ) {
-			return new WP_Error(
-				'quota_exceeded',
-				sprintf(
-					/* translators: 1: category label, 2: current count, 3: quota limit */
-					__( 'Category "%1$s" has too many images (%2$d/%3$d). Please remove images from this category first.', 'photo-competition-manager' ),
-					$category_config['label'],
-					$current_count,
-					$quota
-				)
-			);
+		foreach ( $changes as $entry_id => $new_category ) {
+			$entry = $this->images_repo->find( (int) $entry_id );
+			if ( ! $entry ) {
+				return new WP_Error( 'submission_not_found', __( 'Submission not found.', 'photo-competition-manager' ) );
+			}
+
+			if ( (int) $entry->competition_id !== $competition_id ) {
+				return new WP_Error( 'invalid_competition', __( 'Submission does not belong to this competition.', 'photo-competition-manager' ) );
+			}
+
+			if ( (int) $entry->member_id !== $member_id ) {
+				return new WP_Error( 'permission_denied', __( 'You do not have permission to modify this submission.', 'photo-competition-manager' ) );
+			}
+
+			if ( ! Competition_Settings::find_category( $settings, (string) $new_category ) ) {
+				return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
+			}
+
+			if ( $entry->category === $new_category ) {
+				continue;
+			}
+
+			if ( $actor->is_admin() ) {
+				foreach ( array( $entry->category, $new_category ) as $category ) {
+					$stage = $this->workflow->stage( $competition, $category );
+					if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+						return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category first.', 'photo-competition-manager' ) );
+					}
+				}
+			}
+
+			$moves[] = array( $entry, (string) $new_category );
 		}
 
+		$quota_error = $this->check_final_quota( $competition, $settings, $member_id, $moves );
+		if ( is_wp_error( $quota_error ) ) {
+			return $quota_error;
+		}
+
+		$done = array();
+		foreach ( $moves as list( $entry, $new_category ) ) {
+			$new_filename = $this->move_entry( $competition, $entry, $new_category );
+
+			if ( is_wp_error( $new_filename ) ) {
+				// Put back the moves already made, newest first.
+				foreach ( array_reverse( $done ) as list( $moved, $moved_category, $moved_filename ) ) {
+					$this->move_files( $competition->slug, $moved_category, $moved->category, $moved_filename, $moved->filename );
+					$this->images_repo->update_category( (int) $moved->id, $moved->category, $moved->filename );
+				}
+				return $new_filename;
+			}
+
+			$done[] = array( $entry, $new_category, $new_filename );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Refuse a set of moves that would leave any category it moves entries into over quota.
+	 *
+	 * @param object                                  $competition Competition record.
+	 * @param array<string, mixed>                    $settings    Parsed competition settings.
+	 * @param int                                     $member_id   Member ID.
+	 * @param array<int, array{0: object, 1: string}> $moves Entry and new category slug for each move.
+	 * @return true|WP_Error
+	 */
+	private function check_final_quota( object $competition, array $settings, int $member_id, array $moves ) {
+		$counts = array();
+		foreach ( Competition_Settings::get_categories( $settings ) as $category ) {
+			$counts[ $category['slug'] ] = $this->images_repo->count_by_member_category( (int) $competition->id, $member_id, $category['slug'] );
+		}
+
+		foreach ( $moves as list( $entry, $new_category ) ) {
+			--$counts[ $entry->category ];
+			++$counts[ $new_category ];
+		}
+
+		foreach ( array_unique( array_column( $moves, 1 ) ) as $new_category ) {
+			$category_config = Competition_Settings::find_category( $settings, $new_category );
+			$quota           = $category_config['quota'] ?? 1;
+
+			if ( $counts[ $new_category ] > $quota ) {
+				return new WP_Error(
+					'quota_exceeded',
+					sprintf(
+						/* translators: 1: category label, 2: number of entries, 3: quota limit */
+						__( 'That would leave %1$s with %2$d images, but the limit is %3$d.', 'photo-competition-manager' ),
+						$category_config['label'],
+						$counts[ $new_category ],
+						$quota
+					)
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Move one entry's files and row to another category, putting the files back if the row won't update.
+	 *
+	 * @param object $competition  Competition record.
+	 * @param object $entry        Entry record.
+	 * @param string $new_category New category slug.
+	 * @return string|WP_Error The entry's filename in the new category.
+	 */
+	private function move_entry( object $competition, object $entry, string $new_category ) {
 		$new_filename = $this->move_files( $competition->slug, $entry->category, $new_category, $entry->filename, $entry->filename );
 		if ( is_wp_error( $new_filename ) ) {
 			return $new_filename;
 		}
 
-		$result = $this->images_repo->update_category( $entry_id, $new_category, $new_filename );
-
+		$result = $this->images_repo->update_category( (int) $entry->id, $new_category, $new_filename );
 		if ( is_wp_error( $result ) ) {
 			// Put the files back, under the name the row still has.
 			$this->move_files( $competition->slug, $new_category, $entry->category, $new_filename, $entry->filename );
 			return $result;
 		}
 
-		return true;
+		return $new_filename;
 	}
 
 	/**

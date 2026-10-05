@@ -52,6 +52,19 @@ final class Actor {
 	}
 
 	/**
+	 * Whoever is using a member's upload link: an admin when the logged-in user can manage
+	 * competitions (the Submissions screen links admins to it), otherwise that member.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id The member the upload link belongs to.
+	 * @return self
+	 */
+	public static function for_upload_link( int $member_id ): self {
+		return current_user_can( 'manage_photo_competitions' ) ? self::admin() : self::member( $member_id );
+	}
+
+	/**
 	 * Whether this actor is an admin.
 	 *
 	 * @return bool
