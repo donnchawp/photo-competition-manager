@@ -161,6 +161,36 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( $member_id, (int) $this->images_repo->find( $entry_id )->member_id );
 	}
 
+	public function test_an_admin_cant_add_an_entry_to_a_category_with_votes(): void {
+		$competition_id = $this->create_competition( 'late-entry-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+		( new Votes_Repository() )->create( $competition_id, 'colour', 'A Voter', $voted_id, 5 );
+
+		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'category_has_votes', $result->get_error_code() );
+		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/late-entry-comp/colour/jane-doe*' ) );
+		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+	}
+
+	public function test_an_admin_adds_an_entry_to_a_category_without_votes_even_while_its_voting(): void {
+		$competition_id = $this->create_competition( 'unvoted-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
+		$voted_id = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 200, 0 ) );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
+
+		$entry_id = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
 	public function test_a_member_cant_add_an_entry_for_someone_else(): void {
 		$competition_id = $this->create_competition( 'add-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -449,6 +479,41 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'entry_has_votes', $result->get_error_code() );
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
+	public function test_an_entry_cant_move_into_a_category_that_kept_its_votes(): void {
+		$competition_id = $this->create_competition( 'kept-votes-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 0, 200 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+
+		// What a reset that keeps the votes leaves behind: the stage is Not started, the votes remain.
+		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
+
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'category_has_votes', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+		$this->assertFileExists( $this->entry_path( $entry_id ) );
+	}
+
+	public function test_an_entry_can_move_into_a_category_reset_with_its_votes_cleared(): void {
+		$competition_id = $this->create_competition( 'cleared-votes-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 0, 200 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
+
+		$this->assertTrue( ( new Competition_Workflow( $this->competitions_repo ) )->reset_category( $competition_id, 'mono', true ) );
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+
+		$this->assertTrue( $result );
+		$this->assertSame( 'mono', $this->images_repo->find( $entry_id )->category );
 	}
 
 	public function test_an_admin_can_move_at_previewed_but_not_into_a_category_thats_voting(): void {

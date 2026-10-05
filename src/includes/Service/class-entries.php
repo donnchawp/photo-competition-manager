@@ -140,6 +140,12 @@ class Entries {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
 		}
 
+		// Members can't get here in practice, since voting needs uploads closed, but the rule doesn't rely on that.
+		$voted = $this->voted_category_error( $competition_id, $category );
+		if ( $voted ) {
+			return $voted;
+		}
+
 		$current_count = $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
 		$quota         = $category_config['quota'] ?? 1;
 
@@ -536,8 +542,13 @@ class Entries {
 			}
 		}
 
-		// Only the categories gaining entries can go over quota.
+		// Only the categories gaining entries can go over quota, or take an entry that missed their voting.
 		foreach ( array_unique( array_column( $moves, 1 ) ) as $new_category ) {
+			$voted = $this->voted_category_error( $competition_id, $new_category );
+			if ( $voted ) {
+				return $voted;
+			}
+
 			$category_config = Competition_Settings::find_category( $settings, $new_category );
 			$quota           = $category_config['quota'] ?? 1;
 
@@ -572,6 +583,25 @@ class Entries {
 		}
 
 		return true;
+	}
+
+	/**
+	 * The refusal for a category that already has votes, if it has any.
+	 *
+	 * An entry added or moved there afterwards was on none of its ballots, so the results would
+	 * compare it with nothing. Resetting a category can keep its votes, so the stage alone doesn't
+	 * rule this out.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return WP_Error|null
+	 */
+	private function voted_category_error( int $competition_id, string $category ): ?WP_Error {
+		if ( ! $this->votes_repo->has_votes_in_category( $competition_id, $category ) ) {
+			return null;
+		}
+
+		return new WP_Error( 'category_has_votes', __( 'This category already has votes, so it can\'t take new entries. Reset it and clear its votes first.', 'photo-competition-manager' ) );
 	}
 
 	/**
