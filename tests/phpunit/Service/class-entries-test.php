@@ -16,10 +16,13 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Photo_Uploads;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 class Entries_Test extends WP_UnitTestCase {
+
+	use Photo_Uploads;
 
 	/**
 	 * @var Entries
@@ -48,13 +51,6 @@ class Entries_Test extends WP_UnitTestCase {
 	 */
 	private $slugs = array();
 
-	/**
-	 * Temporary source images removed in tearDown.
-	 *
-	 * @var string[]
-	 */
-	private $tmp_files = array();
-
 	public function setUp(): void {
 		parent::setUp();
 
@@ -74,9 +70,7 @@ class Entries_Test extends WP_UnitTestCase {
 			$this->delete_folders( trailingslashit( $basedir ) . 'competitions/' . $slug );
 		}
 
-		foreach ( $this->tmp_files as $tmp_file ) {
-			wp_delete_file( $tmp_file );
-		}
+		$this->remove_tmp_files();
 
 		parent::tearDown();
 	}
@@ -844,6 +838,154 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( 'invalid_image', $result->get_error_code() );
 	}
 
+	public function test_discarding_originals_removes_each_one_and_keeps_the_entries(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entry_ids      = array(
+			$this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) ),
+			$this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) ),
+		);
+		$originals      = array_map( array( $this, 'original_path' ), $entry_ids );
+
+		$result = $this->entries->discard_originals( Actor::admin(), $competition_id );
+
+		$this->assertSame(
+			array(
+				'discarded' => 2,
+				'failed'    => 0,
+			),
+			$result
+		);
+		foreach ( $entry_ids as $entry_id ) {
+			$entry = $this->images_repo->find( $entry_id );
+			$this->assertNull( $entry->original_attachment_id );
+			$this->assertFileExists( $this->entry_path( $entry_id ) );
+			$this->assertFileExists( $this->entry_path( $entry_id, true ) );
+		}
+		foreach ( $originals as $original ) {
+			$this->assertFileDoesNotExist( $original );
+		}
+	}
+
+	public function test_an_original_that_wont_delete_keeps_its_id_and_is_counted_as_failed(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$kept_id        = $this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) );
+		$discarded_id   = $this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) );
+		$kept           = (int) $this->images_repo->find( $kept_id )->original_attachment_id;
+		$refuse         = function ( $check, $post ) use ( $kept ) {
+			return $post->ID === $kept ? false : $check;
+		};
+
+		add_filter( 'pre_delete_attachment', $refuse, 10, 2 );
+		$result = $this->entries->discard_originals( Actor::admin(), $competition_id );
+		remove_filter( 'pre_delete_attachment', $refuse, 10 );
+
+		$this->assertSame(
+			array(
+				'discarded' => 1,
+				'failed'    => 1,
+			),
+			$result
+		);
+		$this->assertSame( $kept, (int) $this->images_repo->find( $kept_id )->original_attachment_id );
+		$this->assertNotNull( get_post( $kept ) );
+		$this->assertFileExists( $this->original_path( $kept_id ) );
+		$this->assertNull( $this->images_repo->find( $discarded_id )->original_attachment_id );
+
+		// Logged once, by attachment, since deleting its files by hand wouldn't remove it.
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'original_not_deleted', $logs[0]->event_type );
+		$this->assertSame( $kept, json_decode( $logs[0]->metadata, true )['attachment_id'] );
+		$this->assertSame( array( $this->original_path( $kept_id ) ), json_decode( $logs[0]->metadata, true )['paths'] );
+	}
+
+	public function test_discarding_the_originals_just_exported_keeps_one_uploaded_since(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$exported_id    = $this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) );
+		$exported       = $this->images_repo->get_original_attachment_ids( $competition_id );
+		$uploaded_id    = $this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) );
+
+		$result = $this->entries->discard_originals( Actor::admin(), $competition_id, $exported );
+
+		$this->assertSame( 1, $result['discarded'] );
+		$this->assertNull( $this->images_repo->find( $exported_id )->original_attachment_id );
+		$this->assertFileExists( $this->original_path( $uploaded_id ) );
+	}
+
+	public function test_an_original_whose_id_wont_clear_is_counted_as_failed(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function clear_original_attachment_id( int $id ) {
+				return new \WP_Error( 'db_update_failed', 'Could not clear the original attachment ID.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertSame(
+			array(
+				'discarded' => 0,
+				'failed'    => 1,
+			),
+			$entries->discard_originals( Actor::admin(), $competition_id )
+		);
+	}
+
+	public function test_an_original_already_gone_from_the_media_library_counts_as_discarded(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		wp_delete_attachment( (int) $this->images_repo->find( $entry_id )->original_attachment_id, true );
+
+		$this->assertSame(
+			array(
+				'discarded' => 1,
+				'failed'    => 0,
+			),
+			$this->entries->discard_originals( Actor::admin(), $competition_id )
+		);
+		$this->assertNull( $this->images_repo->find( $entry_id )->original_attachment_id );
+	}
+
+	public function test_originals_cant_be_discarded_while_a_category_is_accepting_votes(): void {
+		$competition_id = $this->create_competition( 'voting-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$original       = $this->original_path( $entry_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$result = $this->entries->discard_originals( Actor::admin(), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_open', $result->get_error_code() );
+		$this->assertNotNull( $this->images_repo->find( $entry_id )->original_attachment_id );
+		$this->assertFileExists( $original );
+
+		( new Competition_Workflow() )->close_voting( $competition_id, 'colour' );
+
+		$this->assertSame( 1, $this->entries->discard_originals( Actor::admin(), $competition_id )['discarded'] );
+	}
+
+	public function test_a_member_cant_discard_originals(): void {
+		$competition_id = $this->create_competition( 'kept-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->discard_originals( Actor::member( $member_id ), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->entry_files( $entry_id );
+	}
+
 	/**
 	 * Filter for wp_delete_file that refuses to delete originals.
 	 *
@@ -913,43 +1055,6 @@ class Entries_Test extends WP_UnitTestCase {
 				'grade'  => 'beginner',
 				'active' => $active,
 			)
-		);
-	}
-
-	/**
-	 * A solid-colour JPEG in the shape of a $_FILES entry.
-	 *
-	 * @param int[] $rgb    Fill colour, so each upload is a different picture.
-	 * @param int   $width  Width in pixels.
-	 * @param int   $height Height in pixels.
-	 * @return array<string, mixed>
-	 */
-	private function photo( array $rgb, int $width = 64, int $height = 48 ): array {
-		$image = imagecreatetruecolor( $width, $height );
-		imagefill( $image, 0, 0, imagecolorallocate( $image, $rgb[0], $rgb[1], $rgb[2] ) );
-
-		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.
-		$tmp_name          = wp_tempnam( 'photo.jpg' );
-		$tmp_file          = $tmp_name . '.jpg';
-		$this->tmp_files[] = $tmp_name;
-		$this->tmp_files[] = $tmp_file;
-		imagejpeg( $image, $tmp_file, 90 );
-
-		return $this->upload_array( $tmp_file );
-	}
-
-	/**
-	 * A file in the shape of a $_FILES entry.
-	 *
-	 * @param string $tmp_file Path of the uploaded file.
-	 * @return array<string, mixed>
-	 */
-	private function upload_array( string $tmp_file ): array {
-		return array(
-			'name'     => 'photo.jpg',
-			'tmp_name' => $tmp_file,
-			'error'    => UPLOAD_ERR_OK,
-			'size'     => filesize( $tmp_file ),
 		);
 	}
 

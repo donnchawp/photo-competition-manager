@@ -240,10 +240,16 @@ class Submissions_Controller {
 				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
-			// Get all original attachment IDs.
-			$attachment_ids = $this->images->get_original_attachment_ids( $competition_id );
+			$result = $this->entries->discard_originals( Actor::admin(), $competition_id );
 
-			if ( empty( $attachment_ids ) ) {
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_submissions',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} elseif ( 0 === $result['discarded'] && 0 === $result['failed'] ) {
 				add_settings_error(
 					'photo_competition_submissions',
 					'no_originals',
@@ -251,59 +257,29 @@ class Submissions_Controller {
 					'updated'
 				);
 			} else {
-				// Delete all original attachments.
-				$deleted_count = 0;
-				foreach ( $attachment_ids as $attachment_id ) {
-					$deleted = wp_delete_attachment( $attachment_id, true );
-					if ( $deleted ) {
-						++$deleted_count;
-					} elseif ( get_post( $attachment_id ) ) {
-						// If wp_delete_attachment failed but the post exists,
-						// manually delete files and post to prevent orphans.
-						$file = get_attached_file( $attachment_id );
-						if ( $file && file_exists( $file ) ) {
-							wp_delete_file( $file );
-						}
-
-						// Delete any generated thumbnails/sizes.
-						$metadata = wp_get_attachment_metadata( $attachment_id );
-						if ( ! empty( $metadata['sizes'] ) && $file ) {
-							$dir = trailingslashit( dirname( $file ) );
-							foreach ( $metadata['sizes'] as $size ) {
-								if ( ! empty( $size['file'] ) ) {
-									$size_file = $dir . $size['file'];
-									if ( file_exists( $size_file ) ) {
-										wp_delete_file( $size_file );
-									}
-								}
-							}
-						}
-
-						wp_delete_post( $attachment_id, true );
-						++$deleted_count;
-					}
-				}
-
-				// Clear the attachment IDs from the database.
-				$result = $this->images->clear_original_attachment_ids( $competition_id );
-
-				if ( is_wp_error( $result ) ) {
-					add_settings_error(
-						'photo_competition_submissions',
-						$result->get_error_code(),
-						$result->get_error_message(),
-						'error'
-					);
-				} else {
+				if ( $result['discarded'] > 0 ) {
 					add_settings_error(
 						'photo_competition_submissions',
 						'originals_deleted',
 						sprintf(
 						/* translators: %d: number of deleted images */
 							__( '%d original images deleted successfully.', 'photo-competition-manager' ),
-							$deleted_count
+							$result['discarded']
 						),
 						'updated'
+					);
+				}
+
+				if ( $result['failed'] > 0 ) {
+					add_settings_error(
+						'photo_competition_submissions',
+						'originals_not_deleted',
+						sprintf(
+						/* translators: %d: number of original images that could not be deleted */
+							__( '%d original images could not be deleted. Deleting originals again retries them.', 'photo-competition-manager' ),
+							$result['failed']
+						),
+						'error'
 					);
 				}
 			}

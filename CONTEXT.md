@@ -21,7 +21,7 @@ An image a member has entered in one category of a competition. It has an entry 
 _Avoid_: Submission, image (for the record)
 
 **Original**:
-The full-size file a member uploaded for an entry, kept for export until an admin discards it. Discarding originals leaves the entries in place.
+The full-size file a member uploaded for an entry, kept in the media library for export until an admin discards it. Discarding originals leaves the entries in place. WordPress also keeps a 2560px `-scaled` copy of a larger original as its attached file; that copy isn't the original, and export uses the full-size file.
 
 **Competition phase**:
 Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived.

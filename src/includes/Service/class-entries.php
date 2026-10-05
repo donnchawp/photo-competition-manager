@@ -350,6 +350,107 @@ class Entries {
 	}
 
 	/**
+	 * A competition's originals that are on disk, at the size they were uploaded.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<int, string> Full-size file path, keyed by attachment ID.
+	 */
+	public function originals( int $competition_id ): array {
+		$originals = array();
+
+		foreach ( $this->images_repo->get_original_attachment_ids( $competition_id ) as $attachment_id ) {
+			// WordPress keeps a 2560px -scaled copy of a larger upload as the attached file.
+			$path = wp_get_original_image_path( $attachment_id );
+			if ( $path && file_exists( $path ) ) {
+				$originals[ $attachment_id ] = $path;
+			}
+		}
+
+		return $originals;
+	}
+
+	/**
+	 * Whether the actor may discard a competition's originals now.
+	 *
+	 * Only an admin may, and not while any of the competition's categories is accepting votes.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor          Who would discard the originals.
+	 * @param int   $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function can_discard_originals( Actor $actor, int $competition_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can discard originals.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( $this->workflow->categories_accepting_votes( $competition ) ) {
+			return new WP_Error( 'voting_open', __( 'Original images can\'t be deleted while a category is accepting votes.', 'photo-competition-manager' ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Discard a competition's originals, leaving its entries in place.
+	 *
+	 * The rules are can_discard_originals()'s. An original that WordPress won't delete keeps its
+	 * ID on the entry, so a retry picks it up.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor      $actor          Who is discarding the originals.
+	 * @param int        $competition_id Competition ID.
+	 * @param int[]|null $attachment_ids Only these originals, such as the ones just exported, or null for all.
+	 * @return array{discarded: int, failed: int}|WP_Error
+	 */
+	public function discard_originals( Actor $actor, int $competition_id, ?array $attachment_ids = null ) {
+		$allowed = $this->can_discard_originals( $actor, $competition_id );
+		if ( is_wp_error( $allowed ) ) {
+			return $allowed;
+		}
+
+		$counts = array(
+			'discarded' => 0,
+			'failed'    => 0,
+		);
+
+		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+			if ( empty( $entry->original_attachment_id ) ) {
+				continue;
+			}
+
+			$attachment_id = (int) $entry->original_attachment_id;
+			if ( null !== $attachment_ids && ! in_array( $attachment_id, $attachment_ids, true ) ) {
+				continue;
+			}
+
+			if ( ! $this->delete_original( $competition_id, $attachment_id ) ) {
+				++$counts['failed'];
+				continue;
+			}
+
+			// The original is gone, so a retry finds nothing to delete and clears the ID then.
+			if ( is_wp_error( $this->images_repo->clear_original_attachment_id( (int) $entry->id ) ) ) {
+				++$counts['failed'];
+				continue;
+			}
+
+			++$counts['discarded'];
+		}
+
+		return $counts;
+	}
+
+	/**
 	 * Move a member's entries to other categories, all at once or not at all.
 	 *
 	 * A member may move only their own entries, and only while the competition accepts uploads.
@@ -768,27 +869,44 @@ class Entries {
 	}
 
 	/**
-	 * Delete an entry's original from the media library, logging any file that won't go.
+	 * Delete an entry's original from the media library, logging it if WordPress refuses, or any file left behind.
 	 *
 	 * @param int $competition_id Competition ID, for the log.
 	 * @param int $attachment_id  Original's attachment ID, or 0 when there isn't one.
-	 * @return void
+	 * @return bool False when WordPress refused to delete the attachment.
 	 */
-	private function delete_original( int $competition_id, int $attachment_id ): void {
+	private function delete_original( int $competition_id, int $attachment_id ): bool {
 		if ( $attachment_id <= 0 ) {
-			return;
+			return true;
 		}
 
 		// A large original's attached file is a -scaled copy, so check the full-size file too.
 		// Both are false when the original is already gone from the media library.
 		$originals = array_unique( array_filter( array( get_attached_file( $attachment_id ), wp_get_original_image_path( $attachment_id ) ) ) );
-		wp_delete_attachment( $attachment_id, true );
+
+		// Null means the attachment was already gone, which is as good as deleted.
+		if ( false === wp_delete_attachment( $attachment_id, true ) ) {
+			// Its files can't be deleted by hand: the attachment would still be in the media library.
+			( new Event_Logger() )->log(
+				$competition_id,
+				'original_not_deleted',
+				'upload',
+				__( 'WordPress would not delete an original from the media library.', 'photo-competition-manager' ),
+				array(
+					'attachment_id' => $attachment_id,
+					'paths'         => array_values( $originals ),
+				)
+			);
+			return false;
+		}
 
 		foreach ( $originals as $original ) {
 			if ( file_exists( $original ) ) {
 				$this->log_undeleted( $competition_id, $original );
 			}
 		}
+
+		return true;
 	}
 
 	/**

@@ -518,19 +518,15 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Clear original attachment IDs for a competition.
+	 * Clear an image's original attachment ID, once its original is gone.
 	 *
-	 * Sets original_attachment_id to NULL for all images in a competition.
+	 * @since 0.4.0
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int $id Image ID.
 	 * @return bool|WP_Error True on success, WP_Error on failure.
 	 */
-	public function clear_original_attachment_ids( int $competition_id ) {
+	public function clear_original_attachment_id( int $id ) {
 		global $wpdb;
-
-		if ( $competition_id <= 0 ) {
-			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
-		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$updated = $wpdb->update(
@@ -539,13 +535,13 @@ class Images_Repository extends Abstract_Repository {
 				'original_attachment_id' => null,
 				'updated_at'             => utc_time(),
 			),
-			array( 'competition_id' => $competition_id ),
+			array( 'id' => $id ),
 			array( '%d', '%s' ),
 			array( '%d' )
 		);
 
 		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not clear original attachment IDs.', 'photo-competition-manager' ), $wpdb->last_error );
+			return new WP_Error( 'db_update_failed', __( 'Could not clear the original attachment ID.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;
