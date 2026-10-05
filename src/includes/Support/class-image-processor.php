@@ -158,6 +158,7 @@ class Image_Processor {
 		// Load image and resize to max dimensions for slideshow.
 		$image = wp_get_image_editor( $file['tmp_name'] );
 		if ( is_wp_error( $image ) ) {
+			wp_delete_attachment( $attachment_id, true );
 			return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'photo-competition-manager' ) );
 		}
 
@@ -173,6 +174,7 @@ class Image_Processor {
 		$saved       = $image->save( $target_path );
 
 		if ( is_wp_error( $saved ) ) {
+			wp_delete_attachment( $attachment_id, true );
 			return new WP_Error( 'save_failed', __( 'Could not save image.', 'photo-competition-manager' ) );
 		}
 

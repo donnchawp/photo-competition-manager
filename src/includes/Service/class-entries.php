@@ -77,11 +77,11 @@ class Entries {
 		?Image_Processor $image_processor = null,
 		?Competition_Workflow $workflow = null
 	) {
-		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
-		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
-		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
-		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
-		$this->workflow          = $workflow ? $workflow : new Competition_Workflow( $this->competitions_repo );
+		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
+		$this->images_repo       = $images_repo ?? new Images_Repository();
+		$this->members_repo      = $members_repo ?? new Members_Repository();
+		$this->image_processor   = $image_processor ?? new Image_Processor();
+		$this->workflow          = $workflow ?? new Competition_Workflow( $this->competitions_repo );
 	}
 
 	/**
@@ -159,12 +159,8 @@ class Entries {
 		// The counter is only in the name when a member may enter more than one image in the category.
 		$counter  = $quota > 1 ? $current_count + 1 : 0;
 		$username = sanitize_title( $member->name );
-		$filename = $counter > 0
-			? sprintf( '%s-%s-%d.jpg', $username, sanitize_title( $category ), $counter )
-			: sprintf( '%s-%s.jpg', $username, sanitize_title( $category ) );
-		$title    = $counter > 0
-			? sprintf( '%s - %s - %s #%d', $competition->slug, $category, $username, $counter )
-			: sprintf( '%s - %s - %s', $competition->slug, $category, $username );
+		$filename = $username . '-' . sanitize_title( $category ) . ( $counter > 0 ? '-' . $counter : '' ) . '.jpg';
+		$title    = $competition->slug . ' - ' . $category . ' - ' . $username . ( $counter > 0 ? ' #' . $counter : '' );
 
 		$result = $this->image_processor->process(
 			$file,
@@ -323,7 +319,7 @@ class Entries {
 			);
 		}
 
-		$new_filename = $this->move_files( $competition->slug, $entry->category, $new_category, $entry->filename );
+		$new_filename = $this->move_files( $competition->slug, $entry->category, $new_category, $entry->filename, $entry->filename );
 		if ( is_wp_error( $new_filename ) ) {
 			return $new_filename;
 		}
@@ -453,10 +449,10 @@ class Entries {
 	 * @param string $old_category     Category slug the files are in.
 	 * @param string $new_category     Category slug to move them to.
 	 * @param string $filename         Image filename.
-	 * @param string $dest_filename    Name to use in the new folder if it's free. Defaults to $filename.
+	 * @param string $dest_filename    Name to use in the new folder if it's free.
 	 * @return string|WP_Error Filename in the new folder, suffixed if another entry has the name there.
 	 */
-	private function move_files( string $competition_slug, string $old_category, string $new_category, string $filename, string $dest_filename = '' ) {
+	private function move_files( string $competition_slug, string $old_category, string $new_category, string $filename, string $dest_filename ) {
 		$source_dir = $this->category_directory( $competition_slug, $old_category );
 		if ( is_wp_error( $source_dir ) ) {
 			return $source_dir;
@@ -470,7 +466,7 @@ class Entries {
 		$source_path = trailingslashit( $source_dir );
 		$dest_path   = trailingslashit( $dest_dir );
 
-		$dest_filename = wp_unique_filename( $dest_path, '' !== $dest_filename ? $dest_filename : $filename );
+		$dest_filename = wp_unique_filename( $dest_path, $dest_filename );
 		$source_file   = $source_path . $filename;
 		$dest_file     = $dest_path . $dest_filename;
 
@@ -525,11 +521,13 @@ class Entries {
 			}
 		}
 
-		// An original that's already gone from the media library has nothing left to delete.
-		if ( $attachment_id > 0 && get_post( $attachment_id ) ) {
+		if ( $attachment_id > 0 ) {
+			// False when the original is already gone from the media library.
 			$original = get_attached_file( $attachment_id );
-			if ( ! wp_delete_attachment( $attachment_id, true ) ) {
-				$this->log_undeleted( $competition, $original ? $original : sprintf( 'attachment %d', $attachment_id ) );
+			wp_delete_attachment( $attachment_id, true );
+
+			if ( $original && file_exists( $original ) ) {
+				$this->log_undeleted( $competition, $original );
 			}
 		}
 	}
@@ -538,7 +536,7 @@ class Entries {
 	 * Log an entry file or original that wouldn't delete, so an admin can remove it by hand.
 	 *
 	 * @param object $competition Competition record.
-	 * @param string $path        The file's path, or the original's attachment ID when it has no file.
+	 * @param string $path        The file's path.
 	 * @return void
 	 */
 	private function log_undeleted( object $competition, string $path ): void {

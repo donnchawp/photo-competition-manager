@@ -100,14 +100,8 @@ class Entries_Test extends WP_UnitTestCase {
 		$tmp_file          = wp_tempnam( 'photo.jpg' );
 		$this->tmp_files[] = $tmp_file;
 		file_put_contents( $tmp_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		$file = array(
-			'name'     => 'photo.jpg',
-			'tmp_name' => $tmp_file,
-			'error'    => UPLOAD_ERR_OK,
-			'size'     => filesize( $tmp_file ),
-		);
 
-		$this->assertWPError( $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $file ) );
+		$this->assertWPError( $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->upload_array( $tmp_file ) ) );
 
 		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/invalid-comp' );
 	}
@@ -462,6 +456,37 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->entries->get_member_entries( 999999, $member_id ) );
 	}
 
+	public function test_a_removal_whose_original_wont_delete_still_removes_the_entry(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$original       = $this->original_path( $entry_id );
+
+		add_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id );
+		remove_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+
+		$this->assertTrue( $result );
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		$this->assertFileExists( $original );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( $original, json_decode( $logs[0]->metadata, true )['path'] );
+
+		wp_delete_file( $original );
+	}
+
+	/**
+	 * Filter for wp_delete_file that refuses to delete originals.
+	 *
+	 * @param string $file Path about to be deleted.
+	 * @return string The path, or '' to skip the delete.
+	 */
+	public function keep_originals( string $file ): string {
+		return false !== strpos( basename( $file ), '-original' ) ? '' : $file;
+	}
+
 	/**
 	 * Filter for wp_delete_file that refuses to delete entry images, but not thumbnails.
 	 *
@@ -541,6 +566,16 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->tmp_files[] = $tmp_file;
 		imagejpeg( $image, $tmp_file, 90 );
 
+		return $this->upload_array( $tmp_file );
+	}
+
+	/**
+	 * A file in the shape of a $_FILES entry.
+	 *
+	 * @param string $tmp_file Path of the uploaded file.
+	 * @return array<string, mixed>
+	 */
+	private function upload_array( string $tmp_file ): array {
 		return array(
 			'name'     => 'photo.jpg',
 			'tmp_name' => $tmp_file,
