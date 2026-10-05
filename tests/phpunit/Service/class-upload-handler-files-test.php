@@ -154,6 +154,31 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 
 		$this->assertSame( $first_hash, $this->file_hash( $moved_first ), 'The move overwrote the image already in the category.' );
 		$this->assertSame( $second_hash, $this->file_hash( $moved_second ), "The moved entry doesn't point at its own image." );
+		$this->assertNotSame( $this->file_hash( $moved_first, true ), $this->file_hash( $moved_second, true ), 'The move overwrote the thumbnail already in the category.' );
+	}
+
+	public function test_a_failed_move_puts_the_image_back_under_its_own_name(): void {
+		$competition_id = $this->create_competition( 'rollback-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		// Take jane-doe-colour-1.jpg in mono, so the next move into mono is renamed.
+		$moved = $this->upload( $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$this->assertTrue( $this->handler->update_submission_category( $moved, $member_id, $competition_id, 'mono' ) );
+
+		$entry = $this->upload( $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		$hash  = $this->file_hash( $entry );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function update_category( int $id, string $category, string $filename ) {
+				return new \WP_Error( 'db_update_failed', 'Could not update image category.' );
+			}
+		};
+		$handler      = new Upload_Handler( $this->competitions_repo, $failing_repo, $this->members_repo, $this->processor );
+
+		$this->assertWPError( $handler->update_submission_category( $entry, $member_id, $competition_id, 'mono' ) );
+
+		$this->assertSame( 'colour', $this->images_repo->find( $entry )->category );
+		$this->assertSame( $hash, $this->file_hash( $entry ), "The image isn't back at the name its row has." );
 	}
 
 	/**
@@ -210,11 +235,11 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 	/**
 	 * Upload a solid-colour JPEG and return the new entry's ID.
 	 *
-	 * @param int   $competition_id Competition ID.
-	 * @param int   $member_id      Member ID.
-	 * @param string $category      Category slug.
-	 * @param int[] $rgb            Fill colour, so each upload is a different picture.
-	 * @param bool  $as_member      Upload as the member (open competitions only), or as an admin.
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param string $category       Category slug.
+	 * @param int[]  $rgb            Fill colour, so each upload is a different picture.
+	 * @param bool   $as_member      Upload as the member (open competitions only), or as an admin.
 	 * @return int Image ID.
 	 */
 	private function upload( int $competition_id, int $member_id, string $category, array $rgb, bool $as_member = true ): int {
@@ -227,7 +252,6 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 		$this->tmp_files[] = $tmp_name;
 		$this->tmp_files[] = $tmp_file;
 		imagejpeg( $image, $tmp_file, 90 );
-		imagedestroy( $image );
 
 		$file   = array(
 			'name'     => 'photo.jpg',
@@ -247,14 +271,16 @@ class Upload_Handler_Files_Test extends WP_UnitTestCase {
 	/**
 	 * Hash of the entry's competition image file, read through its stored row.
 	 *
-	 * @param int $image_id Image ID.
+	 * @param int  $image_id  Image ID.
+	 * @param bool $thumbnail Hash the entry's thumbnail instead.
 	 * @return string
 	 */
-	private function file_hash( int $image_id ): string {
+	private function file_hash( int $image_id, bool $thumbnail = false ): string {
 		$image       = $this->images_repo->find( $image_id );
 		$competition = $this->competitions_repo->find( (int) $image->competition_id );
 		$dir         = $this->processor->get_upload_directory( $competition->slug, $image->category );
-		$path        = trailingslashit( $dir['path'] ) . $image->filename;
+		$filename    = $thumbnail ? Image_Processor::get_thumbnail_filename( $image->filename ) : $image->filename;
+		$path        = trailingslashit( $dir['path'] ) . $filename;
 
 		$this->assertFileExists( $path );
 

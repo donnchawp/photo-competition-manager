@@ -396,12 +396,13 @@ class Upload_Handler {
 		$result = $this->images_repo->update_category( $submission_id, $new_category, $new_filename );
 
 		if ( is_wp_error( $result ) ) {
-			// Rollback: Move files back to original category.
+			// Rollback: Move files back to original category, under the name the row still has.
 			$this->image_processor->move_image_between_categories(
 				$competition->slug,
 				$new_category,
 				$old_category,
-				$new_filename
+				$new_filename,
+				$submission->filename
 			);
 			return $result;
 		}

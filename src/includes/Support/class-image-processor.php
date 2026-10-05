@@ -489,15 +489,16 @@ class Image_Processor {
 	 * Moves both the main image and thumbnail from one category folder to another,
 	 * renaming them if another entry's image already has the name there.
 	 *
-	 * @since 0.4.0 Returns the filename in the new folder.
+	 * @since 0.4.0 Returns the filename in the new folder, and takes the name to aim for there.
 	 *
 	 * @param string $competition_slug Competition slug.
 	 * @param string $old_category     Old category slug.
 	 * @param string $new_category     New category slug.
 	 * @param string $filename         Image filename.
+	 * @param string $dest_filename    Name to use in the new folder if it's free. Defaults to $filename.
 	 * @return string|WP_Error Filename in the new category folder, or WP_Error on failure.
 	 */
-	public function move_image_between_categories( string $competition_slug, string $old_category, string $new_category, string $filename ) {
+	public function move_image_between_categories( string $competition_slug, string $old_category, string $new_category, string $filename, string $dest_filename = '' ) {
 		// Get source directory.
 		$source_dir = $this->get_upload_directory( $competition_slug, $old_category );
 		if ( is_wp_error( $source_dir ) ) {
@@ -514,7 +515,7 @@ class Image_Processor {
 		$dest_path   = trailingslashit( $dest_dir['path'] );
 
 		// Move main image.
-		$dest_filename = wp_unique_filename( $dest_path, $filename );
+		$dest_filename = wp_unique_filename( $dest_path, '' !== $dest_filename ? $dest_filename : $filename );
 		$source_file   = $source_path . $filename;
 		$dest_file     = $dest_path . $dest_filename;
 

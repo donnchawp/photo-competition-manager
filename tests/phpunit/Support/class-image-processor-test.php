@@ -27,6 +27,15 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$this->processor = new Image_Processor();
 	}
 
+	/**
+	 * Delete the originals and thumbnails process() leaves under uploads, so the
+	 * next run gets the same filenames instead of suffixed ones.
+	 */
+	public function tearDown(): void {
+		$this->remove_added_uploads();
+		parent::tearDown();
+	}
+
 	public function test_generate_filename_formats_correctly(): void {
 		$result = $this->processor->generate_filename( 'john-doe', 'colour', 1 );
 
