@@ -302,6 +302,9 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		file_put_contents( $thumb_path, 'thumb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 
+		// A fixed modified time, so the URL's ?v= doesn't change the snapshot.
+		touch( $thumb_path, 1767225600 );
+
 		$this->written_files[] = $thumb_path;
 	}
 

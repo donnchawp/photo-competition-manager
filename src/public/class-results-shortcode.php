@@ -14,9 +14,9 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 
 /**
  * Render the public competition results shortcode output.
@@ -25,7 +25,6 @@ use PhotoCompetitionManager\Support\Image_Processor;
  */
 class Results_Shortcode {
 
-	use Image_Urls;
 	use Results_Competition;
 
 	/**
@@ -57,27 +56,34 @@ class Results_Shortcode {
 	private $workflow;
 
 	/**
+	 * Entries module.
+	 *
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Images_Repository|null       $images_repo       Images repository.
 	 * @param Votes_Repository|null        $votes_repo        Votes repository.
 	 * @param Members_Repository|null      $members_repo      Members repository.
+	 * @param Entries|null                 $entries           Entries module.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
 		?Images_Repository $images_repo = null,
 		?Votes_Repository $votes_repo = null,
-		?Members_Repository $members_repo = null
+		?Members_Repository $members_repo = null,
+		?Entries $entries = null
 	) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->images_repo       = $images_repo ?? new Images_Repository();
+		$members_repo            = $members_repo ?? new Members_Repository();
 		$this->workflow          = new Competition_Workflow( $this->competitions_repo, $this->images_repo );
-		$this->ranking           = new Results_Ranking(
-			$this->images_repo,
-			$votes_repo ?? new Votes_Repository(),
-			$members_repo ?? new Members_Repository()
-		);
+		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo );
+		$this->entries           = $entries ?? new Entries( $this->competitions_repo, $this->images_repo, $members_repo );
 	}
 
 	/**
@@ -205,7 +211,7 @@ class Results_Shortcode {
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
 													$position    = $result['position'];
-													$image_urls  = $this->get_image_urls( $competition, $image );
+													$image_urls  = $this->entries->urls( $competition, $image );
 													$thumb_url   = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 													/* translators: %d: Anonymised image identifier. */
 													$alt_text = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );

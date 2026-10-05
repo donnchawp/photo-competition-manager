@@ -11,8 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 
 /**
  * Shortcode renderer for competition slideshow presentation.
@@ -39,27 +39,27 @@ class Slideshow_Shortcode {
 	private $images_repo;
 
 	/**
-	 * Image processor.
+	 * Entries module.
 	 *
-	 * @var Image_Processor
+	 * @var Entries
 	 */
-	private $image_processor;
+	private $entries;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Images_Repository|null       $images_repo       Images repository.
-	 * @param Image_Processor|null         $image_processor   Image processor.
+	 * @param Entries|null                 $entries           Entries module.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
 		?Images_Repository $images_repo = null,
-		?Image_Processor $image_processor = null
+		?Entries $entries = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
-		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
+		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo );
 	}
 
 	/**
@@ -117,25 +117,13 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
-		if ( empty( $images ) ) {
+		$image_data = $this->slides( $competition, $images );
+		if ( empty( $image_data ) ) {
 			return '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Enqueue slideshow styles and scripts.
 		$this->enqueue_assets();
-
-		// Prepare image data for JavaScript.
-		$image_data = array();
-		foreach ( $images as $image ) {
-			$image_url = $this->image_processor->get_image_url( $competition->slug, $image->category, $image->filename );
-			if ( ! is_wp_error( $image_url ) ) {
-				$image_data[] = array(
-					'id'            => $image->id,
-					'url'           => $image_url,
-					'random_number' => $image->random_number,
-				);
-			}
-		}
 
 		// Output slideshow interface.
 		ob_start();
@@ -234,9 +222,8 @@ class Slideshow_Shortcode {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
 		}
 
-		$competition_id   = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		$competition_slug = isset( $_POST['competition_slug'] ) ? sanitize_text_field( wp_unslash( $_POST['competition_slug'] ) ) : '';
-		$category         = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$category       = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 
 		if ( ! $competition_id || ! $category ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'photo-competition-manager' ) ) );
@@ -251,24 +238,35 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( $competition_id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
-		if ( empty( $images ) ) {
+		$image_data = $this->slides( $competition, $images );
+		if ( empty( $image_data ) ) {
 			wp_send_json_error( array( 'message' => __( 'No images found for this category.', 'photo-competition-manager' ) ) );
 		}
 
-		// Prepare image data.
-		$image_data = array();
+		wp_send_json_success( array( 'images' => $image_data ) );
+	}
+
+	/**
+	 * The slides for a category's entries, leaving out any whose image is missing.
+	 *
+	 * @param object        $competition Competition record.
+	 * @param array<object> $images      Entry records, in slideshow order.
+	 * @return array<int, array{id: int, url: string, random_number: int}>
+	 */
+	private function slides( object $competition, array $images ): array {
+		$slides = array();
 		foreach ( $images as $image ) {
-			$image_url = $this->image_processor->get_image_url( $competition_slug, $image->category, $image->filename );
-			if ( ! is_wp_error( $image_url ) ) {
-				$image_data[] = array(
+			$url = $this->entries->urls( $competition, $image )['full'];
+			if ( '' !== $url ) {
+				$slides[] = array(
 					'id'            => $image->id,
-					'url'           => $image_url,
+					'url'           => $url,
 					'random_number' => $image->random_number,
 				);
 			}
 		}
 
-		wp_send_json_success( array( 'images' => $image_data ) );
+		return $slides;
 	}
 
 	/**

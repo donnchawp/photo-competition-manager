@@ -108,6 +108,24 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertTrue( wp_script_is( 'photo-comp-delete-confirm', 'enqueued' ) );
 	}
 
+	public function test_an_entry_whose_image_is_missing_shows_no_broken_image(): void {
+		$_GET['token'] = $this->issue_token( true );
+		$member        = $this->members->find_by_email( 'uploader@example.com' );
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $member->id,
+				'category'       => 'colour',
+				'filename'       => 'entry.jpg',
+			)
+		);
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringNotContainsString( 'src=""', $output );
+		$this->assertStringContainsString( 'Image unavailable', $output );
+	}
+
 	public function test_delete_script_not_loaded_without_submissions(): void {
 		$_GET['token'] = $this->issue_token( true );
 

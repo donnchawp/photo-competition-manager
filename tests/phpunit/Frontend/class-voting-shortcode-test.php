@@ -271,6 +271,16 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'token-request-section', $output );
 	}
 
+	public function test_an_entry_whose_image_is_missing_shows_as_unavailable_on_the_ballot(): void {
+		$this->make_image();
+		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+
+		$output = $this->shortcode->render();
+
+		$this->assertStringContainsString( 'Image unavailable', $output );
+		$this->assertStringNotContainsString( '<img', $output );
+	}
+
 	public function test_inactive_member_token_falls_back_to_request_form(): void {
 		$_GET['token'] = $this->issue_token( $this->make_member( 'inactive@example.com', false ) );
 

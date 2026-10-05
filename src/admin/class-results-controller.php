@@ -17,11 +17,11 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
@@ -92,6 +92,13 @@ class Results_Controller {
 	private $email_job_manager;
 
 	/**
+	 * Entries module.
+	 *
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions      Competitions repository.
@@ -102,6 +109,7 @@ class Results_Controller {
 	 * @param Score_Calculator        $calculator        Score calculator service.
 	 * @param Results_Ranking         $ranking           Results ranking service.
 	 * @param Email_Job_Manager       $email_job_manager Email job manager.
+	 * @param Entries|null            $entries           Entries module.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
@@ -111,7 +119,8 @@ class Results_Controller {
 		Results_Analytics $analytics,
 		Score_Calculator $calculator,
 		Results_Ranking $ranking,
-		Email_Job_Manager $email_job_manager
+		Email_Job_Manager $email_job_manager,
+		?Entries $entries = null
 	) {
 		$this->competitions      = $competitions;
 		$this->images            = $images;
@@ -121,6 +130,7 @@ class Results_Controller {
 		$this->calculator        = $calculator;
 		$this->ranking           = $ranking;
 		$this->email_job_manager = $email_job_manager;
+		$this->entries           = $entries ?? new Entries( $competitions, $images, $members );
 	}
 
 	/**
@@ -489,7 +499,7 @@ class Results_Controller {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
 			$groups             = $rankings[ $selected_category ] ?? $this->ranking->rank_category( (int) $competition->id, $selected_category );
-			$results_table_html = $this->render_results_table( (int) $competition->id, $selected_category, $groups );
+			$results_table_html = $this->render_results_table( $competition, $selected_category, $groups );
 		}
 
 		// Action buttons.
@@ -655,12 +665,12 @@ class Results_Controller {
 	/**
 	 * Render results table grouped by grade.
 	 *
-	 * @param int               $competition_id Competition ID.
-	 * @param string            $category       Category slug.
-	 * @param array<int, array> $groups         The category's Results_Ranking::rank_category() groups.
+	 * @param object            $competition Competition record.
+	 * @param string            $category    Category slug.
+	 * @param array<int, array> $groups      The category's Results_Ranking::rank_category() groups.
 	 * @return string
 	 */
-	private function render_results_table( int $competition_id, string $category, array $groups ): string {
+	private function render_results_table( object $competition, string $category, array $groups ): string {
 		$grade_tables = array();
 
 		foreach ( $groups as $group ) {
@@ -673,7 +683,7 @@ class Results_Controller {
 				$detail_url = add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
-						'competition' => $competition_id,
+						'competition' => (int) $competition->id,
 						'category'    => rawurlencode( $category ),
 						'image'       => (int) $image->id,
 					),
@@ -682,7 +692,7 @@ class Results_Controller {
 
 				$rows[] = array(
 					'rank'        => $entry['position'],
-					'image_url'   => $this->get_image_url( $competition_id, $category, $image->filename ),
+					'image_url'   => $this->entries->urls( $competition, $image )['thumb'],
 					'member_name' => $member ? $member->name : null,
 					'total_score' => $entry['total_score'],
 					'vote_count'  => $entry['vote_count'],
@@ -730,7 +740,7 @@ class Results_Controller {
 			admin_url( 'admin.php' )
 		);
 
-		$image_url = $this->get_image_url( (int) $competition->id, $category, $image->filename );
+		$image_url = $this->entries->urls( $competition, $image )['thumb'];
 
 		$vote_rows = array();
 		foreach ( $votes as $vote ) {
@@ -852,31 +862,5 @@ class Results_Controller {
 		}
 
 		return $rows;
-	}
-
-	/**
-	 * Get image URL for display.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param string $category       Category slug.
-	 * @param string $filename       Image filename.
-	 * @return string|null
-	 */
-	private function get_image_url( int $competition_id, string $category, string $filename ): ?string {
-		$competition = $this->competitions->find( $competition_id );
-		if ( ! $competition ) {
-			return null;
-		}
-
-		$upload_dir  = wp_upload_dir();
-		$folder_url  = trailingslashit( $upload_dir['baseurl'] ) . 'competitions/' . $competition->slug . '/' . $category . '/';
-		$folder_path = trailingslashit( $upload_dir['basedir'] ) . 'competitions/' . $competition->slug . '/' . $category . '/';
-
-		// Get thumbnail filename.
-		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
-		$thumb_path = $folder_path . $thumb_name;
-
-		// Return thumbnail URL if it exists, otherwise null.
-		return file_exists( $thumb_path ) ? $folder_url . rawurlencode( $thumb_name ) : null;
 	}
 }

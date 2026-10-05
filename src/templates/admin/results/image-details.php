@@ -5,7 +5,7 @@
  * @package PhotoCompetitionManager
  *
  * $data['back_url']       string "Back to Results" URL.
- * $data['image_url']      string|null Thumbnail URL, null when unavailable.
+ * $data['image_url']      string Thumbnail URL, '' when unavailable.
  * $data['member_name']    string Member name, or the "Unknown" fallback when no member was found.
  * $data['member_email']   string Member email; empty when absent, in which case the Email row is skipped.
  * $data['member_grade']   string Member grade; only rendered when $data['has_member'] is true.

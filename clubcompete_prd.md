@@ -92,6 +92,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - Thumbnails generated automatically via WordPress media functions.
 - Each image assigned a random number (1–N) within its category for anonymized presentation.
 - Deleting a competition or a member removes their entries first: each entry's row and votes, then its image, thumbnail and original. A deleted competition's folder goes too. A file that won't delete is logged and doesn't stop the removal, but a row that won't delete stops it, and the competition or member is kept.
+- An entry's image and thumbnail URLs carry the file's modified time (`?v=`), so an entry replaced by one with the same filename shows the new image straight away. Screens show "Image unavailable" in place of an image whose file is missing, and the slideshow leaves it out.
 - Originals can be exported as a ZIP at the size they were uploaded, then discarded to save space. Discarding is refused while any of the competition's categories is accepting votes. An original WordPress won't delete is logged and keeps its place on the entry, so discarding again retries it.
 
 ### 4.4 Voting System

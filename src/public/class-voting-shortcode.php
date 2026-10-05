@@ -16,8 +16,8 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
@@ -72,11 +72,11 @@ class Voting_Shortcode {
 	private $email_service;
 
 	/**
-	 * Image processor.
+	 * Entries module.
 	 *
-	 * @var Image_Processor
+	 * @var Entries
 	 */
-	private $image_processor;
+	private $entries;
 
 	/**
 	 * Competition workflow.
@@ -94,7 +94,7 @@ class Voting_Shortcode {
 	 * @param Members_Repository|null      $members_repo      Members repository.
 	 * @param Voting_Token_Repository|null $token_repo        Token repository.
 	 * @param Email_Service|null           $email_service     Email service.
-	 * @param Image_Processor|null         $image_processor   Image processor.
+	 * @param Entries|null                 $entries           Entries module.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
@@ -103,7 +103,7 @@ class Voting_Shortcode {
 		?Members_Repository $members_repo = null,
 		?Voting_Token_Repository $token_repo = null,
 		?Email_Service $email_service = null,
-		?Image_Processor $image_processor = null
+		?Entries $entries = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
 		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
@@ -112,7 +112,7 @@ class Voting_Shortcode {
 		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
 		$this->token_repo        = $token_repo ? $token_repo : new Voting_Token_Repository();
 		$this->email_service     = $email_service ? $email_service : new Email_Service();
-		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
+		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo, $this->members_repo );
 	}
 
 	/**
@@ -782,12 +782,13 @@ class Voting_Shortcode {
 					<div class="images-grid">
 						<?php foreach ( $images as $image ) : ?>
 							<?php
-							$image_url = $this->image_processor->get_image_url( $competition->slug, $image->category, $image->filename );
-							$thumb_url = $this->image_processor->get_thumbnail_url( $competition->slug, $image->category, $image->filename );
+							$urls      = $this->entries->urls( $competition, $image );
+							$image_url = $urls['full'];
+							$thumb_url = $urls['thumb'] ? $urls['thumb'] : $urls['full'];
 							?>
 							<div class="voting-image-item" data-image-id="<?php echo esc_attr( $image->id ); ?>">
 								<div class="image-wrapper">
-									<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
+									<?php if ( '' !== $image_url ) : ?>
 										<?php
 										// translators: %d: image random number.
 										$alt = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
@@ -1074,12 +1075,13 @@ class Voting_Shortcode {
 							<div class="images-grid">
 								<?php foreach ( $images as $image ) : ?>
 									<?php
-									$image_url = $this->image_processor->get_image_url( $competition->slug, $image->category, $image->filename );
-									$thumb_url = $this->image_processor->get_thumbnail_url( $competition->slug, $image->category, $image->filename );
+									$urls      = $this->entries->urls( $competition, $image );
+									$image_url = $urls['full'];
+									$thumb_url = $urls['thumb'] ? $urls['thumb'] : $urls['full'];
 									?>
 									<div class="voting-image-item" data-image-id="<?php echo esc_attr( $image->id ); ?>">
 										<div class="image-wrapper">
-											<?php if ( ! is_wp_error( $image_url ) && ! is_wp_error( $thumb_url ) ) : ?>
+											<?php if ( '' !== $image_url ) : ?>
 												<?php
 												// translators: %d: image random number.
 												$alt = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
