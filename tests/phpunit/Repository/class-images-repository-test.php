@@ -520,16 +520,17 @@ class Images_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->images_repo->update_category( $image_id, 'black-white' );
+		$result = $this->images_repo->update_category( $image_id, 'black-white', 'testuser-colour-1-1.jpg' );
 
 		$this->assertTrue( $result );
 
 		$image = $this->images_repo->find( $image_id );
 		$this->assertSame( 'black-white', $image->category );
+		$this->assertSame( 'testuser-colour-1-1.jpg', $image->filename );
 	}
 
 	public function test_update_category_rejects_invalid_id(): void {
-		$result = $this->images_repo->update_category( 9999, 'colour' );
+		$result = $this->images_repo->update_category( 9999, 'colour', 'test.jpg' );
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'invalid_image', $result->get_error_code() );

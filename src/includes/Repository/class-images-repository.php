@@ -384,13 +384,16 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Update image category.
+	 * Update image category, and its filename in the new category's folder.
+	 *
+	 * @since 0.4.0 Takes the filename.
 	 *
 	 * @param int    $id       Image ID.
 	 * @param string $category Category slug.
+	 * @param string $filename Filename in the category's folder.
 	 * @return bool|WP_Error
 	 */
-	public function update_category( int $id, string $category ) {
+	public function update_category( int $id, string $category, string $filename ) {
 		global $wpdb;
 
 		if ( $id <= 0 ) {
@@ -408,10 +411,11 @@ class Images_Repository extends Abstract_Repository {
 			$this->table(),
 			array(
 				'category'   => $category,
+				'filename'   => sanitize_file_name( $filename ),
 				'updated_at' => utc_time(),
 			),
 			array( 'id' => $id ),
-			array( '%s', '%s' ),
+			array( '%s', '%s', '%s' ),
 			array( '%d' )
 		);
 
