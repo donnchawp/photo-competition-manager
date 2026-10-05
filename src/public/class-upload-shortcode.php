@@ -42,7 +42,7 @@ class Upload_Shortcode {
 	);
 
 	/**
-	 * Upload handler.
+	 * Entries module.
 	 *
 	 * @var Entries
 	 */
@@ -92,6 +92,8 @@ class Upload_Shortcode {
 
 	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
 	 *
 	 * @param Entries|null                 $entries             Entries module.
 	 * @param Competitions_Repository|null $competitions_repo   Competitions repository.

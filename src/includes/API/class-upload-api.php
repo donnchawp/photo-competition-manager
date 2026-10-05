@@ -43,7 +43,7 @@ class Upload_API extends WP_REST_Controller {
 	protected $rest_base = 'upload';
 
 	/**
-	 * Upload handler.
+	 * Entries module.
 	 *
 	 * @var Entries
 	 */
@@ -72,6 +72,8 @@ class Upload_API extends WP_REST_Controller {
 
 	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
 	 *
 	 * @param Entries|null                 $entries           Entries module.
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.

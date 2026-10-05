@@ -137,8 +137,9 @@ class Image_Processor {
 	 * Process and store uploaded image.
 	 *
 	 * Saves the original to the media library, then a resized copy and its thumbnail in the directory given.
+	 * The caller validates the file first, before it creates the directory.
 	 *
-	 * @since 0.4.0 Takes the directory, filename and original's title instead of working them out.
+	 * @since 0.4.0 Takes the directory, filename and original's title instead of working them out, and no longer validates.
 	 *
 	 * @param array<string, mixed> $file        Uploaded file array from $_FILES.
 	 * @param string               $directory   Existing directory to save the resized image and thumbnail in.
@@ -148,11 +149,6 @@ class Image_Processor {
 	 * @return array<string, mixed>|WP_Error Array with 'filename' and 'attachment_id' on success, WP_Error on failure.
 	 */
 	public function process( array $file, string $directory, string $filename, string $title, array $constraints ) {
-		$validation = $this->validate( $file, $constraints );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
-
 		// Save original to media library first.
 		$attachment_id = $this->save_original_to_media_library( $file, $filename, $title, $constraints );
 		if ( is_wp_error( $attachment_id ) ) {

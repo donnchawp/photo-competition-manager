@@ -88,6 +88,66 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertFileExists( $this->entry_path( $entry_id ) );
 		$this->assertFileExists( $this->entry_path( $entry_id, true ) );
 		$this->assertFileExists( $this->original_path( $entry_id ) );
+
+		// Uninstall finds the plugin's originals by this meta.
+		$this->assertSame( 'add-comp', get_post_meta( (int) $entry->original_attachment_id, '_photo_comp_slug', true ) );
+	}
+
+	public function test_an_upload_that_isnt_an_image_writes_nothing(): void {
+		$competition_id = $this->create_competition( 'invalid-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$tmp_file          = wp_tempnam( 'photo.jpg' );
+		$this->tmp_files[] = $tmp_file;
+		file_put_contents( $tmp_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$file = array(
+			'name'     => 'photo.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp_file ),
+		);
+
+		$this->assertWPError( $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $file ) );
+
+		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/invalid-comp' );
+	}
+
+	public function test_an_entry_whose_row_wont_save_leaves_no_files(): void {
+		$competition_id = $this->create_competition( 'unsaved-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function create( array $data ) {
+				return new \WP_Error( 'db_insert_failed', 'Could not create image record.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertWPError( $entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) ) );
+
+		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/unsaved-comp/colour/*.jpg' ) );
+		$this->assertSame(
+			array(),
+			get_posts(
+				array(
+					'post_type'   => 'attachment',
+					'post_status' => 'any',
+					'meta_key'    => '_photo_comp_slug', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+					'meta_value'  => 'unsaved-comp', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				)
+			)
+		);
+	}
+
+	public function test_a_removal_doesnt_log_an_original_thats_already_gone(): void {
+		$competition_id = $this->create_competition( 'gone-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		wp_delete_attachment( (int) $this->images_repo->find( $entry_id )->original_attachment_id, true );
+
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+
+		$this->assertSame( array(), ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) ) );
 	}
 
 	public function test_a_member_cant_add_an_entry_once_uploads_close(): void {

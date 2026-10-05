@@ -68,6 +68,8 @@ class Submissions_Controller {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
+	 *
 	 * @param Competitions_Repository $competitions   Competitions repository.
 	 * @param Members_Repository      $members        Members repository.
 	 * @param Images_Repository       $images         Images repository.

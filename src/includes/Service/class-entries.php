@@ -144,6 +144,13 @@ class Entries {
 			);
 		}
 
+		// Nothing is written until the file passes.
+		$constraints = Competition_Settings::get_upload_constraints( $settings );
+		$validation  = $this->image_processor->validate( $file, $constraints );
+		if ( is_wp_error( $validation ) ) {
+			return $validation;
+		}
+
 		$directory = $this->make_category_directory( $competition->slug, $category );
 		if ( is_wp_error( $directory ) ) {
 			return $directory;
@@ -164,7 +171,7 @@ class Entries {
 			$directory,
 			$filename,
 			$title,
-			Competition_Settings::get_upload_constraints( $settings )
+			$constraints
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -213,8 +220,8 @@ class Entries {
 	 * Remove an entry: its row and votes first, then its image, thumbnail and original.
 	 *
 	 * A member may remove only their own entries, and only while the competition accepts uploads.
-	 * An admin may remove any entry at any time. If the row won't delete, nothing else is touched.
-	 * A file that won't delete is logged and doesn't fail the removal.
+	 * An admin may remove any entry at any time. If the row won't delete, the files and original
+	 * are left alone. A file that won't delete is logged and doesn't fail the removal.
 	 *
 	 * @param Actor $actor          Who is removing the entry.
 	 * @param int   $competition_id Competition the entry must belong to.
@@ -518,7 +525,8 @@ class Entries {
 			}
 		}
 
-		if ( $attachment_id > 0 ) {
+		// An original that's already gone from the media library has nothing left to delete.
+		if ( $attachment_id > 0 && get_post( $attachment_id ) ) {
 			$original = get_attached_file( $attachment_id );
 			if ( ! wp_delete_attachment( $attachment_id, true ) ) {
 				$this->log_undeleted( $competition, $original ? $original : sprintf( 'attachment %d', $attachment_id ) );
