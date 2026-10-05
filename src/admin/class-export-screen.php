@@ -485,13 +485,13 @@ class Export_Screen {
 
 		// Streamed, since a ZIP of full-size originals can be bigger than PHP's memory limit.
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
-		readfile( $zip_path );
+		$sent = readfile( $zip_path );
 
 		// Clean up temporary ZIP file.
 		wp_delete_file( $zip_path );
 
 		// Originals WordPress won't delete keep their IDs and are logged, so a retry picks them up.
-		if ( $delete_after_export ) {
+		if ( $delete_after_export && false !== $sent ) {
 			// Only the ones in the ZIP: an entry may have been added since.
 			$this->entries->discard_originals( Actor::admin(), $competition_id, array_keys( $originals ) );
 		}
@@ -529,12 +529,29 @@ class Export_Screen {
 			return new WP_Error( 'zip_failed', __( 'Could not create ZIP file.', 'photo-competition-manager' ) );
 		}
 
-		// Add each original to the ZIP.
-		foreach ( $originals as $file_path ) {
-			$zip->addFile( $file_path, basename( $file_path ) );
+		// Add each original to the ZIP. Originals live in month folders, so two can share a name.
+		$names = array();
+		foreach ( $originals as $attachment_id => $file_path ) {
+			$name = basename( $file_path );
+			if ( isset( $names[ $name ] ) ) {
+				$name = $attachment_id . '-' . $name;
+			}
+			$names[ $name ] = true;
+
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- false is handled below.
+			if ( ! @$zip->addFile( $file_path, $name ) ) {
+				$zip->close();
+				wp_delete_file( $zip_path );
+				return new WP_Error( 'zip_failed', __( 'Could not create ZIP file.', 'photo-competition-manager' ) );
+			}
 		}
 
-		$zip->close();
+		// The files are only read here, so this is where a vanished or unreadable original shows up.
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- false is handled below.
+		if ( ! @$zip->close() ) {
+			wp_delete_file( $zip_path );
+			return new WP_Error( 'zip_failed', __( 'Could not create ZIP file.', 'photo-competition-manager' ) );
+		}
 
 		return $zip_path;
 	}

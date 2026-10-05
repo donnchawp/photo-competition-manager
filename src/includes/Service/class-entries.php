@@ -892,7 +892,10 @@ class Entries {
 				'original_not_deleted',
 				'upload',
 				__( 'WordPress would not delete an original from the media library.', 'photo-competition-manager' ),
-				array( 'attachment_id' => $attachment_id )
+				array(
+					'attachment_id' => $attachment_id,
+					'paths'         => array_values( $originals ),
+				)
 			);
 			return false;
 		}

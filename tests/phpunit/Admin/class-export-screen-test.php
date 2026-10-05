@@ -65,6 +65,55 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		$zip->close();
 	}
 
+	public function test_originals_with_the_same_name_in_different_months_both_go_in_the_zip(): void {
+		$this->competition_id = $this->create_competition();
+		$september            = $this->original_in( '2026/09', 'jane-doe-colour-original.jpg' );
+		$october              = $this->original_in( '2026/10', 'jane-doe-colour-original.jpg' );
+
+		$zip_path          = ( new Export_Screen() )->build_originals_zip(
+			$this->competition_id,
+			array(
+				11 => $september,
+				12 => $october,
+			)
+		);
+		$this->tmp_files[] = $zip_path;
+
+		$zip = new ZipArchive();
+		$this->assertTrue( $zip->open( $zip_path ) );
+		$this->assertSame( 2, $zip->numFiles );
+		$zip->close();
+	}
+
+	public function test_an_original_that_cant_be_added_fails_the_zip(): void {
+		$this->competition_id = $this->create_competition();
+		$missing              = wp_upload_dir()['basedir'] . '/2026/09/gone-original.jpg';
+
+		$result = ( new Export_Screen() )->build_originals_zip( $this->competition_id, array( 11 => $missing ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'zip_failed', $result->get_error_code() );
+	}
+
+	public function test_an_original_that_cant_be_read_fails_the_zip(): void {
+		if ( function_exists( 'posix_geteuid' ) && 0 === posix_geteuid() ) {
+			$this->markTestSkipped( 'Root can read a file with no permissions.' );
+		}
+
+		$this->competition_id = $this->create_competition();
+		$locked               = $this->original_in( '2026/09', 'locked-original.jpg' );
+		chmod( $locked, 0 );
+
+		try {
+			$result = ( new Export_Screen() )->build_originals_zip( $this->competition_id, array( 11 => $locked ) );
+		} finally {
+			chmod( $locked, 0644 );
+		}
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'zip_failed', $result->get_error_code() );
+	}
+
 	public function test_a_competition_without_originals_has_nothing_to_export(): void {
 		$this->competition_id = $this->create_competition();
 		$this->set_request(
@@ -112,6 +161,24 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		}
 
 		$this->assertFileExists( $original );
+	}
+
+	/**
+	 * A JPEG at the given place under uploads, removed in tear_down.
+	 *
+	 * @param string $folder   Month folder under uploads, such as 2026/09.
+	 * @param string $filename File name.
+	 * @return string Path.
+	 */
+	private function original_in( string $folder, string $filename ): string {
+		$directory = wp_upload_dir()['basedir'] . '/' . $folder;
+		wp_mkdir_p( $directory );
+
+		$path              = $directory . '/' . $filename;
+		$this->tmp_files[] = $path;
+		copy( $this->photo( array( 200, 0, 0 ) )['tmp_name'], $path );
+
+		return $path;
 	}
 
 	/**

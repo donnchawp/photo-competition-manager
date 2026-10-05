@@ -900,6 +900,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $logs );
 		$this->assertSame( 'original_not_deleted', $logs[0]->event_type );
 		$this->assertSame( $kept, json_decode( $logs[0]->metadata, true )['attachment_id'] );
+		$this->assertSame( array( $this->original_path( $kept_id ) ), json_decode( $logs[0]->metadata, true )['paths'] );
 	}
 
 	public function test_discarding_the_originals_just_exported_keeps_one_uploaded_since(): void {
