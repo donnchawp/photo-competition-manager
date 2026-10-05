@@ -350,18 +350,17 @@ class Entries {
 	}
 
 	/**
-	 * Discard a competition's originals, leaving its entries in place.
+	 * Whether the actor may discard a competition's originals now.
 	 *
-	 * Only an admin may do this, and not while any of the competition's categories is accepting
-	 * votes. An original that WordPress won't delete keeps its ID on the entry, so a retry picks it up.
+	 * Only an admin may, and not while any of the competition's categories is accepting votes.
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param Actor $actor          Who is discarding the originals.
+	 * @param Actor $actor          Who would discard the originals.
 	 * @param int   $competition_id Competition ID.
-	 * @return array{discarded: int, failed: int}|WP_Error
+	 * @return true|WP_Error
 	 */
-	public function discard_originals( Actor $actor, int $competition_id ) {
+	public function can_discard_originals( Actor $actor, int $competition_id ) {
 		if ( ! $actor->is_admin() ) {
 			return new WP_Error( 'not_authorized', __( 'Only an admin can discard originals.', 'photo-competition-manager' ) );
 		}
@@ -372,7 +371,29 @@ class Entries {
 		}
 
 		if ( $this->workflow->categories_accepting_votes( $competition ) ) {
-			return new WP_Error( 'voting_open', __( 'Originals can\'t be discarded while a category is accepting votes.', 'photo-competition-manager' ) );
+			return new WP_Error( 'voting_open', __( 'Original images can\'t be deleted while a category is accepting votes.', 'photo-competition-manager' ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Discard a competition's originals, leaving its entries in place.
+	 *
+	 * The rules are can_discard_originals()'s. An original that WordPress won't delete keeps its
+	 * ID on the entry, so a retry picks it up.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor      $actor          Who is discarding the originals.
+	 * @param int        $competition_id Competition ID.
+	 * @param int[]|null $attachment_ids Only these originals, such as the ones just exported, or null for all.
+	 * @return array{discarded: int, failed: int}|WP_Error
+	 */
+	public function discard_originals( Actor $actor, int $competition_id, ?array $attachment_ids = null ) {
+		$allowed = $this->can_discard_originals( $actor, $competition_id );
+		if ( is_wp_error( $allowed ) ) {
+			return $allowed;
 		}
 
 		$counts = array(
@@ -385,12 +406,25 @@ class Entries {
 				continue;
 			}
 
-			if ( $this->delete_original( $competition_id, (int) $entry->original_attachment_id ) ) {
-				$this->images_repo->clear_original_attachment_id( (int) $entry->id );
-				++$counts['discarded'];
-			} else {
-				++$counts['failed'];
+			$attachment_id = (int) $entry->original_attachment_id;
+			if ( null !== $attachment_ids && ! in_array( $attachment_id, $attachment_ids, true ) ) {
+				continue;
 			}
+
+			// An ID that won't clear is retried too: the original is gone by then, which counts as deleted.
+			if ( $this->delete_original( $competition_id, $attachment_id ) && ! is_wp_error( $this->images_repo->clear_original_attachment_id( (int) $entry->id ) ) ) {
+				++$counts['discarded'];
+				continue;
+			}
+
+			( new Event_Logger() )->log(
+				$competition_id,
+				'original_not_discarded',
+				'upload',
+				__( 'An original could not be discarded. Discarding originals again retries it.', 'photo-competition-manager' ),
+				array( 'attachment_id' => $attachment_id )
+			);
+			++$counts['failed'];
 		}
 
 		return $counts;

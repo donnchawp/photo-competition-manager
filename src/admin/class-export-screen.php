@@ -458,7 +458,20 @@ class Export_Screen {
 			return;
 		}
 
-		$zip_path = $this->build_originals_zip( $competition_id );
+		// Once the download starts, a refusal can't be shown.
+		if ( $delete_after_export ) {
+			$allowed = $this->entries->can_discard_originals( Actor::admin(), $competition_id );
+			if ( is_wp_error( $allowed ) ) {
+				wp_die( esc_html( $allowed->get_error_message() ) );
+			}
+		}
+
+		$attachment_ids = $this->images_repository->get_original_attachment_ids( $competition_id );
+		if ( empty( $attachment_ids ) ) {
+			wp_die( esc_html__( 'No original images found for this competition.', 'photo-competition-manager' ) );
+		}
+
+		$zip_path = $this->build_originals_zip( $competition_id, $attachment_ids );
 		if ( is_wp_error( $zip_path ) ) {
 			wp_die( esc_html( $zip_path->get_error_message() ) );
 		}
@@ -487,7 +500,8 @@ class Export_Screen {
 
 		// Originals WordPress won't delete keep their IDs and are logged, so a retry picks them up.
 		if ( $delete_after_export ) {
-			$this->entries->discard_originals( Actor::admin(), $competition_id );
+			// Only the ones in the ZIP: an entry may have been added since.
+			$this->entries->discard_originals( Actor::admin(), $competition_id, $attachment_ids );
 		}
 
 		exit;
@@ -498,16 +512,11 @@ class Export_Screen {
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int   $competition_id Competition ID, for the ZIP's name.
+	 * @param int[] $attachment_ids The originals' attachment IDs.
 	 * @return string|WP_Error Path of the ZIP file, which the caller deletes.
 	 */
-	public function build_originals_zip( int $competition_id ) {
-		$attachment_ids = $this->images_repository->get_original_attachment_ids( $competition_id );
-
-		if ( empty( $attachment_ids ) ) {
-			return new WP_Error( 'no_originals', __( 'No original images found for this competition.', 'photo-competition-manager' ) );
-		}
-
+	public function build_originals_zip( int $competition_id, array $attachment_ids ) {
 		$competition  = $this->competitions_repository->find( $competition_id );
 		$zip_filename = 'originals-' . ( $competition ? $competition->slug : $competition_id ) . '.zip';
 

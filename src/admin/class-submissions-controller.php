@@ -276,7 +276,7 @@ class Submissions_Controller {
 						'originals_not_deleted',
 						sprintf(
 						/* translators: %d: number of original images that could not be deleted */
-							__( '%d original images could not be deleted. Their files are listed in the log, and deleting originals again retries them.', 'photo-competition-manager' ),
+							__( '%d original images could not be deleted. They are listed in the log, and deleting originals again retries them.', 'photo-competition-manager' ),
 							$result['failed']
 						),
 						'error'

@@ -901,9 +901,45 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertFileExists( $this->original_path( $kept_id ) );
 		$this->assertNull( $this->images_repo->find( $discarded_id )->original_attachment_id );
 
-		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'original_not_discarded' ) );
 		$this->assertCount( 1, $logs );
-		$this->assertSame( $this->original_path( $kept_id ), json_decode( $logs[0]->metadata, true )['path'] );
+		$this->assertSame( $kept, json_decode( $logs[0]->metadata, true )['attachment_id'] );
+	}
+
+	public function test_discarding_the_originals_just_exported_keeps_one_uploaded_since(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$exported_id    = $this->add( Actor::admin(), $competition_id, $jane_id, 'colour', array( 200, 0, 0 ) );
+		$exported       = $this->images_repo->get_original_attachment_ids( $competition_id );
+		$uploaded_id    = $this->add( Actor::admin(), $competition_id, $john_id, 'colour', array( 0, 200, 0 ) );
+
+		$result = $this->entries->discard_originals( Actor::admin(), $competition_id, $exported );
+
+		$this->assertSame( 1, $result['discarded'] );
+		$this->assertNull( $this->images_repo->find( $exported_id )->original_attachment_id );
+		$this->assertFileExists( $this->original_path( $uploaded_id ) );
+	}
+
+	public function test_an_original_whose_id_wont_clear_is_counted_as_failed(): void {
+		$competition_id = $this->create_competition( 'discard-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function clear_original_attachment_id( int $id ) {
+				return new \WP_Error( 'db_update_failed', 'Could not clear the original attachment ID.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertSame(
+			array(
+				'discarded' => 0,
+				'failed'    => 1,
+			),
+			$entries->discard_originals( Actor::admin(), $competition_id )
+		);
 	}
 
 	public function test_an_original_already_gone_from_the_media_library_counts_as_discarded(): void {
