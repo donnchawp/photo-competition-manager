@@ -654,8 +654,10 @@ class Entries {
 			return $urls;
 		}
 
-		$folder_url = trailingslashit( wp_upload_dir()['baseurl'] ) . 'competitions/'
-			. rawurlencode( sanitize_file_name( $competition->slug ) ) . '/' . rawurlencode( sanitize_file_name( $entry->category ) );
+		// The URL follows the same path the file is checked at, so the two can't disagree.
+		$uploads    = wp_upload_dir();
+		$relative   = substr( $directory, strlen( trailingslashit( $uploads['basedir'] ) ) );
+		$folder_url = trailingslashit( $uploads['baseurl'] ) . implode( '/', array_map( 'rawurlencode', explode( '/', $relative ) ) );
 		$files      = array(
 			'full'  => $entry->filename,
 			'thumb' => Image_Processor::get_thumbnail_filename( $entry->filename ),
