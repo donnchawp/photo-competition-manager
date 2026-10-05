@@ -505,10 +505,10 @@ class Entries_Test extends WP_UnitTestCase {
 		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
 		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 0, 200 ) );
-		Workflow_Fixtures::close_uploads( $competition_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'mono', Competition_Workflow::STAGE_VOTING );
 		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
-
 		$this->assertTrue( ( new Competition_Workflow( $this->competitions_repo ) )->reset_category( $competition_id, 'mono', true ) );
+
 		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
 
 		$this->assertTrue( $result );

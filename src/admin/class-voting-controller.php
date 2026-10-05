@@ -872,7 +872,7 @@ class Voting_Controller {
 				'close_voting_url' => $close_voting_url,
 				'reset_url'        => $reset_url,
 				// A reset that kept its votes leaves the category at step 1 with votes, and
-				// its entries can't move until they're cleared, so Reset stays on offer.
+				// entries can't move in or out until they're cleared, so Reset stays on offer.
 				'has_votes'        => $this->votes->has_votes_in_category( $comp_id, $category_slug ),
 				'steps'            => $steps,
 			)
