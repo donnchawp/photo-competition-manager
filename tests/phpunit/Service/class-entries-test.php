@@ -11,6 +11,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
@@ -437,6 +438,40 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'voting_started', $result->get_error_code() );
 		$this->assertSame( 'mono', $this->images_repo->find( $colour )->category );
+	}
+
+	public function test_an_entry_with_votes_cant_move_even_after_its_category_is_reset(): void {
+		$competition_id = $this->create_competition( 'voted-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+
+		// What a reset that keeps the votes leaves behind: the stage is Not started, the votes remain.
+		( new Votes_Repository() )->create( $competition_id, 'colour', 'A Voter', $entry_id, 5 );
+
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'entry_has_votes', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
+	public function test_an_admin_can_move_at_previewed_but_not_into_a_category_thats_voting(): void {
+		$competition_id = $this->create_competition( 'stage-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$first          = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$second         = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_PREVIEWED );
+
+		$this->assertTrue( $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $first => 'mono' ) ) );
+
+		Workflow_Fixtures::set_stage( $competition_id, 'mono', Competition_Workflow::STAGE_VOTING );
+		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $second => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $second )->category );
 	}
 
 	public function test_a_move_that_fails_partway_puts_the_earlier_moves_back(): void {

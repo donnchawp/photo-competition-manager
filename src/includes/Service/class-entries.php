@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Support\Image_Processor;
 use WP_Error;
@@ -48,6 +49,13 @@ class Entries {
 	private $members_repo;
 
 	/**
+	 * Votes repository.
+	 *
+	 * @var Votes_Repository
+	 */
+	private $votes_repo;
+
+	/**
 	 * Image processor.
 	 *
 	 * @var Image_Processor
@@ -69,19 +77,22 @@ class Entries {
 	 * @param Members_Repository|null      $members_repo      Members repository.
 	 * @param Image_Processor|null         $image_processor   Image processor.
 	 * @param Competition_Workflow|null    $workflow          Competition workflow.
+	 * @param Votes_Repository|null        $votes_repo        Votes repository.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
 		?Images_Repository $images_repo = null,
 		?Members_Repository $members_repo = null,
 		?Image_Processor $image_processor = null,
-		?Competition_Workflow $workflow = null
+		?Competition_Workflow $workflow = null,
+		?Votes_Repository $votes_repo = null
 	) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->images_repo       = $images_repo ?? new Images_Repository();
 		$this->members_repo      = $members_repo ?? new Members_Repository();
 		$this->image_processor   = $image_processor ?? new Image_Processor();
 		$this->workflow          = $workflow ?? new Competition_Workflow( $this->competitions_repo );
+		$this->votes_repo        = $votes_repo ?? new Votes_Repository();
 	}
 
 	/**
@@ -315,6 +326,12 @@ class Entries {
 				continue;
 			}
 
+			// Votes store their category, so a voted entry would leave its votes behind. Resetting
+			// a category can keep its votes, so the stage alone doesn't rule this out.
+			if ( $this->votes_repo->find_by_image( (int) $entry->id ) ) {
+				return new WP_Error( 'entry_has_votes', __( 'This entry has votes, so it can\'t move. Reset its category and clear its votes first.', 'photo-competition-manager' ) );
+			}
+
 			$moves[] = array( $entry, $new_category );
 			--$counts[ $entry->category ];
 			$counts[ $new_category ] = ( $counts[ $new_category ] ?? 0 ) + 1;
@@ -334,7 +351,7 @@ class Entries {
 			foreach ( array_unique( $touched ) as $category ) {
 				$stage = $this->workflow->stage( $competition, $category );
 				if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
-					return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category first.', 'photo-competition-manager' ) );
+					return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category and clear its votes first.', 'photo-competition-manager' ) );
 				}
 			}
 		}

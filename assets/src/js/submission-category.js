@@ -229,7 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
 				showError(data.message || 'Failed');
 			}
 		} catch (error) {
-			showError('Network error');
+			// The request may have gone through, so don't claim nothing changed.
+			statusDiv.className = 'category-change-status error';
+			statusDiv.textContent = "Couldn't confirm whether the categories changed. Reload the page to check.";
 		}
 
 		saveButton.textContent = 'Save Category Changes';

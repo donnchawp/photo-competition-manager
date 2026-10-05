@@ -138,6 +138,20 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertSame( 'black-white', $images->find( $entry )->category );
 	}
 
+	public function test_a_logged_in_user_who_isnt_an_admin_is_treated_as_the_member(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		Workflow_Fixtures::close_uploads( (int) $token->competition_id );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+
+		$this->assertSame( 'competition_closed', $response->as_error()->get_error_code() );
+		$this->assertSame( 'colour', $images->find( $entry )->category );
+	}
+
 	/**
 	 * @param string             $token   Upload token.
 	 * @param array<int, string> $changes New category, keyed by entry ID.
