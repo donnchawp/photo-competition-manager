@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Tests\Photo_Uploads;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use RuntimeException;
 use ZipArchive;
@@ -25,12 +26,7 @@ use ZipArchive;
  */
 class Export_Screen_Test extends Admin_Controller_Test_Case {
 
-	/**
-	 * Files removed in tearDown.
-	 *
-	 * @var string[]
-	 */
-	private $tmp_files = array();
+	use Photo_Uploads;
 
 	/**
 	 * Competition whose entries are removed in tearDown.
@@ -44,22 +40,21 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 			( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );
 		}
 
-		foreach ( $this->tmp_files as $tmp_file ) {
-			wp_delete_file( $tmp_file );
-		}
+		$this->remove_tmp_files();
 
 		parent::tear_down();
 	}
 
 	public function test_exporting_a_large_original_puts_the_full_size_file_in_the_zip(): void {
-		$member_id = $this->create_competition_and_member();
+		$this->competition_id = $this->create_competition();
+		$entries              = new Entries();
 
 		// Wider than WordPress's 2560px threshold, so the attachment's file is a -scaled copy.
-		$entry_id = ( new Entries() )->add( Actor::admin(), $this->competition_id, $member_id, 'colour', $this->photo( 2600, 20 ) );
+		$entry_id = $entries->add( Actor::admin(), $this->competition_id, $this->create_member(), 'colour', $this->photo( array( 200, 0, 0 ), 2600, 20 ) );
 		$this->assertIsInt( $entry_id );
 		$full_size = wp_get_original_image_path( (int) ( new Images_Repository() )->find( $entry_id )->original_attachment_id );
 
-		$zip_path          = ( new Export_Screen() )->build_originals_zip( $this->competition_id, ( new Images_Repository() )->get_original_attachment_ids( $this->competition_id ) );
+		$zip_path          = ( new Export_Screen() )->build_originals_zip( $this->competition_id, $entries->originals( $this->competition_id ) );
 		$this->tmp_files[] = $zip_path;
 
 		$zip = new ZipArchive();
@@ -71,7 +66,7 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_a_competition_without_originals_has_nothing_to_export(): void {
-		$this->create_competition_and_member();
+		$this->competition_id = $this->create_competition();
 		$this->set_request(
 			array(
 				'action'         => 'export_originals',
@@ -86,8 +81,8 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_export_and_delete_is_refused_before_the_zip_while_a_category_is_accepting_votes(): void {
-		$member_id = $this->create_competition_and_member();
-		$entry_id  = ( new Entries() )->add( Actor::admin(), $this->competition_id, $member_id, 'colour', $this->photo( 64, 48 ) );
+		$this->competition_id = $this->create_competition();
+		$entry_id             = ( new Entries() )->add( Actor::admin(), $this->competition_id, $this->create_member(), 'colour', $this->photo( array( 200, 0, 0 ) ) );
 		$this->assertIsInt( $entry_id );
 		$original = get_attached_file( (int) ( new Images_Repository() )->find( $entry_id )->original_attachment_id );
 		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
@@ -120,12 +115,12 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Create a competition with a colour category, and a member, and return the member's ID.
+	 * Create a competition with a colour category.
 	 *
-	 * @return int Member ID.
+	 * @return int Competition ID.
 	 */
-	private function create_competition_and_member(): int {
-		$this->competition_id = (int) ( new Competitions_Repository() )->create(
+	private function create_competition(): int {
+		return (int) ( new Competitions_Repository() )->create(
 			array(
 				'title'     => 'Export Comp',
 				'slug'      => 'export-comp',
@@ -141,39 +136,18 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 				),
 			)
 		);
+	}
 
+	/**
+	 * @return int Member ID.
+	 */
+	private function create_member(): int {
 		return (int) ( new Members_Repository() )->create(
 			array(
 				'name'  => 'Jane Doe',
 				'email' => 'jane@example.com',
 				'grade' => 'beginner',
 			)
-		);
-	}
-
-	/**
-	 * A solid-colour JPEG in the shape of a $_FILES entry.
-	 *
-	 * @param int $width  Width in pixels.
-	 * @param int $height Height in pixels.
-	 * @return array<string, mixed>
-	 */
-	private function photo( int $width, int $height ): array {
-		$image = imagecreatetruecolor( $width, $height );
-		imagefill( $image, 0, 0, imagecolorallocate( $image, 200, 0, 0 ) );
-
-		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.
-		$tmp_name          = wp_tempnam( 'photo.jpg' );
-		$tmp_file          = $tmp_name . '.jpg';
-		$this->tmp_files[] = $tmp_name;
-		$this->tmp_files[] = $tmp_file;
-		imagejpeg( $image, $tmp_file, 90 );
-
-		return array(
-			'name'     => 'photo.jpg',
-			'tmp_name' => $tmp_file,
-			'error'    => UPLOAD_ERR_OK,
-			'size'     => filesize( $tmp_file ),
 		);
 	}
 }

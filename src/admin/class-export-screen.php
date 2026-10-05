@@ -466,12 +466,12 @@ class Export_Screen {
 			}
 		}
 
-		$attachment_ids = $this->images_repository->get_original_attachment_ids( $competition_id );
-		if ( empty( $attachment_ids ) ) {
+		$originals = $this->entries->originals( $competition_id );
+		if ( empty( $originals ) ) {
 			wp_die( esc_html__( 'No original images found for this competition.', 'photo-competition-manager' ) );
 		}
 
-		$zip_path = $this->build_originals_zip( $competition_id, $attachment_ids );
+		$zip_path = $this->build_originals_zip( $competition_id, $originals );
 		if ( is_wp_error( $zip_path ) ) {
 			wp_die( esc_html( $zip_path->get_error_message() ) );
 		}
@@ -483,17 +483,9 @@ class Export_Screen {
 		header( 'Content-Disposition: attachment; filename=' . $zip_filename );
 		header( 'Content-Length: ' . filesize( $zip_path ) );
 
-		// Use WP_Filesystem to read the file.
-		global $wp_filesystem;
-		if ( ! $wp_filesystem ) {
-			if ( ! function_exists( 'WP_Filesystem' ) ) {
-				require_once ABSPATH . 'wp-admin/includes/file.php';
-			}
-			WP_Filesystem();
-		}
-
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		echo $wp_filesystem->get_contents( $zip_path );
+		// Streamed, since a ZIP of full-size originals can be bigger than PHP's memory limit.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
+		readfile( $zip_path );
 
 		// Clean up temporary ZIP file.
 		wp_delete_file( $zip_path );
@@ -501,7 +493,7 @@ class Export_Screen {
 		// Originals WordPress won't delete keep their IDs and are logged, so a retry picks them up.
 		if ( $delete_after_export ) {
 			// Only the ones in the ZIP: an entry may have been added since.
-			$this->entries->discard_originals( Actor::admin(), $competition_id, $attachment_ids );
+			$this->entries->discard_originals( Actor::admin(), $competition_id, array_keys( $originals ) );
 		}
 
 		exit;
@@ -512,11 +504,11 @@ class Export_Screen {
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int   $competition_id Competition ID, for the ZIP's name.
-	 * @param int[] $attachment_ids The originals' attachment IDs.
+	 * @param int                $competition_id Competition ID, for the ZIP's name.
+	 * @param array<int, string> $originals      Original file paths, from Entries::originals().
 	 * @return string|WP_Error Path of the ZIP file, which the caller deletes.
 	 */
-	public function build_originals_zip( int $competition_id, array $attachment_ids ) {
+	public function build_originals_zip( int $competition_id, array $originals ) {
 		$competition  = $this->competitions_repository->find( $competition_id );
 		$zip_filename = 'originals-' . ( $competition ? $competition->slug : $competition_id ) . '.zip';
 
@@ -537,14 +529,9 @@ class Export_Screen {
 			return new WP_Error( 'zip_failed', __( 'Could not create ZIP file.', 'photo-competition-manager' ) );
 		}
 
-		// Add each attachment to the ZIP.
-		foreach ( $attachment_ids as $attachment_id ) {
-			// WordPress keeps a 2560px -scaled copy of a larger upload as the attached file.
-			$file_path = wp_get_original_image_path( $attachment_id );
-
-			if ( $file_path && file_exists( $file_path ) ) {
-				$zip->addFile( $file_path, basename( $file_path ) );
-			}
+		// Add each original to the ZIP.
+		foreach ( $originals as $file_path ) {
+			$zip->addFile( $file_path, basename( $file_path ) );
 		}
 
 		$zip->close();

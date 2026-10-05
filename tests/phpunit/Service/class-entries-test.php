@@ -16,10 +16,13 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Photo_Uploads;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 class Entries_Test extends WP_UnitTestCase {
+
+	use Photo_Uploads;
 
 	/**
 	 * @var Entries
@@ -48,13 +51,6 @@ class Entries_Test extends WP_UnitTestCase {
 	 */
 	private $slugs = array();
 
-	/**
-	 * Temporary source images removed in tearDown.
-	 *
-	 * @var string[]
-	 */
-	private $tmp_files = array();
-
 	public function setUp(): void {
 		parent::setUp();
 
@@ -74,9 +70,7 @@ class Entries_Test extends WP_UnitTestCase {
 			$this->delete_folders( trailingslashit( $basedir ) . 'competitions/' . $slug );
 		}
 
-		foreach ( $this->tmp_files as $tmp_file ) {
-			wp_delete_file( $tmp_file );
-		}
+		$this->remove_tmp_files();
 
 		parent::tearDown();
 	}
@@ -901,8 +895,10 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertFileExists( $this->original_path( $kept_id ) );
 		$this->assertNull( $this->images_repo->find( $discarded_id )->original_attachment_id );
 
-		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'original_not_discarded' ) );
+		// Logged once, by attachment, since deleting its files by hand wouldn't remove it.
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id );
 		$this->assertCount( 1, $logs );
+		$this->assertSame( 'original_not_deleted', $logs[0]->event_type );
 		$this->assertSame( $kept, json_decode( $logs[0]->metadata, true )['attachment_id'] );
 	}
 
@@ -1058,43 +1054,6 @@ class Entries_Test extends WP_UnitTestCase {
 				'grade'  => 'beginner',
 				'active' => $active,
 			)
-		);
-	}
-
-	/**
-	 * A solid-colour JPEG in the shape of a $_FILES entry.
-	 *
-	 * @param int[] $rgb    Fill colour, so each upload is a different picture.
-	 * @param int   $width  Width in pixels.
-	 * @param int   $height Height in pixels.
-	 * @return array<string, mixed>
-	 */
-	private function photo( array $rgb, int $width = 64, int $height = 48 ): array {
-		$image = imagecreatetruecolor( $width, $height );
-		imagefill( $image, 0, 0, imagecolorallocate( $image, $rgb[0], $rgb[1], $rgb[2] ) );
-
-		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.
-		$tmp_name          = wp_tempnam( 'photo.jpg' );
-		$tmp_file          = $tmp_name . '.jpg';
-		$this->tmp_files[] = $tmp_name;
-		$this->tmp_files[] = $tmp_file;
-		imagejpeg( $image, $tmp_file, 90 );
-
-		return $this->upload_array( $tmp_file );
-	}
-
-	/**
-	 * A file in the shape of a $_FILES entry.
-	 *
-	 * @param string $tmp_file Path of the uploaded file.
-	 * @return array<string, mixed>
-	 */
-	private function upload_array( string $tmp_file ): array {
-		return array(
-			'name'     => 'photo.jpg',
-			'tmp_name' => $tmp_file,
-			'error'    => UPLOAD_ERR_OK,
-			'size'     => filesize( $tmp_file ),
 		);
 	}
 
