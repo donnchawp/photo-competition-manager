@@ -177,7 +177,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
 	}
 
-	public function test_an_admin_adds_an_entry_to_a_category_without_votes_even_while_its_voting(): void {
+	public function test_an_admin_adds_an_entry_to_a_category_without_votes_even_during_voting(): void {
 		$competition_id = $this->create_competition( 'unvoted-comp', 2 );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
 		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
@@ -487,10 +487,9 @@ class Entries_Test extends WP_UnitTestCase {
 		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
 		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 0, 200 ) );
-		Workflow_Fixtures::close_uploads( $competition_id );
-
-		// What a reset that keeps the votes leaves behind: the stage is Not started, the votes remain.
+		Workflow_Fixtures::set_stage( $competition_id, 'mono', Competition_Workflow::STAGE_VOTING );
 		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
+		$this->assertTrue( ( new Competition_Workflow( $this->competitions_repo ) )->reset_category( $competition_id, 'mono', false ) );
 
 		$result = $this->entries->change_categories( Actor::admin(), $competition_id, $member_id, array( $entry_id => 'mono' ) );
 

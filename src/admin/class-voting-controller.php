@@ -873,7 +873,7 @@ class Voting_Controller {
 				'reset_url'        => $reset_url,
 				// A reset that kept its votes leaves the category at step 1 with votes, and
 				// its entries can't move until they're cleared, so Reset stays on offer.
-				'has_votes'        => (bool) $this->votes->find_by_competition( $comp_id, $category_slug ),
+				'has_votes'        => $this->votes->has_votes_in_category( $comp_id, $category_slug ),
 				'steps'            => $steps,
 			)
 		);
