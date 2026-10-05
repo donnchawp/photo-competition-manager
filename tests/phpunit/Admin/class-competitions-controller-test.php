@@ -15,10 +15,12 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -855,6 +857,64 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Deleting a competition removes its entries first.
+	 */
+	public function test_delete_removes_the_competitions_entries(): void {
+		$id       = $this->create_competition( 'To Delete', 'to-delete' );
+		$entry_id = Entry_Fixtures::insert_entry( $id, 'colour', 1, array( 7 ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'delete',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'deleted', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNull( $this->competitions->find( $id, true ) );
+		$this->assertNull( ( new Images_Repository() )->find( $entry_id ) );
+	}
+
+	/**
+	 * A competition whose entries won't all go is kept, with the error shown.
+	 */
+	public function test_delete_keeps_the_competition_when_an_entry_wont_go(): void {
+		$id = $this->create_competition( 'To Delete', 'to-delete' );
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+
+		$failing_repo     = new class() extends Images_Repository {
+			public function delete( int $id ) {
+				return new \WP_Error( 'db_delete_failed', 'Could not delete image record.' );
+			}
+		};
+		$this->controller = new Competitions_Controller( $this->competitions, null, new Entries( $this->competitions, $failing_repo ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'delete',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'db_delete_failed', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotNull( $this->competitions->find( $id, true ) );
+	}
+
+	/**
 	 * Deleting a competition stops its unfinished email jobs.
 	 */
 	public function test_delete_discards_unfinished_email_jobs(): void {
@@ -881,7 +941,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Deleting a missing competition surfaces the repository error code.
+	 * Deleting a missing competition surfaces the error code.
 	 */
 	public function test_delete_not_found_error(): void {
 		$missing = 999999;
@@ -900,7 +960,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertContains( 'missing_competition', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertContains( 'invalid_competition', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/*

@@ -14,7 +14,9 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -50,18 +52,30 @@ class Members_Controller {
 	private $workflow;
 
 	/**
+	 * Entries module.
+	 *
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0 Takes the Entries module.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
 	 * @param Members_Repository      $members      Members repository.
+	 * @param Entries|null            $entries      Entries module.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
-		Members_Repository $members
+		Members_Repository $members,
+		?Entries $entries = null
 	) {
 		$this->competitions = $competitions;
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->members      = $members;
+		$this->entries      = $entries ?? new Entries( $this->competitions, null, $this->members );
 	}
 
 	/**
@@ -339,7 +353,11 @@ class Members_Controller {
 				$this->redirect_with_settings_errors( $this->members_url() );
 			}
 
-			$result = $this->members->delete( $member_id );
+			// The entries go first, so their files and originals go with them.
+			$result = $this->entries->remove_member_entries( Actor::admin(), $member_id );
+			if ( ! is_wp_error( $result ) ) {
+				$result = $this->members->delete( $member_id );
+			}
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(

@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use WP_UnitTestCase;
 
 class Images_Repository_Test extends WP_UnitTestCase {
@@ -416,6 +417,36 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $image );
 	}
 
+	public function test_a_delete_whose_row_wont_go_keeps_its_votes(): void {
+		global $wpdb;
+
+		$image_id = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'testuser-colour-1.jpg',
+			)
+		);
+		$votes    = new Votes_Repository();
+		$votes->create( $this->competition_id, 'colour', 'Voter', $image_id, 7 );
+
+		// Break only the DELETE of the image row, after whatever runs before it.
+		$images_table = $wpdb->prefix . 'photocomp_images';
+		$break_row    = function ( $query ) use ( $images_table ) {
+			return 0 === strpos( $query, "DELETE FROM `{$images_table}`" ) ? 'DELETE FROM no_such_table' : $query;
+		};
+		add_filter( 'query', $break_row );
+		$suppress = $wpdb->suppress_errors( true );
+		$result   = $this->images_repo->delete( $image_id );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_row );
+
+		$this->assertWPError( $result );
+		$this->assertNotNull( $this->images_repo->find( $image_id ) );
+		$this->assertCount( 1, $votes->find_by_image( $image_id ) );
+	}
+
 	public function test_delete_rejects_invalid_id(): void {
 		$result = $this->images_repo->delete( 9999 );
 
@@ -534,39 +565,6 @@ class Images_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'invalid_image', $result->get_error_code() );
-	}
-
-	// ---------------------------------------------------------------
-	// delete_by_competition()
-	// ---------------------------------------------------------------
-
-	public function test_delete_by_competition_removes_all_images(): void {
-		$this->images_repo->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $this->member_id,
-				'category'       => 'colour',
-				'filename'       => 'a.jpg',
-			)
-		);
-
-		$this->images_repo->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $this->member_id,
-				'category'       => 'black-white',
-				'filename'       => 'b.jpg',
-			)
-		);
-
-		$result = $this->images_repo->delete_by_competition( $this->competition_id );
-
-		$this->assertTrue( $result );
-		$this->assertEmpty( $this->images_repo->find_by_competition( $this->competition_id ) );
-	}
-
-	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
-		$this->assertFalse( $this->images_repo->delete_by_competition( 0 ) );
 	}
 
 	// ---------------------------------------------------------------

@@ -447,10 +447,8 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
 		}
 
-		// Delete any votes for this image first.
-		$votes_repo = new Votes_Repository();
-		$votes_repo->delete_by_image( $id );
-
+		// The row goes first: if it won't, the entry keeps its votes. If the votes then won't
+		// go, they're left on an entry that no longer exists, where nothing shows them.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$deleted = $wpdb->delete(
 			$this->table(),
@@ -462,30 +460,9 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete image record.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
+		( new Votes_Repository() )->delete_by_image( $id );
+
 		return true;
-	}
-
-	/**
-	 * Delete all images for a competition.
-	 *
-	 * @param int $competition_id Competition ID.
-	 * @return bool
-	 */
-	public function delete_by_competition( int $competition_id ): bool {
-		global $wpdb;
-
-		if ( $competition_id <= 0 ) {
-			return false;
-		}
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$deleted = $wpdb->delete(
-			$this->table(),
-			array( 'competition_id' => $competition_id ),
-			array( '%d' )
-		);
-
-		return false !== $deleted;
 	}
 
 	/**

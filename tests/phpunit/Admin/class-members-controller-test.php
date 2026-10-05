@@ -15,8 +15,11 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Members_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 
 /**
  * Characterization tests for the members controller.
@@ -392,6 +395,66 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'member_deleted', $this->settings_error_codes( self::GROUP ) );
 		$this->assertNull( $this->members->find( $id ) );
+	}
+
+	/**
+	 * Deleting a member removes their entries first.
+	 */
+	public function test_delete_member_removes_their_entries(): void {
+		$id             = $this->create_member();
+		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		$entry_id       = Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array( 7 ) );
+
+		$this->set_request(
+			array(
+				'action' => 'delete_member',
+				'member' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_member_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'member_deleted', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNull( $this->members->find( $id ) );
+		$this->assertNull( ( new Images_Repository() )->find( $entry_id ) );
+	}
+
+	/**
+	 * A member whose entries won't all go is kept, with the error shown.
+	 */
+	public function test_delete_member_keeps_the_member_when_an_entry_wont_go(): void {
+		$id             = $this->create_member();
+		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array() );
+
+		$failing_repo     = new class() extends Images_Repository {
+			public function delete( int $id ) {
+				return new \WP_Error( 'db_delete_failed', 'Could not delete image record.' );
+			}
+		};
+		$this->controller = new Members_Controller( $this->competitions, $this->members, new Entries( $this->competitions, $failing_repo, $this->members ) );
+
+		$this->set_request(
+			array(
+				'action' => 'delete_member',
+				'member' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_member_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'db_delete_failed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNotNull( $this->members->find( $id ) );
 	}
 
 	/**

@@ -91,6 +91,7 @@ Admins can upload or replace images for any member directly from the dashboard.
   ```
 - Thumbnails generated automatically via WordPress media functions.
 - Each image assigned a random number (1–N) within its category for anonymized presentation.
+- Deleting a competition or a member removes their entries first: each entry's row and votes, then its image, thumbnail and original. A deleted competition's folder goes too. A file that won't delete is logged and doesn't stop the removal, but a row that won't delete stops it, and the competition or member is kept.
 
 ### 4.4 Voting System
 - Voting opened manually by admin.
