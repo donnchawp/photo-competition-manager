@@ -117,25 +117,13 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
-		if ( empty( $images ) ) {
+		$image_data = $this->slides( $competition, $images );
+		if ( empty( $image_data ) ) {
 			return '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		// Enqueue slideshow styles and scripts.
 		$this->enqueue_assets();
-
-		// Prepare image data for JavaScript.
-		$image_data = array();
-		foreach ( $images as $image ) {
-			$image_url = $this->entries->urls( $competition, $image )['full'];
-			if ( '' !== $image_url ) {
-				$image_data[] = array(
-					'id'            => $image->id,
-					'url'           => $image_url,
-					'random_number' => $image->random_number,
-				);
-			}
-		}
 
 		// Output slideshow interface.
 		ob_start();
@@ -250,24 +238,35 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( $competition_id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
-		if ( empty( $images ) ) {
+		$image_data = $this->slides( $competition, $images );
+		if ( empty( $image_data ) ) {
 			wp_send_json_error( array( 'message' => __( 'No images found for this category.', 'photo-competition-manager' ) ) );
 		}
 
-		// Prepare image data.
-		$image_data = array();
+		wp_send_json_success( array( 'images' => $image_data ) );
+	}
+
+	/**
+	 * The slides for a category's entries, leaving out any whose image is missing.
+	 *
+	 * @param object        $competition Competition record.
+	 * @param array<object> $images      Entry records, in slideshow order.
+	 * @return array<int, array{id: int, url: string, random_number: int}>
+	 */
+	private function slides( object $competition, array $images ): array {
+		$slides = array();
 		foreach ( $images as $image ) {
-			$image_url = $this->entries->urls( $competition, $image )['full'];
-			if ( '' !== $image_url ) {
-				$image_data[] = array(
+			$url = $this->entries->urls( $competition, $image )['full'];
+			if ( '' !== $url ) {
+				$slides[] = array(
 					'id'            => $image->id,
-					'url'           => $image_url,
+					'url'           => $url,
 					'random_number' => $image->random_number,
 				);
 			}
 		}
 
-		wp_send_json_success( array( 'images' => $image_data ) );
+		return $slides;
 	}
 
 	/**

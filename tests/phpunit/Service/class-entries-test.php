@@ -660,6 +660,25 @@ class Entries_Test extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_an_entry_without_a_filename_has_no_urls(): void {
+		$competition = $this->competitions_repo->find( $this->create_competition( 'nameless-comp' ) );
+		wp_mkdir_p( wp_upload_dir()['basedir'] . '/competitions/nameless-comp/colour' );
+
+		$this->assertSame(
+			array(
+				'full'  => '',
+				'thumb' => '',
+			),
+			$this->entries->urls(
+				$competition,
+				(object) array(
+					'category' => 'colour',
+					'filename' => '',
+				)
+			)
+		);
+	}
+
 	public function test_a_removal_whose_original_wont_delete_still_removes_the_entry(): void {
 		$competition_id = $this->create_competition( 'remove-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
