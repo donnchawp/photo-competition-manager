@@ -16,8 +16,8 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Upload_Handler;
-use PhotoCompetitionManager\Support\Image_Processor;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 
 /**
  * Manage submissions viewing page.
@@ -59,33 +59,35 @@ class Submissions_Controller {
 	private $votes;
 
 	/**
-	 * Upload handler service.
+	 * Entries module.
 	 *
-	 * @var Upload_Handler
+	 * @var Entries
 	 */
-	private $upload_handler;
+	private $entries;
 
 	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
 	 *
 	 * @param Competitions_Repository $competitions   Competitions repository.
 	 * @param Members_Repository      $members        Members repository.
 	 * @param Images_Repository       $images         Images repository.
 	 * @param Votes_Repository        $votes          Votes repository.
-	 * @param Upload_Handler|null     $upload_handler Upload handler service.
+	 * @param Entries|null            $entries        Entries module.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
 		Members_Repository $members,
 		Images_Repository $images,
 		Votes_Repository $votes,
-		?Upload_Handler $upload_handler = null
+		?Entries $entries = null
 	) {
-		$this->competitions   = $competitions;
-		$this->members        = $members;
-		$this->images         = $images;
-		$this->votes          = $votes;
-		$this->upload_handler = $upload_handler ?? new Upload_Handler( $competitions, $images, $members );
+		$this->competitions = $competitions;
+		$this->members      = $members;
+		$this->images       = $images;
+		$this->votes        = $votes;
+		$this->entries      = $entries ?? new Entries( $competitions, $images, $members );
 	}
 
 	/**
@@ -348,31 +350,10 @@ class Submissions_Controller {
 				$failed_count  = 0;
 
 				foreach ( $image_ids as $image_id ) {
-					// Get image details to delete files.
-					$image = $this->images->find( $image_id );
-					if ( ! $image || (int) $image->competition_id !== $competition_id ) {
+					if ( is_wp_error( $this->entries->remove( Actor::admin(), $competition_id, $image_id ) ) ) {
 						++$failed_count;
 						continue;
 					}
-
-					// Delete votes associated with this image.
-					$this->votes->delete_by_image( $image_id );
-
-					// Delete the image record from database.
-					$result = $this->images->delete( $image_id );
-
-					if ( is_wp_error( $result ) ) {
-						++$failed_count;
-						continue;
-					}
-
-					// Delete original attachment if it exists.
-					if ( ! empty( $image->original_attachment_id ) ) {
-						wp_delete_attachment( $image->original_attachment_id, true );
-					}
-
-					// Delete physical files (slideshow and thumbnail).
-					$this->delete_submission_files( $image );
 
 					++$deleted_count;
 				}
@@ -469,8 +450,8 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
-					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Upload_Handler.
-					$result = $this->upload_handler->upload_on_behalf( $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
+					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Entries::add().
+					$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(
@@ -842,45 +823,5 @@ class Submissions_Controller {
 				'rows'           => $rows,
 			)
 		);
-	}
-
-	/**
-	 * Delete physical files for a submission.
-	 *
-	 * @param  object $image Image record with competition_id, category, and filename.
-	 * @return void
-	 */
-	private function delete_submission_files( object $image ): void {
-		// Get competition to determine slug.
-		$competition = $this->competitions->find( $image->competition_id, true );
-		if ( ! $competition || empty( $competition->slug ) ) {
-			return;
-		}
-
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return;
-		}
-
-		$slug = sanitize_file_name( (string) $competition->slug );
-		$cat  = sanitize_file_name( (string) $image->category );
-
-		$folder_path = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'competitions/' . $slug . '/' . $cat );
-
-		$filename   = $image->filename;
-		$thumb_name = Image_Processor::get_thumbnail_filename( $filename );
-
-		$full_path  = $folder_path . $filename;
-		$thumb_path = $folder_path . $thumb_name;
-
-		// Delete slideshow image.
-		if ( file_exists( $full_path ) ) {
-			wp_delete_file( $full_path );
-		}
-
-		// Delete thumbnail.
-		if ( file_exists( $thumb_path ) ) {
-			wp_delete_file( $thumb_path );
-		}
 	}
 }

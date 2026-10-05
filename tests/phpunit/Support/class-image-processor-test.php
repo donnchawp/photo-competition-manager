@@ -20,6 +20,13 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	private $processor;
 
 	/**
+	 * Folders process() wrote to, removed in tearDown.
+	 *
+	 * @var string[]
+	 */
+	private $directories = array();
+
+	/**
 	 * Set up test fixtures.
 	 */
 	public function setUp(): void {
@@ -33,29 +40,14 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	 */
 	public function tearDown(): void {
 		$this->remove_added_uploads();
+
+		foreach ( $this->directories as $directory ) {
+			// rmdir() empties the folder, and delete_folders() removes it.
+			$this->rmdir( $directory );
+			$this->delete_folders( $directory );
+		}
+
 		parent::tearDown();
-	}
-
-	public function test_generate_filename_formats_correctly(): void {
-		$result = $this->processor->generate_filename( 'john-doe', 'colour', 1 );
-
-		$this->assertEquals( 'john-doe-colour-1.jpg', $result );
-	}
-
-	public function test_generate_filename_sanitizes_input(): void {
-		$result = $this->processor->generate_filename( 'John Doe!@#', 'Black & White', 2 );
-
-		$this->assertEquals( 'john-doe-black-white-2.jpg', $result );
-	}
-
-	public function test_get_upload_directory_creates_path(): void {
-		$result = $this->processor->get_upload_directory( 'summer-2024', 'colour' );
-
-		$this->assertIsArray( $result );
-		$this->assertArrayHasKey( 'path', $result );
-		$this->assertArrayHasKey( 'url', $result );
-		$this->assertStringContainsString( 'competitions/summer-2024/colour', $result['path'] );
-		$this->assertStringContainsString( 'competitions/summer-2024/colour', $result['url'] );
 	}
 
 	public function test_validate_rejects_missing_file(): void {
@@ -245,6 +237,40 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'photo-thumb', Image_Processor::get_thumbnail_filename( 'photo' ) );
 	}
 
+	public function test_a_failed_process_leaves_no_original_behind(): void {
+		$tmp_file = $this->create_test_image();
+		$file     = array(
+			'name'     => 'test.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp_file ),
+		);
+
+		// A file where the folder should be, so the original saves but the resized image can't.
+		$not_a_directory = wp_tempnam( 'not-a-directory' );
+
+		// The image editor warns when the save fails, and the test is about what process() returns.
+		set_error_handler( '__return_true' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.prevent_path_disclosure_error_reporting,WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_set_error_handler
+		$result = $this->processor->process( $file, $not_a_directory, 'john-doe-colour.jpg', 'John Doe', array(), array() );
+		restore_error_handler();
+
+		$this->assertWPError( $result );
+		$this->assertSame(
+			array(),
+			get_posts(
+				array(
+					'post_type'   => 'attachment',
+					'post_status' => 'any',
+					'title'       => 'John Doe',
+				)
+			)
+		);
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		unlink( $tmp_file );
+		wp_delete_file( $not_a_directory );
+	}
+
 	public function test_process_resizes_oversized_images(): void {
 		$tmp_file = $this->create_test_image( 2000, 2000 );
 
@@ -262,7 +288,11 @@ class Image_Processor_Test extends WP_UnitTestCase {
 			'allowed_formats'  => array( 'jpg', 'jpeg' ),
 		);
 
-		$result = $this->processor->process( $file, 'summer-2024', 'colour', 'john-doe', 1, $constraints );
+		$directory = trailingslashit( get_temp_dir() ) . uniqid( 'image-processor-test-' );
+		wp_mkdir_p( $directory );
+		$this->directories[] = $directory;
+
+		$result = $this->processor->process( $file, $directory, 'john-doe-colour-1.jpg', 'John Doe', array(), $constraints );
 
 		// Should succeed and return array with filename and attachment_id.
 		$this->assertIsArray( $result );
@@ -270,10 +300,10 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'attachment_id', $result );
 		$this->assertEquals( 'john-doe-colour-1.jpg', $result['filename'] );
 		$this->assertIsInt( $result['attachment_id'] );
+		$this->assertFileExists( trailingslashit( $directory ) . 'john-doe-colour-1-thumb.jpg' );
 
 		// Verify the processed image exists and is resized.
-		$upload_dir = $this->processor->get_upload_directory( 'summer-2024', 'colour' );
-		$image_path = trailingslashit( $upload_dir['path'] ) . $result['filename'];
+		$image_path = trailingslashit( $directory ) . $result['filename'];
 
 		$this->assertFileExists( $image_path );
 
@@ -285,8 +315,6 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		// Clean up.
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
 		unlink( $tmp_file );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
-		unlink( $image_path );
 	}
 
 	/**

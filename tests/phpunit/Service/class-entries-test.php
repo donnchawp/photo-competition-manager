@@ -1,0 +1,705 @@
+<?php
+/**
+ * Tests for the Entries module, through its interface with real files.
+ *
+ * @package PhotoCompetitionManager\Tests\Service
+ */
+
+namespace PhotoCompetitionManager\Tests\Service;
+
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
+use WP_UnitTestCase;
+
+class Entries_Test extends WP_UnitTestCase {
+
+	/**
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
+	 * @var Competitions_Repository
+	 */
+	private $competitions_repo;
+
+	/**
+	 * @var Images_Repository
+	 */
+	private $images_repo;
+
+	/**
+	 * @var Members_Repository
+	 */
+	private $members_repo;
+
+	/**
+	 * Competition slugs whose upload folders are removed in tearDown.
+	 *
+	 * @var string[]
+	 */
+	private $slugs = array();
+
+	/**
+	 * Temporary source images removed in tearDown.
+	 *
+	 * @var string[]
+	 */
+	private $tmp_files = array();
+
+	public function setUp(): void {
+		parent::setUp();
+
+		$this->competitions_repo = new Competitions_Repository();
+		$this->images_repo       = new Images_Repository();
+		$this->members_repo      = new Members_Repository();
+
+		$this->entries = new Entries( $this->competitions_repo, $this->images_repo, $this->members_repo );
+	}
+
+	public function tearDown(): void {
+		// Deletes every file the test added under uploads, leaving the competition folders empty.
+		$this->remove_added_uploads();
+
+		$basedir = wp_upload_dir()['basedir'];
+		foreach ( $this->slugs as $slug ) {
+			$this->delete_folders( trailingslashit( $basedir ) . 'competitions/' . $slug );
+		}
+
+		foreach ( $this->tmp_files as $tmp_file ) {
+			wp_delete_file( $tmp_file );
+		}
+
+		parent::tearDown();
+	}
+
+	public function test_a_member_adds_an_entry_while_uploads_are_open(): void {
+		$competition_id = $this->create_competition( 'add-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$entry_id = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$entry = $this->images_repo->find( $entry_id );
+		$this->assertSame( 'jane-doe-colour.jpg', $entry->filename );
+		$this->assertFileExists( $this->entry_path( $entry_id ) );
+		$this->assertFileExists( $this->entry_path( $entry_id, true ) );
+		$this->assertFileExists( $this->original_path( $entry_id ) );
+
+		// Uninstall finds the plugin's originals by this meta.
+		$this->assertSame( 'add-comp', get_post_meta( (int) $entry->original_attachment_id, '_photo_comp_slug', true ) );
+	}
+
+	public function test_an_upload_that_isnt_an_image_writes_nothing(): void {
+		$competition_id = $this->create_competition( 'invalid-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$tmp_file          = wp_tempnam( 'photo.jpg' );
+		$this->tmp_files[] = $tmp_file;
+		file_put_contents( $tmp_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+
+		$this->assertWPError( $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->upload_array( $tmp_file ) ) );
+
+		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/invalid-comp' );
+	}
+
+	public function test_an_entry_whose_row_wont_save_leaves_no_files(): void {
+		$competition_id = $this->create_competition( 'unsaved-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function create( array $data ) {
+				return new \WP_Error( 'db_insert_failed', 'Could not create image record.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertWPError( $entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) ) );
+
+		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/unsaved-comp/colour/*.jpg' ) );
+		$this->assertSame(
+			array(),
+			get_posts(
+				array(
+					'post_type'   => 'attachment',
+					'post_status' => 'any',
+					'meta_key'    => '_photo_comp_slug', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+					'meta_value'  => 'unsaved-comp', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				)
+			)
+		);
+	}
+
+	public function test_a_removal_doesnt_log_an_original_thats_already_gone(): void {
+		$competition_id = $this->create_competition( 'gone-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		wp_delete_attachment( (int) $this->images_repo->find( $entry_id )->original_attachment_id, true );
+
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+
+		$this->assertSame( array(), ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) ) );
+	}
+
+	public function test_a_member_cant_add_an_entry_once_uploads_close(): void {
+		$competition_id = $this->create_competition( 'closed-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$result = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'competition_closed', $result->get_error_code() );
+	}
+
+	public function test_an_admin_adds_an_entry_after_uploads_close(): void {
+		$competition_id = $this->create_competition( 'closed-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$entry_id = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$this->assertSame( $member_id, (int) $this->images_repo->find( $entry_id )->member_id );
+	}
+
+	public function test_a_member_cant_add_an_entry_for_someone_else(): void {
+		$competition_id = $this->create_competition( 'add-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$other_id       = $this->create_member( 'John Murphy', 'john@example.com' );
+
+		$result = $this->entries->add( Actor::member( $other_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+	}
+
+	public function test_an_admin_is_held_to_the_quota(): void {
+		$competition_id = $this->create_competition( 'quota-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 0, 200, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'quota_exceeded', $result->get_error_code() );
+	}
+
+	public function test_an_inactive_member_cant_be_given_an_entry(): void {
+		$competition_id = $this->create_competition( 'add-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com', 0 );
+
+		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'inactive_member', $result->get_error_code() );
+	}
+
+	public function test_an_entry_needs_a_category_the_competition_has(): void {
+		$competition_id = $this->create_competition( 'add-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$result = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'nature', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_category', $result->get_error_code() );
+	}
+
+	public function test_an_entry_needs_a_competition_and_a_member(): void {
+		$competition_id = $this->create_competition( 'add-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$no_competition = $this->entries->add( Actor::admin(), 999999, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+		$no_member      = $this->entries->add( Actor::admin(), $competition_id, 999999, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertSame( 'invalid_competition', $no_competition->get_error_code() );
+		$this->assertSame( 'invalid_member', $no_member->get_error_code() );
+	}
+
+	public function test_a_member_removes_their_entry_and_its_files(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$files          = $this->entry_files( $entry_id );
+
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		foreach ( $files as $file ) {
+			$this->assertFileDoesNotExist( $file );
+		}
+	}
+
+	public function test_a_member_cant_remove_someone_elses_entry(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$other_id       = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->remove( Actor::member( $other_id ), $competition_id, $entry_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->assertNotNull( $this->images_repo->find( $entry_id ) );
+		$this->assertFileExists( $this->entry_path( $entry_id ) );
+	}
+
+	public function test_an_entry_is_only_removed_from_its_own_competition(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$other_id       = $this->create_competition( 'other-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->remove( Actor::admin(), $other_id, $entry_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_competition', $result->get_error_code() );
+		$this->assertNotNull( $this->images_repo->find( $entry_id ) );
+	}
+
+	public function test_a_member_cant_remove_an_entry_once_uploads_close_but_an_admin_can(): void {
+		$competition_id = $this->create_competition( 'closed-comp', 1, '2020-02-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'competition_closed', $result->get_error_code() );
+
+		$this->assertTrue( $this->entries->remove( Actor::admin(), $competition_id, $entry_id ) );
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+	}
+
+	public function test_a_removal_whose_row_wont_delete_leaves_the_files_alone(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function delete( int $id ) {
+				return new \WP_Error( 'db_delete_failed', 'Could not delete image record.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertWPError( $entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+
+		foreach ( $this->entry_files( $entry_id ) as $file ) {
+			$this->assertFileExists( $file );
+		}
+	}
+
+	public function test_a_removal_whose_file_wont_delete_still_removes_the_entry(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$image_path     = $this->entry_path( $entry_id );
+
+		add_filter( 'wp_delete_file', array( $this, 'keep_entry_images' ) );
+		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id );
+		remove_filter( 'wp_delete_file', array( $this, 'keep_entry_images' ) );
+
+		$this->assertTrue( $result );
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		$this->assertFileExists( $image_path );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( $image_path, json_decode( $logs[0]->metadata, true )['path'] );
+	}
+
+	public function test_an_upload_after_a_removal_keeps_the_other_entrys_image(): void {
+		$competition_id = $this->create_competition( 'counter-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+
+		$entry_a = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$entry_b = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		$b_hash  = $this->file_hash( $entry_b );
+
+		$this->assertTrue( $this->entries->remove( $member, $competition_id, $entry_a ) );
+
+		$entry_c = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 0, 200 ) );
+
+		$this->assertNotSame( $this->images_repo->find( $entry_b )->filename, $this->images_repo->find( $entry_c )->filename );
+		$this->assertSame( $b_hash, $this->file_hash( $entry_b ), "The second entry's image was overwritten." );
+	}
+
+	public function test_members_with_the_same_name_keep_their_own_images(): void {
+		$competition_id = $this->create_competition( 'namesake-comp' );
+		$first_member   = $this->create_member( 'John Murphy', 'john@example.com' );
+		$second_member  = $this->create_member( 'John Murphy', 'john.murphy@example.com' );
+
+		$first      = $this->add( Actor::member( $first_member ), $competition_id, $first_member, 'colour', array( 200, 0, 0 ) );
+		$first_hash = $this->file_hash( $first );
+		$second     = $this->add( Actor::member( $second_member ), $competition_id, $second_member, 'colour', array( 0, 200, 0 ) );
+
+		$this->assertSame( $first_hash, $this->file_hash( $first ), "The namesake's upload overwrote the first member's image." );
+		$this->assertNotSame( $this->original_path( $first ), $this->original_path( $second ) );
+	}
+
+	public function test_competitions_in_the_same_month_keep_their_own_originals(): void {
+		// Only one competition can be open, so the closed one gets an admin upload.
+		$closed_id = $this->create_competition( 'closed-comp', 1, '2020-02-01 00:00:00' );
+		$open_id   = $this->create_competition( 'open-comp' );
+		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$closed          = $this->add( Actor::admin(), $closed_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$closed_original = $this->original_path( $closed );
+		$closed_hash     = md5_file( $closed_original );
+
+		$open = $this->add( Actor::member( $member_id ), $open_id, $member_id, 'colour', array( 0, 200, 0 ) );
+
+		$this->assertNotSame( $closed_original, $this->original_path( $open ) );
+
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $open_id, $open ) );
+
+		$this->assertFileExists( $closed_original, "Removing one competition's entry deleted the other's original." );
+		$this->assertSame( $closed_hash, md5_file( $closed_original ), "The other competition's upload overwrote the original." );
+	}
+
+	public function test_moving_an_entry_to_another_category_keeps_the_image_already_there(): void {
+		$competition_id = $this->create_competition( 'move-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+
+		// Both are the member's first colour upload, so both are named jane-doe-colour-1.jpg.
+		$moved_first = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved_first, 'mono' ) );
+		$first_hash = $this->file_hash( $moved_first );
+
+		$moved_second = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		$second_hash  = $this->file_hash( $moved_second );
+		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved_second, 'mono' ) );
+
+		$this->assertSame( 'mono', $this->images_repo->find( $moved_second )->category );
+		$this->assertSame( $first_hash, $this->file_hash( $moved_first ), 'The move overwrote the image already in the category.' );
+		$this->assertSame( $second_hash, $this->file_hash( $moved_second ), "The moved entry doesn't point at its own image." );
+		$this->assertNotSame( $this->file_hash( $moved_first, true ), $this->file_hash( $moved_second, true ), 'The move overwrote the thumbnail already in the category.' );
+	}
+
+	public function test_a_failed_move_puts_the_image_back_under_its_own_name(): void {
+		$competition_id = $this->create_competition( 'rollback-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+
+		// Take jane-doe-colour-1.jpg in mono, so the next move into mono is renamed.
+		$moved = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $moved, 'mono' ) );
+
+		$entry_id = $this->add( $member, $competition_id, $member_id, 'colour', array( 0, 200, 0 ) );
+		$hash     = $this->file_hash( $entry_id );
+
+		$failing_repo = new class() extends Images_Repository {
+			public function update_category( int $id, string $category, string $filename ) {
+				return new \WP_Error( 'db_update_failed', 'Could not update image category.' );
+			}
+		};
+		$entries      = new Entries( $this->competitions_repo, $failing_repo, $this->members_repo );
+
+		$this->assertWPError( $entries->change_category( $member, $competition_id, $entry_id, 'mono' ) );
+
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+		$this->assertSame( $hash, $this->file_hash( $entry_id ), "The image isn't back at the name its row has." );
+	}
+
+	public function test_a_member_cant_move_someone_elses_entry(): void {
+		$competition_id = $this->create_competition( 'move-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$other_id       = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$result = $this->entries->change_category( Actor::member( $other_id ), $competition_id, $entry_id, 'mono' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'permission_denied', $result->get_error_code() );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
+	public function test_a_move_needs_an_entry_in_the_competition_and_a_category_it_has(): void {
+		$competition_id = $this->create_competition( 'move-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$member         = Actor::member( $member_id );
+		$entry_id       = $this->add( $member, $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$this->assertSame( 'submission_not_found', $this->entries->change_category( $member, $competition_id, 999999, 'mono' )->get_error_code() );
+		$this->assertSame( 'invalid_competition', $this->entries->change_category( $member, 999999, $entry_id, 'mono' )->get_error_code() );
+		$this->assertSame( 'invalid_category', $this->entries->change_category( $member, $competition_id, $entry_id, 'nature' )->get_error_code() );
+		$this->assertTrue( $this->entries->change_category( $member, $competition_id, $entry_id, 'colour' ) );
+	}
+
+	public function test_quota_status_counts_a_members_entries_in_each_category(): void {
+		$competition_id = $this->create_competition( 'quota-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$status = $this->entries->get_quota_status( $this->competitions_repo->find( $competition_id ), $member_id );
+
+		$this->assertSame( 1, $status['colour']['current'] );
+		$this->assertSame( 1, $status['colour']['remaining'] );
+		$this->assertSame( 0, $status['mono']['current'] );
+		$this->assertSame( 2, $status['mono']['remaining'] );
+		$this->assertSame( 1, $this->entries->get_category_count( $competition_id, $member_id, 'colour' ) );
+	}
+
+	public function test_a_members_entries_come_with_their_urls(): void {
+		$competition_id = $this->create_competition( 'list-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$entries = $this->entries->get_member_entries( $competition_id, $member_id );
+
+		$this->assertCount( 1, $entries );
+		$this->assertStringEndsWith( '/competitions/list-comp/colour/jane-doe-colour.jpg', $entries[0]->url );
+		$this->assertStringContainsString( '/competitions/list-comp/colour/jane-doe-colour-thumb.jpg', $entries[0]->thumbnail_url );
+		$this->assertSame( array(), $this->entries->get_member_entries( 999999, $member_id ) );
+	}
+
+	public function test_a_removal_whose_original_wont_delete_still_removes_the_entry(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$original       = $this->original_path( $entry_id );
+
+		add_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id );
+		remove_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+
+		$this->assertTrue( $result );
+		$this->assertNull( $this->images_repo->find( $entry_id ) );
+		$this->assertFileExists( $original );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( $original, json_decode( $logs[0]->metadata, true )['path'] );
+
+		wp_delete_file( $original );
+	}
+
+	public function test_a_large_original_that_wont_delete_is_logged_at_full_size(): void {
+		$competition_id = $this->create_competition( 'large-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		// Wider than WordPress's 2560px threshold, so the attachment's file is a -scaled copy.
+		$entry_id = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ), 2600, 20 ) );
+		$this->assertIsInt( $entry_id );
+		$full_size = wp_get_original_image_path( (int) $this->images_repo->find( $entry_id )->original_attachment_id );
+		$this->assertNotSame( $full_size, $this->original_path( $entry_id ) );
+
+		add_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+		$this->assertTrue( $this->entries->remove( Actor::member( $member_id ), $competition_id, $entry_id ) );
+		remove_filter( 'wp_delete_file', array( $this, 'keep_originals' ) );
+
+		$logs  = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'entry_file_not_deleted' ) );
+		$paths = array_map(
+			function ( $log ) {
+				return json_decode( $log->metadata, true )['path'];
+			},
+			$logs
+		);
+		$this->assertContains( $full_size, $paths );
+
+		foreach ( glob( dirname( $full_size ) . '/jane-doe-colour-original*' ) as $leftover ) {
+			wp_delete_file( $leftover );
+		}
+	}
+
+	public function test_removing_an_entry_that_doesnt_exist_fails(): void {
+		$competition_id = $this->create_competition( 'remove-comp' );
+
+		$result = $this->entries->remove( Actor::admin(), $competition_id, 999999 );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_image', $result->get_error_code() );
+	}
+
+	/**
+	 * Filter for wp_delete_file that refuses to delete originals.
+	 *
+	 * @param string $file Path about to be deleted.
+	 * @return string The path, or '' to skip the delete.
+	 */
+	public function keep_originals( string $file ): string {
+		return false !== strpos( basename( $file ), '-original' ) ? '' : $file;
+	}
+
+	/**
+	 * Filter for wp_delete_file that refuses to delete entry images, but not thumbnails.
+	 *
+	 * @param string $file Path about to be deleted.
+	 * @return string The path, or '' to skip the delete.
+	 */
+	public function keep_entry_images( string $file ): string {
+		return false !== strpos( $file, '/competitions/' ) && false === strpos( $file, '-thumb.' ) ? '' : $file;
+	}
+
+	/**
+	 * Create a competition with colour and mono categories.
+	 *
+	 * @param string      $slug       Competition slug.
+	 * @param int         $quota      Images allowed per member in each category.
+	 * @param string|null $close_date Close date, or null to leave it open.
+	 * @return int Competition ID.
+	 */
+	private function create_competition( string $slug, int $quota = 1, ?string $close_date = null ): int {
+		$this->slugs[] = $slug;
+
+		return (int) $this->competitions_repo->create(
+			array(
+				'title'      => $slug,
+				'slug'       => $slug,
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => $close_date,
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => $quota,
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Mono',
+							'quota' => $quota,
+						),
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * @param string $name   Member name.
+	 * @param string $email  Member email.
+	 * @param int    $active 1 for an active member, 0 for an inactive one.
+	 * @return int Member ID.
+	 */
+	private function create_member( string $name, string $email, int $active = 1 ): int {
+		return (int) $this->members_repo->create(
+			array(
+				'name'   => $name,
+				'email'  => $email,
+				'grade'  => 'beginner',
+				'active' => $active,
+			)
+		);
+	}
+
+	/**
+	 * A solid-colour JPEG in the shape of a $_FILES entry.
+	 *
+	 * @param int[] $rgb    Fill colour, so each upload is a different picture.
+	 * @param int   $width  Width in pixels.
+	 * @param int   $height Height in pixels.
+	 * @return array<string, mixed>
+	 */
+	private function photo( array $rgb, int $width = 64, int $height = 48 ): array {
+		$image = imagecreatetruecolor( $width, $height );
+		imagefill( $image, 0, 0, imagecolorallocate( $image, $rgb[0], $rgb[1], $rgb[2] ) );
+
+		// wp_tempnam() creates an empty .tmp file, and the image editor needs a .jpg extension.
+		$tmp_name          = wp_tempnam( 'photo.jpg' );
+		$tmp_file          = $tmp_name . '.jpg';
+		$this->tmp_files[] = $tmp_name;
+		$this->tmp_files[] = $tmp_file;
+		imagejpeg( $image, $tmp_file, 90 );
+
+		return $this->upload_array( $tmp_file );
+	}
+
+	/**
+	 * A file in the shape of a $_FILES entry.
+	 *
+	 * @param string $tmp_file Path of the uploaded file.
+	 * @return array<string, mixed>
+	 */
+	private function upload_array( string $tmp_file ): array {
+		return array(
+			'name'     => 'photo.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp_file ),
+		);
+	}
+
+	/**
+	 * Add an entry that must succeed, and return its ID.
+	 *
+	 * @param Actor  $actor          Who is adding it.
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param string $category       Category slug.
+	 * @param int[]  $rgb            Fill colour.
+	 * @return int Entry ID.
+	 */
+	private function add( Actor $actor, int $competition_id, int $member_id, string $category, array $rgb ): int {
+		$result = $this->entries->add( $actor, $competition_id, $member_id, $category, $this->photo( $rgb ) );
+
+		$this->assertIsInt( $result, is_wp_error( $result ) ? $result->get_error_message() : '' );
+
+		return $result;
+	}
+
+	/**
+	 * Path of the entry's competition image, read through its stored row.
+	 *
+	 * Entry files live at uploads/competitions/<slug>/<category>/<filename>.
+	 *
+	 * @param int  $entry_id  Entry ID.
+	 * @param bool $thumbnail The thumbnail's path instead.
+	 * @return string
+	 */
+	private function entry_path( int $entry_id, bool $thumbnail = false ): string {
+		$entry       = $this->images_repo->find( $entry_id );
+		$competition = $this->competitions_repo->find( (int) $entry->competition_id );
+		$filename    = $thumbnail ? preg_replace( '/\.jpg$/', '-thumb.jpg', $entry->filename ) : $entry->filename;
+
+		return wp_upload_dir()['basedir'] . '/competitions/' . $competition->slug . '/' . $entry->category . '/' . $filename;
+	}
+
+	/**
+	 * Paths of the entry's image, thumbnail and original, which must all exist.
+	 *
+	 * @param int $entry_id Entry ID.
+	 * @return string[]
+	 */
+	private function entry_files( int $entry_id ): array {
+		$files = array( $this->entry_path( $entry_id ), $this->entry_path( $entry_id, true ), $this->original_path( $entry_id ) );
+
+		foreach ( $files as $file ) {
+			$this->assertFileExists( $file );
+		}
+
+		return $files;
+	}
+
+	/**
+	 * Hash of the entry's competition image file.
+	 *
+	 * @param int  $entry_id  Entry ID.
+	 * @param bool $thumbnail Hash the entry's thumbnail instead.
+	 * @return string
+	 */
+	private function file_hash( int $entry_id, bool $thumbnail = false ): string {
+		$path = $this->entry_path( $entry_id, $thumbnail );
+
+		$this->assertFileExists( $path );
+
+		return md5_file( $path );
+	}
+
+	/**
+	 * Path of the entry's media library original.
+	 *
+	 * @param int $entry_id Entry ID.
+	 * @return string
+	 */
+	private function original_path( int $entry_id ): string {
+		$path = get_attached_file( (int) $this->images_repo->find( $entry_id )->original_attachment_id );
+
+		$this->assertIsString( $path );
+
+		return $path;
+	}
+}

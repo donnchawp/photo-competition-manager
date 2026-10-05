@@ -14,7 +14,8 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
-use PhotoCompetitionManager\Service\Upload_Handler;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -41,11 +42,11 @@ class Upload_Shortcode {
 	);
 
 	/**
-	 * Upload handler.
+	 * Entries module.
 	 *
-	 * @var Upload_Handler
+	 * @var Entries
 	 */
-	private $upload_handler;
+	private $entries;
 
 	/**
 	 * Competitions repository.
@@ -92,7 +93,9 @@ class Upload_Shortcode {
 	/**
 	 * Constructor.
 	 *
-	 * @param Upload_Handler|null          $upload_handler      Upload handler.
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
+	 *
+	 * @param Entries|null                 $entries             Entries module.
 	 * @param Competitions_Repository|null $competitions_repo   Competitions repository.
 	 * @param Members_Repository|null      $members_repo        Members repository.
 	 * @param Upload_Token_Repository|null $token_repo          Token repository.
@@ -100,14 +103,14 @@ class Upload_Shortcode {
 	 * @param Upload_Link_Service|null     $upload_link_service  Upload link service.
 	 */
 	public function __construct(
-		?Upload_Handler $upload_handler = null,
+		?Entries $entries = null,
 		?Competitions_Repository $competitions_repo = null,
 		?Members_Repository $members_repo = null,
 		?Upload_Token_Repository $token_repo = null,
 		?Email_Service $email_service = null,
 		?Upload_Link_Service $upload_link_service = null
 	) {
-		$this->upload_handler      = $upload_handler ?? new Upload_Handler();
+		$this->entries             = $entries ?? new Entries();
 		$this->competitions_repo   = $competitions_repo ?? new Competitions_Repository();
 		$this->workflow            = new Competition_Workflow( $this->competitions_repo );
 		$this->members_repo        = $members_repo ?? new Members_Repository();
@@ -248,7 +251,7 @@ class Upload_Shortcode {
 		) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
 			$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $_FILES cannot be sanitized; validated in Upload_Handler::handle_upload().
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $_FILES cannot be sanitized; validated in Entries::add().
 			$image_file = isset( $_FILES['image'] ) ? $_FILES['image'] : null;
 			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file );
 		}
@@ -321,7 +324,7 @@ class Upload_Shortcode {
 		}
 
 		// Process upload.
-		$result = $this->upload_handler->handle_upload( $competition_id, $member_id, $category, $image_file );
+		$result = $this->entries->add( Actor::member( $member_id ), $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
 			$this->redirect_with_message( 'error', 'upload_failed' );
@@ -345,7 +348,7 @@ class Upload_Shortcode {
 			return;
 		}
 
-		$result = $this->upload_handler->delete_submission( $image_id, $member_id, $competition_id );
+		$result = $this->entries->remove( Actor::member( $member_id ), $competition_id, $image_id );
 
 		if ( is_wp_error( $result ) ) {
 			$this->redirect_with_message( 'error', 'delete_failed' );
@@ -421,7 +424,7 @@ class Upload_Shortcode {
 		$available_categories = array();
 
 		if ( $member && $token_record ) {
-			$submissions = $this->upload_handler->get_member_submissions( $competition->id, $member->id );
+			$submissions = $this->entries->get_member_entries( (int) $competition->id, (int) $member->id );
 
 			// Group submissions by category for quota checking.
 			$submissions_by_category = array();

@@ -12,7 +12,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
-use PhotoCompetitionManager\Service\Upload_Handler;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 use WP_REST_Controller;
@@ -42,11 +43,11 @@ class Upload_API extends WP_REST_Controller {
 	protected $rest_base = 'upload';
 
 	/**
-	 * Upload handler.
+	 * Entries module.
 	 *
-	 * @var Upload_Handler
+	 * @var Entries
 	 */
-	private $upload_handler;
+	private $entries;
 
 	/**
 	 * Competitions repository.
@@ -72,18 +73,20 @@ class Upload_API extends WP_REST_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Upload_Handler|null          $upload_handler    Upload handler.
+	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
+	 *
+	 * @param Entries|null                 $entries           Entries module.
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Members_Repository|null      $members_repo      Members repository.
 	 * @param Upload_Token_Repository|null $token_repo        Token repository.
 	 */
 	public function __construct(
-		?Upload_Handler $upload_handler = null,
+		?Entries $entries = null,
 		?Competitions_Repository $competitions_repo = null,
 		?Members_Repository $members_repo = null,
 		?Upload_Token_Repository $token_repo = null
 	) {
-		$this->upload_handler    = $upload_handler ?? new Upload_Handler();
+		$this->entries           = $entries ?? new Entries();
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->members_repo      = $members_repo ?? new Members_Repository();
 		$this->token_repo        = $token_repo ?? new Upload_Token_Repository();
@@ -191,7 +194,7 @@ class Upload_API extends WP_REST_Controller {
 		return new WP_REST_Response(
 			array(
 				'competition_id' => $competition->id,
-				'quotas'         => $this->upload_handler->get_quota_status( $competition, $member_id ),
+				'quotas'         => $this->entries->get_quota_status( $competition, $member_id ),
 			),
 			200
 		);
@@ -291,7 +294,7 @@ class Upload_API extends WP_REST_Controller {
 			}
 
 			// Check if batch would exceed quota for this category.
-			$current_count = $this->upload_handler->get_category_count( (int) $competition->id, $member_id, $category );
+			$current_count = $this->entries->get_category_count( (int) $competition->id, $member_id, $category );
 			$quota         = $category_config['quota'] ?? 1;
 			$available     = $quota - $current_count;
 
@@ -325,7 +328,8 @@ class Upload_API extends WP_REST_Controller {
 			}
 
 			// Attempt upload.
-			$result = $this->upload_handler->handle_upload(
+			$result = $this->entries->add(
+				Actor::member( $member_id ),
 				(int) $competition->id,
 				$member_id,
 				$category,
@@ -410,10 +414,10 @@ class Upload_API extends WP_REST_Controller {
 		$competition_id = (int) $token_record->competition_id;
 
 		// Update the submission category.
-		$result = $this->upload_handler->update_submission_category(
-			$submission_id,
-			$member_id,
+		$result = $this->entries->change_category(
+			Actor::member( $member_id ),
 			$competition_id,
+			(int) $submission_id,
 			$category
 		);
 
