@@ -73,6 +73,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Plugin automatically resizes oversized images.
   - Filenames automatically reformatted to:
     **`username-categoryslug-[counter].jpg`**
+    - If another entry's image already has that name in the folder (a namesake, a reused counter, or an entry moved in from another category), a numeric suffix is added (`…-1.jpg`) so no upload or move overwrites another entry's image. The Media Library original (`…-original.jpg`) gets the same treatment in the shared month folder.
   - Images stored in Media Library, tagged with:
     - Competition tag (e.g. `2024-10`)
     - Category tag (e.g. `colour`)

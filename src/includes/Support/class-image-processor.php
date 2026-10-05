@@ -156,8 +156,8 @@ class Image_Processor {
 			return $upload_dir;
 		}
 
-		// Generate filename: username-categoryslug-[counter].jpg.
-		$filename = $this->generate_filename( $username, $category_slug, $counter );
+		// Generate filename: username-categoryslug-[counter].jpg, suffixed when another entry has it.
+		$filename = wp_unique_filename( $upload_dir['path'], $this->generate_filename( $username, $category_slug, $counter ) );
 
 		// Save original to media library first.
 		$attachment_id = $this->save_original_to_media_library( $file, $competition_slug, $category_slug, $username, $counter, $constraints );
@@ -244,9 +244,9 @@ class Image_Processor {
 			? sprintf( '%s-%s-%d-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ), $counter )
 			: sprintf( '%s-%s-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ) );
 
-		// Create a temporary file.
+		// The month folder is shared by every competition, so take a name no other original has.
 		$upload_dir = wp_upload_dir();
-		$temp_file  = trailingslashit( $upload_dir['path'] ) . $original_filename;
+		$temp_file  = trailingslashit( $upload_dir['path'] ) . wp_unique_filename( $upload_dir['path'], $original_filename );
 
 		// Save the processed original to temp location.
 		$saved = $image->save( $temp_file );
@@ -487,13 +487,16 @@ class Image_Processor {
 	/**
 	 * Move image files between categories.
 	 *
-	 * Moves both the main image and thumbnail from one category folder to another.
+	 * Moves both the main image and thumbnail from one category folder to another,
+	 * renaming them if another entry's image already has the name there.
+	 *
+	 * @since 0.4.0 Returns the filename in the new folder.
 	 *
 	 * @param string $competition_slug Competition slug.
 	 * @param string $old_category     Old category slug.
 	 * @param string $new_category     New category slug.
 	 * @param string $filename         Image filename.
-	 * @return true|WP_Error True on success, WP_Error on failure.
+	 * @return string|WP_Error Filename in the new category folder, or WP_Error on failure.
 	 */
 	public function move_image_between_categories( string $competition_slug, string $old_category, string $new_category, string $filename ) {
 		// Get source directory.
@@ -512,8 +515,9 @@ class Image_Processor {
 		$dest_path   = trailingslashit( $dest_dir['path'] );
 
 		// Move main image.
-		$source_file = $source_path . $filename;
-		$dest_file   = $dest_path . $filename;
+		$dest_filename = wp_unique_filename( $dest_path, $filename );
+		$source_file   = $source_path . $filename;
+		$dest_file     = $dest_path . $dest_filename;
 
 		if ( file_exists( $source_file ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
@@ -523,9 +527,8 @@ class Image_Processor {
 		}
 
 		// Move thumbnail.
-		$thumb_filename = self::get_thumbnail_filename( $filename );
-		$source_thumb   = $source_path . $thumb_filename;
-		$dest_thumb     = $dest_path . $thumb_filename;
+		$source_thumb = $source_path . self::get_thumbnail_filename( $filename );
+		$dest_thumb   = $dest_path . self::get_thumbnail_filename( $dest_filename );
 
 		if ( file_exists( $source_thumb ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
@@ -539,6 +542,6 @@ class Image_Processor {
 			}
 		}
 
-		return true;
+		return $dest_filename;
 	}
 }

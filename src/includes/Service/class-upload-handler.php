@@ -379,21 +379,21 @@ class Upload_Handler {
 			);
 		}
 
-		// Move the image files to the new category folder.
+		// Move the image files to the new category folder, which may rename them.
 		$old_category = $submission->category;
-		$move_result  = $this->image_processor->move_image_between_categories(
+		$new_filename = $this->image_processor->move_image_between_categories(
 			$competition->slug,
 			$old_category,
 			$new_category,
 			$submission->filename
 		);
 
-		if ( is_wp_error( $move_result ) ) {
-			return $move_result;
+		if ( is_wp_error( $new_filename ) ) {
+			return $new_filename;
 		}
 
-		// Update the category in the database.
-		$result = $this->images_repo->update_category( $submission_id, $new_category );
+		// Update the category and filename in the database.
+		$result = $this->images_repo->update_category( $submission_id, $new_category, $new_filename );
 
 		if ( is_wp_error( $result ) ) {
 			// Rollback: Move files back to original category.
@@ -401,7 +401,7 @@ class Upload_Handler {
 				$competition->slug,
 				$new_category,
 				$old_category,
-				$submission->filename
+				$new_filename
 			);
 			return $result;
 		}
