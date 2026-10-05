@@ -175,6 +175,17 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( 'category_has_votes', $result->get_error_code() );
 		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/late-entry-comp/colour/jane-doe*' ) );
 		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+		$this->assertSame(
+			array(),
+			get_posts(
+				array(
+					'post_type'   => 'attachment',
+					'post_status' => 'any',
+					'meta_key'    => '_photo_comp_member', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+					'meta_value'  => 'jane-doe', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				)
+			)
+		);
 	}
 
 	public function test_an_admin_adds_an_entry_to_a_category_without_votes_even_during_voting(): void {

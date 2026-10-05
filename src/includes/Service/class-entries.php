@@ -99,7 +99,8 @@ class Entries {
 	 * Add an entry: store the uploaded image and its original, and record it.
 	 *
 	 * A member may add only their own entries, and only while the competition accepts uploads.
-	 * An admin may add for any member at any time. Both are held to the category's quota.
+	 * An admin may add for any member at any time. Both are held to the category's quota, and
+	 * neither can add to a category that already has votes.
 	 *
 	 * @param Actor                $actor          Who is adding the entry.
 	 * @param int                  $competition_id Competition ID.
@@ -462,7 +463,8 @@ class Entries {
 	 * A member may move only their own entries, and only while the competition accepts uploads.
 	 * An admin may move them whatever the phase, while both categories are at Not started or
 	 * Previewed. No entry with votes can move, whoever is moving it: votes store their category,
-	 * so its category has to be reset with its votes cleared first.
+	 * so its category has to be reset with its votes cleared first. For the same reason no entry
+	 * can move into a category that already has votes.
 	 * Quota is checked against where the entries end up, so two entries can swap categories.
 	 * If a move fails, the moves already made are undone.
 	 *
