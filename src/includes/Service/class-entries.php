@@ -316,23 +316,8 @@ class Entries {
 			return new WP_Error( 'not_authorized', __( 'Only an admin can remove a member\'s entries.', 'photo-competition-manager' ) );
 		}
 
-		$competitions = array();
 		foreach ( $this->images_repo->find_by_member( $member_id ) as $entry ) {
-			$competition_id = (int) $entry->competition_id;
-			if ( ! array_key_exists( $competition_id, $competitions ) ) {
-				$competitions[ $competition_id ] = $this->competitions_repo->find( $competition_id, true );
-			}
-
-			if ( $competitions[ $competition_id ] ) {
-				$removed = $this->remove_entry( $competitions[ $competition_id ], $entry );
-			} else {
-				// Without its competition there's no folder to look in, but the original is in the media library.
-				$removed = $this->images_repo->delete( (int) $entry->id );
-				if ( ! is_wp_error( $removed ) && $entry->original_attachment_id ) {
-					wp_delete_attachment( (int) $entry->original_attachment_id, true );
-				}
-			}
-
+			$removed = $this->remove_entry( $this->competitions_repo->find( (int) $entry->competition_id, true ), $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
 			}
@@ -344,17 +329,22 @@ class Entries {
 	/**
 	 * Remove an entry's row and votes, then its files and original, without checking any rules.
 	 *
-	 * @param object $competition Competition record.
-	 * @param object $entry       Entry record.
+	 * @param object|null $competition Competition record, or null when it's gone.
+	 * @param object      $entry       Entry record.
 	 * @return true|WP_Error
 	 */
-	private function remove_entry( object $competition, object $entry ) {
+	private function remove_entry( ?object $competition, object $entry ) {
 		$deleted = $this->images_repo->delete( (int) $entry->id );
 		if ( is_wp_error( $deleted ) ) {
 			return $deleted;
 		}
 
-		$this->delete_files( $competition, $entry->category, $entry->filename, (int) $entry->original_attachment_id );
+		if ( $competition ) {
+			$this->delete_files( $competition, $entry->category, $entry->filename, (int) $entry->original_attachment_id );
+		} else {
+			// Without its competition there's no folder to look in, but the original is in the media library.
+			$this->delete_original( (int) $entry->competition_id, (int) $entry->original_attachment_id );
+		}
 
 		return true;
 	}
@@ -764,21 +754,34 @@ class Entries {
 				wp_delete_file( $path );
 
 				if ( file_exists( $path ) ) {
-					$this->log_undeleted( $competition, $path );
+					$this->log_undeleted( (int) $competition->id, $path );
 				}
 			}
 		}
 
-		if ( $attachment_id > 0 ) {
-			// A large original's attached file is a -scaled copy, so check the full-size file too.
-			// Both are false when the original is already gone from the media library.
-			$originals = array_unique( array_filter( array( get_attached_file( $attachment_id ), wp_get_original_image_path( $attachment_id ) ) ) );
-			wp_delete_attachment( $attachment_id, true );
+		$this->delete_original( (int) $competition->id, $attachment_id );
+	}
 
-			foreach ( $originals as $original ) {
-				if ( file_exists( $original ) ) {
-					$this->log_undeleted( $competition, $original );
-				}
+	/**
+	 * Delete an entry's original from the media library, logging any file that won't go.
+	 *
+	 * @param int $competition_id Competition ID, for the log.
+	 * @param int $attachment_id  Original's attachment ID, or 0 when there isn't one.
+	 * @return void
+	 */
+	private function delete_original( int $competition_id, int $attachment_id ): void {
+		if ( $attachment_id <= 0 ) {
+			return;
+		}
+
+		// A large original's attached file is a -scaled copy, so check the full-size file too.
+		// Both are false when the original is already gone from the media library.
+		$originals = array_unique( array_filter( array( get_attached_file( $attachment_id ), wp_get_original_image_path( $attachment_id ) ) ) );
+		wp_delete_attachment( $attachment_id, true );
+
+		foreach ( $originals as $original ) {
+			if ( file_exists( $original ) ) {
+				$this->log_undeleted( $competition_id, $original );
 			}
 		}
 	}
@@ -786,13 +789,13 @@ class Entries {
 	/**
 	 * Log an entry file or original that wouldn't delete, so an admin can remove it by hand.
 	 *
-	 * @param object $competition Competition record.
-	 * @param string $path        The file's path.
+	 * @param int    $competition_id Competition ID.
+	 * @param string $path           The file's path.
 	 * @return void
 	 */
-	private function log_undeleted( object $competition, string $path ): void {
+	private function log_undeleted( int $competition_id, string $path ): void {
 		( new Event_Logger() )->log(
-			(int) $competition->id,
+			$competition_id,
 			'entry_file_not_deleted',
 			'upload',
 			__( 'An entry file could not be deleted.', 'photo-competition-manager' ),
