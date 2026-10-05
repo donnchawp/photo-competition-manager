@@ -621,6 +621,11 @@ class Entries {
 	 * @return void
 	 */
 	private function remove_competition_directory( string $competition_slug ): void {
+		// Without a slug, the competition's folder would be the one that holds every competition.
+		if ( '' === sanitize_file_name( $competition_slug ) ) {
+			return;
+		}
+
 		$directory = $this->competition_directory( $competition_slug );
 		if ( is_wp_error( $directory ) || ! is_dir( $directory ) ) {
 			return;

@@ -733,7 +733,24 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->entry_files( $stuck_id );
 	}
 
+	public function test_a_competition_without_a_slug_leaves_other_competitions_folders_alone(): void {
+		$competition_id = $this->create_competition( '!!!' );
+		$this->assertSame( '', $this->competitions_repo->find( $competition_id )->slug );
+
+		$idle = wp_upload_dir()['basedir'] . '/competitions/idle-comp';
+		wp_mkdir_p( $idle );
+		$this->slugs[] = 'idle-comp';
+
+		$this->assertTrue( $this->entries->remove_competition_entries( Actor::admin(), $competition_id ) );
+
+		$this->assertDirectoryExists( $idle );
+	}
+
 	public function test_a_competition_folder_that_cant_be_read_doesnt_fail_the_removal(): void {
+		if ( function_exists( 'posix_geteuid' ) && 0 === posix_geteuid() ) {
+			$this->markTestSkipped( 'Root can read a folder with no permissions.' );
+		}
+
 		$competition_id = $this->create_competition( 'locked-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
 		$entry_id       = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
