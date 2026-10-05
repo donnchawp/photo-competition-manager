@@ -6,7 +6,9 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -362,6 +364,26 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$this->assertTrue( $result );
 
 		$this->assertNull( $repository->find( $id ) );
+	}
+
+	public function test_delete_refuses_while_the_member_has_entries(): void {
+		$repository = new Members_Repository( $GLOBALS['wpdb'] );
+
+		$id = $repository->create(
+			array(
+				'name'  => 'Still Entered',
+				'email' => 'entered@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$entry_id = Entry_Fixtures::insert_entry( 1, 'colour', $id, array() );
+
+		$result = $repository->delete( $id );
+		$this->assertWPError( $result );
+		$this->assertSame( 'has_entries', $result->get_error_code() );
+
+		$this->assertNotNull( $repository->find( $id ) );
+		$this->assertNotNull( ( new Images_Repository() )->find( $entry_id ) );
 	}
 
 	public function test_delete_rejects_invalid_id(): void {

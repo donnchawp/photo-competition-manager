@@ -521,14 +521,12 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Permanently delete a competition and all associated data.
+	 * Permanently delete a competition with its votes and tokens.
 	 *
-	 * This will delete:
-	 * - All images for the competition
-	 * - All votes for the competition
-	 * - All upload tokens for the competition
-	 * - All voting tokens for the competition
-	 * - The competition record itself
+	 * Its entries have to be removed first, through the Entries module, so their files go
+	 * with them. Until then this refuses with `has_entries`.
+	 *
+	 * @since 0.4.0 Refuses while the competition has entries, instead of deleting their rows.
 	 *
 	 * @param int $id Competition ID.
 	 * @return bool|WP_Error
@@ -546,19 +544,17 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		// Delete all related data in proper order.
+		if ( ( new Images_Repository() )->find_by_competition( $id ) ) {
+			return new WP_Error( 'has_entries', __( 'This competition still has entries. Remove them before deleting it.', 'photo-competition-manager' ) );
+		}
+
 		$votes_repo        = new Votes_Repository();
-		$images_repo       = new Images_Repository();
 		$upload_token_repo = new Upload_Token_Repository();
 		$voting_token_repo = new Voting_Token_Repository();
 
-		// Delete votes first (they reference images).
+		// Votes left behind by entries that are already gone.
 		$votes_repo->delete_by_competition( $id );
 
-		// Delete images.
-		$images_repo->delete_by_competition( $id );
-
-		// Delete tokens.
 		$upload_token_repo->delete_by_competition( $id );
 		$voting_token_repo->delete_by_competition( $id );
 

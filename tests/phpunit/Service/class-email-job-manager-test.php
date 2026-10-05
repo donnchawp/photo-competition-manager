@@ -12,8 +12,10 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -372,6 +374,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$leaver = $this->seed_entrant( 'leaver@example.com' );
 		$job_id = $this->manager->queue_results( $this->competition_id );
 
+		( new Entries() )->remove_member_entries( Actor::admin(), $leaver );
 		$this->members->delete( $leaver );
 		$this->manager->process_batch( $job_id );
 

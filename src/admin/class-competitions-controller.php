@@ -13,8 +13,10 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -51,15 +53,26 @@ class Competitions_Controller {
 	private $workflow;
 
 	/**
+	 * Entries module.
+	 *
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0 Takes the Entries module.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
 	 * @param Email_Job_Manager|null  $email_jobs   Email job queue.
+	 * @param Entries|null            $entries      Entries module.
 	 */
-	public function __construct( Competitions_Repository $competitions, ?Email_Job_Manager $email_jobs = null ) {
+	public function __construct( Competitions_Repository $competitions, ?Email_Job_Manager $email_jobs = null, ?Entries $entries = null ) {
 		$this->competitions = $competitions;
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
+		$this->entries      = $entries ?? new Entries( $this->competitions );
 	}
 
 	/**
@@ -319,7 +332,11 @@ class Competitions_Controller {
 			check_admin_referer( $nonce_action . $competition_id );
 
 			if ( 'delete' === $action ) {
-				$result = $this->competitions->delete( $competition_id );
+				// The entries go first, so their files and originals go with them.
+				$result = $this->entries->remove_competition_entries( Actor::admin(), $competition_id );
+				if ( ! is_wp_error( $result ) ) {
+					$result = $this->competitions->delete( $competition_id );
+				}
 
 				if ( is_wp_error( $result ) ) {
 					add_settings_error(

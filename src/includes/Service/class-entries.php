@@ -228,8 +228,8 @@ class Entries {
 	 * Remove an entry: its row and votes first, then its image, thumbnail and original.
 	 *
 	 * A member may remove only their own entries, and only while the competition accepts uploads.
-	 * An admin may remove any entry at any time. If the row won't delete, the files and original
-	 * are left alone. A file that won't delete is logged and doesn't fail the removal.
+	 * An admin may remove any entry at any time. If the row won't delete, its votes, files and
+	 * original are left alone. A file that won't delete is logged and doesn't fail the removal.
 	 *
 	 * @param Actor $actor          Who is removing the entry.
 	 * @param int   $competition_id Competition the entry must belong to.
