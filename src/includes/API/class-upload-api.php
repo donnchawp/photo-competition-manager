@@ -450,9 +450,11 @@ class Upload_API extends WP_REST_Controller {
 				'sanitize_callback' => 'sanitize_text_field',
 			),
 			'changes' => array(
-				'description' => __( 'New category slug, keyed by entry ID.', 'photo-competition-manager' ),
-				'type'        => 'object',
-				'required'    => true,
+				'description'          => __( 'New category slug, keyed by entry ID.', 'photo-competition-manager' ),
+				'type'                 => 'object',
+				'required'             => true,
+				'minProperties'        => 1,
+				'additionalProperties' => array( 'type' => 'string' ),
 			),
 		);
 	}

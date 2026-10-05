@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_REST_Request;
 use WP_UnitTestCase;
 
@@ -107,6 +108,34 @@ class Upload_API_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $response->is_error() );
 		$this->assertSame( 'colour', $images->find( $theirs )->category );
+	}
+
+	public function test_changes_must_name_a_category_for_each_entry(): void {
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'colour' );
+
+		$not_a_category = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => array( 'colour' ) ) ) );
+		$no_changes     = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array() ) );
+
+		$this->assertSame( 400, $not_a_category->get_status() );
+		$this->assertSame( 400, $no_changes->get_status() );
+	}
+
+	public function test_an_admin_with_a_members_link_moves_their_entries_after_uploads_close(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'colour' );
+		Workflow_Fixtures::close_uploads( (int) $token->competition_id );
+		$admin_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		get_userdata( $admin_id )->add_cap( 'manage_photo_competitions' );
+		wp_set_current_user( $admin_id );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'black-white', $images->find( $entry )->category );
 	}
 
 	/**

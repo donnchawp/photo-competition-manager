@@ -470,6 +470,22 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( $mono_hash, $this->file_hash( $mono ), "The second entry's image isn't back where its row says." );
 	}
 
+	public function test_an_entry_in_a_category_the_competition_no_longer_has_can_move_out_of_it(): void {
+		$competition_id = $this->create_competition( 'renamed-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'nature',
+				'filename'       => 'jane-doe-nature.jpg',
+			)
+		);
+
+		$this->assertTrue( $this->entries->change_categories( Actor::member( $member_id ), $competition_id, $member_id, array( $entry_id => 'colour' ) ) );
+		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
 	public function test_moving_an_entry_to_another_category_keeps_the_image_already_there(): void {
 		$competition_id = $this->create_competition( 'move-comp', 2 );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -521,11 +537,11 @@ class Entries_Test extends WP_UnitTestCase {
 		$other_id       = $this->create_member( 'John Murphy', 'john@example.com' );
 		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 
-		$as_other   = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $member_id, array( $entry_id => 'mono' ) );
-		$as_own_set = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $other_id, array( $entry_id => 'mono' ) );
+		$as_other            = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $member_id, array( $entry_id => 'mono' ) );
+		$as_owner_of_the_set = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $other_id, array( $entry_id => 'mono' ) );
 
 		$this->assertSame( 'permission_denied', $as_other->get_error_code() );
-		$this->assertSame( 'permission_denied', $as_own_set->get_error_code() );
+		$this->assertSame( 'permission_denied', $as_owner_of_the_set->get_error_code() );
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
 	}
 

@@ -289,7 +289,7 @@ class Entries {
 			}
 
 			if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
-				return new WP_Error( 'competition_closed', __( 'Entries can only change category while the competition is open for submissions.', 'photo-competition-manager' ) );
+				return new WP_Error( 'competition_closed', __( 'Entries can only change category while the competition is accepting uploads.', 'photo-competition-manager' ) );
 			}
 		}
 
@@ -335,20 +335,20 @@ class Entries {
 			return $quota_error;
 		}
 
-		$done = array();
+		$moves_made = array();
 		foreach ( $moves as list( $entry, $new_category ) ) {
 			$new_filename = $this->move_entry( $competition, $entry, $new_category );
 
 			if ( is_wp_error( $new_filename ) ) {
 				// Put back the moves already made, newest first.
-				foreach ( array_reverse( $done ) as list( $moved, $moved_category, $moved_filename ) ) {
+				foreach ( array_reverse( $moves_made ) as list( $moved, $moved_category, $moved_filename ) ) {
 					$this->move_files( $competition->slug, $moved_category, $moved->category, $moved_filename, $moved->filename );
 					$this->images_repo->update_category( (int) $moved->id, $moved->category, $moved->filename );
 				}
 				return $new_filename;
 			}
 
-			$done[] = array( $entry, $new_category, $new_filename );
+			$moves_made[] = array( $entry, $new_category, $new_filename );
 		}
 
 		return true;
@@ -370,7 +370,8 @@ class Entries {
 		}
 
 		foreach ( $moves as list( $entry, $new_category ) ) {
-			--$counts[ $entry->category ];
+			// An entry can sit in a category the competition no longer has.
+			$counts[ $entry->category ] = ( $counts[ $entry->category ] ?? 0 ) - 1;
 			++$counts[ $new_category ];
 		}
 
@@ -383,7 +384,7 @@ class Entries {
 					'quota_exceeded',
 					sprintf(
 						/* translators: 1: category label, 2: number of entries, 3: quota limit */
-						__( 'That would leave %1$s with %2$d images, but the limit is %3$d.', 'photo-competition-manager' ),
+						__( 'That would leave %1$s with %2$d entries, but the limit is %3$d.', 'photo-competition-manager' ),
 						$category_config['label'],
 						$counts[ $new_category ],
 						$quota
