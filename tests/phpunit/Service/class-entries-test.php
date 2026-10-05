@@ -541,7 +541,8 @@ class Entries_Test extends WP_UnitTestCase {
 		$as_owner_of_the_set = $this->entries->change_categories( Actor::member( $other_id ), $competition_id, $other_id, array( $entry_id => 'mono' ) );
 
 		$this->assertSame( 'permission_denied', $as_other->get_error_code() );
-		$this->assertSame( 'permission_denied', $as_owner_of_the_set->get_error_code() );
+		// Someone else's entry looks the same as a missing one.
+		$this->assertSame( 'submission_not_found', $as_owner_of_the_set->get_error_code() );
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
 	}
 

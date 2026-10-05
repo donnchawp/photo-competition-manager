@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_REST_Request;
 use WP_UnitTestCase;
@@ -26,9 +27,8 @@ class Upload_API_Test extends WP_UnitTestCase {
 
 		// Moves create the category folders, each with an index.php, even when an entry has no
 		// files. Clean up after the rollback, so a failure here can't leave the test's rows behind.
-		$folder = wp_upload_dir()['basedir'] . '/competitions/upload-comp';
-		array_map( 'wp_delete_file', (array) glob( $folder . '/*/index.php' ) );
-		$this->delete_folders( $folder );
+		$this->remove_added_uploads();
+		$this->delete_folders( wp_upload_dir()['basedir'] . '/competitions/upload-comp' );
 	}
 
 	private function request_for_member( bool $active ): WP_REST_Request {
@@ -72,8 +72,8 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$images  = new Images_Repository();
 		$request = $this->request_for_member( true );
 		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
-		$colour  = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'colour' );
-		$mono    = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'black-white' );
+		$colour  = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		$mono    = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'black-white', (int) $token->member_id, array() );
 
 		$response = rest_do_request(
 			$this->change_categories_request(
@@ -102,7 +102,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 				'active' => 1,
 			)
 		);
-		$theirs   = $this->entry( (int) $token->competition_id, $other_id, 'colour' );
+		$theirs   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', $other_id, array() );
 
 		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $theirs => 'black-white' ) ) );
 
@@ -113,7 +113,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	public function test_changes_must_name_a_category_for_each_entry(): void {
 		$request = $this->request_for_member( true );
 		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
-		$entry   = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'colour' );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
 
 		$not_a_category = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => array( 'colour' ) ) ) );
 		$no_changes     = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array() ) );
@@ -126,7 +126,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$images  = new Images_Repository();
 		$request = $this->request_for_member( true );
 		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
-		$entry   = $this->entry( (int) $token->competition_id, (int) $token->member_id, 'colour' );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
 		Workflow_Fixtures::close_uploads( (int) $token->competition_id );
 		$admin_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		get_userdata( $admin_id )->add_cap( 'manage_photo_competitions' );
@@ -136,25 +136,6 @@ class Upload_API_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'black-white', $images->find( $entry )->category );
-	}
-
-	/**
-	 * An entry row with no files; a move skips files that aren't there.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $category       Category slug.
-	 * @return int Entry ID.
-	 */
-	private function entry( int $competition_id, int $member_id, string $category ): int {
-		return (int) ( new Images_Repository() )->create(
-			array(
-				'competition_id' => $competition_id,
-				'member_id'      => $member_id,
-				'category'       => $category,
-				'filename'       => "entry-{$category}.jpg",
-			)
-		);
 	}
 
 	/**

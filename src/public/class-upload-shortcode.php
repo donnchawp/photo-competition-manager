@@ -456,8 +456,12 @@ class Upload_Shortcode {
 				<?php echo wp_kses_post( $message ); ?>
 			<?php endif; ?>
 
+			<?php
+			// An admin following a member's link from the Submissions screen can still manage their entries.
+			$admin_on_link = $member && $token_record && Actor::for_upload_link( (int) $member->id )->is_admin();
+			?>
 			<?php if ( ! $this->workflow->is_accepting_uploads( $competition ) ) : ?>
-				<?php if ( ! $member || ! $token_record || ! Actor::for_upload_link( (int) $member->id )->is_admin() ) : ?>
+				<?php if ( ! $admin_on_link ) : ?>
 					<p class="notice"><?php esc_html_e( 'This competition is not currently open for submissions.', 'photo-competition-manager' ); ?></p>
 					<?php return; ?>
 				<?php endif; ?>

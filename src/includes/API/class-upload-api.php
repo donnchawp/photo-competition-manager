@@ -413,7 +413,7 @@ class Upload_API extends WP_REST_Controller {
 
 		$changes = array();
 		foreach ( (array) $request->get_param( 'changes' ) as $entry_id => $category ) {
-			$changes[ absint( $entry_id ) ] = sanitize_text_field( (string) $category );
+			$changes[ absint( $entry_id ) ] = sanitize_text_field( $category );
 		}
 
 		$result = $this->entries->change_categories(

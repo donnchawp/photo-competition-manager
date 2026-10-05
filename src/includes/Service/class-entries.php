@@ -294,87 +294,52 @@ class Entries {
 		}
 
 		$settings = Competition_Settings::parse( $competition->settings );
-		$moves    = array();
+
+		// The member's entries in this competition: the only ones they can move, and what quota counts.
+		$entries = array_column( $this->images_repo->find_by_competition( $competition_id, null, $member_id ), null, 'id' );
+		$counts  = array_count_values( array_column( $entries, 'category' ) );
+		$moves   = array();
 
 		foreach ( $changes as $entry_id => $new_category ) {
-			$entry = $this->images_repo->find( (int) $entry_id );
-			if ( ! $entry ) {
+			// Someone else's entry gets the same answer as a missing one, so this can't tell them apart.
+			if ( ! isset( $entries[ $entry_id ] ) ) {
 				return new WP_Error( 'submission_not_found', __( 'Submission not found.', 'photo-competition-manager' ) );
 			}
 
-			if ( (int) $entry->competition_id !== $competition_id ) {
-				return new WP_Error( 'invalid_competition', __( 'Submission does not belong to this competition.', 'photo-competition-manager' ) );
-			}
-
-			if ( (int) $entry->member_id !== $member_id ) {
-				return new WP_Error( 'permission_denied', __( 'You do not have permission to modify this submission.', 'photo-competition-manager' ) );
-			}
-
-			if ( ! Competition_Settings::find_category( $settings, (string) $new_category ) ) {
+			if ( ! Competition_Settings::find_category( $settings, $new_category ) ) {
 				return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
 			}
 
+			$entry = $entries[ $entry_id ];
 			if ( $entry->category === $new_category ) {
 				continue;
 			}
 
-			if ( $actor->is_admin() ) {
-				foreach ( array( $entry->category, $new_category ) as $category ) {
-					$stage = $this->workflow->stage( $competition, $category );
-					if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
-						return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category first.', 'photo-competition-manager' ) );
-					}
+			$moves[] = array( $entry, $new_category );
+			--$counts[ $entry->category ];
+			$counts[ $new_category ] = ( $counts[ $new_category ] ?? 0 ) + 1;
+		}
+
+		if ( $actor->is_admin() ) {
+			$touched = array_merge(
+				array_column( $moves, 1 ),
+				array_map(
+					function ( $move ) {
+						return $move[0]->category;
+					},
+					$moves
+				)
+			);
+
+			foreach ( array_unique( $touched ) as $category ) {
+				$stage = $this->workflow->stage( $competition, $category );
+				if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+					return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category first.', 'photo-competition-manager' ) );
 				}
 			}
-
-			$moves[] = array( $entry, (string) $new_category );
 		}
 
-		$quota_error = $this->check_final_quota( $competition, $settings, $member_id, $moves );
-		if ( is_wp_error( $quota_error ) ) {
-			return $quota_error;
-		}
-
-		$moves_made = array();
-		foreach ( $moves as list( $entry, $new_category ) ) {
-			$new_filename = $this->move_entry( $competition, $entry, $new_category );
-
-			if ( is_wp_error( $new_filename ) ) {
-				// Put back the moves already made, newest first.
-				foreach ( array_reverse( $moves_made ) as list( $moved, $moved_category, $moved_filename ) ) {
-					$this->move_files( $competition->slug, $moved_category, $moved->category, $moved_filename, $moved->filename );
-					$this->images_repo->update_category( (int) $moved->id, $moved->category, $moved->filename );
-				}
-				return $new_filename;
-			}
-
-			$moves_made[] = array( $entry, $new_category, $new_filename );
-		}
-
-		return true;
-	}
-
-	/**
-	 * Refuse a set of moves that would leave any category it moves entries into over quota.
-	 *
-	 * @param object                                  $competition Competition record.
-	 * @param array<string, mixed>                    $settings    Parsed competition settings.
-	 * @param int                                     $member_id   Member ID.
-	 * @param array<int, array{0: object, 1: string}> $moves Entry and new category slug for each move.
-	 * @return true|WP_Error
-	 */
-	private function check_final_quota( object $competition, array $settings, int $member_id, array $moves ) {
-		$counts = array();
-		foreach ( Competition_Settings::get_categories( $settings ) as $category ) {
-			$counts[ $category['slug'] ] = $this->images_repo->count_by_member_category( (int) $competition->id, $member_id, $category['slug'] );
-		}
-
-		foreach ( $moves as list( $entry, $new_category ) ) {
-			// An entry can sit in a category the competition no longer has.
-			$counts[ $entry->category ] = ( $counts[ $entry->category ] ?? 0 ) - 1;
-			++$counts[ $new_category ];
-		}
-
+		// Only the categories gaining entries can go over quota.
 		foreach ( array_unique( array_column( $moves, 1 ) ) as $new_category ) {
 			$category_config = Competition_Settings::find_category( $settings, $new_category );
 			$quota           = $category_config['quota'] ?? 1;
@@ -391,6 +356,22 @@ class Entries {
 					)
 				);
 			}
+		}
+
+		$moves_made = array();
+		foreach ( $moves as list( $entry, $new_category ) ) {
+			$new_filename = $this->move_entry( $competition, $entry, $new_category );
+
+			if ( is_wp_error( $new_filename ) ) {
+				// Put back the moves already made, newest first.
+				foreach ( array_reverse( $moves_made ) as list( $moved, $moved_category, $moved_filename ) ) {
+					$this->move_back( $competition, $moved, $moved_category, $moved_filename );
+					$this->images_repo->update_category( (int) $moved->id, $moved->category, $moved->filename );
+				}
+				return $new_filename;
+			}
+
+			$moves_made[] = array( $entry, $new_category, $new_filename );
 		}
 
 		return true;
@@ -412,12 +393,24 @@ class Entries {
 
 		$result = $this->images_repo->update_category( (int) $entry->id, $new_category, $new_filename );
 		if ( is_wp_error( $result ) ) {
-			// Put the files back, under the name the row still has.
-			$this->move_files( $competition->slug, $new_category, $entry->category, $new_filename, $entry->filename );
+			$this->move_back( $competition, $entry, $new_category, $new_filename );
 			return $result;
 		}
 
 		return $new_filename;
+	}
+
+	/**
+	 * Put an entry's files back in its own category, under the name its row has.
+	 *
+	 * @param object $competition    Competition record.
+	 * @param object $entry          Entry record, as it was before the move.
+	 * @param string $moved_category Category slug the files were moved to.
+	 * @param string $moved_filename Filename they were given there.
+	 * @return void
+	 */
+	private function move_back( object $competition, object $entry, string $moved_category, string $moved_filename ): void {
+		$this->move_files( $competition->slug, $moved_category, $entry->category, $moved_filename, $entry->filename );
 	}
 
 	/**

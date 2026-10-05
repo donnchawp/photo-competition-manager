@@ -187,8 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		// Send every change in one request: the server checks quota against where
 		// the entries end up, and applies all of them or none.
-		const changeCount = pendingChanges.size;
-		let errorMessage = '';
+		const showError = (message) => {
+			// Nothing moved, so the pending changes stay for the member to fix and save again.
+			statusDiv.className = 'category-change-status error';
+			statusDiv.textContent = `No categories were changed: ${message}`;
+		};
 
 		try {
 			const response = await fetch(
@@ -208,6 +211,12 @@ document.addEventListener('DOMContentLoaded', () => {
 			const data = await response.json();
 
 			if (response.ok) {
+				statusDiv.className = 'category-change-status success';
+				statusDiv.textContent = `✓ Successfully updated ${pendingChanges.size} category assignment(s).`;
+				setTimeout(() => {
+					statusDiv.style.display = 'none';
+				}, 5000);
+
 				pendingChanges.forEach((newCategory, submissionId) => {
 					const select = document.querySelector(`.submission-category-select[data-submission-id="${submissionId}"]`);
 					if (select) {
@@ -215,30 +224,16 @@ document.addEventListener('DOMContentLoaded', () => {
 					}
 				});
 				pendingChanges.clear();
+				saveButton.style.display = 'none';
 			} else {
-				errorMessage = data.message || 'Failed';
+				showError(data.message || 'Failed');
 			}
 		} catch (error) {
-			errorMessage = 'Network error';
+			showError('Network error');
 		}
 
-		// Show results
-		if (!errorMessage) {
-			statusDiv.className = 'category-change-status success';
-			statusDiv.textContent = `✓ Successfully updated ${changeCount} category assignment(s).`;
-			setTimeout(() => {
-				statusDiv.style.display = 'none';
-			}, 5000);
-		} else {
-			// Nothing moved, so the pending changes stay for the member to fix and save again.
-			statusDiv.className = 'category-change-status error';
-			statusDiv.textContent = `No categories were changed: ${errorMessage}`;
-		}
-
-		// Reset button
 		saveButton.textContent = 'Save Category Changes';
 		saveButton.disabled = false;
-		saveButton.style.display = errorMessage ? 'block' : 'none';
 	});
 
 	// Initial status check
