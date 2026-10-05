@@ -276,7 +276,8 @@ class Entries {
 	 *
 	 * A member may move only their own entries, and only while the competition accepts uploads.
 	 * An admin may move them whatever the phase, while both categories are at Not started or
-	 * Previewed: votes store their category, so a voted entry can't move until it's reset.
+	 * Previewed. No entry with votes can move, whoever is moving it: votes store their category,
+	 * so its category has to be reset with its votes cleared first.
 	 * Quota is checked against where the entries end up, so two entries can swap categories.
 	 * If a move fails, the moves already made are undone.
 	 *

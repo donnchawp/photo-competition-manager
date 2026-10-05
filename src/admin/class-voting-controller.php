@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
@@ -81,6 +82,13 @@ class Voting_Controller {
 	private $workflow;
 
 	/**
+	 * Votes repository.
+	 *
+	 * @var Votes_Repository
+	 */
+	private $votes;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions Competitions repository.
@@ -99,6 +107,7 @@ class Voting_Controller {
 		$this->images       = $images;
 		$this->members      = $members ?? new Members_Repository();
 		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
+		$this->votes        = new Votes_Repository();
 	}
 
 	/**
@@ -862,6 +871,9 @@ class Voting_Controller {
 				'open_voting_url'  => $open_voting_url,
 				'close_voting_url' => $close_voting_url,
 				'reset_url'        => $reset_url,
+				// A reset that kept its votes leaves the category at step 1 with votes, and
+				// its entries can't move until they're cleared, so Reset stays on offer.
+				'has_votes'        => (bool) $this->votes->find_by_competition( $comp_id, $category_slug ),
 				'steps'            => $steps,
 			)
 		);

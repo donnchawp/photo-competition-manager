@@ -5,7 +5,7 @@
  * Reads $data keys: comp_id, competition, category_slug, category_label,
  * total_categories, image_count, prereq_refusal, current_step,
  * steps, open_voting_hint, voting_open_here, open_voting_url,
- * close_voting_url, reset_url.
+ * close_voting_url, reset_url, has_votes.
  *
  * @package PhotoCompetitionManager
  */
@@ -28,7 +28,7 @@ $is_ready = '' === $data['prereq_refusal'];
 					</h2>
 				<?php endif; ?>
 
-				<?php if ( $data['current_step'] > 1 ) : ?>
+				<?php if ( $data['current_step'] > 1 || $data['has_votes'] ) : ?>
 					<a href="#" class="photo-comp-reset-toggle">
 						<?php esc_html_e( 'Reset', 'photo-competition-manager' ); ?>
 					</a>

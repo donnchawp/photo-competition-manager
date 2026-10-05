@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -89,8 +90,8 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Assert live output equals the stored snapshot; write it on first run.
 	 *
-	 * @param string          $scenario    Snapshot scenario name.
-	 * @param array<int,int>  $dynamic_ids Auto-increment IDs to normalize before comparing.
+	 * @param string         $scenario    Snapshot scenario name.
+	 * @param array<int,int> $dynamic_ids Auto-increment IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $dynamic_ids = array() ): void {
 		$dir  = __DIR__ . '/../fixtures/voting-render';
@@ -139,19 +140,36 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_no_images(): void {
-		$this->seed_competition( array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) );
+		$this->seed_competition(
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+			)
+		);
 		$this->assert_matches_snapshot( 'no-images' );
 	}
 
 	public function test_render_happy_path(): void {
-		$comp_id = $this->seed_competition(
+		$comp_id   = $this->seed_competition(
 			array(
-				array( 'slug' => 'colour', 'label' => 'Colour' ),
-				array( 'slug' => 'mono', 'label' => 'Mono' ),
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+				array(
+					'slug'  => 'mono',
+					'label' => 'Mono',
+				),
 			)
 		);
 		$member_id = $this->members->create(
-			array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'beginner' )
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
 		);
 		foreach ( array( 'colour', 'mono' ) as $cat ) {
 			$this->images->create(
@@ -174,7 +192,14 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @return string Rendered HTML.
 	 */
 	private function render_with_entrant_grade( string $grade ): string {
-		$comp_id   = $this->seed_competition( array( array( 'slug' => 'colour', 'label' => 'Colour' ) ) );
+		$comp_id   = $this->seed_competition(
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+			)
+		);
 		$member_id = Member_Fixtures::insert_with_grade( 'Ada', 'ada@example.com', $grade );
 		$this->images->create(
 			array(
@@ -188,6 +213,46 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		ob_start();
 		$this->controller->render();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * A category reset with its votes kept is back at step 1 but still has votes, so it
+	 * offers Reset again: moving its entries needs those votes cleared.
+	 */
+	public function test_render_offers_reset_at_step_one_while_the_category_has_votes(): void {
+		$comp_id   = $this->seed_competition(
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$image_id  = $this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$this->assertStringNotContainsString( 'photo-comp-reset-toggle', (string) ob_get_clean() );
+
+		( new Votes_Repository() )->create( $comp_id, 'colour', 'A Voter', $image_id, 5 );
+
+		ob_start();
+		$this->controller->render();
+		$this->assertStringContainsString( 'photo-comp-reset-toggle', (string) ob_get_clean() );
 	}
 
 	/**
@@ -288,7 +353,12 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
 				'settings'   => wp_json_encode(
 					array(
-						'categories' => array( array( 'slug' => 'colour', 'label' => 'Colour' ) ),
+						'categories' => array(
+							array(
+								'slug'  => 'colour',
+								'label' => 'Colour',
+							),
+						),
 					)
 				),
 				'created_at' => '2020-01-01 00:00:00',
@@ -301,14 +371,28 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 				'open_date' => utc_time( -30 * DAY_IN_SECONDS ),
 				'settings'  => wp_json_encode(
 					array(
-						'categories' => array( array( 'slug' => 'mono', 'label' => 'Mono' ) ),
+						'categories' => array(
+							array(
+								'slug'  => 'mono',
+								'label' => 'Mono',
+							),
+						),
 					)
 				),
 			)
 		);
 
-		$member_id = $this->members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'beginner' ) );
-		foreach ( array( $current_id => 'colour', $older_id => 'mono' ) as $comp_id => $cat ) {
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		foreach ( array(
+			$current_id => 'colour',
+			$older_id   => 'mono',
+		) as $comp_id => $cat ) {
 			$this->images->create(
 				array(
 					'competition_id' => $comp_id,
@@ -323,7 +407,10 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// Two categories voting at once can't be reached through the workflow
 		// any more, but competitions saved before only one could be open may
 		// have it, so this writes the state directly.
-		foreach ( array( $current_id => $current_open, $older_id => $older_open ) as $comp_id => $open ) {
+		foreach ( array(
+			$current_id => $current_open,
+			$older_id   => $older_open,
+		) as $comp_id => $open ) {
 			$this->competitions->save_workflow(
 				$comp_id,
 				array( 'stages' => array_fill_keys( $open, Competition_Workflow::STAGE_VOTING ) )
