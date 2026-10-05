@@ -13,6 +13,9 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
+use WP_Error;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
@@ -51,6 +54,13 @@ class Export_Screen {
 	private $members_repository;
 
 	/**
+	 * Entries module.
+	 *
+	 * @var Entries
+	 */
+	private $entries;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -58,6 +68,7 @@ class Export_Screen {
 		$this->votes_repository        = new Votes_Repository();
 		$this->images_repository       = new Images_Repository();
 		$this->members_repository      = new Members_Repository();
+		$this->entries                 = new Entries( $this->competitions_repository, $this->images_repository, $this->members_repository );
 	}
 
 	/**
@@ -447,44 +458,12 @@ class Export_Screen {
 			return;
 		}
 
-		// Get all original attachment IDs for this competition.
-		$attachment_ids = $this->images_repository->get_original_attachment_ids( $competition_id );
-
-		if ( empty( $attachment_ids ) ) {
-			wp_die( esc_html__( 'No original images found for this competition.', 'photo-competition-manager' ) );
+		$zip_path = $this->build_originals_zip( $competition_id );
+		if ( is_wp_error( $zip_path ) ) {
+			wp_die( esc_html( $zip_path->get_error_message() ) );
 		}
 
-		$competition  = $this->competitions_repository->find( $competition_id );
-		$zip_filename = 'originals-' . ( $competition ? $competition->slug : $competition_id ) . '.zip';
-
-		// Create temporary directory for the zip file.
-		$upload_dir = wp_upload_dir();
-		$temp_dir   = trailingslashit( $upload_dir['basedir'] ) . 'photo-competition-manager-temp';
-
-		if ( ! file_exists( $temp_dir ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-			wp_mkdir_p( $temp_dir );
-		}
-
-		$zip_path = trailingslashit( $temp_dir ) . $zip_filename;
-
-		// Create ZIP archive.
-		$zip = new \ZipArchive();
-		if ( true !== $zip->open( $zip_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) ) {
-			wp_die( esc_html__( 'Could not create ZIP file.', 'photo-competition-manager' ) );
-		}
-
-		// Add each attachment to the ZIP.
-		foreach ( $attachment_ids as $attachment_id ) {
-			$file_path = get_attached_file( $attachment_id );
-
-			if ( $file_path && file_exists( $file_path ) ) {
-				$filename = basename( $file_path );
-				$zip->addFile( $file_path, $filename );
-			}
-		}
-
-		$zip->close();
+		$zip_filename = basename( $zip_path );
 
 		// Send the ZIP file to the browser.
 		header( 'Content-Type: application/zip' );
@@ -506,45 +485,61 @@ class Export_Screen {
 		// Clean up temporary ZIP file.
 		wp_delete_file( $zip_path );
 
-		// Delete originals if requested.
+		// Originals WordPress won't delete keep their IDs and are logged, so a retry picks them up.
 		if ( $delete_after_export ) {
-			foreach ( $attachment_ids as $attachment_id ) {
-				// Force delete the attachment post and all its files.
-				// wp_delete_attachment returns the deleted post object on success, false/null on failure.
-				$deleted = wp_delete_attachment( $attachment_id, true );
-
-				// If wp_delete_attachment failed but the post still exists,
-				// manually delete files and the post to prevent orphans.
-				if ( ! $deleted && get_post( $attachment_id ) ) {
-					// Delete the physical files first.
-					$file = get_attached_file( $attachment_id );
-					if ( $file && file_exists( $file ) ) {
-						wp_delete_file( $file );
-					}
-
-					// Delete any generated thumbnails/sizes.
-					$metadata = wp_get_attachment_metadata( $attachment_id );
-					if ( ! empty( $metadata['sizes'] ) && $file ) {
-						$dir = trailingslashit( dirname( $file ) );
-						foreach ( $metadata['sizes'] as $size ) {
-							if ( ! empty( $size['file'] ) ) {
-								$size_file = $dir . $size['file'];
-								if ( file_exists( $size_file ) ) {
-									wp_delete_file( $size_file );
-								}
-							}
-						}
-					}
-
-					// Now delete the orphaned post record.
-					wp_delete_post( $attachment_id, true );
-				}
-			}
-
-			// Clear the attachment IDs from the database.
-			$this->images_repository->clear_original_attachment_ids( $competition_id );
+			$this->entries->discard_originals( Actor::admin(), $competition_id );
 		}
 
 		exit;
+	}
+
+	/**
+	 * Build a ZIP of a competition's originals at the size they were uploaded.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string|WP_Error Path of the ZIP file, which the caller deletes.
+	 */
+	public function build_originals_zip( int $competition_id ) {
+		$attachment_ids = $this->images_repository->get_original_attachment_ids( $competition_id );
+
+		if ( empty( $attachment_ids ) ) {
+			return new WP_Error( 'no_originals', __( 'No original images found for this competition.', 'photo-competition-manager' ) );
+		}
+
+		$competition  = $this->competitions_repository->find( $competition_id );
+		$zip_filename = 'originals-' . ( $competition ? $competition->slug : $competition_id ) . '.zip';
+
+		// Create temporary directory for the zip file.
+		$upload_dir = wp_upload_dir();
+		$temp_dir   = trailingslashit( $upload_dir['basedir'] ) . 'photo-competition-manager-temp';
+
+		if ( ! file_exists( $temp_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
+			wp_mkdir_p( $temp_dir );
+		}
+
+		$zip_path = trailingslashit( $temp_dir ) . $zip_filename;
+
+		// Create ZIP archive.
+		$zip = new \ZipArchive();
+		if ( true !== $zip->open( $zip_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) ) {
+			return new WP_Error( 'zip_failed', __( 'Could not create ZIP file.', 'photo-competition-manager' ) );
+		}
+
+		// Add each attachment to the ZIP.
+		foreach ( $attachment_ids as $attachment_id ) {
+			// WordPress keeps a 2560px -scaled copy of a larger upload as the attached file.
+			$file_path = wp_get_original_image_path( $attachment_id );
+
+			if ( $file_path && file_exists( $file_path ) ) {
+				$zip->addFile( $file_path, basename( $file_path ) );
+			}
+		}
+
+		$zip->close();
+
+		return $zip_path;
 	}
 }

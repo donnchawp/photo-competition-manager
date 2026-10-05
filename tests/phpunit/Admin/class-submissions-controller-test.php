@@ -18,6 +18,8 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -292,6 +294,58 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( '1', $this->first_error_message() );
 		$this->assertNull( get_post( $attachment_id ) );
 		$this->assertSame( array(), $this->images->get_original_attachment_ids( $this->competition_id ) );
+	}
+
+	/**
+	 * An original WordPress won't delete is reported as an error and keeps its ID.
+	 */
+	public function test_delete_original_images_reports_an_original_that_wont_delete(): void {
+		$attachment_id = self::factory()->post->create( array( 'post_type' => 'attachment' ) );
+		$this->seed_image( $this->competition_id, array( 'original_attachment_id' => $attachment_id ) );
+		add_filter( 'pre_delete_attachment', '__return_false' );
+
+		$this->set_request(
+			array(
+				'action'         => 'delete_original_images',
+				'competition_id' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_originals_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'originals_not_deleted', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( array( $attachment_id ), $this->images->get_original_attachment_ids( $this->competition_id ) );
+	}
+
+	/**
+	 * Originals aren't deleted while a category is accepting votes.
+	 */
+	public function test_delete_original_images_refused_while_voting(): void {
+		$attachment_id = self::factory()->post->create( array( 'post_type' => 'attachment' ) );
+		$this->seed_image( $this->competition_id, array( 'original_attachment_id' => $attachment_id ) );
+		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->set_request(
+			array(
+				'action'         => 'delete_original_images',
+				'competition_id' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_originals_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'voting_open', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNotNull( get_post( $attachment_id ) );
 	}
 
 	/**
