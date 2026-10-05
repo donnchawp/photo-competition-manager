@@ -610,9 +610,54 @@ class Entries_Test extends WP_UnitTestCase {
 		$entries = $this->entries->get_member_entries( $competition_id, $member_id );
 
 		$this->assertCount( 1, $entries );
-		$this->assertStringEndsWith( '/competitions/list-comp/colour/jane-doe-colour.jpg', $entries[0]->url );
-		$this->assertStringContainsString( '/competitions/list-comp/colour/jane-doe-colour-thumb.jpg', $entries[0]->thumbnail_url );
+		$this->assertSame( $this->entries->urls( $this->competitions_repo->find( $competition_id ), $entries[0] ), $entries[0]->urls );
+		$this->assertStringContainsString( '/competitions/list-comp/colour/jane-doe-colour-thumb.jpg?v=', $entries[0]->urls['thumb'] );
 		$this->assertSame( array(), $this->entries->get_member_entries( 999999, $member_id ) );
+	}
+
+	public function test_an_entrys_urls_change_when_its_replaced_by_one_with_the_same_filename(): void {
+		$competition_id = $this->create_competition( 'replace-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$competition    = $this->competitions_repo->find( $competition_id );
+		$first_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		// Uploaded an hour ago, so the replacement can't share its modified time.
+		touch( $this->entry_path( $first_id ), time() - HOUR_IN_SECONDS );
+		touch( $this->entry_path( $first_id, true ), time() - HOUR_IN_SECONDS );
+		$before = $this->entries->urls( $competition, $this->images_repo->find( $first_id ) );
+
+		$this->entries->remove( Actor::member( $member_id ), $competition_id, $first_id );
+		$second_id = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 0, 0, 200 ) );
+		$second    = $this->images_repo->find( $second_id );
+		$after     = $this->entries->urls( $competition, $second );
+
+		$this->assertSame( 'jane-doe-colour.jpg', $second->filename );
+		$this->assertStringContainsString( '/competitions/replace-comp/colour/jane-doe-colour.jpg?v=', $after['full'] );
+		$this->assertStringContainsString( '/competitions/replace-comp/colour/jane-doe-colour-thumb.jpg?v=', $after['thumb'] );
+		$this->assertNotSame( $before['full'], $after['full'] );
+		$this->assertNotSame( $before['thumb'], $after['thumb'] );
+	}
+
+	public function test_a_missing_image_or_thumbnail_has_no_url(): void {
+		$competition_id = $this->create_competition( 'missing-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$competition    = $this->competitions_repo->find( $competition_id );
+		$entry_id       = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+		$entry          = $this->images_repo->find( $entry_id );
+
+		wp_delete_file( $this->entry_path( $entry_id, true ) );
+		$urls = $this->entries->urls( $competition, $entry );
+		$this->assertNotSame( '', $urls['full'] );
+		$this->assertSame( '', $urls['thumb'] );
+
+		wp_delete_file( $this->entry_path( $entry_id ) );
+		$this->assertSame(
+			array(
+				'full'  => '',
+				'thumb' => '',
+			),
+			$this->entries->urls( $competition, $entry )
+		);
 	}
 
 	public function test_a_removal_whose_original_wont_delete_still_removes_the_entry(): void {

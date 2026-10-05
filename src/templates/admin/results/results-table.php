@@ -8,7 +8,7 @@
  *     label: string,
  *     rows: array<int, array{
  *         rank: int,
- *         image_url: string|null,
+ *         image_url: string,
  *         member_name: string|null,
  *         total_score: int,
  *         vote_count: int,

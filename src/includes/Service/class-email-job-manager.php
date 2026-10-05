@@ -18,7 +18,6 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 use WP_Error;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -117,11 +116,11 @@ class Email_Job_Manager {
 	private $email_service;
 
 	/**
-	 * Image processor.
+	 * Entries module.
 	 *
-	 * @var Image_Processor
+	 * @var Entries
 	 */
-	private $image_processor;
+	private $entries;
 
 	/**
 	 * Upload link service.
@@ -151,7 +150,7 @@ class Email_Job_Manager {
 	 * @param Results_Analytics        $analytics       Results analytics service.
 	 * @param Results_Ranking          $ranking         Results ranking service.
 	 * @param Email_Service            $email_service   Email service.
-	 * @param Image_Processor|null     $image_processor Image processor (optional).
+	 * @param Entries|null             $entries         Entries module (optional).
 	 * @param Upload_Link_Service|null $upload_links    Upload link service (optional).
 	 */
 	public function __construct(
@@ -162,18 +161,18 @@ class Email_Job_Manager {
 		Results_Analytics $analytics,
 		Results_Ranking $ranking,
 		Email_Service $email_service,
-		?Image_Processor $image_processor = null,
+		?Entries $entries = null,
 		?Upload_Link_Service $upload_links = null
 	) {
-		$this->competitions    = $competitions;
-		$this->images          = $images;
-		$this->members         = $members;
-		$this->votes           = $votes;
-		$this->analytics       = $analytics;
-		$this->ranking         = $ranking;
-		$this->email_service   = $email_service;
-		$this->image_processor = $image_processor ?? new Image_Processor();
-		$this->upload_links    = $upload_links ?? new Upload_Link_Service( null, $competitions, $members, $email_service );
+		$this->competitions  = $competitions;
+		$this->images        = $images;
+		$this->members       = $members;
+		$this->votes         = $votes;
+		$this->analytics     = $analytics;
+		$this->ranking       = $ranking;
+		$this->email_service = $email_service;
+		$this->entries       = $entries ?? new Entries( $competitions, $images, $members );
+		$this->upload_links  = $upload_links ?? new Upload_Link_Service( null, $competitions, $members, $email_service );
 	}
 
 	/**
@@ -544,13 +543,6 @@ class Email_Job_Manager {
 
 					$votes = $this->votes->find_by_image( (int) $image->id );
 
-					// Get thumbnail URL.
-					$thumbnail_url = $this->image_processor->get_thumbnail_url(
-						$competition->slug,
-						$category_slug,
-						$image->filename
-					);
-
 					// An ungraded entry has no position to report.
 					$member_results['images'][] = array(
 						'category_label' => $category_label,
@@ -558,7 +550,7 @@ class Email_Job_Manager {
 						'rank'           => $group['ungraded'] ? null : $entry['position'],
 						'total_in_grade' => count( $group['entries'] ),
 						'grade'          => $group['label'],
-						'thumbnail_url'  => is_wp_error( $thumbnail_url ) ? '' : $thumbnail_url,
+						'thumbnail_url'  => $this->entries->urls( $competition, $image )['thumb'],
 						'statistics'     => $this->analytics->get_vote_statistics( $votes ),
 						'votes'          => $votes,
 					);

@@ -11,7 +11,6 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
-use PhotoCompetitionManager\Frontend\Image_Urls;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -28,7 +27,6 @@ class Submissions_Controller {
 
 	use Date_Formatting;
 	use Form_Rendering;
-	use Image_Urls;
 
 	/**
 	 * Competitions repository.
@@ -758,7 +756,7 @@ class Submissions_Controller {
 
 			$current_competition = $selected_competition ?? ( $competition_lookup[ $submission->competition_id ] ?? null );
 			$urls                = $current_competition
-				? $this->get_image_urls( $current_competition, $submission )
+				? $this->entries->urls( $current_competition, $submission )
 				: array(
 					'full'  => '',
 					'thumb' => '',

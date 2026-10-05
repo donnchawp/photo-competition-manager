@@ -615,7 +615,7 @@ class Entries {
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @param int $member_id      Member ID.
-	 * @return array<int, object> Entry records with `url` and `thumbnail_url` added.
+	 * @return array<int, object> Entry records with `urls` added, as urls() returns them.
 	 */
 	public function get_member_entries( int $competition_id, int $member_id ): array {
 		$competition = $this->competitions_repo->find( $competition_id );
@@ -626,11 +626,46 @@ class Entries {
 		$entries = $this->images_repo->find_by_competition( $competition_id, null, $member_id );
 
 		foreach ( $entries as $entry ) {
-			$entry->url           = $this->image_processor->get_image_url( $competition->slug, $entry->category, $entry->filename );
-			$entry->thumbnail_url = $this->image_processor->get_thumbnail_url( $competition->slug, $entry->category, $entry->filename );
+			$entry->urls = $this->urls( $competition, $entry );
 		}
 
 		return $entries;
+	}
+
+	/**
+	 * URLs of an entry's image and thumbnail.
+	 *
+	 * Each carries its file's modified time, so an entry replaced by one with the same
+	 * filename isn't shown from the browser's cache.
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @return array{full: string, thumb: string} Each '' when its file is missing.
+	 */
+	public function urls( object $competition, object $entry ): array {
+		$urls      = array(
+			'full'  => '',
+			'thumb' => '',
+		);
+		$directory = $this->category_directory( (string) $competition->slug, (string) $entry->category );
+		if ( is_wp_error( $directory ) || '' === (string) $entry->filename ) {
+			return $urls;
+		}
+
+		$folder_url = trailingslashit( wp_upload_dir()['baseurl'] ) . 'competitions/'
+			. rawurlencode( sanitize_file_name( $competition->slug ) ) . '/' . rawurlencode( sanitize_file_name( $entry->category ) );
+		$files      = array(
+			'full'  => $entry->filename,
+			'thumb' => Image_Processor::get_thumbnail_filename( $entry->filename ),
+		);
+		foreach ( $files as $key => $filename ) {
+			$path = $directory . '/' . $filename;
+			if ( file_exists( $path ) ) {
+				$urls[ $key ] = add_query_arg( 'v', filemtime( $path ), $folder_url . '/' . rawurlencode( $filename ) );
+			}
+		}
+
+		return $urls;
 	}
 
 	/**

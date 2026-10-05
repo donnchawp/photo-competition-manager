@@ -181,20 +181,6 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		unlink( $tmp_file );
 	}
 
-	public function test_get_image_url_returns_correct_url(): void {
-		$url = $this->processor->get_image_url( 'summer-2024', 'colour', 'john-doe-colour-1.jpg' );
-
-		$this->assertIsString( $url );
-		$this->assertStringContainsString( 'competitions/summer-2024/colour/john-doe-colour-1.jpg', $url );
-	}
-
-	public function test_get_thumbnail_url_returns_thumb_path(): void {
-		$url = $this->processor->get_thumbnail_url( 'summer-2024', 'colour', 'john-doe-colour-1.jpg' );
-
-		$this->assertIsString( $url );
-		$this->assertStringContainsString( 'john-doe-colour-1-thumb.jpg', $url );
-	}
-
 	/**
 	 * Thumbnail suffix is inserted before the file extension.
 	 */

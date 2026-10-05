@@ -11,8 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use PhotoCompetitionManager\Support\Image_Processor;
 
 /**
  * Shortcode renderer for competition slideshow presentation.
@@ -39,27 +39,27 @@ class Slideshow_Shortcode {
 	private $images_repo;
 
 	/**
-	 * Image processor.
+	 * Entries module.
 	 *
-	 * @var Image_Processor
+	 * @var Entries
 	 */
-	private $image_processor;
+	private $entries;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Images_Repository|null       $images_repo       Images repository.
-	 * @param Image_Processor|null         $image_processor   Image processor.
+	 * @param Entries|null                 $entries           Entries module.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
 		?Images_Repository $images_repo = null,
-		?Image_Processor $image_processor = null
+		?Entries $entries = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
-		$this->image_processor   = $image_processor ? $image_processor : new Image_Processor();
+		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo );
 	}
 
 	/**
@@ -127,8 +127,8 @@ class Slideshow_Shortcode {
 		// Prepare image data for JavaScript.
 		$image_data = array();
 		foreach ( $images as $image ) {
-			$image_url = $this->image_processor->get_image_url( $competition->slug, $image->category, $image->filename );
-			if ( ! is_wp_error( $image_url ) ) {
+			$image_url = $this->entries->urls( $competition, $image )['full'];
+			if ( '' !== $image_url ) {
 				$image_data[] = array(
 					'id'            => $image->id,
 					'url'           => $image_url,
@@ -234,9 +234,8 @@ class Slideshow_Shortcode {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'photo-competition-manager' ) ) );
 		}
 
-		$competition_id   = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		$competition_slug = isset( $_POST['competition_slug'] ) ? sanitize_text_field( wp_unslash( $_POST['competition_slug'] ) ) : '';
-		$category         = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$category       = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 
 		if ( ! $competition_id || ! $category ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'photo-competition-manager' ) ) );
@@ -258,8 +257,8 @@ class Slideshow_Shortcode {
 		// Prepare image data.
 		$image_data = array();
 		foreach ( $images as $image ) {
-			$image_url = $this->image_processor->get_image_url( $competition_slug, $image->category, $image->filename );
-			if ( ! is_wp_error( $image_url ) ) {
+			$image_url = $this->entries->urls( $competition, $image )['full'];
+			if ( '' !== $image_url ) {
 				$image_data[] = array(
 					'id'            => $image->id,
 					'url'           => $image_url,
