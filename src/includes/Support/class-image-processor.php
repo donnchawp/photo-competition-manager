@@ -136,28 +136,25 @@ class Image_Processor {
 	/**
 	 * Process and store uploaded image.
 	 *
-	 * @param array<string, mixed> $file            Uploaded file array from $_FILES.
-	 * @param string               $competition_slug Competition slug for directory.
-	 * @param string               $category_slug   Category slug for directory.
-	 * @param string               $username        Member username for filename.
-	 * @param int                  $counter         Counter for filename uniqueness.
-	 * @param array<string, mixed> $constraints     Upload constraints from settings.
+	 * Saves the original to the media library, then a resized copy and its thumbnail in the directory given.
+	 *
+	 * @since 0.4.0 Takes the directory, filename and original's title instead of working them out.
+	 *
+	 * @param array<string, mixed> $file        Uploaded file array from $_FILES.
+	 * @param string               $directory   Existing directory to save the resized image and thumbnail in.
+	 * @param string               $filename    Name to give the resized image, suffixed if the directory has it already.
+	 * @param string               $title       Title for the original's media library attachment.
+	 * @param array<string, mixed> $constraints Upload constraints from settings.
 	 * @return array<string, mixed>|WP_Error Array with 'filename' and 'attachment_id' on success, WP_Error on failure.
 	 */
-	public function process( array $file, string $competition_slug, string $category_slug, string $username, int $counter, array $constraints ) {
+	public function process( array $file, string $directory, string $filename, string $title, array $constraints ) {
 		$validation = $this->validate( $file, $constraints );
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
 		}
 
-		// Create target directory.
-		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
-		if ( is_wp_error( $upload_dir ) ) {
-			return $upload_dir;
-		}
-
 		// Save original to media library first.
-		$attachment_id = $this->save_original_to_media_library( $file, $competition_slug, $category_slug, $username, $counter, $constraints );
+		$attachment_id = $this->save_original_to_media_library( $file, $filename, $title, $constraints );
 		if ( is_wp_error( $attachment_id ) ) {
 			return $attachment_id;
 		}
@@ -173,10 +170,10 @@ class Image_Processor {
 		$max_height = $constraints['max_height'] ?? 1920;
 		$image->resize( $max_width, $max_height, false );
 
-		// Save slideshow image as username-categoryslug-[counter].jpg, suffixed when another entry has it.
-		// The name is picked here, just before the write, to keep the gap for a concurrent upload small.
-		$filename    = wp_unique_filename( $upload_dir['path'], $this->generate_filename( $username, $category_slug, $counter ) );
-		$target_path = trailingslashit( $upload_dir['path'] ) . $filename;
+		// Suffix the name when another entry has it. The name is picked here, just before
+		// the write, to keep the gap for a concurrent upload small.
+		$filename    = wp_unique_filename( $directory, $filename );
+		$target_path = trailingslashit( $directory ) . $filename;
 		$saved       = $image->save( $target_path );
 
 		if ( is_wp_error( $saved ) ) {
@@ -184,7 +181,7 @@ class Image_Processor {
 		}
 
 		// Generate thumbnail.
-		$this->generate_thumbnail( $target_path, $upload_dir['path'] );
+		$this->generate_thumbnail( $target_path, $directory );
 
 		return array(
 			'filename'      => $filename,
@@ -195,15 +192,13 @@ class Image_Processor {
 	/**
 	 * Save original image to WordPress media library.
 	 *
-	 * @param array<string, mixed> $file            Uploaded file array from $_FILES.
-	 * @param string               $competition_slug Competition slug.
-	 * @param string               $category_slug   Category slug.
-	 * @param string               $username        Member username.
-	 * @param int                  $counter         Counter for filename uniqueness.
-	 * @param array<string, mixed> $constraints     Upload constraints from settings.
+	 * @param array<string, mixed> $file        Uploaded file array from $_FILES.
+	 * @param string               $filename    Name of the resized image; the original is named after it.
+	 * @param string               $title       Attachment title.
+	 * @param array<string, mixed> $constraints Upload constraints from settings.
 	 * @return int|WP_Error Attachment ID on success, WP_Error on failure.
 	 */
-	private function save_original_to_media_library( array $file, string $competition_slug, string $category_slug, string $username, int $counter, array $constraints ) {
+	private function save_original_to_media_library( array $file, string $filename, string $title, array $constraints ) {
 		if ( ! function_exists( 'wp_crop_image' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
@@ -238,10 +233,7 @@ class Image_Processor {
 		// Set quality.
 		$image->set_quality( $quality );
 
-		// Generate filename for original.
-		$original_filename = $counter > 0
-			? sprintf( '%s-%s-%d-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ), $counter )
-			: sprintf( '%s-%s-original.jpg', sanitize_title( $username ), sanitize_title( $category_slug ) );
+		$original_filename = pathinfo( $filename, PATHINFO_FILENAME ) . '-original.jpg';
 
 		// The month folder is shared by every competition, so take a name no other original has.
 		$upload_dir = wp_upload_dir();
@@ -253,15 +245,10 @@ class Image_Processor {
 			return new WP_Error( 'original_save_failed', __( 'Could not save original image.', 'photo-competition-manager' ) );
 		}
 
-		// Prepare attachment data.
-		$attachment_title = $counter > 0
-			? sprintf( '%s - %s - %s #%d', $competition_slug, $category_slug, $username, $counter )
-			: sprintf( '%s - %s - %s', $competition_slug, $category_slug, $username );
-
 		$attachment = array(
 			'guid'           => $upload_dir['url'] . '/' . basename( $temp_file ),
 			'post_mime_type' => 'image/jpeg',
-			'post_title'     => $attachment_title,
+			'post_title'     => $title,
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		);
@@ -282,77 +269,7 @@ class Image_Processor {
 		ob_end_clean();
 		wp_update_attachment_metadata( $attachment_id, $attachment_data );
 
-		// Add competition and category metadata.
-		update_post_meta( $attachment_id, '_photo_comp_slug', $competition_slug );
-		update_post_meta( $attachment_id, '_photo_comp_category', $category_slug );
-		update_post_meta( $attachment_id, '_photo_comp_member', $username );
-
 		return $attachment_id;
-	}
-
-	/**
-	 * Get or create upload directory for competition and category.
-	 *
-	 * @param string $competition_slug Competition slug.
-	 * @param string $category_slug    Category slug.
-	 * @return array<string, string>|WP_Error Array with 'path' and 'url' keys, or WP_Error.
-	 */
-	public function get_upload_directory( string $competition_slug, string $category_slug ) {
-		$wp_upload_dir = wp_upload_dir();
-		if ( $wp_upload_dir['error'] ) {
-			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
-		}
-
-		// Security: Explicitly check for path traversal sequences.
-		if ( strpos( $competition_slug, '..' ) !== false || strpos( $category_slug, '..' ) !== false ) {
-			return new WP_Error( 'invalid_path', __( 'Invalid directory name.', 'photo-competition-manager' ) );
-		}
-
-		$base_path = trailingslashit( $wp_upload_dir['basedir'] ) . 'competitions';
-		$base_url  = trailingslashit( $wp_upload_dir['baseurl'] ) . 'competitions';
-
-		$competition_path = trailingslashit( $base_path ) . sanitize_file_name( $competition_slug );
-		$competition_url  = trailingslashit( $base_url ) . sanitize_file_name( $competition_slug );
-
-		$category_path = trailingslashit( $competition_path ) . sanitize_file_name( $category_slug );
-		$category_url  = trailingslashit( $competition_url ) . sanitize_file_name( $category_slug );
-
-		// Create directories if they don't exist.
-		if ( ! file_exists( $category_path ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-			if ( ! wp_mkdir_p( $category_path ) ) {
-				return new WP_Error( 'mkdir_failed', __( 'Could not create upload directory.', 'photo-competition-manager' ) );
-			}
-
-			// Add index.php to prevent directory browsing.
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			file_put_contents( trailingslashit( $category_path ) . 'index.php', '<?php // Silence is golden.' );
-		}
-
-		return array(
-			'path' => $category_path,
-			'url'  => $category_url,
-		);
-	}
-
-	/**
-	 * Generate filename following PRD spec: username-categoryslug-[counter].jpg.
-	 *
-	 * @param string $username      Member username.
-	 * @param string $category_slug Category slug.
-	 * @param int    $counter       Counter for uniqueness.
-	 * @return string
-	 */
-	public function generate_filename( string $username, string $category_slug, int $counter ): string {
-		// Sanitize and make lowercase with dashes instead of spaces.
-		$safe_username = sanitize_title( $username );
-		$safe_category = sanitize_title( $category_slug );
-
-		if ( $counter > 0 ) {
-			return sprintf( '%s-%s-%d.jpg', $safe_username, $safe_category, $counter );
-		}
-
-		return sprintf( '%s-%s.jpg', $safe_username, $safe_category );
 	}
 
 	/**
@@ -404,43 +321,6 @@ class Image_Processor {
 	}
 
 	/**
-	 * Delete image and thumbnail files.
-	 *
-	 * @param string $competition_slug Competition slug.
-	 * @param string $category_slug    Category slug.
-	 * @param string $filename         Filename to delete.
-	 * @param int    $attachment_id    Optional attachment ID to delete from media library.
-	 * @return bool
-	 */
-	public function delete_files( string $competition_slug, string $category_slug, string $filename, int $attachment_id = 0 ): bool {
-		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
-		if ( is_wp_error( $upload_dir ) ) {
-			return false;
-		}
-
-		$image_path = trailingslashit( $upload_dir['path'] ) . $filename;
-		$thumb_name = self::get_thumbnail_filename( $filename );
-		$thumb_path = trailingslashit( $upload_dir['path'] ) . $thumb_name;
-
-		$deleted = true;
-
-		if ( file_exists( $image_path ) ) {
-			$deleted = $deleted && wp_delete_file( $image_path );
-		}
-
-		if ( file_exists( $thumb_path ) ) {
-			$deleted = $deleted && wp_delete_file( $thumb_path );
-		}
-
-		// Delete original from media library if provided.
-		if ( $attachment_id > 0 ) {
-			$deleted = $deleted && ( false !== wp_delete_attachment( $attachment_id, true ) );
-		}
-
-		return $deleted;
-	}
-
-	/**
 	 * Get URL for image.
 	 *
 	 * @param string $competition_slug Competition slug.
@@ -449,7 +329,7 @@ class Image_Processor {
 	 * @return string|WP_Error
 	 */
 	public function get_image_url( string $competition_slug, string $category_slug, string $filename ) {
-		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
+		$upload_dir = $this->category_location( $competition_slug, $category_slug );
 		if ( is_wp_error( $upload_dir ) ) {
 			return $upload_dir;
 		}
@@ -466,7 +346,7 @@ class Image_Processor {
 	 * @return string|WP_Error
 	 */
 	public function get_thumbnail_url( string $competition_slug, string $category_slug, string $filename ) {
-		$upload_dir = $this->get_upload_directory( $competition_slug, $category_slug );
+		$upload_dir = $this->category_location( $competition_slug, $category_slug );
 		if ( is_wp_error( $upload_dir ) ) {
 			return $upload_dir;
 		}
@@ -484,64 +364,25 @@ class Image_Processor {
 	}
 
 	/**
-	 * Move image files between categories.
+	 * Where a category's entry files are, without creating the folder.
 	 *
-	 * Moves both the main image and thumbnail from one category folder to another,
-	 * renaming them if another entry's image already has the name there.
-	 *
-	 * @since 0.4.0 Returns the filename in the new folder, and takes the name to aim for there.
+	 * Only the URL methods use this, until #136 moves them into the Entries module.
 	 *
 	 * @param string $competition_slug Competition slug.
-	 * @param string $old_category     Old category slug.
-	 * @param string $new_category     New category slug.
-	 * @param string $filename         Image filename.
-	 * @param string $dest_filename    Name to use in the new folder if it's free. Defaults to $filename.
-	 * @return string|WP_Error Filename in the new category folder, or WP_Error on failure.
+	 * @param string $category_slug    Category slug.
+	 * @return array<string, string>|WP_Error Array with 'path' and 'url' keys, or WP_Error.
 	 */
-	public function move_image_between_categories( string $competition_slug, string $old_category, string $new_category, string $filename, string $dest_filename = '' ) {
-		// Get source directory.
-		$source_dir = $this->get_upload_directory( $competition_slug, $old_category );
-		if ( is_wp_error( $source_dir ) ) {
-			return $source_dir;
+	private function category_location( string $competition_slug, string $category_slug ) {
+		$wp_upload_dir = wp_upload_dir();
+		if ( $wp_upload_dir['error'] ) {
+			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
 		}
 
-		// Get destination directory.
-		$dest_dir = $this->get_upload_directory( $competition_slug, $new_category );
-		if ( is_wp_error( $dest_dir ) ) {
-			return $dest_dir;
-		}
+		$relative = 'competitions/' . sanitize_file_name( $competition_slug ) . '/' . sanitize_file_name( $category_slug );
 
-		$source_path = trailingslashit( $source_dir['path'] );
-		$dest_path   = trailingslashit( $dest_dir['path'] );
-
-		// Move main image.
-		$dest_filename = wp_unique_filename( $dest_path, '' !== $dest_filename ? $dest_filename : $filename );
-		$source_file   = $source_path . $filename;
-		$dest_file     = $dest_path . $dest_filename;
-
-		if ( file_exists( $source_file ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-			if ( ! rename( $source_file, $dest_file ) ) {
-				return new WP_Error( 'move_failed', __( 'Failed to move image file.', 'photo-competition-manager' ) );
-			}
-		}
-
-		// Move thumbnail.
-		$source_thumb = $source_path . self::get_thumbnail_filename( $filename );
-		$dest_thumb   = $dest_path . self::get_thumbnail_filename( $dest_filename );
-
-		if ( file_exists( $source_thumb ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-			if ( ! rename( $source_thumb, $dest_thumb ) ) {
-				// Rollback: Move main image back if thumbnail move fails.
-				if ( file_exists( $dest_file ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-					rename( $dest_file, $source_file );
-				}
-				return new WP_Error( 'move_thumb_failed', __( 'Failed to move thumbnail file.', 'photo-competition-manager' ) );
-			}
-		}
-
-		return $dest_filename;
+		return array(
+			'path' => trailingslashit( $wp_upload_dir['basedir'] ) . $relative,
+			'url'  => trailingslashit( $wp_upload_dir['baseurl'] ) . $relative,
+		);
 	}
 }
