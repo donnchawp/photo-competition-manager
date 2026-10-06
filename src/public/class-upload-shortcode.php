@@ -454,8 +454,9 @@ class Upload_Shortcode {
 	 * @param array       $settings      Competition settings.
 	 */
 	private function render_form( $competition, string $message, $token_record, $member, array $settings ): void {
-		$categories  = Competition_Settings::get_categories( $settings );
-		$constraints = Competition_Settings::get_upload_constraints( $settings );
+		$categories    = Competition_Settings::get_categories( $settings );
+		$constraints   = Competition_Settings::get_upload_constraints( $settings );
+		$max_file_size = Competition_Settings::enforced_max_file_size( $constraints );
 
 		// Get existing submissions and filter categories if member is authenticated.
 		$submissions          = array();
@@ -713,7 +714,7 @@ class Upload_Shortcode {
 							'nonce'          => wp_create_nonce( 'wp_rest' ),
 							'categories'     => $categories_js,
 							'quotas'         => $quotas_js,
-							'maxFileSize'    => $constraints['max_file_size_mb'] * 1024 * 1024,
+							'maxFileSize'    => $max_file_size,
 							'allowedFormats' => $constraints['allowed_formats'],
 						)
 					);
@@ -801,7 +802,7 @@ class Upload_Shortcode {
 										sprintf(
 											/* translators: 1: max file size in MB, 2: allowed formats */
 											__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
-											$constraints['max_file_size_mb'],
+											floor( $max_file_size / MB_IN_BYTES ),
 											strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
 										)
 									);

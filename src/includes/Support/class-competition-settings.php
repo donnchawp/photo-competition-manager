@@ -538,6 +538,35 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The per-file upload limit that's really enforced: the lower of the
+	 * competition's limit and PHP's. PHP refuses a bigger file before
+	 * WordPress sees it.
+	 *
+	 * Reads PHP's upload_max_filesize directly, not wp_max_upload_size(),
+	 * which multisite caps at the network's upload limit and the site's
+	 * space quota. The plugin applies neither.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $upload_constraints Upload constraints from get_upload_constraints().
+	 * @return int The limit, in bytes.
+	 */
+	public static function enforced_max_file_size( array $upload_constraints ): int {
+		$competition_limit = (int) ( $upload_constraints['max_file_size_mb'] ?? self::defaults()['upload']['max_file_size_mb'] ) * MB_IN_BYTES;
+
+		/**
+		 * Filters the server's per-file upload limit.
+		 *
+		 * @since 0.4.0
+		 *
+		 * @param int $server_limit PHP's upload_max_filesize, in bytes.
+		 */
+		$server_limit = (int) apply_filters( 'photo_comp_server_upload_limit', wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) );
+
+		return min( $competition_limit, $server_limit );
+	}
+
+	/**
 	 * Get voting configuration from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.

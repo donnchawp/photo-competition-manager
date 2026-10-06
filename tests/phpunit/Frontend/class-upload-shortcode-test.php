@@ -99,6 +99,44 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'token-request-section', $output );
 	}
 
+	public function test_a_server_limit_below_the_competitions_is_the_one_shown(): void {
+		$server_limit = static function () {
+			return 2 * MB_IN_BYTES;
+		};
+		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Max size: 2 MB.', $output );
+		$this->assertSame( 2 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	public function test_a_competition_limit_below_the_servers_is_the_one_shown(): void {
+		$server_limit = static function () {
+			return 8 * MB_IN_BYTES;
+		};
+		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Max size: 5 MB.', $output );
+		$this->assertSame( 5 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	/**
+	 * The settings the upload page hands the drag-and-drop script.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function upload_script_data(): array {
+		$data = wp_scripts()->get_data( 'photo-comp-drag-drop-upload', 'data' );
+		preg_match( '/var photoCompUpload = (\{.*\});/s', (string) $data, $matches );
+
+		return json_decode( $matches[1] ?? 'null', true ) ?? array();
+	}
+
 	public function test_submission_delete_form_uses_two_tap_confirmation(): void {
 		$_GET['token'] = $this->issue_token( true );
 		$member        = $this->members->find_by_email( 'uploader@example.com' );
