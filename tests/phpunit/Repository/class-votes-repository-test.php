@@ -85,8 +85,9 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 2, $result );
-		$votes = $repository->find_by_competition( 1 );
-		$this->assertSame( array( 42 => 9, 43 => 8 ), array_map( 'intval', array_column( $votes, 'score', 'image_id' ) ) );
+		$scores = array_map( 'intval', array_column( $repository->find_by_competition( 1 ), 'score', 'image_id' ) );
+		ksort( $scores );
+		$this->assertSame( array( 42 => 9, 43 => 8 ), $scores );
 	}
 
 	/**
