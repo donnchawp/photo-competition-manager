@@ -64,6 +64,47 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A vote the database refuses keeps the database error out of the message.
+	 *
+	 * @dataProvider voters
+	 *
+	 * @param string $method create or create_anonymous.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_a_vote_the_database_refuses_keeps_its_error_out_of_the_message( string $method, $voter ): void {
+		global $wpdb;
+		$repository = new Votes_Repository( $wpdb );
+
+		// Break only the votes INSERT.
+		$votes_table = $repository->table();
+		$break_vote  = function ( $query ) use ( $votes_table ) {
+			return 0 === strpos( $query, "INSERT INTO `{$votes_table}`" ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
+		};
+		add_filter( 'query', $break_vote );
+		$suppress = $wpdb->suppress_errors( true );
+		$result   = $repository->$method( 1, 'colour', $voter, 42, 9 );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_vote );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'insert_failed', $result->get_error_code() );
+		$this->assertSame( 'Could not record the vote.', $result->get_error_message() );
+		$this->assertStringContainsString( 'no_such_table', $result->get_error_data() );
+	}
+
+	/**
+	 * A named voter and an anonymous one.
+	 *
+	 * @return array<string, array{0: string, 1: mixed}>
+	 */
+	public function voters(): array {
+		return array(
+			'named'     => array( 'create', 'John Doe' ),
+			'anonymous' => array( 'create_anonymous', 7 ),
+		);
+	}
+
+	/**
 	 * Create requires voter name.
 	 *
 	 * @return void

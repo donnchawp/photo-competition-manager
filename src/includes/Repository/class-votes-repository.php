@@ -111,7 +111,7 @@ class Votes_Repository extends Abstract_Repository {
 		);
 
 		if ( false === $inserted ) {
-			return new WP_Error( 'insert_failed', $wpdb->last_error );
+			return new WP_Error( 'insert_failed', __( 'Could not record the vote.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		if ( 0 === $inserted ) {
