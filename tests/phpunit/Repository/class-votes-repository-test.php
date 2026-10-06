@@ -105,6 +105,82 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A ballot records every one of its votes.
+	 *
+	 * @dataProvider ballot_voters
+	 *
+	 * @param string $method create_ballot or create_anonymous_ballot.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_a_ballot_records_every_vote( string $method, $voter ): void {
+		$repository = new Votes_Repository();
+
+		$result = $repository->$method(
+			1,
+			'colour',
+			$voter,
+			array(
+				42 => 9,
+				43 => 8,
+			)
+		);
+
+		$this->assertSame( 2, $result );
+		$votes = $repository->find_by_competition( 1 );
+		$this->assertSame( array( 42 => 9, 43 => 8 ), array_map( 'intval', array_column( $votes, 'score', 'image_id' ) ) );
+	}
+
+	/**
+	 * A ballot the database refuses records nothing, and keeps the database
+	 * error out of the message.
+	 *
+	 * @dataProvider ballot_voters
+	 *
+	 * @param string $method create_ballot or create_anonymous_ballot.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_a_ballot_the_database_refuses_records_nothing( string $method, $voter ): void {
+		global $wpdb;
+		$repository = new Votes_Repository();
+
+		$votes_table = $repository->table();
+		$break_vote  = function ( $query ) use ( $votes_table ) {
+			return 0 === strpos( $query, "INSERT INTO `{$votes_table}`" ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
+		};
+		add_filter( 'query', $break_vote );
+		$suppress = $wpdb->suppress_errors( true );
+		$result   = $repository->$method(
+			1,
+			'colour',
+			$voter,
+			array(
+				42 => 9,
+				43 => 8,
+			)
+		);
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_vote );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'insert_failed', $result->get_error_code() );
+		$this->assertSame( 'Could not record the vote.', $result->get_error_message() );
+		$this->assertStringContainsString( 'no_such_table', $result->get_error_data() );
+		$this->assertSame( array(), $repository->find_by_competition( 1 ) );
+	}
+
+	/**
+	 * A named ballot and an anonymous one.
+	 *
+	 * @return array<string, array{0: string, 1: mixed}>
+	 */
+	public function ballot_voters(): array {
+		return array(
+			'named'     => array( 'create_ballot', 'John Doe' ),
+			'anonymous' => array( 'create_anonymous_ballot', 7 ),
+		);
+	}
+
+	/**
 	 * Create requires voter name.
 	 *
 	 * @return void
