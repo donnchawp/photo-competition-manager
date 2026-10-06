@@ -29,7 +29,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		// files. Clean up after the rollback, so a failure here can't leave the test's rows behind.
 		$this->remove_added_uploads();
 		$folder = wp_upload_dir()['basedir'] . '/competitions/upload-comp';
-		// One test puts a file where the competition's folder goes.
+		// A file planted here by an aborted run is in $ignore_files, so remove_added_uploads() leaves it.
 		if ( is_file( $folder ) ) {
 			wp_delete_file( $folder );
 		}
