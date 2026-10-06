@@ -171,6 +171,21 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertSame( 'colour', $images->find( $colour )->category );
 	}
 
+	public function test_a_move_in_an_archived_competition_is_not_found(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		( new Competitions_Repository() )->archive( (int) $token->competition_id );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+
+		// The same status as the quota and batch upload endpoints give for the same link.
+		$this->assertSame( 404, $response->get_status() );
+		$this->assertSame( 'invalid_competition', $response->as_error()->get_error_code() );
+		$this->assertSame( 'colour', $images->find( $entry )->category );
+	}
+
 	public function test_a_move_the_server_cant_make_is_a_server_error(): void {
 		$images  = new Images_Repository();
 		$request = $this->request_for_member( true );

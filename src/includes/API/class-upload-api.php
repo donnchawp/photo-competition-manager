@@ -50,7 +50,7 @@ class Upload_API extends WP_REST_Controller {
 	private const CHANGE_CATEGORIES_REFUSALS = array(
 		'permission_denied'    => 403,
 		'submission_not_found' => 404,
-		'invalid_competition'  => 400,
+		'invalid_competition'  => 404,
 		'competition_closed'   => 400,
 		'invalid_category'     => 400,
 		'entry_has_votes'      => 400,
