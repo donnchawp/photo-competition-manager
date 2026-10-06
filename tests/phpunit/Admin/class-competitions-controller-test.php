@@ -1269,7 +1269,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$server_limit = static function () {
 			return 2 * MB_IN_BYTES;
 		};
-		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		add_filter( 'photo_competition_manager_server_upload_limit', $server_limit );
 		$id = $this->create_competition( 'Big Files', 'big-files' );
 
 		$this->set_request(

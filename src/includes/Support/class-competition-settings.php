@@ -555,13 +555,16 @@ class Competition_Settings {
 		$competition_limit = (int) ( $upload_constraints['max_file_size_mb'] ?? self::defaults()['upload']['max_file_size_mb'] ) * MB_IN_BYTES;
 
 		/**
-		 * Filters the server's per-file upload limit.
+		 * Filters the server's per-file upload limit. Lower it when something in
+		 * front of PHP, such as a proxy, refuses smaller files than PHP would.
+		 * Raising it above PHP's limit makes the upload page promise a size
+		 * PHP will refuse.
 		 *
 		 * @since 0.4.0
 		 *
 		 * @param int $server_limit PHP's upload_max_filesize, in bytes. 0 or less is no limit.
 		 */
-		$server_limit = (int) apply_filters( 'photo_comp_server_upload_limit', wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) );
+		$server_limit = (int) apply_filters( 'photo_competition_manager_server_upload_limit', wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) );
 
 		// PHP only applies upload_max_filesize when it's above 0.
 		return $server_limit > 0 ? min( $competition_limit, $server_limit ) : $competition_limit;

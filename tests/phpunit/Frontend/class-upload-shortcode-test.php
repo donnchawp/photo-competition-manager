@@ -110,7 +110,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function test_the_upload_page_shows_the_limit_really_enforced( int $server_limit, int $shown_mb ): void {
 		add_filter(
-			'photo_comp_server_upload_limit',
+			'photo_competition_manager_server_upload_limit',
 			static function () use ( $server_limit ) {
 				return $server_limit;
 			}

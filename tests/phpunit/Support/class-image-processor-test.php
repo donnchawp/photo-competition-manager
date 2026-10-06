@@ -78,7 +78,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'upload_error', $result->get_error_code() );
 	}
 
-	public function test_a_file_over_phps_upload_limit_is_told_phps_limit_not_a_filtered_one(): void {
+	public function test_a_file_over_phps_upload_limit_is_told_the_enforced_limit_not_the_networks(): void {
 		// Multisite caps upload_size_limit at the network's own limit, which isn't what PHP refused.
 		$network_limit = static function () {
 			return MB_IN_BYTES;
@@ -94,7 +94,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		);
 
 		add_filter( 'upload_size_limit', $network_limit );
-		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		add_filter( 'photo_competition_manager_server_upload_limit', $server_limit );
 		$result = $this->processor->validate( $file, array( 'max_file_size_mb' => 10 ) );
 
 		$this->assertSame( 'File size exceeds maximum of 2 MB.', $result->get_error_message() );
@@ -153,7 +153,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 			'size'     => 3 * MB_IN_BYTES,
 		);
 
-		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		add_filter( 'photo_competition_manager_server_upload_limit', $server_limit );
 		$result = $this->processor->validate( $file, array( 'max_file_size_mb' => 5 ) );
 
 		$this->assertWPError( $result );
