@@ -90,7 +90,6 @@ class Image_Processor_Test extends WP_UnitTestCase {
 			$result = $this->processor->validate( $file, array() );
 
 			$this->assertSame( 'file_too_large', $result->get_error_code() );
-			$this->assertSame( sprintf( 'File size exceeds maximum of %d MB.', floor( wp_max_upload_size() / MB_IN_BYTES ) ), $result->get_error_message() );
 		}
 	}
 

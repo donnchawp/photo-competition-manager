@@ -28,14 +28,7 @@ class Image_Processor {
 	public function validate( array $file, array $constraints ) {
 		// Check upload error first. A file over PHP's own limit never reaches the size check below.
 		if ( in_array( $file['error'], array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true ) ) {
-			return new WP_Error(
-				'file_too_large',
-				sprintf(
-					/* translators: %d: maximum file size in MB */
-					__( 'File size exceeds maximum of %d MB.', 'photo-competition-manager' ),
-					(int) floor( wp_max_upload_size() / MB_IN_BYTES )
-				)
-			);
+			return $this->too_large_error( (int) floor( wp_max_upload_size() / MB_IN_BYTES ) );
 		}
 
 		if ( UPLOAD_ERR_OK !== $file['error'] ) {
@@ -60,14 +53,7 @@ class Image_Processor {
 		// Check file size.
 		$max_size_bytes = ( $constraints['max_file_size_mb'] ?? 5 ) * 1024 * 1024;
 		if ( $file['size'] > $max_size_bytes ) {
-			return new WP_Error(
-				'file_too_large',
-				sprintf(
-					/* translators: %d: maximum file size in MB */
-					__( 'File size exceeds maximum of %d MB.', 'photo-competition-manager' ),
-					$constraints['max_file_size_mb'] ?? 5
-				)
-			);
+			return $this->too_large_error( (int) ( $constraints['max_file_size_mb'] ?? 5 ) );
 		}
 
 		// Security: Use WordPress robust file type validation.
@@ -115,6 +101,25 @@ class Image_Processor {
 		// Note: Dimension validation removed - images will be automatically resized to max dimensions during processing.
 
 		return true;
+	}
+
+	/**
+	 * The refusal for a file over a size limit.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $max_mb The limit, in MB.
+	 * @return WP_Error
+	 */
+	private function too_large_error( int $max_mb ): WP_Error {
+		return new WP_Error(
+			'file_too_large',
+			sprintf(
+				/* translators: %d: maximum file size in MB */
+				__( 'File size exceeds maximum of %d MB.', 'photo-competition-manager' ),
+				$max_mb
+			)
+		);
 	}
 
 	/**

@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -61,9 +62,12 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				),
 			)
 		);
+
+		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 	}
 
 	public function tearDown(): void {
+		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -167,7 +171,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_an_upload_over_quota_shows_the_quota_message(): void {
 		$token = $this->issue_token( true );
-		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $this->member_for( $token ), array() );
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
 
 		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
 
@@ -207,7 +211,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_a_delete_once_uploads_close_says_deleting_has_stopped(): void {
 		$token = $this->issue_token( true );
-		$entry = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $this->member_for( $token ), array() );
+		$entry = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
 		Workflow_Fixtures::close_uploads( $this->competition_id );
 
 		$output = $this->follow( $this->post_delete( $token, $entry ) );
@@ -217,14 +221,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_a_delete_error_with_no_message_of_its_own_still_says_failed_to_delete(): void {
 		$token   = $this->issue_token( true );
-		$someone = (int) $this->members->create(
-			array(
-				'name'   => 'Someone Else',
-				'email'  => 'someone@example.com',
-				'grade'  => 'beginner',
-				'active' => 1,
-			)
-		);
+		$someone = Member_Fixtures::insert_with_grade( 'Someone Else', 'someone@example.com', 'beginner' );
 		$entry   = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $someone, array() );
 
 		$output = $this->follow( $this->post_delete( $token, $entry ) );
@@ -233,21 +230,16 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_an_unknown_message_key_shows_no_message(): void {
-		$_GET['token'] = $this->issue_token( true );
+		$_GET = array(
+			'token'    => $this->issue_token( true ),
+			'msg_type' => 'error',
+			'msg_key'  => 'upload_made_up',
+			'msg_time' => time(),
+		);
 
-		$output = $this->follow( add_query_arg( array( 'token' => $_GET['token'], 'msg_type' => 'error', 'msg_key' => 'upload_made_up', 'msg_time' => time() ), 'http://example.org/' ) );
+		$output = $this->shortcode->render( array() );
 
 		$this->assertStringNotContainsString( 'class="error"', $output );
-	}
-
-	/**
-	 * The member a token belongs to.
-	 *
-	 * @param string $token Upload token.
-	 * @return int Member ID.
-	 */
-	private function member_for( string $token ): int {
-		return (int) ( new Upload_Token_Repository() )->find_valid_token( $token )->member_id;
 	}
 
 	/**
@@ -300,23 +292,27 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Redirect interceptor: stop before the exit that follows a form post.
+	 *
+	 * @param string $location Redirect target.
+	 * @throws Redirect_Exception Always, carrying the location.
+	 */
+	public function throw_on_redirect( $location ) {
+		throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness; location captured, not output.
+	}
+
+	/**
 	 * Render the page, and return the redirect it makes instead of exiting.
 	 *
 	 * @return string Redirect location.
 	 */
 	private function capture_redirect(): string {
 		$GLOBALS['post'] = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
-		$throw           = static function ( $location ) {
-			throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness.
-		};
 
-		add_filter( 'wp_redirect', $throw );
 		try {
 			$this->shortcode->render( array() );
 		} catch ( Redirect_Exception $e ) {
 			return $e->getMessage();
-		} finally {
-			remove_filter( 'wp_redirect', $throw );
 		}
 
 		$this->fail( 'Expected a redirect but none occurred.' );
