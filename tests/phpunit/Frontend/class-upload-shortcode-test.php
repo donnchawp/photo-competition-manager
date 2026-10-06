@@ -99,44 +99,42 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'token-request-section', $output );
 	}
 
-	public function test_a_server_limit_below_the_competitions_is_the_one_shown(): void {
-		$server_limit = static function () {
-			return 2 * MB_IN_BYTES;
-		};
-		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+	/**
+	 * The upload page shows the lower of the competition's limit (5 MB) and
+	 * the server's.
+	 *
+	 * @dataProvider server_limits
+	 *
+	 * @param int $server_limit The server's limit, in bytes.
+	 * @param int $shown_mb     The limit the page should show, in MB.
+	 */
+	public function test_the_upload_page_shows_the_limit_really_enforced( int $server_limit, int $shown_mb ): void {
+		add_filter(
+			'photo_comp_server_upload_limit',
+			static function () use ( $server_limit ) {
+				return $server_limit;
+			}
+		);
 		$_GET['token'] = $this->issue_token( true );
 
 		$output = $this->shortcode->render( array() );
 
-		$this->assertStringContainsString( 'Max size: 2 MB.', $output );
-		$this->assertSame( 2 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+		$this->assertStringContainsString( "Max size: {$shown_mb} MB.", $output );
+		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
 	}
 
-	public function test_a_competition_limit_below_the_servers_is_the_one_shown(): void {
-		$server_limit = static function () {
-			return 8 * MB_IN_BYTES;
-		};
-		add_filter( 'photo_comp_server_upload_limit', $server_limit );
-		$_GET['token'] = $this->issue_token( true );
-
-		$output = $this->shortcode->render( array() );
-
-		$this->assertStringContainsString( 'Max size: 5 MB.', $output );
-		$this->assertSame( 5 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
-	}
-
-	public function test_a_server_with_no_upload_limit_shows_the_competitions(): void {
-		// PHP reads an upload_max_filesize of 0 or less as no limit.
-		$no_limit = static function () {
-			return 0;
-		};
-		add_filter( 'photo_comp_server_upload_limit', $no_limit );
-		$_GET['token'] = $this->issue_token( true );
-
-		$output = $this->shortcode->render( array() );
-
-		$this->assertStringContainsString( 'Max size: 5 MB.', $output );
-		$this->assertSame( 5 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	/**
+	 * Server limits, and the limit the page should show for each.
+	 *
+	 * @return array<string, array{0: int, 1: int}>
+	 */
+	public function server_limits(): array {
+		return array(
+			'server below the competition' => array( 2 * MB_IN_BYTES, 2 ),
+			'competition below the server' => array( 8 * MB_IN_BYTES, 5 ),
+			// PHP reads an upload_max_filesize of 0 or less as no limit.
+			'no server limit'              => array( 0, 5 ),
+		);
 	}
 
 	/**
