@@ -261,6 +261,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertSame( 'upload_dir_error', $response->as_error()->get_error_code() );
 		$this->assertStringNotContainsString( 'Unable to create directory', wp_json_encode( rest_get_server()->response_to_data( $response, false ) ) );
 		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'category_change_failed' ) );
+		$this->assertCount( 1, $logs );
 		$this->assertStringContainsString( 'Unable to create directory', $logs[0]->metadata );
 	}
 
