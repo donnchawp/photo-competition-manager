@@ -182,7 +182,7 @@ class Email_Templates_Controller {
 			),
 			'voting_link'          => array(
 				'name'        => __( 'Voting Link', 'photo-competition-manager' ),
-				'description' => __( 'Sent to a member who asks for a voting link on the voting page. The link works once and expires after an hour.', 'photo-competition-manager' ),
+				'description' => __( 'Sent to a member who asks for a voting link on the voting page. When this is off, a built-in version is sent instead.', 'photo-competition-manager' ),
 				'enabled'     => true,
 				'subject'     => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
 				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
