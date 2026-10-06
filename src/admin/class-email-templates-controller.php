@@ -180,6 +180,14 @@ class Email_Templates_Controller {
 				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Voting is now open for {competition_title}!</p>\n\n<p>Visit the voting page to see all submitted images and cast your votes.</p>\n\n<p><a href=\"{voting_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Go to Voting Page</a></p>\n\n<p>Voting closes on {close_date}.</p>", 'photo-competition-manager' ),
 				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_page}', '{close_date}', '{site_name}' ),
 			),
+			'voting_link'          => array(
+				'name'        => __( 'Voting Link', 'photo-competition-manager' ),
+				'description' => __( 'Sent to a member who asks for a voting link on the voting page. The link works once and expires after an hour.', 'photo-competition-manager' ),
+				'enabled'     => true,
+				'subject'     => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once. Voting closes on {close_date}.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
+				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_link}', '{close_date}', '{site_name}' ),
+			),
 			'results_published'    => array(
 				'name'        => __( 'Results Published', 'photo-competition-manager' ),
 				'description' => __( 'Sent to members when competition results are available.', 'photo-competition-manager' ),

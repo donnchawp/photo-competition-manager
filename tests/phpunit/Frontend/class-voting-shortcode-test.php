@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
@@ -48,6 +49,13 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	private $mail_count = 0;
 
 	/**
+	 * Last captured wp_mail() arguments.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private $last_mail = null;
+
+	/**
 	 * Each category's one entry, keyed by category slug.
 	 *
 	 * @var array<string, int>
@@ -68,6 +76,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 			'wp_mail',
 			function ( $atts ) {
 				++$this->mail_count;
+				$this->last_mail = $atts;
 				return $atts;
 			}
 		);
@@ -160,10 +169,10 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return html_entity_decode( $matches[1] );
 	}
 
-	private function make_member( string $email, bool $active ): int {
+	private function make_member( string $email, bool $active, string $name = 'Voter' ): int {
 		return (int) $this->members->create(
 			array(
-				'name'   => 'Voter',
+				'name'   => $name,
 				'email'  => $email,
 				'grade'  => 'beginner',
 				'active' => $active ? 1 : 0,
@@ -249,6 +258,66 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 1, $this->mail_count );
 		$this->assertTrue( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_voting_link_template_fills_in_every_merge_tag(): void {
+		( new Competitions_Repository() )->update( (int) $this->competition->id, array( 'close_date' => '2099-12-31 18:00:00' ) );
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_link' => array(
+					'enabled' => true,
+					'subject' => 'Your voting link for {competition_title}',
+					'body'    => '<p>Hi {member_name}, vote in {competition_title} at {voting_link} before {close_date}. From {site_name}.</p>',
+				),
+			)
+		);
+		$this->make_member( 'mary@example.com', true, 'Mary Murphy' );
+
+		$this->request_token( 'mary@example.com' );
+
+		$this->assertStringContainsString( 'Your voting link for Token Comp', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'December 31, 2099', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'token=', $this->last_mail['message'] );
+		$this->assertDoesNotMatchRegularExpression( '/\{[a-z_]+\}/', $this->last_mail['subject'] . $this->last_mail['message'] );
+	}
+
+	public function test_voting_link_falls_back_to_the_built_in_email_when_its_template_is_off(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_link'   => array(
+					'enabled' => false,
+					'subject' => 'Ignored subject',
+					'body'    => 'Ignored body',
+				),
+				'voting_opened' => array(
+					'enabled' => true,
+					'subject' => 'Voting is now open for {competition_title}',
+					'body'    => '<p>Hi {member_name}, voting closes on {close_date}.</p>',
+				),
+			)
+		);
+		$this->make_member( 'mary@example.com', true, 'Mary Murphy' );
+
+		$this->request_token( 'mary@example.com' );
+
+		$this->assertSame( 1, $this->mail_count );
+		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'This link will expire in 1 hour and can only be used once.', $this->last_mail['message'] );
+		$this->assertStringNotContainsString( 'Ignored', $this->last_mail['message'] );
+	}
+
+	public function test_voting_link_is_logged_under_the_members_name(): void {
+		$this->make_member( 'mary@example.com', true, 'Mary Murphy' );
+
+		$this->request_token( 'mary@example.com' );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( (int) $this->competition->id, 50, 0, array( 'event_type' => 'voting_link' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'Sent voting link email to Mary Murphy', $logs[0]->description );
+		$this->assertSame( 'mary@example.com', json_decode( $logs[0]->metadata, true )['email'] );
 	}
 
 	public function test_inactive_member_gets_generic_success_but_no_link(): void {

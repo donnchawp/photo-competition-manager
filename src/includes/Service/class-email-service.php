@@ -88,22 +88,26 @@ class Email_Service {
 	}
 
 	/**
-	 * Send voting magic link email.
+	 * Send the voting link a member asked for on the voting page.
 	 *
-	 * @param string   $to_email        Recipient email address.
+	 * @param string   $to_email          Recipient email address.
+	 * @param string   $member_name       Member name.
 	 * @param string   $competition_title Competition title.
-	 * @param string   $magic_link      Magic link URL.
-	 * @param int|null $competition_id  Optional competition ID for logging.
+	 * @param string   $magic_link        Magic link URL.
+	 * @param string   $close_date        Competition close date (formatted), or empty.
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_voting_link( string $to_email, string $competition_title, string $magic_link, ?int $competition_id = null ): bool {
+	public function send_voting_link( string $to_email, string $member_name, string $competition_title, string $magic_link, string $close_date, ?int $competition_id = null ): bool {
 		// Check if template is enabled and customized.
-		$template = $this->get_template( 'voting_opened' );
+		$template = $this->get_template( 'voting_link' );
 
 		if ( $template && $template['enabled'] ) {
 			$merge_data = array(
+				'{member_name}'       => $member_name,
 				'{competition_title}' => $competition_title,
-				'{voting_page}'       => $magic_link,
+				'{voting_link}'       => $magic_link,
+				'{close_date}'        => $close_date,
 				'{site_name}'         => get_bloginfo( 'name' ),
 			);
 
@@ -130,8 +134,8 @@ class Email_Service {
 		if ( $result && $this->event_logger ) {
 			$this->event_logger->log_email_sent(
 				$competition_id,
-				'voting_opened',
-				$to_email,
+				'voting_link',
+				$member_name,
 				array( 'email' => $to_email )
 			);
 		}
