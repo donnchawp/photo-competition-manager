@@ -99,6 +99,58 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'token-request-section', $output );
 	}
 
+	/**
+	 * The upload page shows the lower of the competition's limit (5 MB) and
+	 * the server's.
+	 *
+	 * @dataProvider server_limits
+	 *
+	 * @param int $server_limit The server's limit, in bytes.
+	 * @param int $shown_mb     The limit the page should show, in MB.
+	 */
+	public function test_the_upload_page_shows_the_limit_really_enforced( int $server_limit, int $shown_mb ): void {
+		add_filter(
+			'photo_competition_manager_server_upload_limit',
+			static function () use ( $server_limit ) {
+				return $server_limit;
+			}
+		);
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( "Max size: {$shown_mb} MB.", $output );
+		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	/**
+	 * Server limits, and the limit the page should show for each.
+	 *
+	 * @return array<string, array{0: int, 1: int}>
+	 */
+	public function server_limits(): array {
+		return array(
+			'server below the competition' => array( 2 * MB_IN_BYTES, 2 ),
+			'competition below the server' => array( 8 * MB_IN_BYTES, 5 ),
+			// PHP reads an upload_max_filesize of 0 or less as no limit.
+			'no server limit'              => array( 0, 5 ),
+		);
+	}
+
+	/**
+	 * The settings the upload page hands the drag-and-drop script.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function upload_script_data(): array {
+		$data = wp_scripts()->get_data( 'photo-comp-drag-drop-upload', 'data' );
+		preg_match( '/var photoCompUpload = (\{.*\});/s', (string) $data, $matches );
+
+		return json_decode( $matches[1] ?? 'null', true ) ?? array();
+	}
+
 	public function test_submission_delete_form_uses_two_tap_confirmation(): void {
 		$_GET['token'] = $this->issue_token( true );
 		$member        = $this->members->find_by_email( 'uploader@example.com' );
