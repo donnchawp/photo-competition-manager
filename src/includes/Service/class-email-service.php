@@ -121,7 +121,7 @@ class Email_Service {
 				__( 'Vote in %s', 'photo-competition-manager' ),
 				$competition_title
 			);
-			$message = $this->get_voting_email_body( $competition_title, $magic_link );
+			$message = $this->get_voting_email_body( $member_name, $competition_title, $magic_link );
 		}
 
 		$headers = array(
@@ -223,11 +223,12 @@ class Email_Service {
 	/**
 	 * Get voting email body.
 	 *
+	 * @param string $member_name       Member name.
 	 * @param string $competition_title Competition title.
-	 * @param string $magic_link      Magic link URL.
+	 * @param string $magic_link        Magic link URL.
 	 * @return string
 	 */
-	private function get_voting_email_body( string $competition_title, string $magic_link ): string {
+	private function get_voting_email_body( string $member_name, string $competition_title, string $magic_link ): string {
 		ob_start();
 		?>
 		<!DOCTYPE html>
@@ -238,6 +239,16 @@ class Email_Service {
 		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
 			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
 				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?></h2>
+
+				<p>
+				<?php
+					printf(
+						/* translators: %s: Member name */
+						esc_html__( 'Hi %s,', 'photo-competition-manager' ),
+						esc_html( $member_name )
+					);
+				?>
+				</p>
 
 				<p><?php esc_html_e( 'You requested to vote in this competition. Click the link below to access the voting form:', 'photo-competition-manager' ); ?></p>
 

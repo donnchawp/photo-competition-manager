@@ -185,7 +185,7 @@ class Email_Templates_Controller {
 				'description' => __( 'Sent to a member who asks for a voting link on the voting page. The link works once and expires after an hour.', 'photo-competition-manager' ),
 				'enabled'     => true,
 				'subject'     => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once. Voting closes on {close_date}.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
+				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
 				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_link}', '{close_date}', '{site_name}' ),
 			),
 			'results_published'    => array(

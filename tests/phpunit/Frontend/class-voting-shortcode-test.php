@@ -305,6 +305,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 1, $this->mail_count );
 		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
 		$this->assertStringContainsString( 'This link will expire in 1 hour and can only be used once.', $this->last_mail['message'] );
 		$this->assertStringNotContainsString( 'Ignored', $this->last_mail['message'] );
 	}
