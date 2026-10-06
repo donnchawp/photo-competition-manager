@@ -68,7 +68,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$file = array(
 			'name'     => 'test.jpg',
 			'tmp_name' => '/tmp/test.jpg',
-			'error'    => UPLOAD_ERR_INI_SIZE,
+			'error'    => UPLOAD_ERR_PARTIAL,
 			'size'     => 1024,
 		);
 
@@ -76,6 +76,41 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'upload_error', $result->get_error_code() );
+	}
+
+	public function test_a_file_over_phps_upload_limit_is_told_phps_limit_not_a_filtered_one(): void {
+		// Multisite caps upload_size_limit at the network's own limit, which isn't what PHP refused.
+		$network_limit = static function () {
+			return MB_IN_BYTES;
+		};
+		$php_limit_mb  = (int) floor( wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) / MB_IN_BYTES );
+		$file          = array(
+			'name'     => 'test.jpg',
+			'tmp_name' => '',
+			'error'    => UPLOAD_ERR_INI_SIZE,
+			'size'     => 0,
+		);
+
+		add_filter( 'upload_size_limit', $network_limit );
+		$result = $this->processor->validate( $file, array() );
+		remove_filter( 'upload_size_limit', $network_limit );
+
+		$this->assertSame( sprintf( 'File size exceeds maximum of %d MB.', $php_limit_mb ), $result->get_error_message() );
+	}
+
+	public function test_validate_treats_a_file_over_phps_upload_limit_as_too_large(): void {
+		foreach ( array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ) as $error ) {
+			$file = array(
+				'name'     => 'test.jpg',
+				'tmp_name' => '',
+				'error'    => $error,
+				'size'     => 0,
+			);
+
+			$result = $this->processor->validate( $file, array() );
+
+			$this->assertSame( 'file_too_large', $result->get_error_code() );
+		}
 	}
 
 	public function test_validate_rejects_oversized_file(): void {

@@ -12,8 +12,13 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
+
+require_once __DIR__ . '/../Admin/class-redirect-exception.php';
 
 /**
  * Deactivated members must not reach the upload page with an existing link.
@@ -57,10 +62,17 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				),
 			)
 		);
+
+		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 	}
 
 	public function tearDown(): void {
-		unset( $_GET['token'] );
+		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+		$_GET     = array();
+		$_POST    = array();
+		$_REQUEST = array();
+		$_FILES   = array();
+		unset( $GLOBALS['post'] );
 		$GLOBALS['wp_scripts'] = null;
 		parent::tearDown();
 	}
@@ -155,6 +167,185 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
 		$this->assertStringContainsString( 'Uploads are closed', $output );
+	}
+
+	public function test_an_upload_over_quota_shows_the_quota_message(): void {
+		$token = $this->issue_token( true );
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'You&#039;ve already uploaded the maximum number of images for this category.', $output );
+	}
+
+	public function test_a_file_over_the_servers_upload_limit_says_it_is_too_big(): void {
+		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_INI_SIZE ) );
+
+		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_a_file_of_the_wrong_type_says_so(): void {
+		$text_file = wp_tempnam( 'entry.gif' );
+		file_put_contents( $text_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$location = $this->post_upload(
+			$this->issue_token( true ),
+			UPLOAD_ERR_OK,
+			array(
+				'name'     => 'entry.gif',
+				'type'     => 'image/gif',
+				'tmp_name' => $text_file,
+				'size'     => 12,
+			)
+		);
+		wp_delete_file( $text_file );
+
+		$this->assertStringContainsString( 'That file type isn&#039;t allowed. Check the formats listed under the upload form.', $this->follow( $location ) );
+	}
+
+	public function test_an_upload_error_with_no_message_of_its_own_still_says_upload_failed(): void {
+		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_PARTIAL ) );
+
+		$this->assertStringContainsString( 'Upload failed. Please try again.', $output );
+	}
+
+	public function test_a_delete_once_uploads_close_says_deleting_has_stopped(): void {
+		$token = $this->issue_token( true );
+		$entry = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+
+		$output = $this->follow( $this->post_delete( $token, $entry ) );
+
+		$this->assertStringContainsString( 'Images can&#039;t be deleted now that uploads have closed.', $output );
+	}
+
+	public function test_an_upload_once_uploads_close_says_uploads_are_not_open(): void {
+		$token = $this->issue_token( true );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'This competition isn&#039;t accepting uploads right now.', $output );
+	}
+
+	public function test_deleting_an_entry_thats_already_gone_says_so(): void {
+		$output = $this->follow( $this->post_delete( $this->issue_token( true ), 999999 ) );
+
+		$this->assertStringContainsString( 'That image wasn&#039;t found. It may already have been deleted.', $output );
+	}
+
+	public function test_a_delete_error_with_no_message_of_its_own_still_says_failed_to_delete(): void {
+		$token   = $this->issue_token( true );
+		$someone = Member_Fixtures::insert_with_grade( 'Someone Else', 'someone@example.com', 'beginner' );
+		$entry   = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $someone, array() );
+
+		$output = $this->follow( $this->post_delete( $token, $entry ) );
+
+		$this->assertStringContainsString( 'Failed to delete image. Please try again.', $output );
+	}
+
+	public function test_an_unknown_message_key_shows_no_message(): void {
+		$_GET = array(
+			'token'    => $this->issue_token( true ),
+			'msg_type' => 'error',
+			'msg_key'  => 'upload_made_up',
+			'msg_time' => time(),
+		);
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringNotContainsString( 'class="error"', $output );
+	}
+
+	/**
+	 * Post the upload page's own form, and return where it redirects.
+	 *
+	 * @param string               $token      Upload token.
+	 * @param int                  $file_error The uploaded file's PHP error code.
+	 * @param array<string, mixed> $file       Fields of the uploaded file to override.
+	 * @return string Redirect location.
+	 */
+	private function post_upload( string $token, int $file_error, array $file = array() ): string {
+		$nonce = wp_create_nonce( 'photo_competition_upload_with_token' );
+
+		$_GET['token']                       = $token;
+		$_POST['photo_competition_upload']   = '1';
+		$_POST['photo_competition_nonce']    = $nonce;
+		$_REQUEST['photo_competition_nonce'] = $nonce;
+		$_POST['category']                   = 'colour';
+		$_FILES['image']                     = array_merge(
+			array(
+				'name'     => 'entry.jpg',
+				'type'     => 'image/jpeg',
+				'tmp_name' => '/nonexistent/entry.jpg',
+				'error'    => $file_error,
+				'size'     => 1024,
+			),
+			$file
+		);
+
+		return $this->capture_redirect();
+	}
+
+	/**
+	 * Post the delete button for an entry, and return where it redirects.
+	 *
+	 * @param string $token    Upload token.
+	 * @param int    $image_id Entry ID.
+	 * @return string Redirect location.
+	 */
+	private function post_delete( string $token, int $image_id ): string {
+		$nonce = wp_create_nonce( 'photo_competition_delete_with_token' );
+
+		$_GET['token']                              = $token;
+		$_POST['photo_competition_delete']          = '1';
+		$_POST['photo_competition_delete_nonce']    = $nonce;
+		$_REQUEST['photo_competition_delete_nonce'] = $nonce;
+		$_POST['image_id']                          = (string) $image_id;
+
+		return $this->capture_redirect();
+	}
+
+	/**
+	 * Redirect interceptor: stop before the exit that follows a form post.
+	 *
+	 * @param string $location Redirect target.
+	 * @throws Redirect_Exception Always, carrying the location.
+	 */
+	public function throw_on_redirect( $location ) {
+		throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness; location captured, not output.
+	}
+
+	/**
+	 * Render the page, and return the redirect it makes instead of exiting.
+	 *
+	 * @return string Redirect location.
+	 */
+	private function capture_redirect(): string {
+		$GLOBALS['post'] = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+
+		try {
+			$this->shortcode->render( array() );
+		} catch ( Redirect_Exception $e ) {
+			return $e->getMessage();
+		}
+
+		$this->fail( 'Expected a redirect but none occurred.' );
+	}
+
+	/**
+	 * Load the page a redirect points at, as the browser would after a form post.
+	 *
+	 * @param string $location Redirect location.
+	 * @return string Rendered page.
+	 */
+	private function follow( string $location ): string {
+		$_POST    = array();
+		$_REQUEST = array();
+		$_FILES   = array();
+		wp_parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $_GET );
+
+		return $this->shortcode->render( array() );
 	}
 
 	public function test_inactive_member_token_falls_back_to_request_form(): void {

@@ -29,16 +29,54 @@ class Upload_Shortcode {
 	/**
 	 * Allowed message keys and their corresponding text.
 	 *
+	 * The text is fixed, because only the key travels in the redirect.
+	 *
 	 * @var array<string, string>
 	 */
 	private const ALLOWED_MESSAGES = array(
-		'upload_success'   => 'Image uploaded successfully!',
-		'delete_success'   => 'Image deleted successfully.',
-		'category_missing' => 'Please select a category.',
-		'image_missing'    => 'Please select an image to upload.',
-		'invalid_deletion' => 'Invalid deletion request.',
-		'upload_failed'    => 'Upload failed. Please try again.',
-		'delete_failed'    => 'Failed to delete image. Please try again.',
+		'upload_success'     => 'Image uploaded successfully!',
+		'delete_success'     => 'Image deleted successfully.',
+		'category_missing'   => 'Please select a category.',
+		'image_missing'      => 'Please select an image to upload.',
+		'invalid_deletion'   => 'Invalid deletion request.',
+		'upload_failed'      => 'Upload failed. Please try again.',
+		'delete_failed'      => 'Failed to delete image. Please try again.',
+		'quota_exceeded'     => 'You\'ve already uploaded the maximum number of images for this category.',
+		'uploads_closed'     => 'This competition isn\'t accepting uploads right now.',
+		'category_has_votes' => 'This category already has votes, so it can\'t take new entries.',
+		'invalid_category'   => 'That category isn\'t part of this competition.',
+		'file_too_large'     => 'That image is too big. Check the size limit under the upload form.',
+		'wrong_file_type'    => 'That file type isn\'t allowed. Check the formats listed under the upload form.',
+		'invalid_image'      => 'That file isn\'t a valid image.',
+		'deleting_closed'    => 'Images can\'t be deleted now that uploads have closed.',
+		'entry_not_found'    => 'That image wasn\'t found. It may already have been deleted.',
+	);
+
+	/**
+	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
+	 *
+	 * @var array<string, string>
+	 */
+	private const UPLOAD_REFUSALS = array(
+		'quota_exceeded'     => 'quota_exceeded',
+		'competition_closed' => 'uploads_closed',
+		'category_has_votes' => 'category_has_votes',
+		'invalid_category'   => 'invalid_category',
+		'file_too_large'     => 'file_too_large',
+		'invalid_format'     => 'wrong_file_type',
+		'invalid_file'       => 'wrong_file_type',
+		'invalid_mime'       => 'wrong_file_type',
+		'invalid_image'      => 'invalid_image',
+	);
+
+	/**
+	 * Message key for each delete refusal someone can act on. Any other error says 'delete_failed'.
+	 *
+	 * @var array<string, string>
+	 */
+	private const DELETE_REFUSALS = array(
+		'competition_closed' => 'deleting_closed',
+		'invalid_image'      => 'entry_not_found',
 	);
 
 	/**
@@ -327,7 +365,7 @@ class Upload_Shortcode {
 		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', 'upload_failed' );
+			$this->redirect_with_message( 'error', self::UPLOAD_REFUSALS[ $result->get_error_code() ] ?? 'upload_failed' );
 			return;
 		}
 
@@ -351,7 +389,7 @@ class Upload_Shortcode {
 		$result = $this->entries->remove( Actor::for_upload_link( $member_id ), $competition_id, $image_id );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', 'delete_failed' );
+			$this->redirect_with_message( 'error', self::DELETE_REFUSALS[ $result->get_error_code() ] ?? 'delete_failed' );
 			return;
 		}
 
