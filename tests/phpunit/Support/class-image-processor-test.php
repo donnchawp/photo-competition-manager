@@ -83,7 +83,9 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$network_limit = static function () {
 			return MB_IN_BYTES;
 		};
-		$php_limit_mb  = (int) floor( wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) / MB_IN_BYTES );
+		$server_limit  = static function () {
+			return 2 * MB_IN_BYTES;
+		};
 		$file          = array(
 			'name'     => 'test.jpg',
 			'tmp_name' => '',
@@ -92,10 +94,10 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		);
 
 		add_filter( 'upload_size_limit', $network_limit );
-		$result = $this->processor->validate( $file, array() );
-		remove_filter( 'upload_size_limit', $network_limit );
+		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		$result = $this->processor->validate( $file, array( 'max_file_size_mb' => 10 ) );
 
-		$this->assertSame( sprintf( 'File size exceeds maximum of %d MB.', $php_limit_mb ), $result->get_error_message() );
+		$this->assertSame( 'File size exceeds maximum of 2 MB.', $result->get_error_message() );
 	}
 
 	public function test_validate_treats_a_file_over_phps_upload_limit_as_too_large(): void {
@@ -134,6 +136,29 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'file_too_large', $result->get_error_code() );
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		unlink( $tmp_file );
+	}
+
+	public function test_validate_refuses_a_file_over_a_server_limit_below_the_competitions(): void {
+		$tmp_file     = $this->create_test_image();
+		$server_limit = static function () {
+			return 2 * MB_IN_BYTES;
+		};
+		$file         = array(
+			'name'     => 'test.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => 3 * MB_IN_BYTES,
+		);
+
+		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		$result = $this->processor->validate( $file, array( 'max_file_size_mb' => 5 ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'file_too_large', $result->get_error_code() );
+		$this->assertSame( 'File size exceeds maximum of 2 MB.', $result->get_error_message() );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
 		unlink( $tmp_file );
