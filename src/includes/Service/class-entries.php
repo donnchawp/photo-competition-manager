@@ -141,7 +141,8 @@ class Entries {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
 		}
 
-		// Members can't get here in practice, since voting needs uploads closed, but the rule doesn't rely on that.
+		// Members can't get here in practice: voting needs uploads closed, and uploads can't reopen
+		// once there are votes. The rule doesn't rely on that.
 		$voted = $this->voted_category_error( $competition_id, $category );
 		if ( $voted ) {
 			return $voted;
@@ -463,8 +464,8 @@ class Entries {
 	 * A member may move only their own entries, and only while the competition accepts uploads.
 	 * An admin may move them whatever the phase, while both categories are at Not started or
 	 * Previewed. No entry with votes can move, whoever is moving it: votes store their category,
-	 * so its category has to be reset with its votes cleared first. For the same reason no entry
-	 * can move into a category that already has votes.
+	 * so its category has to be reset with its votes cleared first. Nor can any entry move into a
+	 * category that already has votes, since it was on none of that category's ballots.
 	 * Quota is checked against where the entries end up, so two entries can swap categories.
 	 * If a move fails, the moves already made are undone.
 	 *
