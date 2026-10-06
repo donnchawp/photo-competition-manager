@@ -29,6 +29,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		// files. Clean up after the rollback, so a failure here can't leave the test's rows behind.
 		$this->remove_added_uploads();
 		$folder = wp_upload_dir()['basedir'] . '/competitions/upload-comp';
+		// One test puts a file where the competition's folder goes.
 		if ( is_file( $folder ) ) {
 			wp_delete_file( $folder );
 		}
@@ -176,8 +177,9 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
 		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
 		// A file where the competition's folder should be, so its category folders can't be made.
-		wp_mkdir_p( wp_upload_dir()['basedir'] . '/competitions' );
-		touch( wp_upload_dir()['basedir'] . '/competitions/upload-comp' );
+		$competitions = wp_upload_dir()['basedir'] . '/competitions';
+		wp_mkdir_p( $competitions );
+		touch( $competitions . '/upload-comp' );
 
 		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
 
