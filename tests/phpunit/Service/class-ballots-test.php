@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Ballots;
@@ -232,12 +233,13 @@ class Ballots_Test extends WP_UnitTestCase {
 	 *
 	 * @param string $kind link or named.
 	 */
-	public function test_a_ballot_is_refused_once_voting_closes( string $kind ): void {
+	public function test_a_ballot_is_refused_once_voting_closes_before_any_other_rule( string $kind ): void {
 		$voter = $this->voter( $kind );
 		( new Competition_Workflow() )->close_voting( (int) $this->competition->id, 'colour' );
 		$this->competition = ( new Competitions_Repository() )->find( (int) $this->competition->id );
 
-		$result = $this->ballots->cast( $this->competition, 'colour', $voter, $this->full_ballot() );
+		// Incomplete, with a score outside the matrix: closed voting still wins.
+		$result = $this->ballots->cast( $this->competition, 'colour', $voter, array( $this->images['colour'][0] => '6' ) );
 
 		$this->assertSame( 'voting_closed', $result->get_error_code() );
 		$this->assertSame( 0, $this->vote_count() );
@@ -402,7 +404,7 @@ class Ballots_Test extends WP_UnitTestCase {
 		$second = $this->images['colour'][1];
 
 		// Break any votes INSERT that carries the second entry's vote.
-		$votes_table = $wpdb->prefix . 'photocomp_votes';
+		$votes_table = ( new Votes_Repository() )->table();
 		$break_vote  = function ( $query ) use ( $votes_table, $second ) {
 			$is_votes_insert = 0 === strpos( $query, "INSERT INTO `{$votes_table}`" );
 			return $is_votes_insert && preg_match( "/, {$second}, 8, '/", $query ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
@@ -417,21 +419,6 @@ class Ballots_Test extends WP_UnitTestCase {
 		$this->assertSame( 'Failed to record votes. Please try again.', $result->get_error_message() );
 		$this->assertSame( 0, $this->vote_count() );
 		$this->assertTrue( $this->ballots->cast( $this->competition, 'colour', $voter, $this->full_ballot() ) );
-	}
-
-	/**
-	 * @dataProvider voters
-	 *
-	 * @param string $kind link or named.
-	 */
-	public function test_the_rules_apply_in_the_same_order_for_both_voters( string $kind ): void {
-		$voter = $this->voter( $kind );
-		( new Competition_Workflow() )->close_voting( (int) $this->competition->id, 'colour' );
-		$this->competition = ( new Competitions_Repository() )->find( (int) $this->competition->id );
-
-		$result = $this->ballots->cast( $this->competition, 'colour', $voter, array( $this->images['colour'][0] => '6' ) );
-
-		$this->assertSame( 'voting_closed', $result->get_error_code() );
 	}
 
 	/**
@@ -470,7 +457,7 @@ class Ballots_Test extends WP_UnitTestCase {
 	public function test_a_ballot_for_a_category_whose_entries_are_gone_is_empty(): void {
 		$voter = $this->voter( 'named' );
 		foreach ( $this->images['colour'] as $image_id ) {
-			( new \PhotoCompetitionManager\Repository\Images_Repository() )->delete( $image_id );
+			( new Images_Repository() )->delete( $image_id );
 		}
 
 		$result = $this->ballots->cast( $this->competition, 'colour', $voter, array( $this->images['mono'][0] => '9' ) );

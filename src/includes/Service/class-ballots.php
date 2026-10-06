@@ -88,7 +88,7 @@ final class Ballots {
 	 *
 	 * @param object $competition Competition row.
 	 * @param string $token       The token from the voting link.
-	 * @return Voter|WP_Error
+	 * @return Link_Voter|WP_Error
 	 */
 	public function link_voter( object $competition, string $token ) {
 		$record = '' === $token ? null : $this->voting_tokens->find_valid_token( hash( 'sha256', $token ) );
@@ -107,7 +107,7 @@ final class Ballots {
 	 * @param object $competition Competition row.
 	 * @param string $name        The name they gave.
 	 * @param string $password    The voting password they gave.
-	 * @return Voter|WP_Error
+	 * @return Named_Voter|WP_Error
 	 */
 	public function named_voter( object $competition, string $name, string $password ) {
 		$voter = new Named_Voter( $name );

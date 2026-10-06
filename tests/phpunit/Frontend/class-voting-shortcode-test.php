@@ -207,14 +207,14 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return $this->shortcode->render();
 	}
 
-	private function issue_token( int $member_id ): string {
+	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS ): string {
 		$token_string = bin2hex( random_bytes( 32 ) );
 		$this->tokens->create(
 			$member_id,
 			(int) $this->competition->id,
 			'colour',
 			hash( 'sha256', $token_string ),
-			gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS )
+			gmdate( 'Y-m-d H:i:s', time() + $expires )
 		);
 		return $token_string;
 	}
@@ -433,9 +433,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_ballot_with_an_expired_link_says_so(): void {
-		$member_id = $this->make_member( 'active@example.com', true );
-		$token     = bin2hex( random_bytes( 32 ) );
-		$this->tokens->create( $member_id, (int) $this->competition->id, 'colour', hash( 'sha256', $token ), gmdate( 'Y-m-d H:i:s', time() - 60 ) );
+		$token = $this->issue_token( $this->make_member( 'active@example.com', true ), -60 );
 
 		$page = $this->submit_vote( $token, $this->make_image() );
 

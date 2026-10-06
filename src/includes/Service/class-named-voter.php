@@ -106,7 +106,7 @@ final class Named_Voter implements Voter {
 			)
 		);
 
-		// A real request gets here on template_redirect, before any output; PHPUnit has already printed.
+		// A real request gets here on template_redirect, before any output. PHPUnit has already printed, and setcookie() would warn.
 		if ( ! headers_sent() ) {
 			setcookie(
 				self::COOKIE,
@@ -122,7 +122,7 @@ final class Named_Voter implements Voter {
 			);
 		}
 
-		// And for the rest of this request, slashed as WordPress slashes $_COOKIE.
+		// A redirect follows, so this copy is how tests see the cookie. Slashed, as WordPress slashes $_COOKIE.
 		$_COOKIE[ self::COOKIE ] = wp_slash( $payload );
 	}
 

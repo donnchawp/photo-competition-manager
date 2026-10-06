@@ -101,7 +101,7 @@ class Voting_Shortcode {
 	 * A ballot refused earlier in this request, for the page to show with the
 	 * voter's form as they filled it in.
 	 *
-	 * @var array{error:\WP_Error,voter:?\PhotoCompetitionManager\Service\Voter,name:string,password:string,category:string,scores:array}|null
+	 * @var array{error:\WP_Error,name:string,password:string,category:string,scores:array}|null
 	 */
 	private $refused = null;
 
@@ -175,7 +175,7 @@ class Voting_Shortcode {
 			check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' );
 			$token    = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 			$voter    = $this->ballots->link_voter( $competition, $token );
-			$category = $voter instanceof Link_Voter ? $voter->category() : '';
+			$category = is_wp_error( $voter ) ? '' : $voter->category();
 		} else {
 			check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' );
 			$name     = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
@@ -199,7 +199,6 @@ class Voting_Shortcode {
 
 		$this->refused = array(
 			'error'    => $result,
-			'voter'    => is_wp_error( $voter ) ? null : $voter,
 			'name'     => $name,
 			'password' => $password,
 			'category' => $category,
@@ -344,8 +343,8 @@ class Voting_Shortcode {
 		// Check for voting token in URL.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading a read-only token from the URL for magic-link auth; sanitized and hashed by Ballots.
 		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-		$voter        = $this->refused ? $this->refused['voter'] : $this->ballots->link_voter( $competition, $token_string );
-		$voter        = $voter instanceof Link_Voter ? $voter : null;
+		$voter        = $this->ballots->link_voter( $competition, $token_string );
+		$voter        = is_wp_error( $voter ) ? null : $voter;
 
 		// A closed category says so on the page itself.
 		$message = $this->refused && 'voting_closed' !== $this->refused['error']->get_error_code() ? $this->refused_notice() : '';
@@ -369,17 +368,12 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_password_based_voting( object $competition, array $settings ): string {
-		if ( $this->refused ) {
-			$form  = $this->refused;
-			$voter = $this->refused['voter'];
-		} else {
-			$form  = Named_Voter::remembered() + array(
-				'category' => '',
-				'scores'   => array(),
-			);
-			$voter = $this->ballots->named_voter( $competition, $form['name'], $form['password'] );
-			$voter = is_wp_error( $voter ) ? null : $voter;
-		}
+		$form  = $this->refused ?? Named_Voter::remembered() + array(
+			'category' => '',
+			'scores'   => array(),
+		);
+		$voter = $this->ballots->named_voter( $competition, $form['name'], $form['password'] );
+		$voter = is_wp_error( $voter ) ? null : $voter;
 
 		ob_start();
 		$this->render_password_voting_interface( $competition, $this->refused_notice(), $settings, $form, $voter );
