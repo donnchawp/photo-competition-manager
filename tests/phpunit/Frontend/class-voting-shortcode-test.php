@@ -227,13 +227,6 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return Entry_Fixtures::insert_entry( (int) $this->competition->id, $category, $this->make_member( 'entrant-' . $entrant . '@example.com', true ), array() );
 	}
 
-	/**
-	 * Submit a ballot with a token.
-	 *
-	 * @param string             $token_string Voting token.
-	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
-	 * @return string Rendered output.
-	 */
 	public function test_a_token_ballot_the_database_refuses_in_part_stores_nothing_and_can_be_retried(): void {
 		global $wpdb;
 		$first  = $this->make_image( 'colour' );
@@ -266,6 +259,13 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->vote_count() );
 	}
 
+	/**
+	 * Submit a ballot with a token.
+	 *
+	 * @param string             $token_string Voting token.
+	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
+	 * @return string Rendered output.
+	 */
 	private function submit_vote( string $token_string, $votes ): string {
 		$nonce = wp_create_nonce( 'photo_competition_vote_with_token' );
 

@@ -169,6 +169,69 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A ballot with no votes is refused.
+	 *
+	 * @dataProvider ballot_voters
+	 *
+	 * @param string $method create_ballot or create_anonymous_ballot.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_an_empty_ballot_is_refused( string $method, $voter ): void {
+		$result = ( new Votes_Repository() )->$method( 1, 'colour', $voter, array() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'empty_ballot', $result->get_error_code() );
+	}
+
+	/**
+	 * A ballot with a negative score is refused, and records nothing.
+	 *
+	 * @dataProvider ballot_voters
+	 *
+	 * @param string $method create_ballot or create_anonymous_ballot.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_a_ballot_with_a_negative_score_is_refused( string $method, $voter ): void {
+		$repository = new Votes_Repository();
+
+		$result = $repository->$method(
+			1,
+			'colour',
+			$voter,
+			array(
+				42 => 9,
+				43 => -1,
+			)
+		);
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_score', $result->get_error_code() );
+		$this->assertSame( array(), $repository->find_by_competition( 1 ) );
+	}
+
+	/**
+	 * A ballot that's already recorded is a duplicate. One that's partly
+	 * recorded adds the votes that aren't there yet.
+	 *
+	 * @dataProvider ballot_voters
+	 *
+	 * @param string $method create_ballot or create_anonymous_ballot.
+	 * @param mixed  $voter  The voter's name or token ID.
+	 */
+	public function test_a_ballot_already_recorded_is_a_duplicate( string $method, $voter ): void {
+		$repository = new Votes_Repository();
+		$repository->$method( 1, 'colour', $voter, array( 42 => 9 ) );
+
+		$this->assertSame( 1, $repository->$method( 1, 'colour', $voter, array( 42 => 9, 43 => 8 ) ) );
+
+		$result = $repository->$method( 1, 'colour', $voter, array( 42 => 9, 43 => 8 ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'duplicate_vote', $result->get_error_code() );
+		$this->assertCount( 2, $repository->find_by_competition( 1 ) );
+	}
+
+	/**
 	 * A named ballot and an anonymous one.
 	 *
 	 * @return array<string, array{0: string, 1: mixed}>

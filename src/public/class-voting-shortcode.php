@@ -247,7 +247,7 @@ class Voting_Shortcode {
 		// Handle vote submission with token.
 		if ( $token_record && $member && isset( $_POST['photo_competition_vote'] ) && check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' ) ) {
 			$submitted_votes = $this->collect_vote_selections_from_request( $_POST, $settings );
-			$message         = $this->handle_vote_submission_token( $competition, $token_record, $settings, $submitted_votes );
+			$message         = $this->handle_vote_submission_token( $competition, $token_record, $submitted_votes );
 		}
 
 		ob_start();
@@ -394,11 +394,10 @@ class Voting_Shortcode {
 	 *
 	 * @param object         $competition     Competition object.
 	 * @param object         $token_record    Token record.
-	 * @param array          $settings        Competition settings.
 	 * @param array<int,int> $submitted_votes Sanitized vote selections keyed by image ID.
 	 * @return string Message to display.
 	 */
-	private function handle_vote_submission_token( object $competition, object $token_record, array $settings, array $submitted_votes ): string {
+	private function handle_vote_submission_token( object $competition, object $token_record, array $submitted_votes ): string {
 		// Get all images for this category to validate all have been voted for.
 		$images          = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
 		$image_count     = count( $images );
@@ -424,10 +423,6 @@ class Voting_Shortcode {
 				)
 			) . '</p>';
 		}
-
-		// Get score matrix from settings.
-		$voting_config = Competition_Settings::get_voting_config( $settings );
-		$score_matrix  = $voting_config['score_matrix'];
 
 		// Verify voting is still open for this category.
 		if ( ! $this->workflow->is_accepting_votes( $competition, $token_record->category ) ) {

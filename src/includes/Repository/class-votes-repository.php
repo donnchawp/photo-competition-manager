@@ -62,10 +62,6 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'missing_token_id', __( 'Voting token ID is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( min( $scores ) < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
 		return $this->insert_ballot( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $scores );
 	}
 
@@ -103,10 +99,6 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'missing_voter_name', __( 'Voter name is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( min( $scores ) < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
 		return $this->insert_ballot( $competition_id, $category, 'voter_name', $voter_name, $scores );
 	}
 
@@ -126,6 +118,14 @@ class Votes_Repository extends Abstract_Repository {
 	 */
 	private function insert_ballot( int $competition_id, string $category, string $voter_column, string $voter, array $scores ) {
 		global $wpdb;
+
+		if ( empty( $scores ) ) {
+			return new WP_Error( 'empty_ballot', __( 'A ballot needs at least one vote.', 'photo-competition-manager' ) );
+		}
+
+		if ( min( $scores ) < 0 ) {
+			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
+		}
 
 		$rows   = array();
 		$values = array( $this->table(), $voter_column );
