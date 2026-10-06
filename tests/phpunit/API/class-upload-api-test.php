@@ -205,35 +205,29 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertSame( 'colour', $images->find( $entry )->category );
 	}
 
-	public function test_a_move_that_fails_in_the_database_keeps_the_database_error_from_the_client(): void {
-		$request = $this->request_for_member( true );
-		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
-		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+	public function test_a_move_that_fails_in_the_database_logs_the_database_error_and_keeps_it_from_the_client(): void {
+		global $wpdb;
+		$request        = $this->request_for_member( true );
+		$token          = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$competition_id = (int) $token->competition_id;
+		$entry          = Entry_Fixtures::insert_entry( $competition_id, 'colour', (int) $token->member_id, array() );
+		$break_update   = function ( $query ) use ( $wpdb ) {
+			return 0 === strpos( $query, 'UPDATE `' . $wpdb->prefix . 'photocomp_images`' )
+				? str_replace( ' SET ', ' SET no_such_column = 1, ', $query )
+				: $query;
+		};
 
-		$response = $this->with_failing_entry_update(
-			function () use ( $request, $entry ) {
-				return rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
-			}
-		);
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
 
 		$this->assertSame( 500, $response->get_status() );
 		$body = rest_get_server()->response_to_data( $response, false );
 		$this->assertSame( 'db_update_failed', $body['code'] );
 		$this->assertArrayNotHasKey( 'additional_data', $body );
 		$this->assertStringNotContainsString( 'no_such_column', wp_json_encode( $body ) );
-	}
-
-	public function test_a_move_that_fails_in_the_database_logs_the_database_error(): void {
-		$request        = $this->request_for_member( true );
-		$token          = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
-		$competition_id = (int) $token->competition_id;
-		$entry          = Entry_Fixtures::insert_entry( $competition_id, 'colour', (int) $token->member_id, array() );
-
-		$this->with_failing_entry_update(
-			function () use ( $request, $entry ) {
-				return rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
-			}
-		);
 
 		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'category_change_failed' ) );
 		$this->assertCount( 1, $logs );
@@ -268,32 +262,6 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Unable to create directory', wp_json_encode( rest_get_server()->response_to_data( $response, false ) ) );
 		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'category_change_failed' ) );
 		$this->assertStringContainsString( 'Unable to create directory', $logs[0]->metadata );
-	}
-
-	/**
-	 * Run a callback while every UPDATE of the entries table fails in the database.
-	 *
-	 * @param callable $callback Code to run.
-	 * @return mixed What the callback returns.
-	 */
-	private function with_failing_entry_update( callable $callback ) {
-		global $wpdb;
-
-		$break_update = function ( $query ) use ( $wpdb ) {
-			if ( 0 === strpos( $query, 'UPDATE `' . $wpdb->prefix . 'photocomp_images`' ) ) {
-				return str_replace( ' SET ', ' SET no_such_column = 1, ', $query );
-			}
-			return $query;
-		};
-
-		add_filter( 'query', $break_update );
-		$suppressed = $wpdb->suppress_errors();
-		try {
-			return $callback();
-		} finally {
-			$wpdb->suppress_errors( $suppressed );
-			remove_filter( 'query', $break_update );
-		}
 	}
 
 	/**
