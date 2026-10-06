@@ -26,6 +26,11 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 final class Named_Voter implements Voter {
 
 	/**
+	 * The cookie that remembers a named voter's name and the voting password.
+	 */
+	const COOKIE = 'photo_competition_voter';
+
+	/**
 	 * The voter's name.
 	 *
 	 * @var string
@@ -84,5 +89,59 @@ final class Named_Voter implements Voter {
 	 */
 	public function has_ballot( Votes_Repository $votes, int $competition_id, string $category ): bool {
 		return $votes->has_voted( $competition_id, $category, $this->name );
+	}
+
+	/**
+	 * Remember the voter's name and the voting password on this device for a
+	 * year, to fill in the form next time. The password is the club's, not theirs.
+	 *
+	 * @param string $password The voting password they gave.
+	 * @return void
+	 */
+	public function remember( string $password ): void {
+		$payload = (string) wp_json_encode(
+			array(
+				'name'     => $this->name,
+				'password' => $password,
+			)
+		);
+
+		// A real request gets here on template_redirect, before any output; PHPUnit has already printed.
+		if ( ! headers_sent() ) {
+			setcookie(
+				self::COOKIE,
+				$payload,
+				array(
+					'expires'  => time() + YEAR_IN_SECONDS,
+					'path'     => COOKIEPATH ? COOKIEPATH : '/',
+					'domain'   => COOKIE_DOMAIN,
+					'secure'   => is_ssl(),
+					'samesite' => 'Lax',
+					'httponly' => true,
+				)
+			);
+		}
+
+		// And for the rest of this request.
+		$_COOKIE[ self::COOKIE ] = $payload;
+	}
+
+	/**
+	 * The name and voting password this device remembers, the name normalised
+	 * as any named voter's is.
+	 *
+	 * @return array{name:string,password:string}
+	 */
+	public static function remembered(): array {
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON, sanitized field by field below.
+		$raw     = isset( $_COOKIE[ self::COOKIE ] ) && is_string( $_COOKIE[ self::COOKIE ] ) ? wp_unslash( $_COOKIE[ self::COOKIE ] ) : '';
+		$decoded = json_decode( $raw, true );
+		$name    = is_array( $decoded ) && is_string( $decoded['name'] ?? null ) ? $decoded['name'] : '';
+		$pass    = is_array( $decoded ) && is_string( $decoded['password'] ?? null ) ? $decoded['password'] : '';
+
+		return array(
+			'name'     => ( new self( $name ) )->name(),
+			'password' => sanitize_text_field( $pass ),
+		);
 	}
 }

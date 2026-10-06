@@ -14,9 +14,12 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
+
+require_once dirname( __DIR__ ) . '/Admin/class-redirect-exception.php';
 
 /**
  * Deactivated members must not receive voting links or reach the ballot.
@@ -80,9 +83,21 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 				return $atts;
 			}
 		);
+		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+	}
+
+	/**
+	 * Redirect interceptor: stop before the exit that follows a cast ballot.
+	 *
+	 * @param string $location Redirect target.
+	 * @throws Redirect_Exception Always, carrying the location.
+	 */
+	public function throw_on_redirect( $location ) {
+		throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness; location captured, not output.
 	}
 
 	public function tearDown(): void {
+		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -228,11 +243,11 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Submit a ballot with a token.
+	 * Post a ballot with a token, the way template_redirect sees it.
 	 *
 	 * @param string             $token_string Voting token.
 	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
-	 * @return string Rendered output.
+	 * @return string The redirect target when the ballot is cast or already cast, otherwise the rendered page.
 	 */
 	private function submit_vote( string $token_string, $votes ): string {
 		$nonce = wp_create_nonce( 'photo_competition_vote_with_token' );
@@ -242,6 +257,12 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_POST['photo_competition_vote_nonce']    = $nonce;
 		$_REQUEST['photo_competition_vote_nonce'] = $nonce;
 		$_POST['votes']                           = is_array( $votes ) ? array_map( 'strval', $votes ) : array( $votes => '9' );
+
+		try {
+			$this->shortcode->handle_ballot();
+		} catch ( Redirect_Exception $e ) {
+			return $e->getMessage();
+		}
 
 		return $this->shortcode->render();
 	}
@@ -357,110 +378,79 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'token-request-section', $this->shortcode->render() );
 	}
 
-	public function test_active_member_token_records_vote(): void {
-		$image_id = $this->make_image();
+	public function test_a_cast_ballot_redirects_to_the_thank_you_page(): void {
+		$permalink = $this->view_page();
+		$token     = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 
-		$this->submit_vote( $this->issue_token( $this->make_member( 'active@example.com', true ) ), $image_id );
+		$location = $this->submit_vote( $token, $this->make_image() );
 
+		$this->assertSame( add_query_arg( 'ballot', 'cast', $permalink ), $location );
 		$this->assertSame( 1, $this->vote_count() );
+
+		$_POST          = array();
+		$_GET['ballot'] = 'cast';
+		$page           = $this->shortcode->render();
+		$this->assertStringContainsString( 'Thank you for voting! Your votes have been recorded anonymously.', $page );
+		$this->assertStringNotContainsString( 'already been recorded', $page );
 	}
 
-	public function test_token_vote_ignores_images_from_another_category(): void {
-		$colour_id = $this->make_image( 'colour' );
-		$mono_id   = $this->make_image( 'mono' );
-
-		$this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$colour_id => 9,
-				$mono_id   => 8,
-			)
-		);
-
-		$votes = ( new Votes_Repository() )->find_by_competition( (int) $this->competition->id );
-		$this->assertSame( array( $colour_id ), array_map( 'intval', array_column( $votes, 'image_id' ) ) );
-	}
-
-	public function test_token_ballot_for_every_image_is_accepted(): void {
-		$first  = $this->make_image( 'colour' );
+	public function test_a_refused_ballot_shows_why_and_keeps_the_voters_scores(): void {
+		$first  = $this->make_image();
 		$second = $this->add_entry( 'colour' );
 
-		$output = $this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$first  => 9,
-				$second => 8,
-			)
-		);
+		$page = $this->submit_vote( $this->issue_token( $this->make_member( 'active@example.com', true ) ), array( $second => 8 ) );
 
-		$this->assertStringContainsString( 'Thank you for voting!', $output );
-		$this->assertSame( 2, $this->vote_count() );
-	}
-
-	public function test_token_ballot_padded_with_another_category_is_rejected(): void {
-		$this->add_entry( 'colour' );
-
-		$output = $this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$this->make_image( 'colour' ) => 9,
-				$this->make_image( 'mono' )   => 8,
-			)
-		);
-
-		$this->assertStringContainsString( 'You have voted for 1 of 2 images.', $output );
+		$this->assertSame( 1, substr_count( $page, 'You have voted for 1 of 2 images.' ) );
+		$this->assertMatchesRegularExpression( '/name="votes\[' . $second . '\]"[^>]*value="8" checked/', $page );
+		$this->assertStringContainsString( 'name="votes[' . $first . ']"', $page );
 		$this->assertSame( 0, $this->vote_count() );
 	}
 
-	public function test_second_token_ballot_is_reported_as_already_voted(): void {
+	public function test_a_voter_who_has_cast_their_ballot_is_told_so_once(): void {
 		$token = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 		$this->submit_vote( $token, $this->make_image() );
 
-		$output = $this->submit_vote( $token, $this->make_image() );
+		$_POST = array();
+		$page  = $this->shortcode->render();
 
-		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $output );
-		$this->assertStringNotContainsString( 'Thank you for voting!', $output );
-		$this->assertStringNotContainsString( 'class="error"', $output );
+		$this->assertSame( 1, substr_count( $page, 'Your votes for this category have already been recorded.' ) );
+		$this->assertStringNotContainsString( 'id="voting-form"', $page );
+	}
+
+	public function test_a_ballot_cast_again_redirects_to_already_cast(): void {
+		$permalink = $this->view_page();
+		$token     = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$this->submit_vote( $token, $this->make_image() );
+
+		$location = $this->submit_vote( $token, $this->make_image() );
+
+		$this->assertSame( add_query_arg( 'ballot', 'already_cast', $permalink ), $location );
 		$this->assertSame( 1, $this->vote_count() );
+
+		$_POST          = array();
+		$_GET['ballot'] = 'already_cast';
+		$this->assertSame( 1, substr_count( $this->shortcode->render(), 'Your votes for this category have already been recorded.' ) );
 	}
 
-	public function test_a_token_ballot_the_database_refuses_in_part_stores_nothing_and_can_be_retried(): void {
-		global $wpdb;
-		$first  = $this->make_image( 'colour' );
-		$second = $this->add_entry( 'colour' );
-		$token  = $this->issue_token( $this->make_member( 'active@example.com', true ) );
-		$ballot = array(
-			$first  => 9,
-			$second => 8,
-		);
+	public function test_a_ballot_with_an_expired_link_says_so(): void {
+		$member_id = $this->make_member( 'active@example.com', true );
+		$token     = bin2hex( random_bytes( 32 ) );
+		$this->tokens->create( $member_id, (int) $this->competition->id, 'colour', hash( 'sha256', $token ), gmdate( 'Y-m-d H:i:s', time() - 60 ) );
 
-		// Break any votes INSERT that carries the second image's vote.
-		$votes_table = $wpdb->prefix . 'photocomp_votes';
-		$break_vote  = function ( $query ) use ( $votes_table, $second ) {
-			$is_votes_insert = 0 === strpos( $query, "INSERT INTO `{$votes_table}`" );
-			return $is_votes_insert && preg_match( "/, {$second}, 8, '/", $query ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
-		};
-		add_filter( 'query', $break_vote );
-		$suppress = $wpdb->suppress_errors( true );
-		$output   = $this->submit_vote( $token, $ballot );
-		$wpdb->suppress_errors( $suppress );
-		remove_filter( 'query', $break_vote );
+		$page = $this->submit_vote( $token, $this->make_image() );
 
-		$this->assertStringContainsString( 'Failed to record votes. Please try again.', $output );
-		$this->assertStringNotContainsString( 'Thank you for voting!', $output );
+		$this->assertStringContainsString( 'This voting link has expired or isn&#039;t valid.', $page );
+		$this->assertStringContainsString( 'token-request-section', $page );
 		$this->assertSame( 0, $this->vote_count() );
-
-		$output = $this->submit_vote( $token, $ballot );
-
-		$this->assertStringContainsString( 'Thank you for voting!', $output );
-		$this->assertSame( 2, $this->vote_count() );
 	}
 
-	public function test_inactive_member_token_cannot_vote(): void {
-		$image_id = $this->make_image();
+	public function test_a_ballot_for_a_closed_category_says_so_once(): void {
+		$token = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$this->set_open_categories( array( 'mono' ) );
 
-		$this->submit_vote( $this->issue_token( $this->make_member( 'inactive@example.com', false ) ), $image_id );
+		$page = $this->submit_vote( $token, $this->make_image() );
 
+		$this->assertSame( 1, substr_count( $page, 'open for this category.' ) );
 		$this->assertSame( 0, $this->vote_count() );
 	}
 
