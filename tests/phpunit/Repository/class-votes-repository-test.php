@@ -63,6 +63,27 @@ class Votes_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 42 => 9.0 ), $repository->get_votes_by_voter( 1, 'colour', 'John Doe' ) );
 	}
 
+	public function test_a_vote_the_database_refuses_keeps_its_error_out_of_the_message(): void {
+		global $wpdb;
+		$repository = new Votes_Repository( $wpdb );
+
+		// Break only the votes INSERT.
+		$votes_table = $repository->table();
+		$break_vote  = function ( $query ) use ( $votes_table ) {
+			return 0 === strpos( $query, "INSERT INTO `{$votes_table}`" ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
+		};
+		add_filter( 'query', $break_vote );
+		$suppress = $wpdb->suppress_errors( true );
+		$result   = $repository->create( 1, 'colour', 'John Doe', 42, 9 );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_vote );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'insert_failed', $result->get_error_code() );
+		$this->assertSame( 'Could not record the vote.', $result->get_error_message() );
+		$this->assertStringContainsString( 'no_such_table', $result->get_error_data() );
+	}
+
 	/**
 	 * Create requires voter name.
 	 *
