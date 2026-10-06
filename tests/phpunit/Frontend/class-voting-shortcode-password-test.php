@@ -162,7 +162,7 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 				'name'     => 'Ann Voter',
 				'password' => self::PASSWORD,
 			),
-			json_decode( $_COOKIE['photo_competition_voter'], true )
+			json_decode( wp_unslash( $_COOKIE['photo_competition_voter'] ), true )
 		);
 
 		$_GET['ballot'] = 'cast';
@@ -192,8 +192,25 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'already been recorded', $page );
 	}
 
-	public function test_a_remembered_voter_who_has_cast_their_ballot_is_told_so_once(): void {
-		$this->submit_ballot( $this->full_ballot(), str_repeat( 'Ann ', 50 ) . 'Voter' );
+	/**
+	 * Names the cookie has to carry back intact.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function remembered_names(): array {
+		return array(
+			'too long for the votes table' => array( str_repeat( 'Ann ', 50 ) . 'Voter' ),
+			'with an accent'               => array( 'Seán Ó Sé' ),
+		);
+	}
+
+	/**
+	 * @dataProvider remembered_names
+	 *
+	 * @param string $name The name the voter gave.
+	 */
+	public function test_a_remembered_voter_who_has_cast_their_ballot_is_told_so_once( string $name ): void {
+		$this->submit_ballot( $this->full_ballot(), $name );
 
 		$page = $this->view();
 

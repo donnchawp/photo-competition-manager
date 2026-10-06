@@ -122,8 +122,8 @@ final class Named_Voter implements Voter {
 			);
 		}
 
-		// And for the rest of this request.
-		$_COOKIE[ self::COOKIE ] = $payload;
+		// And for the rest of this request, slashed as WordPress slashes $_COOKIE.
+		$_COOKIE[ self::COOKIE ] = wp_slash( $payload );
 	}
 
 	/**

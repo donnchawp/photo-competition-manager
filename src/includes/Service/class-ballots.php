@@ -22,7 +22,7 @@ use WP_Error;
  *
  * @since 0.4.0
  */
-class Ballots {
+final class Ballots {
 
 	/**
 	 * Votes repository.
@@ -137,10 +137,10 @@ class Ballots {
 
 	/**
 	 * Cast a voter's ballot. The rules apply in this order, for either voter:
-	 * the voter may vote in the category, voting is open, there's at least one
-	 * score, only the category's entries count, every entry is scored, and each
-	 * score is a whole number in the competition's score matrix. An unanswered
-	 * entry (an empty score) isn't scored.
+	 * the voter may vote in the category, voting is open, only the category's
+	 * entries count, there's at least one score, every entry is scored, and
+	 * each score is a whole number in the competition's score matrix, and not
+	 * negative. An unanswered entry (an empty score) isn't scored.
 	 *
 	 * Error codes: not_your_category, voting_closed, empty_ballot,
 	 * incomplete_ballot (data: voted, total), invalid_score, already_cast and
@@ -161,17 +161,15 @@ class Ballots {
 			return new WP_Error( 'voting_closed', __( 'Voting is not open for this category.', 'photo-competition-manager' ) );
 		}
 
-		$scores = array_filter(
-			$scores,
-			fn( $score, $image_id ) => absint( $image_id ) > 0 && '' !== trim( (string) $score ),
-			ARRAY_FILTER_USE_BOTH
+		$entries = array_column( $this->images->find_by_competition( (int) $competition->id, $category ), 'id' );
+		$scores  = array_filter(
+			array_intersect_key( $scores, array_flip( array_map( 'intval', $entries ) ) ),
+			fn( $score ) => ! is_scalar( $score ) || '' !== trim( (string) $score )
 		);
 		if ( empty( $scores ) ) {
 			return new WP_Error( 'empty_ballot', __( 'Please select at least one image to vote for.', 'photo-competition-manager' ) );
 		}
 
-		$entries = array_column( $this->images->find_by_competition( (int) $competition->id, $category ), 'id' );
-		$scores  = array_intersect_key( $scores, array_flip( array_map( 'intval', $entries ) ) );
 		if ( count( $scores ) < count( $entries ) ) {
 			return new WP_Error(
 				'incomplete_ballot',
@@ -196,7 +194,8 @@ class Ballots {
 		$voting  = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
 		$allowed = array_map( 'intval', $voting['score_matrix'] );
 		foreach ( $scores as $image_id => $score ) {
-			if ( ! preg_match( '/^-?\d+$/', trim( (string) $score ) ) || ! in_array( (int) $score, $allowed, true ) ) {
+			// Votes are never negative, whatever the matrix says.
+			if ( ! is_scalar( $score ) || ! preg_match( '/^\d+$/', trim( (string) $score ) ) || ! in_array( (int) $score, $allowed, true ) ) {
 				return new WP_Error( 'invalid_score', __( 'Please choose a score from the list for every image.', 'photo-competition-manager' ) );
 			}
 			$scores[ $image_id ] = (int) $score;

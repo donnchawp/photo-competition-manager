@@ -326,13 +326,15 @@ class Ballots_Test extends WP_UnitTestCase {
 	/**
 	 * Scores the form can't send.
 	 *
-	 * @return array<string, array{string, string}>
+	 * @return array<string, array{string, mixed}>
 	 */
 	public function bad_scores(): array {
 		$scores = array(
 			'not in the matrix' => '6',
 			'a fraction'        => '9.5',
 			'not a number'      => 'nine',
+			'negative'          => '-1',
+			'a list'            => array( '9' ),
 		);
 
 		$cases = array();
@@ -348,9 +350,17 @@ class Ballots_Test extends WP_UnitTestCase {
 	 * @dataProvider bad_scores
 	 *
 	 * @param string $kind  link or named.
-	 * @param string $score The score posted for the second entry.
+	 * @param mixed  $score The score posted for the second entry.
 	 */
-	public function test_a_score_outside_the_matrix_is_refused( string $kind, string $score ): void {
+	public function test_a_score_outside_the_matrix_is_refused( string $kind, $score ): void {
+		// A negative score in the matrix is still refused: votes are never negative.
+		$this->competition->settings = wp_json_encode(
+			array_merge(
+				json_decode( $this->competition->settings, true ),
+				array( 'voting' => array( 'score_matrix' => array( 9, 8, 7, -1 ) ) )
+			)
+		);
+
 		$result = $this->ballots->cast(
 			$this->competition,
 			'colour',
@@ -455,5 +465,16 @@ class Ballots_Test extends WP_UnitTestCase {
 
 		$votes = ( new Votes_Repository() )->find_by_competition( (int) $this->competition->id );
 		$this->assertSame( array( str_repeat( 'a', 190 ) ), array_values( array_unique( array_column( $votes, 'voter_name' ) ) ) );
+	}
+
+	public function test_a_ballot_for_a_category_whose_entries_are_gone_is_empty(): void {
+		$voter = $this->voter( 'named' );
+		foreach ( $this->images['colour'] as $image_id ) {
+			( new \PhotoCompetitionManager\Repository\Images_Repository() )->delete( $image_id );
+		}
+
+		$result = $this->ballots->cast( $this->competition, 'colour', $voter, array( $this->images['mono'][0] => '9' ) );
+
+		$this->assertSame( 'empty_ballot', $result->get_error_code() );
 	}
 }

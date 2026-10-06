@@ -116,6 +116,7 @@ class Voting_Shortcode {
 	 * @param Email_Service|null           $email_service     Email service.
 	 * @param Entries|null                 $entries           Entries module.
 	 * @param Ballots|null                 $ballots           Ballots module.
+	 * @param Competition_Workflow|null    $workflow          Competition workflow.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
@@ -125,10 +126,11 @@ class Voting_Shortcode {
 		?Voting_Token_Repository $token_repo = null,
 		?Email_Service $email_service = null,
 		?Entries $entries = null,
-		?Ballots $ballots = null
+		?Ballots $ballots = null,
+		?Competition_Workflow $workflow = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
-		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
+		$this->workflow          = $workflow ? $workflow : new Competition_Workflow( $this->competitions_repo );
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
 		$this->votes_repo        = $votes_repo ? $votes_repo : new Votes_Repository();
 		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
@@ -201,7 +203,7 @@ class Voting_Shortcode {
 			'name'     => $name,
 			'password' => $password,
 			'category' => $category,
-			'scores'   => $scores,
+			'scores'   => array_filter( $scores, 'is_scalar' ),
 		);
 	}
 
@@ -342,7 +344,7 @@ class Voting_Shortcode {
 		// Check for voting token in URL.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading a read-only token from the URL for magic-link auth; sanitized and hashed by Ballots.
 		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-		$voter        = '' === $token_string ? null : $this->ballots->link_voter( $competition, $token_string );
+		$voter        = $this->refused ? $this->refused['voter'] : $this->ballots->link_voter( $competition, $token_string );
 		$voter        = $voter instanceof Link_Voter ? $voter : null;
 
 		// A closed category says so on the page itself.
