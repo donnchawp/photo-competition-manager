@@ -33,6 +33,17 @@ _Avoid_: Status, state
 How far one category has got on competition night: Not started, Previewed, Voting, Slideshow shown, Critique or Done. A competition has one voting stage per category. Votes are accepted at Voting and Slideshow shown, and only one category in the club can accept votes at a time.
 _Avoid_: Step
 
+**Ballot**:
+One voter's scores for every entry in one category of a competition, their own entries included. A voter casts at most one ballot per category, and it is kept whole or not at all.
+_Avoid_: Votes (for the set), submission
+
+**Vote**:
+The score one entry got on one ballot.
+
+**Voter**:
+Whoever casts a ballot. A link voter is a member, proved by their voting link. A named voter is a name given with the club's voting password, taken on trust. Names that differ only in case, accents or surrounding spaces belong to the same voter, so "Seán" and "sean" are one voter.
+_Avoid_: User, member (for a named voter)
+
 **Reset**:
 Returning a category's voting stage to Not started, optionally clearing its votes.
 
