@@ -755,7 +755,8 @@ class Entries {
 	private function competition_directory( string $competition_slug ) {
 		$wp_upload_dir = wp_upload_dir();
 		if ( $wp_upload_dir['error'] ) {
-			return new WP_Error( 'upload_dir_error', $wp_upload_dir['error'] );
+			// WordPress's message names a folder on the server, so it goes in the data, not the message.
+			return new WP_Error( 'upload_dir_error', __( 'The uploads folder isn\'t available.', 'photo-competition-manager' ), $wp_upload_dir['error'] );
 		}
 
 		// Security: Explicitly check for path traversal sequences.
