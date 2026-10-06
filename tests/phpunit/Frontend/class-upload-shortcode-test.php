@@ -115,6 +115,8 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				return $server_limit;
 			}
 		);
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 		$_GET['token'] = $this->issue_token( true );
 
 		$output = $this->shortcode->render( array() );
