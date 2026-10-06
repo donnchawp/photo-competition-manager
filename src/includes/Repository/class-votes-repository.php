@@ -41,15 +41,28 @@ class Votes_Repository extends Abstract_Repository {
 	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, int $score ) {
 		global $wpdb;
 
+		$inserted = $this->create_anonymous_ballot( $competition_id, $category, $voting_token_id, array( $image_id => $score ) );
+
+		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Record a token voter's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id  Competition ID.
+	 * @param string         $category        Category slug.
+	 * @param int            $voting_token_id Voting token ID.
+	 * @param array<int,int> $scores          Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_anonymous_ballot( int $competition_id, string $category, int $voting_token_id, array $scores ) {
 		if ( $voting_token_id <= 0 ) {
 			return new WP_Error( 'missing_token_id', __( 'Voting token ID is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( $score < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
-		return $this->insert_vote( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $image_id, $score );
+		return $this->insert_ballot( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $scores );
 	}
 
 	/**
@@ -65,50 +78,74 @@ class Votes_Repository extends Abstract_Repository {
 	public function create( int $competition_id, string $category, string $voter_name, int $image_id, int $score ) {
 		global $wpdb;
 
+		$inserted = $this->create_ballot( $competition_id, $category, $voter_name, array( $image_id => $score ) );
+
+		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Record a named voter's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param string         $voter_name     Voter name.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_ballot( int $competition_id, string $category, string $voter_name, array $scores ) {
 		if ( empty( $voter_name ) ) {
 			return new WP_Error( 'missing_voter_name', __( 'Voter name is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( $score < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
-		return $this->insert_vote( $competition_id, $category, 'voter_name', $voter_name, $image_id, $score );
+		return $this->insert_ballot( $competition_id, $category, 'voter_name', $voter_name, $scores );
 	}
 
 	/**
-	 * Insert a vote. A voter gets one vote per image: the table's unique keys
-	 * turn a second one into an insert of no rows.
+	 * Insert a ballot in one statement, so it goes in whole or not at all.
+	 * A voter gets one vote per image: the table's unique keys turn a vote
+	 * that's already there into an insert of no rows.
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param string $category       Category slug.
-	 * @param string $voter_column   voting_token_id or voter_name.
-	 * @param string $voter          The voter's token ID or name.
-	 * @param int    $image_id       Image ID.
-	 * @param int    $score          Score value.
-	 * @return int|WP_Error Vote ID or error.
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param string         $voter_column   voting_token_id or voter_name.
+	 * @param string         $voter          The voter's token ID or name.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
 	 */
-	private function insert_vote( int $competition_id, string $category, string $voter_column, string $voter, int $image_id, int $score ) {
+	private function insert_ballot( int $competition_id, string $category, string $voter_column, string $voter, array $scores ) {
 		global $wpdb;
 
+		if ( empty( $scores ) ) {
+			return new WP_Error( 'empty_ballot', __( 'A ballot needs at least one vote.', 'photo-competition-manager' ) );
+		}
+
+		if ( min( $scores ) < 0 ) {
+			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
+		}
+
+		$rows   = array();
+		$values = array( $this->table(), $voter_column );
+		$now    = utc_time();
+		foreach ( $scores as $image_id => $score ) {
+			$rows[] = '(%d, %s, %s, %d, %d, %s)';
+			array_push( $values, $competition_id, $category, $voter, (int) $image_id, (int) $score, $now );
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- One row of placeholders per vote; the count matches at runtime.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->query(
 			$wpdb->prepare(
 				'INSERT INTO %i (competition_id, category, %i, image_id, score, created_at)
-				VALUES (%d, %s, %s, %d, %d, %s)
+				VALUES ' . implode( ', ', $rows ) . '
 				ON DUPLICATE KEY UPDATE id = id',
-				$this->table(),
-				$voter_column,
-				$competition_id,
-				$category,
-				$voter,
-				$image_id,
-				$score,
-				utc_time()
+				$values
 			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 
 		if ( false === $inserted ) {
 			return new WP_Error( 'insert_failed', __( 'Could not record the vote.', 'photo-competition-manager' ), $wpdb->last_error );
@@ -118,7 +155,7 @@ class Votes_Repository extends Abstract_Repository {
 			return new WP_Error( 'duplicate_vote', __( 'This image already has a vote from this voter.', 'photo-competition-manager' ) );
 		}
 
-		return (int) $wpdb->insert_id;
+		return $inserted;
 	}
 
 	/**

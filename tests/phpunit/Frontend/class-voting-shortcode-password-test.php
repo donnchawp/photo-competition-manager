@@ -136,6 +136,37 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->vote_count() );
 	}
 
+	public function test_a_ballot_the_database_refuses_in_part_stores_nothing_and_can_be_retried(): void {
+		global $wpdb;
+		$second = $this->images['colour'][1];
+		$ballot = array(
+			$this->images['colour'][0] => 9,
+			$second                    => 8,
+		);
+
+		// Break any votes INSERT that carries the second image's vote.
+		$votes_table = $wpdb->prefix . 'photocomp_votes';
+		$break_vote  = function ( $query ) use ( $votes_table, $second ) {
+			$is_votes_insert = 0 === strpos( $query, "INSERT INTO `{$votes_table}`" );
+			return $is_votes_insert && preg_match( "/, {$second}, 8, '/", $query ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
+		};
+		add_filter( 'query', $break_vote );
+		$suppress = $wpdb->suppress_errors( true );
+		$result   = $this->submit_ballot( $ballot );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_vote );
+
+		$this->assertStringContainsString( 'Failed to record votes. Please try again.', $result );
+		$this->assertStringNotContainsString( 'vote_status=success', $result );
+		$this->assertArrayNotHasKey( 'photo_competition_voter', $_COOKIE );
+		$this->assertSame( 0, $this->vote_count() );
+
+		$result = $this->submit_ballot( $ballot );
+
+		$this->assertStringContainsString( 'vote_status=success', $result );
+		$this->assertSame( 2, $this->vote_count() );
+	}
+
 	public function test_second_ballot_is_reported_as_already_voted(): void {
 		$ballot = array(
 			$this->images['colour'][0] => 9,

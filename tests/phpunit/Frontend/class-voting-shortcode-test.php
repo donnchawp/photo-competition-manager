@@ -424,6 +424,38 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->vote_count() );
 	}
 
+	public function test_a_token_ballot_the_database_refuses_in_part_stores_nothing_and_can_be_retried(): void {
+		global $wpdb;
+		$first  = $this->make_image( 'colour' );
+		$second = $this->add_entry( 'colour' );
+		$token  = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$ballot = array(
+			$first  => 9,
+			$second => 8,
+		);
+
+		// Break any votes INSERT that carries the second image's vote.
+		$votes_table = $wpdb->prefix . 'photocomp_votes';
+		$break_vote  = function ( $query ) use ( $votes_table, $second ) {
+			$is_votes_insert = 0 === strpos( $query, "INSERT INTO `{$votes_table}`" );
+			return $is_votes_insert && preg_match( "/, {$second}, 8, '/", $query ) ? 'INSERT INTO no_such_table VALUES (1)' : $query;
+		};
+		add_filter( 'query', $break_vote );
+		$suppress = $wpdb->suppress_errors( true );
+		$output   = $this->submit_vote( $token, $ballot );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_vote );
+
+		$this->assertStringContainsString( 'Failed to record votes. Please try again.', $output );
+		$this->assertStringNotContainsString( 'Thank you for voting!', $output );
+		$this->assertSame( 0, $this->vote_count() );
+
+		$output = $this->submit_vote( $token, $ballot );
+
+		$this->assertStringContainsString( 'Thank you for voting!', $output );
+		$this->assertSame( 2, $this->vote_count() );
+	}
+
 	public function test_inactive_member_token_cannot_vote(): void {
 		$image_id = $this->make_image();
 
