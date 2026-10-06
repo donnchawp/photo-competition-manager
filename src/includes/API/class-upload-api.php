@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 use WP_REST_Controller;
@@ -441,9 +442,28 @@ class Upload_API extends WP_REST_Controller {
 		);
 
 		if ( is_wp_error( $result ) ) {
+			$code = $result->get_error_code();
+
 			// Entries is also used outside REST, so its errors carry no status of their own.
-			$result->add_data( array( 'status' => self::CHANGE_CATEGORIES_REFUSALS[ $result->get_error_code() ] ?? 500 ) );
-			return $result;
+			if ( isset( self::CHANGE_CATEGORIES_REFUSALS[ $code ] ) ) {
+				$result->add_data( array( 'status' => self::CHANGE_CATEGORIES_REFUSALS[ $code ] ) );
+				return $result;
+			}
+
+			// A server fault's data can hold the database error, so it goes to the log and not the client.
+			( new Event_Logger() )->log(
+				(int) $token_record->competition_id,
+				'category_change_failed',
+				'upload',
+				__( 'A category change failed on the server.', 'photo-competition-manager' ),
+				array(
+					'code'    => $code,
+					'message' => $result->get_error_message(),
+					'data'    => $result->get_error_data(),
+				)
+			);
+
+			return new WP_Error( $code, $result->get_error_message(), array( 'status' => 500 ) );
 		}
 
 		return new WP_REST_Response(

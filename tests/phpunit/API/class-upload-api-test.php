@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\API;
 use PhotoCompetitionManager\API\Upload_API;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -201,6 +202,70 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$this->assertSame( 500, $response->get_status() );
 		$this->assertSame( 'mkdir_failed', $response->as_error()->get_error_code() );
 		$this->assertSame( 'colour', $images->find( $entry )->category );
+	}
+
+	public function test_a_move_that_fails_in_the_database_keeps_the_database_error_from_the_client(): void {
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+
+		$response = $this->with_failing_entry_update(
+			function () use ( $request, $entry ) {
+				return rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+			}
+		);
+
+		$this->assertSame( 500, $response->get_status() );
+		$body = rest_get_server()->response_to_data( $response, false );
+		$this->assertSame( 'db_update_failed', $body['code'] );
+		$this->assertArrayNotHasKey( 'additional_data', $body );
+		$this->assertStringNotContainsString( 'no_such_column', wp_json_encode( $body ) );
+	}
+
+	public function test_a_move_that_fails_in_the_database_logs_the_database_error(): void {
+		$request        = $this->request_for_member( true );
+		$token          = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$competition_id = (int) $token->competition_id;
+		$entry          = Entry_Fixtures::insert_entry( $competition_id, 'colour', (int) $token->member_id, array() );
+
+		$this->with_failing_entry_update(
+			function () use ( $request, $entry ) {
+				return rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+			}
+		);
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'category_change_failed' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'upload', $logs[0]->event_category );
+		$metadata = json_decode( $logs[0]->metadata, true );
+		$this->assertSame( 'db_update_failed', $metadata['code'] );
+		$this->assertStringContainsString( 'no_such_column', wp_json_encode( $metadata['data'] ) );
+	}
+
+	/**
+	 * Run a callback while every UPDATE of the entries table fails in the database.
+	 *
+	 * @param callable $callback Code to run.
+	 * @return mixed What the callback returns.
+	 */
+	private function with_failing_entry_update( callable $callback ) {
+		global $wpdb;
+
+		$break_update = function ( $query ) use ( $wpdb ) {
+			if ( 0 === strpos( $query, 'UPDATE `' . $wpdb->prefix . 'photocomp_images`' ) ) {
+				return str_replace( ' SET ', ' SET no_such_column = 1, ', $query );
+			}
+			return $query;
+		};
+
+		add_filter( 'query', $break_update );
+		$suppressed = $wpdb->suppress_errors();
+		try {
+			return $callback();
+		} finally {
+			$wpdb->suppress_errors( $suppressed );
+			remove_filter( 'query', $break_update );
+		}
 	}
 
 	/**
