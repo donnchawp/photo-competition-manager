@@ -27,8 +27,9 @@ class Image_Processor {
 	 */
 	public function validate( array $file, array $constraints ) {
 		// Check upload error first. A file over PHP's own limit never reaches the size check below.
+		// The limit comes from PHP, not wp_max_upload_size(), which multisite caps at its own figure.
 		if ( in_array( $file['error'], array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true ) ) {
-			return $this->too_large_error( (int) floor( wp_max_upload_size() / MB_IN_BYTES ) );
+			return $this->too_large_error( (int) floor( wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) / MB_IN_BYTES ) );
 		}
 
 		if ( UPLOAD_ERR_OK !== $file['error'] ) {

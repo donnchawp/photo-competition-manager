@@ -219,6 +219,21 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Images can&#039;t be deleted now that uploads have closed.', $output );
 	}
 
+	public function test_an_upload_once_uploads_close_says_uploads_are_not_open(): void {
+		$token = $this->issue_token( true );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'This competition isn&#039;t accepting uploads right now.', $output );
+	}
+
+	public function test_deleting_an_entry_thats_already_gone_says_so(): void {
+		$output = $this->follow( $this->post_delete( $this->issue_token( true ), 999999 ) );
+
+		$this->assertStringContainsString( 'That image wasn&#039;t found. It may already have been deleted.', $output );
+	}
+
 	public function test_a_delete_error_with_no_message_of_its_own_still_says_failed_to_delete(): void {
 		$token   = $this->issue_token( true );
 		$someone = Member_Fixtures::insert_with_grade( 'Someone Else', 'someone@example.com', 'beginner' );
