@@ -551,38 +551,30 @@ class Voting_Shortcode {
 			);
 		}
 
-		// Process votes.
-		$success_count = 0;
-		foreach ( $votes as $image_id => $score ) {
-			$result = $this->votes_repo->create( (int) $competition->id, $category, $voter_name, $image_id, (int) $score );
+		$result = $this->votes_repo->create_ballot( (int) $competition->id, $category, $voter_name, $votes );
 
-			// Another submission of this ballot got there first.
-			if ( $this->is_duplicate_vote( $result ) ) {
-				$this->refresh_voter_cookie( $voter_name, $provided_pass );
-				return array(
-					'status'   => 'already_voted',
-					'message'  => $this->already_voted_notice(),
-					'category' => $category,
-				);
-			}
-
-			if ( ! is_wp_error( $result ) ) {
-				++$success_count;
-			}
-		}
-
-		if ( $success_count > 0 ) {
+		// Another submission of this ballot got there first.
+		if ( $this->is_duplicate_vote( $result ) ) {
 			$this->refresh_voter_cookie( $voter_name, $provided_pass );
 			return array(
-				'status'   => 'success',
-				'message'  => '',
+				'status'   => 'already_voted',
+				'message'  => $this->already_voted_notice(),
 				'category' => $category,
 			);
 		}
 
+		if ( is_wp_error( $result ) ) {
+			return array(
+				'status'   => 'error',
+				'message'  => '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>',
+				'category' => $category,
+			);
+		}
+
+		$this->refresh_voter_cookie( $voter_name, $provided_pass );
 		return array(
-			'status'   => 'error',
-			'message'  => '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>',
+			'status'   => 'success',
+			'message'  => '',
 			'category' => $category,
 		);
 	}

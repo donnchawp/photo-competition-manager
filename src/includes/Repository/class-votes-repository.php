@@ -82,17 +82,32 @@ class Votes_Repository extends Abstract_Repository {
 	public function create( int $competition_id, string $category, string $voter_name, int $image_id, int $score ) {
 		global $wpdb;
 
+		$inserted = $this->create_ballot( $competition_id, $category, $voter_name, array( $image_id => $score ) );
+
+		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Record a named voter's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param string         $voter_name     Voter name.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_ballot( int $competition_id, string $category, string $voter_name, array $scores ) {
 		if ( empty( $voter_name ) ) {
 			return new WP_Error( 'missing_voter_name', __( 'Voter name is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( $score < 0 ) {
+		if ( min( $scores ) < 0 ) {
 			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
 		}
 
-		$inserted = $this->insert_ballot( $competition_id, $category, 'voter_name', $voter_name, array( $image_id => $score ) );
-
-		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+		return $this->insert_ballot( $competition_id, $category, 'voter_name', $voter_name, $scores );
 	}
 
 	/**
