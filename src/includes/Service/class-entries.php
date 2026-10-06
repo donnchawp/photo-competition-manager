@@ -471,6 +471,8 @@ class Entries {
 	 *
 	 * @since 0.4.0
 	 *
+	 * @see \PhotoCompetitionManager\API\Upload_API::CHANGE_CATEGORIES_REFUSALS Gives each refusal its HTTP status. A new refusal needs adding there.
+	 *
 	 * @param Actor              $actor          Who is moving the entries.
 	 * @param int                $competition_id Competition ID.
 	 * @param int                $member_id      The member whose entries they are.

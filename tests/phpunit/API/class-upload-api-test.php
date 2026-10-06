@@ -28,7 +28,12 @@ class Upload_API_Test extends WP_UnitTestCase {
 		// Moves create the category folders, each with an index.php, even when an entry has no
 		// files. Clean up after the rollback, so a failure here can't leave the test's rows behind.
 		$this->remove_added_uploads();
-		$this->delete_folders( wp_upload_dir()['basedir'] . '/competitions/upload-comp' );
+		$folder = wp_upload_dir()['basedir'] . '/competitions/upload-comp';
+		// A file planted here by an aborted run is in $ignore_files, so remove_added_uploads() leaves it.
+		if ( is_file( $folder ) ) {
+			wp_delete_file( $folder );
+		}
+		$this->delete_folders( $folder );
 	}
 
 	private function request_for_member( bool $active ): WP_REST_Request {
@@ -106,7 +111,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 
 		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $theirs => 'black-white' ) ) );
 
-		$this->assertTrue( $response->is_error() );
+		$this->assertSame( 404, $response->get_status() );
 		$this->assertSame( 'colour', $images->find( $theirs )->category );
 	}
 
@@ -149,6 +154,52 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
 
 		$this->assertSame( 'competition_closed', $response->as_error()->get_error_code() );
+		$this->assertSame( 'colour', $images->find( $entry )->category );
+	}
+
+	public function test_a_move_over_quota_is_a_bad_request(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$colour  = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		Entry_Fixtures::insert_entry( (int) $token->competition_id, 'black-white', (int) $token->member_id, array() );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $colour => 'black-white' ) ) );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'That would leave Black & White with 2 entries, but the limit is 1.', $response->get_data()['message'] );
+		$this->assertSame( 'colour', $images->find( $colour )->category );
+	}
+
+	public function test_a_move_in_an_archived_competition_is_not_found(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		( new Competitions_Repository() )->archive( (int) $token->competition_id );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+
+		// The same status as the quota and batch upload endpoints give for the same link.
+		$this->assertSame( 404, $response->get_status() );
+		$this->assertSame( 'invalid_competition', $response->as_error()->get_error_code() );
+		$this->assertSame( 'colour', $images->find( $entry )->category );
+	}
+
+	public function test_a_move_the_server_cant_make_is_a_server_error(): void {
+		$images  = new Images_Repository();
+		$request = $this->request_for_member( true );
+		$token   = ( new Upload_Token_Repository() )->find_valid_token( $request->get_param( 'token' ) );
+		$entry   = Entry_Fixtures::insert_entry( (int) $token->competition_id, 'colour', (int) $token->member_id, array() );
+		// A file where the competition's folder should be, so its category folders can't be made.
+		$competitions = wp_upload_dir()['basedir'] . '/competitions';
+		wp_mkdir_p( $competitions );
+		touch( $competitions . '/upload-comp' );
+
+		$response = rest_do_request( $this->change_categories_request( $request->get_param( 'token' ), array( $entry => 'black-white' ) ) );
+
+		$this->assertSame( 500, $response->get_status() );
+		$this->assertSame( 'mkdir_failed', $response->as_error()->get_error_code() );
 		$this->assertSame( 'colour', $images->find( $entry )->category );
 	}
 
