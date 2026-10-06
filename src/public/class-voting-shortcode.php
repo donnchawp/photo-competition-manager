@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\format_site_date;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
@@ -374,8 +375,11 @@ class Voting_Shortcode {
 		// Send email.
 		$email_sent = $this->email_service->send_voting_link(
 			$member_email,
+			$member->name,
 			$competition->title,
-			$voting_url
+			$voting_url,
+			format_site_date( $competition->close_date ),
+			(int) $competition->id
 		);
 
 		if ( ! $email_sent ) {

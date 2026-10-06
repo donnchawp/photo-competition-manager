@@ -88,22 +88,26 @@ class Email_Service {
 	}
 
 	/**
-	 * Send voting magic link email.
+	 * Send the voting link a member asked for on the voting page.
 	 *
-	 * @param string   $to_email        Recipient email address.
+	 * @param string   $to_email          Recipient email address.
+	 * @param string   $member_name       Member name.
 	 * @param string   $competition_title Competition title.
-	 * @param string   $magic_link      Magic link URL.
-	 * @param int|null $competition_id  Optional competition ID for logging.
+	 * @param string   $magic_link        Magic link URL.
+	 * @param string   $close_date        Competition close date (formatted), or empty.
+	 * @param int|null $competition_id    Optional competition ID for logging.
 	 * @return bool Whether the email was sent successfully.
 	 */
-	public function send_voting_link( string $to_email, string $competition_title, string $magic_link, ?int $competition_id = null ): bool {
+	public function send_voting_link( string $to_email, string $member_name, string $competition_title, string $magic_link, string $close_date, ?int $competition_id = null ): bool {
 		// Check if template is enabled and customized.
-		$template = $this->get_template( 'voting_opened' );
+		$template = $this->get_template( 'voting_link' );
 
 		if ( $template && $template['enabled'] ) {
 			$merge_data = array(
+				'{member_name}'       => $member_name,
 				'{competition_title}' => $competition_title,
-				'{voting_page}'       => $magic_link,
+				'{voting_link}'       => $magic_link,
+				'{close_date}'        => $close_date,
 				'{site_name}'         => get_bloginfo( 'name' ),
 			);
 
@@ -117,7 +121,7 @@ class Email_Service {
 				__( 'Vote in %s', 'photo-competition-manager' ),
 				$competition_title
 			);
-			$message = $this->get_voting_email_body( $competition_title, $magic_link );
+			$message = $this->get_voting_email_body( $member_name, $competition_title, $magic_link );
 		}
 
 		$headers = array(
@@ -130,8 +134,8 @@ class Email_Service {
 		if ( $result && $this->event_logger ) {
 			$this->event_logger->log_email_sent(
 				$competition_id,
-				'voting_opened',
-				$to_email,
+				'voting_link',
+				$member_name,
 				array( 'email' => $to_email )
 			);
 		}
@@ -219,11 +223,12 @@ class Email_Service {
 	/**
 	 * Get voting email body.
 	 *
+	 * @param string $member_name       Member name.
 	 * @param string $competition_title Competition title.
-	 * @param string $magic_link      Magic link URL.
+	 * @param string $magic_link        Magic link URL.
 	 * @return string
 	 */
-	private function get_voting_email_body( string $competition_title, string $magic_link ): string {
+	private function get_voting_email_body( string $member_name, string $competition_title, string $magic_link ): string {
 		ob_start();
 		?>
 		<!DOCTYPE html>
@@ -234,6 +239,16 @@ class Email_Service {
 		<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
 			<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
 				<h2 style="color: #0073aa;"><?php echo esc_html( $competition_title ); ?></h2>
+
+				<p>
+				<?php
+					printf(
+						/* translators: %s: Member name */
+						esc_html__( 'Hi %s,', 'photo-competition-manager' ),
+						esc_html( $member_name )
+					);
+				?>
+				</p>
 
 				<p><?php esc_html_e( 'You requested to vote in this competition. Click the link below to access the voting form:', 'photo-competition-manager' ); ?></p>
 

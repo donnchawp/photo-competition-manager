@@ -82,7 +82,7 @@ class Event_Logger {
 	 * Log an email sent event.
 	 *
 	 * @param int|null $competition_id Competition ID.
-	 * @param string   $email_type Email type (e.g., 'upload_reminder', 'voting_opened').
+	 * @param string   $email_type Email type (e.g., 'upload_reminder', 'voting_link').
 	 * @param string   $recipient Recipient email or name.
 	 * @param array    $metadata Optional metadata.
 	 * @return bool
@@ -94,7 +94,7 @@ class Event_Logger {
 				__( 'Sent upload reminder email to %s', 'photo-competition-manager' ),
 				$recipient
 			),
-			'voting_opened'              => sprintf(
+			'voting_link'                => sprintf(
 				/* translators: %s: Recipient name/email */
 				__( 'Sent voting link email to %s', 'photo-competition-manager' ),
 				$recipient
