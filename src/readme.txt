@@ -173,6 +173,7 @@ Yes. Visit **Competitions → Export** to download:
 * **Uploads and entries**
   * The upload page says why an upload or delete was refused, instead of "Upload failed. Please try again."
   * A file over the server's upload limit is reported as too big, on the upload form and in batch upload
+  * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
   * Moving entries between categories happens all at once or not at all
   * A category that has votes takes no new entries
   * An image is never saved or moved onto another entry's file
