@@ -184,6 +184,7 @@ Yes. Visit **Competitions → Export** to download:
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
+  * A ballot is stored whole or not at all: if it can't be saved, the voter is asked to try again instead of being thanked with votes missing
   * The voting link a member asks for has its own Voting Link email template, with every merge tag filled in
   * The "Check If Voting Is Open" button keeps the voting token
 
