@@ -434,32 +434,23 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Process votes.
-		$success_count = 0;
-		foreach ( $submitted_votes as $image_id => $score ) {
-			$result = $this->votes_repo->create_anonymous(
-				(int) $competition->id,
-				$token_record->category,
-				(int) $token_record->id,
-				$image_id,
-				(int) $score
-			);
+		$result = $this->votes_repo->create_anonymous_ballot(
+			(int) $competition->id,
+			$token_record->category,
+			(int) $token_record->id,
+			$submitted_votes
+		);
 
-			// Another submission of this ballot got there first.
-			if ( $this->is_duplicate_vote( $result ) ) {
-				return $this->already_voted_notice();
-			}
-
-			if ( ! is_wp_error( $result ) ) {
-				++$success_count;
-			}
+		// Another submission of this ballot got there first.
+		if ( $this->is_duplicate_vote( $result ) ) {
+			return $this->already_voted_notice();
 		}
 
-		if ( $success_count > 0 ) {
-			return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded anonymously.', 'photo-competition-manager' ) . '</p>';
+		if ( is_wp_error( $result ) ) {
+			return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>';
+		return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded anonymously.', 'photo-competition-manager' ) . '</p>';
 	}
 
 	/**
