@@ -43,6 +43,23 @@ class Upload_API extends WP_REST_Controller {
 	protected $rest_base = 'upload';
 
 	/**
+	 * HTTP status of each refusal from Entries::change_categories(). Any other error is a server fault.
+	 *
+	 * @var array<string, int>
+	 */
+	private const CHANGE_CATEGORIES_REFUSALS = array(
+		'permission_denied'    => 403,
+		'submission_not_found' => 404,
+		'invalid_competition'  => 400,
+		'competition_closed'   => 400,
+		'invalid_category'     => 400,
+		'entry_has_votes'      => 400,
+		'voting_started'       => 400,
+		'category_has_votes'   => 400,
+		'quota_exceeded'       => 400,
+	);
+
+	/**
 	 * Entries module.
 	 *
 	 * @var Entries
@@ -424,6 +441,8 @@ class Upload_API extends WP_REST_Controller {
 		);
 
 		if ( is_wp_error( $result ) ) {
+			// Entries is also used outside REST, so its errors carry no status of their own.
+			$result->add_data( array( 'status' => self::CHANGE_CATEGORIES_REFUSALS[ $result->get_error_code() ] ?? 500 ) );
 			return $result;
 		}
 
