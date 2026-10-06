@@ -457,9 +457,11 @@ class Upload_API extends WP_REST_Controller {
 				'upload',
 				__( 'A category change failed on the server.', 'photo-competition-manager' ),
 				array(
-					'code'    => $code,
-					'message' => $result->get_error_message(),
-					'data'    => $result->get_error_data(),
+					'member_id' => $member_id,
+					'changes'   => $changes,
+					'code'      => $code,
+					'message'   => $result->get_error_message(),
+					'data'      => $result->get_error_data(),
 				)
 			);
 
