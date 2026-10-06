@@ -559,11 +559,12 @@ class Competition_Settings {
 		 *
 		 * @since 0.4.0
 		 *
-		 * @param int $server_limit PHP's upload_max_filesize, in bytes.
+		 * @param int $server_limit PHP's upload_max_filesize, in bytes. 0 or less is no limit.
 		 */
 		$server_limit = (int) apply_filters( 'photo_comp_server_upload_limit', wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) );
 
-		return min( $competition_limit, $server_limit );
+		// PHP only applies upload_max_filesize when it's above 0.
+		return $server_limit > 0 ? min( $competition_limit, $server_limit ) : $competition_limit;
 	}
 
 	/**

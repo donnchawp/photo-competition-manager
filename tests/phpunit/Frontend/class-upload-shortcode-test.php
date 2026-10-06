@@ -125,6 +125,20 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( 5 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
 	}
 
+	public function test_a_server_with_no_upload_limit_shows_the_competitions(): void {
+		// PHP reads an upload_max_filesize of 0 or less as no limit.
+		$no_limit = static function () {
+			return 0;
+		};
+		add_filter( 'photo_comp_server_upload_limit', $no_limit );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Max size: 5 MB.', $output );
+		$this->assertSame( 5 * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
 	/**
 	 * The settings the upload page hands the drag-and-drop script.
 	 *
