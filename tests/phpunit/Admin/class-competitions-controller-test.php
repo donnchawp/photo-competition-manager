@@ -1262,6 +1262,55 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The settings screen keeps the competition's own size limit, even when
+	 * PHP's is lower. Only the upload page shows the lower one.
+	 */
+	public function test_a_size_limit_above_the_servers_is_saved_and_shown_as_entered(): void {
+		$server_limit = static function () {
+			return 2 * MB_IN_BYTES;
+		};
+		add_filter( 'photo_comp_server_upload_limit', $server_limit );
+		$id = $this->create_competition( 'Big Files', 'big-files' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'score_matrix'             => '9, 8, 7',
+				'max_file_size_mb'         => '10',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( 10, $this->settings( $id )['upload']['max_file_size_mb'] );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $id,
+				'tab'         => 'settings',
+			)
+		);
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'name="max_file_size_mb" min="1" max="50" value="10"', $html );
+	}
+
+	/**
 	 * Saving the Settings tab during competition night used to reopen
 	 * uploads and reset the voting stages (#121).
 	 */
