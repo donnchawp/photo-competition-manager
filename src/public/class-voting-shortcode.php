@@ -1223,11 +1223,11 @@ class Voting_Shortcode {
 	}
 
 	/**
-	 * Whether a vote was refused because the voter already has one for the image.
+	 * Whether a ballot was refused because the voter's votes are already recorded.
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int|WP_Error $result Outcome of recording a vote.
+	 * @param int|WP_Error $result Outcome of recording a ballot.
 	 * @return bool
 	 */
 	private function is_duplicate_vote( $result ): bool {
