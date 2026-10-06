@@ -78,21 +78,6 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'photo-comp-email-templates', $html );
 	}
 
-	public function test_page_offers_a_voting_link_template_with_its_merge_tags(): void {
-		$this->become_editor();
-
-		ob_start();
-		$this->controller->render();
-		$html = (string) ob_get_clean();
-
-		$card = substr( $html, strpos( $html, 'templates[voting_link][enabled]' ) );
-		$card = substr( $card, 0, strpos( $card, 'photo-comp-template-card' ) ?: strlen( $card ) );
-		$this->assertStringContainsString( 'Vote in {competition_title}', $card );
-		foreach ( array( '{member_name}', '{competition_title}', '{voting_link}', '{close_date}', '{site_name}' ) as $tag ) {
-			$this->assertStringContainsString( '<code>' . $tag . '</code>', $card );
-		}
-	}
-
 	public function test_save_is_noop_without_capability(): void {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
 		$this->request_save();

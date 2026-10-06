@@ -69,3 +69,19 @@ function sanitize_csv_row( array $row ): array {
 function utc_time( int $offset_seconds = 0 ): string {
 	return gmdate( 'Y-m-d H:i:s', time() + $offset_seconds );
 }
+
+/**
+ * Format a stored UTC datetime as a date in the site's date format and timezone.
+ *
+ * @since 0.4.0
+ *
+ * @param string|null $utc_datetime UTC datetime in 'Y-m-d H:i:s' format, or null.
+ * @return string The formatted date, or '' when there is no datetime.
+ */
+function format_site_date( ?string $utc_datetime ): string {
+	if ( empty( $utc_datetime ) ) {
+		return '';
+	}
+
+	return wp_date( get_option( 'date_format' ), strtotime( $utc_datetime ) );
+}

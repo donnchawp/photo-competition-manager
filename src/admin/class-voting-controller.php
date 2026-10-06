@@ -21,6 +21,7 @@ use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\format_site_date;
 
 /**
  * Manage voting controls page.
@@ -623,19 +624,13 @@ class Voting_Controller {
 			}
 		}
 
-		// Format close date.
-		$close_date = '';
-		if ( ! empty( $competition->close_date ) ) {
-			$close_date = wp_date( get_option( 'date_format' ), strtotime( $competition->close_date ) );
-		}
-
 		$job_id = $this->email_jobs->queue(
 			'voting_opened',
 			(int) $competition->id,
 			$member_ids,
 			array(
 				'voting_page_url' => $voting_page_url,
-				'close_date'      => $close_date,
+				'close_date'      => format_site_date( $competition->close_date ),
 			)
 		);
 
