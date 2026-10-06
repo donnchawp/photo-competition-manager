@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use WP_Error;
 
 /**
  * Upload shortcode handler.
@@ -29,16 +30,30 @@ class Upload_Shortcode {
 	/**
 	 * Allowed message keys and their corresponding text.
 	 *
+	 * A refusal someone can act on has a key of 'upload_' or 'delete_' and its error code. The
+	 * text is fixed, because only the key travels in the redirect.
+	 *
 	 * @var array<string, string>
 	 */
 	private const ALLOWED_MESSAGES = array(
-		'upload_success'   => 'Image uploaded successfully!',
-		'delete_success'   => 'Image deleted successfully.',
-		'category_missing' => 'Please select a category.',
-		'image_missing'    => 'Please select an image to upload.',
-		'invalid_deletion' => 'Invalid deletion request.',
-		'upload_failed'    => 'Upload failed. Please try again.',
-		'delete_failed'    => 'Failed to delete image. Please try again.',
+		'upload_success'            => 'Image uploaded successfully!',
+		'delete_success'            => 'Image deleted successfully.',
+		'category_missing'          => 'Please select a category.',
+		'image_missing'             => 'Please select an image to upload.',
+		'invalid_deletion'          => 'Invalid deletion request.',
+		'upload_failed'             => 'Upload failed. Please try again.',
+		'delete_failed'             => 'Failed to delete image. Please try again.',
+		'upload_quota_exceeded'     => 'You\'ve already uploaded the maximum number of images for this category.',
+		'upload_competition_closed' => 'This competition isn\'t accepting uploads right now.',
+		'upload_category_has_votes' => 'This category already has votes, so it can\'t take new entries.',
+		'upload_invalid_category'   => 'That category isn\'t part of this competition.',
+		'upload_file_too_large'     => 'That image is too big. Check the size limit under the upload form.',
+		'upload_invalid_format'     => 'That file type isn\'t allowed. Check the formats listed under the upload form.',
+		'upload_invalid_file'       => 'That file type isn\'t allowed. Check the formats listed under the upload form.',
+		'upload_invalid_mime'       => 'That file type isn\'t allowed. Check the formats listed under the upload form.',
+		'upload_invalid_image'      => 'That file isn\'t a valid image.',
+		'delete_competition_closed' => 'Images can\'t be deleted once the competition has closed.',
+		'delete_invalid_image'      => 'That image wasn\'t found. It may already have been deleted.',
 	);
 
 	/**
@@ -327,11 +342,25 @@ class Upload_Shortcode {
 		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', 'upload_failed' );
+			$this->redirect_with_message( 'error', $this->refusal_key( 'upload', $result ) );
 			return;
 		}
 
 		$this->redirect_with_message( 'success', 'upload_success' );
+	}
+
+	/**
+	 * The message key for an upload or delete error: the refusal's own key if it has one,
+	 * otherwise the action's generic failure.
+	 *
+	 * @param string   $action 'upload' or 'delete'.
+	 * @param WP_Error $error  Error from Entries.
+	 * @return string Message key.
+	 */
+	private function refusal_key( string $action, WP_Error $error ): string {
+		$key = $action . '_' . $error->get_error_code();
+
+		return isset( self::ALLOWED_MESSAGES[ $key ] ) ? $key : $action . '_failed';
 	}
 
 	/**
@@ -351,7 +380,7 @@ class Upload_Shortcode {
 		$result = $this->entries->remove( Actor::for_upload_link( $member_id ), $competition_id, $image_id );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', 'delete_failed' );
+			$this->redirect_with_message( 'error', $this->refusal_key( 'delete', $result ) );
 			return;
 		}
 
