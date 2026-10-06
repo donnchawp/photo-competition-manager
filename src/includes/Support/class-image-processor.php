@@ -26,7 +26,18 @@ class Image_Processor {
 	 * @return true|WP_Error
 	 */
 	public function validate( array $file, array $constraints ) {
-		// Check upload error first.
+		// Check upload error first. A file over PHP's own limit never reaches the size check below.
+		if ( in_array( $file['error'], array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true ) ) {
+			return new WP_Error(
+				'file_too_large',
+				sprintf(
+					/* translators: %d: maximum file size in MB */
+					__( 'File size exceeds maximum of %d MB.', 'photo-competition-manager' ),
+					(int) floor( wp_max_upload_size() / MB_IN_BYTES )
+				)
+			);
+		}
+
 		if ( UPLOAD_ERR_OK !== $file['error'] ) {
 			return new WP_Error( 'upload_error', __( 'File upload failed.', 'photo-competition-manager' ) );
 		}

@@ -68,7 +68,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		$file = array(
 			'name'     => 'test.jpg',
 			'tmp_name' => '/tmp/test.jpg',
-			'error'    => UPLOAD_ERR_INI_SIZE,
+			'error'    => UPLOAD_ERR_PARTIAL,
 			'size'     => 1024,
 		);
 
@@ -76,6 +76,22 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'upload_error', $result->get_error_code() );
+	}
+
+	public function test_validate_treats_a_file_over_phps_upload_limit_as_too_large(): void {
+		foreach ( array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ) as $error ) {
+			$file = array(
+				'name'     => 'test.jpg',
+				'tmp_name' => '',
+				'error'    => $error,
+				'size'     => 0,
+			);
+
+			$result = $this->processor->validate( $file, array() );
+
+			$this->assertSame( 'file_too_large', $result->get_error_code() );
+			$this->assertSame( sprintf( 'File size exceeds maximum of %d MB.', floor( wp_max_upload_size() / MB_IN_BYTES ) ), $result->get_error_message() );
+		}
 	}
 
 	public function test_validate_rejects_oversized_file(): void {

@@ -174,6 +174,31 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'You&#039;ve already uploaded the maximum number of images for this category.', $output );
 	}
 
+	public function test_a_file_over_the_servers_upload_limit_says_it_is_too_big(): void {
+		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_INI_SIZE ) );
+
+		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_a_file_of_the_wrong_type_says_so(): void {
+		$text_file = wp_tempnam( 'entry.gif' );
+		file_put_contents( $text_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$location = $this->post_upload(
+			$this->issue_token( true ),
+			UPLOAD_ERR_OK,
+			array(
+				'name'     => 'entry.gif',
+				'type'     => 'image/gif',
+				'tmp_name' => $text_file,
+				'size'     => 12,
+			)
+		);
+		wp_delete_file( $text_file );
+
+		$this->assertStringContainsString( 'That file type isn&#039;t allowed. Check the formats listed under the upload form.', $this->follow( $location ) );
+	}
+
 	public function test_an_upload_error_with_no_message_of_its_own_still_says_upload_failed(): void {
 		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_PARTIAL ) );
 
@@ -187,7 +212,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$output = $this->follow( $this->post_delete( $token, $entry ) );
 
-		$this->assertStringContainsString( 'Images can&#039;t be deleted once the competition has closed.', $output );
+		$this->assertStringContainsString( 'Images can&#039;t be deleted now that uploads have closed.', $output );
 	}
 
 	public function test_a_delete_error_with_no_message_of_its_own_still_says_failed_to_delete(): void {
@@ -228,11 +253,12 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	/**
 	 * Post the upload page's own form, and return where it redirects.
 	 *
-	 * @param string $token      Upload token.
-	 * @param int    $file_error The uploaded file's PHP error code.
+	 * @param string               $token      Upload token.
+	 * @param int                  $file_error The uploaded file's PHP error code.
+	 * @param array<string, mixed> $file       Fields of the uploaded file to override.
 	 * @return string Redirect location.
 	 */
-	private function post_upload( string $token, int $file_error ): string {
+	private function post_upload( string $token, int $file_error, array $file = array() ): string {
 		$nonce = wp_create_nonce( 'photo_competition_upload_with_token' );
 
 		$_GET['token']                       = $token;
@@ -240,12 +266,15 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$_POST['photo_competition_nonce']    = $nonce;
 		$_REQUEST['photo_competition_nonce'] = $nonce;
 		$_POST['category']                   = 'colour';
-		$_FILES['image']                     = array(
-			'name'     => 'entry.jpg',
-			'type'     => 'image/jpeg',
-			'tmp_name' => '/nonexistent/entry.jpg',
-			'error'    => $file_error,
-			'size'     => 1024,
+		$_FILES['image']                     = array_merge(
+			array(
+				'name'     => 'entry.jpg',
+				'type'     => 'image/jpeg',
+				'tmp_name' => '/nonexistent/entry.jpg',
+				'error'    => $file_error,
+				'size'     => 1024,
+			),
+			$file
 		);
 
 		return $this->capture_redirect();
