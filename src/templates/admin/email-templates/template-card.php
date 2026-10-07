@@ -9,13 +9,14 @@
 
 defined( 'ABSPATH' ) || exit;
 
-// Restore default finds the fields by these IDs.
+// Restore default finds the fields by these IDs, and names its card by the heading's.
+$heading_id = 'template-' . $data['template_key'] . '-heading';
 $subject_id = 'template-' . $data['template_key'] . '-subject';
 $body_id    = 'template_' . $data['template_key'] . '_body';
 
 echo '<div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;">';
 
-echo '<h2 style="margin-top: 0;">' . esc_html( $data['template']['name'] );
+echo '<h2 id="' . esc_attr( $heading_id ) . '" style="margin-top: 0;">' . esc_html( $data['template']['name'] );
 if ( $data['template']['edited'] ) {
 	echo ' <span class="photo-comp-template-edited">' . esc_html__( 'Edited', 'photo-competition-manager' ) . '</span>';
 }
@@ -71,6 +72,7 @@ echo '</tbody></table>';
 // Fills the fields in the browser; nothing is saved until the form is.
 echo '<p>';
 echo '<button type="button" class="button photo-comp-restore-default"'
+	. ' aria-describedby="' . esc_attr( $heading_id ) . '"'
 	. ' data-subject-field="' . esc_attr( $subject_id ) . '"'
 	. ' data-body-field="' . esc_attr( $body_id ) . '"'
 	. ' data-default-subject="' . esc_attr( $data['template']['default_subject'] ) . '"'

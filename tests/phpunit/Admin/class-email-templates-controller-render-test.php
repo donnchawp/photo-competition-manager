@@ -171,6 +171,9 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 		$card = $this->card( $this->render_normalized(), 'voting_link' );
 
 		$this->assertStringContainsString( '>Restore default</button>', $card );
+		// A screen reader says which template each Restore default button is for.
+		$this->assertStringContainsString( '<h2 id="template-voting_link-heading"', $card );
+		$this->assertStringContainsString( 'aria-describedby="template-voting_link-heading"', $card );
 		$this->assertStringContainsString( 'data-subject-field="template-voting_link-subject"', $card );
 		$this->assertStringContainsString( 'data-body-field="template_voting_link_body"', $card );
 		$this->assertStringContainsString( 'data-default-subject="Vote in {competition_title}"', $card );
