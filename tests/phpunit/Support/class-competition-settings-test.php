@@ -826,4 +826,25 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 'https://example.com/results/', Competition_Settings::page_url( 'results_page' ) );
 	}
+
+	/**
+	 * @dataProvider php_upload_limit_cases
+	 */
+	public function test_php_upload_limit_is_the_lower_of_the_two_ini_values( string $upload_max_filesize, string $post_max_size, int $expected ): void {
+		$this->assertSame( $expected, Competition_Settings::php_upload_limit( $upload_max_filesize, $post_max_size ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string, int}>
+	 */
+	public function php_upload_limit_cases(): array {
+		return array(
+			'upload_max_filesize is lower'  => array( '2M', '8M', 2 * MB_IN_BYTES ),
+			'post_max_size is lower'        => array( '8M', '2M', 2 * MB_IN_BYTES ),
+			'upload_max_filesize is 0'      => array( '0', '8M', 8 * MB_IN_BYTES ),
+			'post_max_size is 0'            => array( '8M', '0', 8 * MB_IN_BYTES ),
+			'neither has a limit'           => array( '0', '0', 0 ),
+			'gigabytes and bytes are mixed' => array( '1G', '3145728', 3 * MB_IN_BYTES ),
+		);
+	}
 }
