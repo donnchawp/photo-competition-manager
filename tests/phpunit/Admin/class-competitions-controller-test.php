@@ -496,6 +496,90 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Save the edit form with a close date, keeping the title and slug.
+	 *
+	 * @param int    $id         Competition ID.
+	 * @param string $close_date Close date as the form sends it (Y-m-d).
+	 */
+	private function save_close_date( int $id, string $close_date ): void {
+		$competition = $this->competitions->find( $id );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition',
+				'competition_id'           => $id,
+				'competition_title'        => $competition->title,
+				'competition_slug'         => $competition->slug,
+				'competition_open_date'    => gmdate( 'Y-m-d', strtotime( $competition->open_date . ' UTC' ) ),
+				'competition_close_date'   => $close_date,
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * The form only has the day, so saving it with the day unchanged keeps
+	 * the time the competition closed, such as one set by Close Competition.
+	 */
+	public function test_saving_the_form_keeps_the_close_time_when_the_day_is_unchanged(): void {
+		$closed_at = gmdate( 'Y-m-d 21:15:33', time() - DAY_IN_SECONDS );
+		$id        = $this->create_competition( 'Closed', 'closed', utc_time( -10 * DAY_IN_SECONDS ), $closed_at );
+
+		$this->save_close_date( $id, substr( $closed_at, 0, 10 ) );
+
+		$this->assertSame( $closed_at, $this->competitions->find( $id )->close_date );
+	}
+
+	/**
+	 * Closing an open competition through the form closes it when it's
+	 * saved, not at midnight, so nothing done earlier that day, such as
+	 * hiding results to correct them, counts as after the close (#196).
+	 */
+	public function test_closing_through_the_form_closes_the_competition_when_saved(): void {
+		$id     = $this->create_competition( 'Open', 'open', utc_time( -10 * DAY_IN_SECONDS ), utc_time( 5 * DAY_IN_SECONDS ) );
+		$before = utc_time();
+
+		$this->save_close_date( $id, gmdate( 'Y-m-d' ) );
+
+		$close_date = $this->competitions->find( $id )->close_date;
+		$this->assertGreaterThanOrEqual( $before, $close_date );
+		$this->assertLessThanOrEqual( utc_time(), $close_date );
+	}
+
+	/**
+	 * A close date still to come is stored as the start of that day.
+	 */
+	public function test_a_future_close_date_from_the_form_starts_that_day(): void {
+		$id    = $this->create_competition( 'Open', 'open', utc_time( -10 * DAY_IN_SECONDS ), utc_time( 5 * DAY_IN_SECONDS ) );
+		$later = gmdate( 'Y-m-d', time() + 10 * DAY_IN_SECONDS );
+
+		$this->save_close_date( $id, $later );
+
+		$this->assertSame( $later . ' 00:00:00', $this->competitions->find( $id )->close_date );
+	}
+
+	/**
+	 * Moving a closed competition's close date to another past day keeps
+	 * the day given: it had already closed, so it doesn't close again now.
+	 */
+	public function test_moving_a_past_close_date_through_the_form_keeps_the_day_given(): void {
+		$id      = $this->create_competition( 'Closed', 'closed', utc_time( -30 * DAY_IN_SECONDS ), gmdate( 'Y-m-d 21:15:33', time() - 10 * DAY_IN_SECONDS ) );
+		$earlier = gmdate( 'Y-m-d', time() - 12 * DAY_IN_SECONDS );
+
+		$this->save_close_date( $id, $earlier );
+
+		$this->assertSame( $earlier . ' 00:00:00', $this->competitions->find( $id )->close_date );
+	}
+
+	/**
 	 * A missing/invalid nonce aborts update via wp_die().
 	 */
 	public function test_update_competition_bad_nonce_dies(): void {

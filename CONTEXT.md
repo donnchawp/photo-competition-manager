@@ -24,7 +24,7 @@ _Avoid_: Submission, image (for the record)
 The full-size file a member uploaded for an entry, kept in the media library for export until an admin discards it. Discarding originals leaves the entries in place. WordPress also keeps a 2560px `-scaled` copy of a larger original as its attached file; that copy isn't the original, and export uses the full-size file.
 
 **Competition phase**:
-Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived.
+Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived. It's Closed from its close date. The edit form has only the day, so setting an open competition's close date to today or earlier closes it when the form is saved, and saving the form with the day unchanged keeps the time it closed.
 _Avoid_: Status, state
 
 ### Voting
@@ -65,7 +65,7 @@ An entry's place within its category and grade, ordered by total score. Tied ent
 _Avoid_: Rank, place
 
 **Recorded results**:
-Each entry's total score, vote count, grade and position, kept when results are published, or the first time they're needed once the competition has closed. Every results page, the Results screen, the export and the results email read them from then on, so deleting a member, removing an entry or changing a grade afterwards moves nobody. A recorded entry keeps the grade it was entered in. Publishing again replaces them until the competition closes; after that, results can't be hidden and publishing keeps them. To correct them after the competition has closed, move its close date into the future, then hide and publish the results again.
+Each entry's total score, vote count, grade and position, kept when results are published, or the first time they're needed once the competition has closed. Every results page, the Results screen, the export and the results email read them from then on, so deleting a member, removing an entry or changing a grade afterwards moves nobody. A recorded entry keeps the grade it was entered in. Publishing again replaces them until the competition closes; after that, results can't be hidden and publishing keeps them. A record made before the competition closes or is archived counts only while results are published. If they're hidden when it closes or is archived, the next time they're needed they're recorded afresh from the entries and votes as they are then. To correct them after the competition has closed, move its close date into the future, then hide and publish the results again.
 _Avoid_: Snapshot, frozen results
 
 **Former member**:

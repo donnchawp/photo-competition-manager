@@ -175,6 +175,30 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * When the competition became Closed or Archived: the earlier of its
+	 * close date, once that has passed, and when it was archived.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return string|null UTC datetime, or null if it hasn't closed.
+	 */
+	public function closed_at( object $competition ): ?string {
+		if ( ! $this->has_closed( $competition ) ) {
+			return null;
+		}
+
+		$times = array_filter(
+			array(
+				$competition->deleted_at ?? null,
+				$this->close_date_passed( $competition, utc_time() ) ? $competition->close_date : null,
+			)
+		);
+
+		return $times ? min( $times ) : null;
+	}
+
+	/**
 	 * Whether the competition is accepting uploads.
 	 *
 	 * @param object $competition Competition row.
@@ -233,7 +257,18 @@ class Competition_Workflow {
 
 		return empty( $competition->deleted_at )
 			&& ( empty( $competition->open_date ) || $competition->open_date <= $now )
-			&& ( empty( $competition->close_date ) || $competition->close_date > $now );
+			&& ! $this->close_date_passed( $competition, $now );
+	}
+
+	/**
+	 * Whether the competition has a close date, and it has passed.
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $now         UTC datetime.
+	 * @return bool
+	 */
+	private function close_date_passed( object $competition, string $now ): bool {
+		return ! empty( $competition->close_date ) && $competition->close_date <= $now;
 	}
 
 	/**
@@ -364,8 +399,8 @@ class Competition_Workflow {
 	 * Publish the results, recording them first.
 	 *
 	 * Publishing again replaces the record, as the votes can change while
-	 * results are hidden. Once the competition has closed, an existing
-	 * record stays as it is (see Results_Ranking::record()).
+	 * results are hidden. Once the competition has closed, a trusted record
+	 * stays as it is (see Results_Ranking::record()).
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error
@@ -410,7 +445,7 @@ class Competition_Workflow {
 	}
 
 	/**
-	 * Unpublish the results. Their record stays.
+	 * Unpublish the results. Their record stays (see Results_Ranking::record()).
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error

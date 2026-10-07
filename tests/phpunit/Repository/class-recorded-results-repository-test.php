@@ -74,11 +74,41 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 		( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );
 		( new Competitions_Repository() )->delete( $this->competition_id );
 
-		$this->assertFalse( $this->record->has_record( $this->competition_id ) );
+		$this->assertNull( $this->record->recorded_at( $this->competition_id ) );
 	}
 
 	public function test_recording_the_same_entries_twice_leaves_one_record(): void {
-		$row = array(
+		$row = $this->row();
+
+		// Two first reads at once both find no record and both record it.
+		$this->assertSame( 1, $this->record->insert( array( $row ) ) );
+		$this->assertSame( 0, $this->record->insert( array( $row ) ) );
+
+		$this->assertSame( array( '41:7' ), $this->ids( $this->record->find_by_category( $this->competition_id, 'colour' ) ) );
+	}
+
+	public function test_results_are_recorded_at_the_utc_time_whatever_the_database_time_zone(): void {
+		global $wpdb;
+		$zone = $wpdb->get_var( 'SELECT @@session.time_zone' );
+		$wpdb->query( "SET time_zone = '+05:00'" );
+
+		try {
+			$this->record->insert( array( $this->row() ) );
+		} finally {
+			$wpdb->query( $wpdb->prepare( 'SET time_zone = %s', $zone ) );
+		}
+
+		$recorded_at = strtotime( $this->record->recorded_at( $this->competition_id ) . ' UTC' );
+		$this->assertEqualsWithDelta( time(), $recorded_at, 60 );
+	}
+
+	/**
+	 * A recorded row for one entry in the competition.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function row(): array {
+		return array(
 			'competition_id' => $this->competition_id,
 			'category'       => 'colour',
 			'entry_id'       => 41,
@@ -88,12 +118,6 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 			'vote_count'     => 1,
 			'position'       => 1,
 		);
-
-		// Two first reads at once both find no record and both record it.
-		$this->assertSame( 1, $this->record->insert( array( $row ) ) );
-		$this->assertSame( 0, $this->record->insert( array( $row ) ) );
-
-		$this->assertSame( array( '41:7' ), $this->ids( $this->record->find_by_category( $this->competition_id, 'colour' ) ) );
 	}
 
 	/**

@@ -104,8 +104,8 @@ class Results_Ranking {
 	 * Rank a category's entries within each of the club's grades.
 	 *
 	 * A competition whose results are published, or that has closed, is
-	 * read from its record, and recorded first if it has none. Other
-	 * competitions are worked out from the votes.
+	 * read from its record, and recorded first if it has no trusted one.
+	 * Other competitions are worked out from the votes.
 	 *
 	 * In recorded results, an entry keeps the grade it was entered in, and
 	 * an entry whose member or entry has since been deleted keeps its place
@@ -142,8 +142,8 @@ class Results_Ranking {
 	/**
 	 * Record a competition's results as they are now, when they're published.
 	 *
-	 * The record is replaced, unless the competition has closed: then an
-	 * existing record stays, so nobody deleted since drops out of it.
+	 * The record is replaced, unless the competition has closed: then a
+	 * trusted record stays, so nobody deleted since drops out of it.
 	 *
 	 * @since 0.4.0
 	 *
@@ -151,18 +151,16 @@ class Results_Ranking {
 	 * @return true|WP_Error
 	 */
 	public function record( object $competition ) {
-		if ( $this->workflow->has_closed( $competition ) ) {
-			return $this->insert_if_missing( $competition );
+		if ( $this->workflow->has_closed( $competition ) && $this->has_trusted_record( $competition ) ) {
+			return true;
 		}
 
-		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
-
-		return is_wp_error( $replaced ) ? $replaced : true;
+		return $this->replace_record( $competition );
 	}
 
 	/**
 	 * Record a competition's results if they're published, or it has closed,
-	 * and they aren't recorded yet.
+	 * and they have no trusted record yet.
 	 *
 	 * @since 0.4.0
 	 *
@@ -170,27 +168,52 @@ class Results_Ranking {
 	 * @return true|WP_Error True when there's nothing to record, or it's recorded.
 	 */
 	public function record_if_missing( object $competition ) {
-		if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
+		if ( ! $this->workflow->reads_recorded_results( $competition ) || $this->has_trusted_record( $competition ) ) {
 			return true;
 		}
 
-		return $this->insert_if_missing( $competition );
+		return $this->replace_record( $competition );
 	}
 
 	/**
-	 * Record a competition's results as they are now, unless they're recorded.
+	 * Record a competition's results as they are now, replacing any record.
+	 *
+	 * The first read after close can replace a record too, not only the
+	 * admin's Show Results. Replacing deletes then inserts, so a read made
+	 * between the two by another request finds no rows.
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */
-	private function insert_if_missing( object $competition ) {
-		if ( $this->record->has_record( (int) $competition->id ) ) {
+	private function replace_record( object $competition ) {
+		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
+
+		return is_wp_error( $replaced ) ? $replaced : true;
+	}
+
+	/**
+	 * Whether the competition has a record that can be trusted: results are
+	 * published, so publishing made it, or it was made once the competition
+	 * had become Closed or Archived. A record made before then, while results
+	 * were hidden, misses whatever changed since.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	private function has_trusted_record( object $competition ): bool {
+		$recorded_at = $this->record->recorded_at( (int) $competition->id );
+
+		if ( null === $recorded_at ) {
+			return false;
+		}
+
+		if ( $this->workflow->results_published( $competition ) ) {
 			return true;
 		}
 
-		$inserted = $this->record->insert( $this->live_rows( $competition ) );
+		$closed_at = $this->workflow->closed_at( $competition );
 
-		return is_wp_error( $inserted ) ? $inserted : true;
+		return null !== $closed_at && $recorded_at >= $closed_at;
 	}
 
 	/**
