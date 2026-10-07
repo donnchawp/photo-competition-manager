@@ -425,8 +425,8 @@ class Voting_Shortcode {
 		$token_hash   = hash( 'sha256', $token_string );
 		$expires_at   = utc_time( HOUR_IN_SECONDS );
 
-		// Create token record.
-		$token_id = $this->token_repo->create( $member->id, $competition->id, $category, $token_hash, $expires_at );
+		// Renew the member's one token for the category, so an earlier link stops working.
+		$token_id = $this->token_repo->renew( $member->id, $competition->id, $category, $token_hash, $expires_at );
 
 		if ( is_wp_error( $token_id ) ) {
 			return '<p class="error">' . esc_html__( 'Failed to create voting link. Please try again.', 'photo-competition-manager' ) . '</p>';

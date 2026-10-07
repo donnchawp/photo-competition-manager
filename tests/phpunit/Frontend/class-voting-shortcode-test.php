@@ -209,7 +209,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS ): string {
 		$token_string = bin2hex( random_bytes( 32 ) );
-		$this->tokens->create(
+		$this->tokens->renew(
 			$member_id,
 			(int) $this->competition->id,
 			'colour',
@@ -354,6 +354,48 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 0, $this->mail_count );
 		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_a_member_who_asks_again_after_five_minutes_gets_a_link_that_works_instead_of_the_first(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$first = $this->link_from_last_mail();
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'class="success"', $message );
+		$this->assertSame( 2, $this->mail_count );
+		$this->assertNotNull( $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) ) );
+		$this->assertNull( $this->tokens->find_valid_token( hash( 'sha256', $first ) ) );
+	}
+
+	/**
+	 * Age every voting token, as if it was sent that long ago.
+	 *
+	 * @param int $seconds How long ago the tokens were sent.
+	 */
+	private function age_tokens( int $seconds ): void {
+		global $wpdb;
+
+		$wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET created_at = created_at - INTERVAL %d SECOND, expires_at = expires_at - INTERVAL %d SECOND',
+				$wpdb->prefix . 'photocomp_voting_tokens',
+				$seconds,
+				$seconds
+			)
+		);
+	}
+
+	/**
+	 * The raw token in the voting link of the last email sent.
+	 *
+	 * @return string
+	 */
+	private function link_from_last_mail(): string {
+		$this->assertSame( 1, preg_match( '/token=([0-9a-f]{64})/', $this->last_mail['message'], $matches ) );
+		return $matches[1];
 	}
 
 	public function test_active_member_token_opens_ballot(): void {

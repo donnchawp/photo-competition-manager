@@ -977,7 +977,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		// Seed a vote and pre-existing workflow state.
 		( new Votes_Repository() )->create_anonymous( $id, 'colour', 4321, 1234, 5 );
-		( new Voting_Token_Repository() )->create( $this->admin_id, $id, 'colour', 'hash_colour', '2099-12-31 00:00:00' );
+		( new Voting_Token_Repository() )->renew( $this->admin_id, $id, 'colour', 'hash_colour', '2099-12-31 00:00:00' );
 		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
 		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_CRITIQUE );
 

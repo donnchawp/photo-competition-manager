@@ -339,8 +339,8 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		Entry_Fixtures::insert_entry( $id, 'mono', 4, array( 7 ) );
 		$voter  = Member_Fixtures::insert_with_grade( 'Voter', 'voter@example.com', 'advanced' );
 		$tokens = new Voting_Token_Repository();
-		$tokens->create( $voter, $id, 'colour', hash( 'sha256', 'colour-token' ), utc_time( DAY_IN_SECONDS ) );
-		$tokens->create( $voter, $id, 'mono', hash( 'sha256', 'mono-token' ), utc_time( DAY_IN_SECONDS ) );
+		$tokens->renew( $voter, $id, 'colour', hash( 'sha256', 'colour-token' ), utc_time( DAY_IN_SECONDS ) );
+		$tokens->renew( $voter, $id, 'mono', hash( 'sha256', 'mono-token' ), utc_time( DAY_IN_SECONDS ) );
 
 		$this->assertTrue( $this->workflow->reset_category( $id, 'colour', true ) );
 

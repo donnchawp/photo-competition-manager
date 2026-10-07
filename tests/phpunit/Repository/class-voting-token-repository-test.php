@@ -54,7 +54,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 		$members    = $wpdb->prefix . 'photocomp_members';
 		$token_hash = hash( 'sha256', 'inactive-member-token' );
-		$this->repository->create( 1, 2, 'colour', $token_hash, gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) );
+		$this->repository->renew( 1, 2, 'colour', $token_hash, gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->update( $members, array( 'active' => 0 ), array( 'id' => 1 ) );
@@ -66,60 +66,60 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test creating a token.
+	 * Test renewing creates a token when the member has none.
 	 *
 	 * @return void
 	 */
-	public function test_create_token(): void {
+	public function test_renew_creates_a_token_when_the_member_has_none(): void {
 		$token_hash = hash( 'sha256', 'test-token-123' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 
 		$this->assertIsInt( $token_id );
 		$this->assertGreaterThan( 0, $token_id );
 	}
 
 	/**
-	 * Test creating token with invalid member ID fails.
+	 * Test renewing a token with invalid member ID fails.
 	 *
 	 * @return void
 	 */
-	public function test_create_with_invalid_member_id_fails(): void {
+	public function test_renew_with_invalid_member_id_fails(): void {
 		$token_hash = hash( 'sha256', 'test-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$result = $this->repository->create( 0, 2, 'colour', $token_hash, $expires_at );
+		$result = $this->repository->renew( 0, 2, 'colour', $token_hash, $expires_at );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_data', $result->get_error_code() );
 	}
 
 	/**
-	 * Test creating token with invalid competition ID fails.
+	 * Test renewing a token with invalid competition ID fails.
 	 *
 	 * @return void
 	 */
-	public function test_create_with_invalid_competition_id_fails(): void {
+	public function test_renew_with_invalid_competition_id_fails(): void {
 		$token_hash = hash( 'sha256', 'test-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$result = $this->repository->create( 1, 0, 'colour', $token_hash, $expires_at );
+		$result = $this->repository->renew( 1, 0, 'colour', $token_hash, $expires_at );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_data', $result->get_error_code() );
 	}
 
 	/**
-	 * Test creating token with empty category fails.
+	 * Test renewing a token with empty category fails.
 	 *
 	 * @return void
 	 */
-	public function test_create_with_empty_category_fails(): void {
+	public function test_renew_with_empty_category_fails(): void {
 		$token_hash = hash( 'sha256', 'test-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$result = $this->repository->create( 1, 2, '', $token_hash, $expires_at );
+		$result = $this->repository->renew( 1, 2, '', $token_hash, $expires_at );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_data', $result->get_error_code() );
@@ -134,7 +134,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'test-token-valid' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repository->create( 1, 2, 'black-white', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'black-white', $token_hash, $expires_at );
 		$this->assertIsInt( $token_id );
 
 		$token = $this->repository->find_valid_token( $token_hash );
@@ -156,7 +156,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'expired-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ); // Already expired
 
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 		$this->assertIsInt( $token_id );
 
 		$token = $this->repository->find_valid_token( $token_hash );
@@ -188,12 +188,12 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		// Create expired token.
 		$expired_hash = hash( 'sha256', 'expired' );
 		$expired_at   = gmdate( 'Y-m-d H:i:s', $now - HOUR_IN_SECONDS );
-		$this->repository->create( 1, 2, 'colour', $expired_hash, $expired_at );
+		$this->repository->renew( 1, 2, 'colour', $expired_hash, $expired_at );
 
 		// Create valid token.
 		$valid_hash = hash( 'sha256', 'valid' );
 		$valid_at   = gmdate( 'Y-m-d H:i:s', $now + HOUR_IN_SECONDS );
-		$this->repository->create( 1, 2, 'black-white', $valid_hash, $valid_at );
+		$this->repository->renew( 1, 2, 'black-white', $valid_hash, $valid_at );
 
 		$deleted = $this->repository->cleanup_expired();
 
@@ -217,7 +217,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'recent-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 
 		$has_recent = $this->repository->has_recent_token( 1, 2, 'colour' );
 
@@ -233,7 +233,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'category-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 
 		$has_recent = $this->repository->has_recent_token( 1, 2, 'black-white' );
 
@@ -251,7 +251,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'old-token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 		$this->assertIsInt( $token_id );
 
 		// Manually backdate the created_at timestamp to 10 minutes ago.
@@ -289,7 +289,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'tracking_test_token' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 		$this->assertIsInt( $token_id );
 
 		// First access should set first_accessed_at.
@@ -318,7 +318,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token_hash = hash( 'sha256', 'tracking_update_test' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$token_id = $this->repository->create( 1, 2, 'colour', $token_hash, $expires_at );
+		$token_id = $this->repository->renew( 1, 2, 'colour', $token_hash, $expires_at );
 
 		// Access token multiple times.
 		$first_find  = $this->repository->find_valid_token( $token_hash );
@@ -348,9 +348,9 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$token3 = hash( 'sha256', 'tracking_member_3' );
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
-		$this->repository->create( 1, $competition_id, 'colour', $token1, $expires_at );
-		$this->repository->create( 2, $competition_id, 'colour', $token2, $expires_at );
-		$this->repository->create( 3, $competition_id, 'colour', $token3, $expires_at );
+		$this->repository->renew( 1, $competition_id, 'colour', $token1, $expires_at );
+		$this->repository->renew( 2, $competition_id, 'colour', $token2, $expires_at );
+		$this->repository->renew( 3, $competition_id, 'colour', $token3, $expires_at );
 
 		// Access only some tokens.
 		$this->repository->find_valid_token( $token1 );
@@ -397,8 +397,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 
 		// Create tokens for different competitions.
-		$this->repository->create( 1, 10, 'colour', $token1, $expires_at );
-		$this->repository->create( 2, 20, 'colour', $token2, $expires_at );
+		$this->repository->renew( 1, 10, 'colour', $token1, $expires_at );
+		$this->repository->renew( 2, 20, 'colour', $token2, $expires_at );
 
 		// Get tracking for competition 10.
 		$tracking = $this->repository->get_tracking_by_competition( 10 );
@@ -415,9 +415,9 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 	public function test_delete_by_competition_removes_tokens(): void {
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-		$this->repository->create( 1, 10, 'colour', hash( 'sha256', 'tok1' ), $expires_at );
-		$this->repository->create( 2, 10, 'colour', hash( 'sha256', 'tok2' ), $expires_at );
-		$this->repository->create( 3, 20, 'colour', hash( 'sha256', 'tok3' ), $expires_at );
+		$this->repository->renew( 1, 10, 'colour', hash( 'sha256', 'tok1' ), $expires_at );
+		$this->repository->renew( 2, 10, 'colour', hash( 'sha256', 'tok2' ), $expires_at );
+		$this->repository->renew( 3, 20, 'colour', hash( 'sha256', 'tok3' ), $expires_at );
 
 		$result = $this->repository->delete_by_competition( 10 );
 		$this->assertTrue( $result );
@@ -439,8 +439,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 	public function test_delete_by_competition_and_category_removes_matching(): void {
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
-		$this->repository->create( 1, 10, 'colour', hash( 'sha256', 'c1' ), $expires_at );
-		$this->repository->create( 2, 10, 'black-white', hash( 'sha256', 'bw1' ), $expires_at );
+		$this->repository->renew( 1, 10, 'colour', hash( 'sha256', 'c1' ), $expires_at );
+		$this->repository->renew( 2, 10, 'black-white', hash( 'sha256', 'bw1' ), $expires_at );
 
 		$result = $this->repository->delete_by_competition_and_category( 10, 'colour' );
 		$this->assertTrue( $result );
