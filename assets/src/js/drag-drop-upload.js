@@ -9,7 +9,10 @@ class DragDropUpload {
 		this.token = config.token;
 		this.apiUrl = config.apiUrl;
 		this.categories = config.categories;
-		this.quotas = config.quotas;
+		// A copy, since the uploader counts down each category's remaining quota as images go in.
+		this.quotas = Object.fromEntries(
+			Object.entries(config.quotas).map(([slug, quota]) => [slug, { ...quota }])
+		);
 		this.maxFileSize = config.maxFileSize || 10 * 1024 * 1024; // 10MB default
 		this.allowedFormats = config.allowedFormats || ['jpg', 'jpeg', 'png'];
 		this.selectedFiles = [];
@@ -510,6 +513,7 @@ class DragDropUpload {
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
 		const results = [];
+		const entered = [];
 
 		for (const [index, fileData] of files.entries()) {
 			const result = await this.uploadOne(fileData, (sent) => {
@@ -522,16 +526,26 @@ class DragDropUpload {
 				break;
 			}
 
-			results.push(
-				result.success ? result : { success: false, error: `${fileData.file.name}: ${result.error}` }
-			);
+			if (result.success) {
+				entered.push(fileData);
+				results.push(result);
+			} else {
+				results.push({ success: false, error: `${fileData.file.name}: ${result.error}` });
+			}
 
 			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
 		}
 
-		this.showResults(results, files.length);
-		this.uploadButton.disabled = false;
+		// The images that went in are entries now, so they leave the selection and use up their quota.
+		// Upload All can then only send the images that didn't go in.
+		entered.forEach((fileData) => {
+			this.quotas[fileData.category].remaining -= 1;
+			this.removeFile(fileData.id);
+		});
 		this.uploadButton.textContent = 'Upload All';
+		this.updateUI();
+
+		this.showResults(results, files.length);
 	}
 
 	/**
@@ -655,9 +669,6 @@ class DragDropUpload {
 		}
 
 		// Some failed: keep the list on screen and let the member reload when they've read it.
-		// Upload All would send the images that went in again, so it goes until the reload.
-		this.uploadButton.style.display = 'none';
-
 		const refreshButton = document.createElement('button');
 		refreshButton.type = 'button';
 		refreshButton.className = 'photo-comp-refresh-btn';
@@ -671,8 +682,8 @@ class DragDropUpload {
 		errorDiv.className = 'photo-comp-error-message';
 		errorDiv.textContent = message;
 
+		// Added below whatever is there, so a batch's failure list stays on screen.
 		if (this.progressSection) {
-			this.progressSection.innerHTML = '';
 			this.progressSection.appendChild(errorDiv);
 			this.progressSection.style.display = 'block';
 		}
