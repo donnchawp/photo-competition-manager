@@ -4,6 +4,8 @@
  * @package PhotoCompetitionManager
  */
 
+import { __ } from '@wordpress/i18n';
+
 class DragDropUpload {
 	constructor(config) {
 		this.token = config.token;
@@ -91,7 +93,7 @@ class DragDropUpload {
 		const validFiles = files.filter((file) => this.validateFile(file));
 
 		if (validFiles.length === 0) {
-			this.showError('No valid image files selected.');
+			this.showError(__('No valid image files selected.', 'photo-competition-manager'));
 			return;
 		}
 

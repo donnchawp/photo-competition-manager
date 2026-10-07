@@ -71,6 +71,8 @@ window.photoCompUpload = {
 	allowedFormats: [ 'jpg', 'jpeg' ],
 };
 
+const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
+
 // The script starts an uploader on each DOMContentLoaded, so it's loaded once and each test fires the event.
 require( '../../assets/src/js/drag-drop-upload' );
 
@@ -339,6 +341,30 @@ describe( 'drag-and-drop upload', () => {
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
+	} );
+
+	describe( 'on a site in another language', () => {
+		beforeEach( () => {
+			setLocaleData(
+				{
+					'': { domain: 'photo-competition-manager', plural_forms: 'nplurals=2; plural=n != 1;' },
+					'No valid image files selected.': [ 'Níor roghnaíodh aon chomhad íomhá bailí.' ],
+				},
+				'photo-competition-manager'
+			);
+		} );
+
+		afterEach( () => {
+			resetLocaleData( undefined, 'photo-competition-manager' );
+		} );
+
+		it( 'shows the translated message when no file is an image', () => {
+			const input = document.querySelector( '#batch-file-input' );
+			Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
+			input.dispatchEvent( new Event( 'change' ) );
+
+			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
+		} );
 	} );
 
 	it( 'says the image is too big when the web server refuses it before WordPress', async () => {

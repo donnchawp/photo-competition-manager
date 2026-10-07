@@ -10,6 +10,7 @@
     "test:js": "wp-scripts test-unit-js"
   },
   "devDependencies": {
+    "@wordpress/i18n": "^4.58.0",
     "@wordpress/scripts": "^27.6.0"
   }
 }
