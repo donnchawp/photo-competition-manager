@@ -23,7 +23,10 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -757,6 +760,31 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			),
 			$this->summarize_export_rows( $rows )
 		);
+	}
+
+	/**
+	 * A member deleted after results are recorded is exported in their place
+	 * as a former member, with no email or image.
+	 */
+	public function test_export_rows_keep_a_deleted_members_entry_as_a_former_member(): void {
+		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
+		$this->seed_scored_entry( 'Runner Up', 'beginner', 'colour', 5 );
+		$competition = $this->competitions->find( $this->competition_id );
+		$this->controller->get_export_rows( $competition );
+		$winner = $this->members->find_by_email( 'winner@example.com' );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), (int) $winner->id );
+		$this->members->delete( (int) $winner->id );
+		$rows = $this->controller->get_export_rows( $competition );
+
+		$this->assertSame(
+			array(
+				'Beginner|Colour|1|Former member',
+				'Beginner|Colour|2|Runner Up',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+		$this->assertSame( array( '', '', '' ), array( $rows[1][4], $rows[1][6], $rows[1][9] ) );
 	}
 
 	/*

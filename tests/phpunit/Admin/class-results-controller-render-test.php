@@ -26,7 +26,10 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Results_Controller
@@ -588,6 +591,64 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringNotContainsString( 'Ungraded', $html );
 		$this->assertStringNotContainsString( 'notice-warning', $html );
+	}
+
+	public function test_render_a_deleted_members_recorded_entry_as_a_former_member(): void {
+		$comp_id = $this->seed_competition( 'Recorded Show', 'recorded-show' );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->seed_image( $comp_id, array( 'member_id' => $ada ) );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => $this->seed_member( 'Bob Babbage', 'bob@example.com' ),
+				'random_number' => 2,
+			)
+		);
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $ada );
+		$this->members->delete( $ada );
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<td><em>Former member</em></td>', $html );
+		$this->assertStringContainsString( 'Bob Babbage', $html );
+		// Only Bob's entry is still there to show details for.
+		$this->assertSame( 1, substr_count( $html, 'View Details' ) );
+		$this->assertStringNotContainsString( 'notice-warning', $html );
+	}
+
+	public function test_render_leaves_a_removed_ungraded_entry_out_of_the_warning(): void {
+		$comp_id = $this->seed_competition( 'Recorded Show', 'recorded-show' );
+		$orphan  = $this->seed_image( $comp_id, array( 'member_id' => 999999 ) );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => Member_Fixtures::insert_with_grade( 'Old Grade Member', 'old@example.com', 'retired' ),
+				'random_number' => 2,
+			)
+		);
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		( new Entries() )->remove( Actor::admin(), $comp_id, $orphan );
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		// The removed entry has nothing an admin can fix, so only the member without a grade is listed.
+		$this->assertStringContainsString( '<li>Old Grade Member (old@example.com)</li>', $html );
+		$this->assertStringNotContainsString( 'no longer exist', $html );
 	}
 
 	public function test_render_image_details_happy_path(): void {

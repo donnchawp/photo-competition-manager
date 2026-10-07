@@ -633,6 +633,11 @@ class Results_Controller {
 				}
 
 				foreach ( $group['entries'] as $entry ) {
+					// A recorded entry removed since has nothing left to fix.
+					if ( ! $entry['image'] ) {
+						continue;
+					}
+
 					if ( $entry['member'] ) {
 						$members[ (int) $entry['member']->id ] = array(
 							'name'  => $entry['member']->name,
@@ -679,7 +684,8 @@ class Results_Controller {
 				$image  = $entry['image'];
 				$member = $entry['member'];
 
-				$detail_url = add_query_arg(
+				// A recorded entry removed since has no image or details.
+				$detail_url = $image ? add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
 						'competition' => (int) $competition->id,
@@ -687,11 +693,11 @@ class Results_Controller {
 						'image'       => (int) $image->id,
 					),
 					admin_url( 'admin.php' )
-				);
+				) : '';
 
 				$rows[] = array(
 					'rank'        => $entry['position'],
-					'image_url'   => $this->entries->urls( $competition, $image )['thumb'],
+					'image_url'   => $image ? $this->entries->urls( $competition, $image )['thumb'] : '',
 					'member_name' => $member ? $member->name : null,
 					'total_score' => $entry['total_score'],
 					'vote_count'  => $entry['vote_count'],
@@ -845,12 +851,12 @@ class Results_Controller {
 						$group['label'],
 						$category_label,
 						$entry['position'],
-						$image->random_number,
-						$member ? $member->name : '',
+						$image ? $image->random_number : '',
+						$member ? $member->name : __( 'Former member', 'photo-competition-manager' ),
 						$member ? $member->email : '',
 						number_format( $entry['total_score'], 0 ),
 						$entry['vote_count'],
-						$image->filename,
+						$image ? $image->filename : '',
 					);
 				}
 			}
