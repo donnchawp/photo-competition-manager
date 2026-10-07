@@ -415,6 +415,10 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		// Member 3 should have opened link.
 		$this->assertArrayHasKey( 3, $tracking );
 		$this->assertNotNull( $tracking[3]->first_opened_at );
+
+		// A member has one upload token, so the opened time is all there is
+		// to report.
+		$this->assertSame( array( 'member_id', 'first_opened_at' ), array_keys( get_object_vars( $tracking[1] ) ) );
 	}
 
 	/**

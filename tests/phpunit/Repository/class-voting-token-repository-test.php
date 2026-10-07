@@ -98,7 +98,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
 
-		$this->assertSame( '1', $this->repository->get_tracking_by_competition( 2 )[1]->token_count );
+		global $wpdb;
+		$this->assertSame( '1', $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = 1', $this->shadowed ) ) );
 	}
 
 	/**
@@ -459,6 +460,10 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		// Member 3 should have opened link.
 		$this->assertArrayHasKey( 3, $tracking );
 		$this->assertNotNull( $tracking[3]->first_opened_at );
+
+		// Renewing resets created_at and keeps one token, so nothing else
+		// it could report would mean what it says.
+		$this->assertSame( array( 'member_id', 'first_opened_at' ), array_keys( get_object_vars( $tracking[1] ) ) );
 	}
 
 	/**

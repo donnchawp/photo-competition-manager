@@ -301,7 +301,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Get tracking data for all members in a competition.
 	 *
-	 * Returns array indexed by member_id with link sent/opened status.
+	 * Returns array indexed by member_id with when the member first opened
+	 * their link, or null if they haven't.
 	 *
 	 * @since 0.1.0
 	 * @param int $competition_id Competition ID.
@@ -319,9 +320,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'SELECT
 					member_id,
-					MIN(created_at) as first_sent_at,
-					MIN(first_accessed_at) as first_opened_at,
-					COUNT(*) as token_count
+					MIN(first_accessed_at) as first_opened_at
 				FROM %i
 				WHERE competition_id = %d
 				GROUP BY member_id',
