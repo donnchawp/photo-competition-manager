@@ -40,13 +40,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_data', __( 'Invalid member or competition ID.', 'photo-competition-manager' ) );
 		}
 
-		// Try to find existing token.
+		// Try to find existing token. A table whose upgrade to the unique key
+		// hasn't run may hold more than one: the earliest is the member's.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$existing = $wpdb->get_row(
 			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
+				ORDER BY id
 				LIMIT 1',
 				$this->table(),
 				$member_id,
