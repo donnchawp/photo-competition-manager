@@ -98,7 +98,7 @@ function format_site_date( ?string $utc_datetime ): string {
  * @param array<string, mixed> $data     View data available to the partial as $data.
  * @return string Rendered HTML.
  */
-function render_template( string $relative, array $data = array() ): string {
+function render_template( string $relative, array $data = array() ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- The included partial reads $data.
 	ob_start();
 	try {
 		include PHOTO_COMPETITION_MANAGER_DIR . '/templates/' . ltrim( $relative, '/' );
