@@ -77,7 +77,7 @@ class Email_Service {
 			return 'skipped';
 		}
 
-		$template = $this->get_kind_template( $kind, $definition );
+		$template = $this->get_template( $kind );
 
 		$member_name = '' !== (string) ( $member->name ?? '' ) ? (string) $member->name : (string) $member->email;
 		$values      = array(
@@ -154,14 +154,16 @@ class Email_Service {
 	}
 
 	/**
-	 * A kind's saved template laid over its default.
+	 * A kind's subject and body: the saved template laid over the kind's default.
 	 *
-	 * @param string               $kind       Kind key.
-	 * @param array<string, mixed> $definition The kind, from Email_Kinds.
+	 * @since 0.4.0
+	 *
+	 * @param string $kind Kind key, from Email_Kinds.
 	 * @return array{subject: string, body: string}
 	 */
-	private function get_kind_template( string $kind, array $definition ): array {
-		$saved = get_option( 'photo_comp_email_templates', array() )[ $kind ] ?? array();
+	public function get_template( string $kind ): array {
+		$definition = Email_Kinds::get( $kind );
+		$saved      = get_option( 'photo_comp_email_templates', array() )[ $kind ] ?? array();
 
 		return array(
 			'subject' => ! empty( $saved['subject'] ) ? (string) $saved['subject'] : $definition['subject'],
@@ -177,7 +179,8 @@ class Email_Service {
 	 * @return string Content with merge tags replaced.
 	 */
 	private function replace_merge_tags( string $content, array $merge_data ): string {
-		return str_replace( array_keys( $merge_data ), array_values( $merge_data ), $content );
+		// One pass, so a value that looks like a tag isn't filled in too.
+		return strtr( $content, $merge_data );
 	}
 
 	/**

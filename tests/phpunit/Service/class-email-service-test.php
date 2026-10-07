@@ -272,6 +272,23 @@ class Email_Service_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A value that looks like a tag is left as it is, not filled in.
+	 */
+	public function test_a_value_that_looks_like_a_tag_stays_as_it_is() {
+		$this->service->send(
+			'upload_reminder',
+			$this->member( '{upload_link}' ),
+			$this->competition(),
+			array(
+				'{upload_link}' => 'https://example.org/upload/?t=abc',
+				'{voting_page}' => '',
+			)
+		);
+
+		$this->assertStringContainsString( '<p>Hi {upload_link},</p>', $this->last_mail['message'] );
+	}
+
+	/**
 	 * The results table goes in after the template is formatted, so it arrives as built.
 	 */
 	public function test_the_results_table_arrives_as_built() {

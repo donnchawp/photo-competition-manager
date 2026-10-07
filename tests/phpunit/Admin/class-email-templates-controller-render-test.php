@@ -86,6 +86,24 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
 	}
 
+	public function test_only_notifications_can_be_switched_off(): void {
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( 'name="templates[voting_opened][enabled]"', $html );
+		$this->assertStringContainsString( 'name="templates[submission_confirmed][enabled]"', $html );
+		foreach ( array( 'upload_reminder', 'voting_link', 'results_published', 'results_detailed' ) as $kind ) {
+			$this->assertStringNotContainsString( 'name="templates[' . $kind . '][enabled]"', $html, $kind );
+			$this->assertStringContainsString( 'name="templates[' . $kind . '][subject]"', $html, $kind );
+		}
+	}
+
+	public function test_each_merge_tag_says_what_it_is(): void {
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( '<code>{upload_link}</code> The member&#039;s own upload link.', $html );
+		$this->assertStringContainsString( '<code>{member_name}</code> The member&#039;s name.', $html );
+	}
+
 	public function test_render_default_templates(): void {
 		// No saved option: renders the built-in defaults for every template key.
 		$this->assert_matches_snapshot( 'default-templates' );
