@@ -540,6 +540,22 @@ describe( 'drag-and-drop upload', () => {
 			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
 			expect( quotaMessage() ).toBeNull();
 		} );
+
+		it( 'counts every selected image against the total when a category has more than its quota', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+			choose( 'one.jpg', 'mono' );
+			choose( 'two.jpg', 'colour' );
+			choose( 'one.jpg', 'colour' );
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+
+			// Two of the 3 places are taken, so only one more image fits.
+			await selectUnassigned( [ 'three.jpg', 'four.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
+		} );
 	} );
 
 	/**

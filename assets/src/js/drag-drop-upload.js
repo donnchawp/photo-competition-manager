@@ -97,9 +97,9 @@ class DragDropUpload {
 			return;
 		}
 
-		// The total available quota already counts the selected images that have a category.
-		const unassignedCount = this.selectedFiles.filter((fileData) => !fileData.category).length;
-		const availableSlots = this.getTotalAvailableQuota() - unassignedCount;
+		// Every selected image takes a place, whatever its category, so an over-full category can't hide one.
+		const totalRemaining = Object.values(this.quotas).reduce((sum, quota) => sum + quota.remaining, 0);
+		const availableSlots = totalRemaining - this.selectedFiles.length;
 
 		if (availableSlots <= 0) {
 			this.showError(__('All category quotas are full. Cannot add more files.', 'photo-competition-manager'));
@@ -138,26 +138,6 @@ class DragDropUpload {
 		});
 
 		this.updateUI();
-	}
-
-	getTotalAvailableQuota() {
-		// Calculate remaining quota across all categories, accounting for already-assigned files.
-		const assignedCount = {};
-		this.selectedFiles.forEach((fileData) => {
-			if (fileData.category) {
-				assignedCount[fileData.category] = (assignedCount[fileData.category] || 0) + 1;
-			}
-		});
-
-		let total = 0;
-		Object.keys(this.quotas).forEach((categorySlug) => {
-			const quota = this.quotas[categorySlug];
-			const assigned = assignedCount[categorySlug] || 0;
-			const remaining = quota.remaining - assigned;
-			total += Math.max(0, remaining);
-		});
-
-		return total;
 	}
 
 	getEffectiveRemainingQuota(categorySlug) {
