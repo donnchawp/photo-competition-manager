@@ -512,7 +512,15 @@ class DragDropUpload {
 		const results = [];
 
 		for (const [index, fileData] of files.entries()) {
-			const result = await this.uploadOne(fileData);
+			const result = await this.uploadOne(fileData, (sent) => {
+				this.updateProgressBar(Math.round(((index + sent) / files.length) * 100));
+			});
+
+			// The link or session was refused, so the rest would be too: say why once and stop.
+			if (result.refused) {
+				results.push({ success: false, error: result.error });
+				break;
+			}
 
 			results.push(
 				result.success ? result : { success: false, error: `${fileData.file.name}: ${result.error}` }
@@ -521,7 +529,7 @@ class DragDropUpload {
 			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
 		}
 
-		this.showResults(results);
+		this.showResults(results, files.length);
 		this.uploadButton.disabled = false;
 		this.uploadButton.textContent = 'Upload All';
 	}
@@ -529,10 +537,14 @@ class DragDropUpload {
 	/**
 	 * Upload one image to the batch endpoint.
 	 *
-	 * @param {Object} fileData The selected file and its category.
-	 * @return {Promise<Object>} Resolves to { success: true } or { success: false, error }.
+	 * A 401, 403 or 404 refuses the whole upload (a bad link, an expired
+	 * session, a missing competition), so the result says it's refused.
+	 *
+	 * @param {Object}   fileData   The selected file and its category.
+	 * @param {Function} onProgress Called with the fraction of this image sent so far, 0 to 1.
+	 * @return {Promise<Object>} Resolves to { success: true } or { success: false, error, refused }.
 	 */
-	uploadOne(fileData) {
+	uploadOne(fileData, onProgress) {
 		const formData = new FormData();
 		formData.append('file_0', fileData.file);
 		formData.append('assignments[file_0]', fileData.category);
@@ -540,19 +552,31 @@ class DragDropUpload {
 		return new Promise((resolve) => {
 			const xhr = new XMLHttpRequest();
 
+			xhr.upload.addEventListener('progress', (event) => {
+				if (event.lengthComputable && event.total > 0) {
+					onProgress(event.loaded / event.total);
+				}
+			});
+
 			xhr.addEventListener('load', () => {
 				let data = null;
 				try {
 					data = JSON.parse(xhr.responseText);
 				} catch (error) {
-					console.error('Parse error:', error);
+					// Not JSON: a web server in front of WordPress answered, such as nginx refusing a big body.
 				}
 
 				if (xhr.status >= 200 && xhr.status < 300 && data && data.results && data.results.file_0) {
 					resolve(data.results.file_0);
-				} else {
-					resolve({ success: false, error: (data && data.message) || 'Upload failed. Please try again.' });
+					return;
 				}
+
+				let error = (data && data.message) || 'Upload failed. Please try again.';
+				if (xhr.status === 413 && !(data && data.message)) {
+					error = 'That image is too big. Check the size limit under the upload form.';
+				}
+
+				resolve({ success: false, error, refused: [401, 403, 404].includes(xhr.status) });
 			});
 
 			xhr.addEventListener('error', () => {
@@ -588,15 +612,17 @@ class DragDropUpload {
 	/**
 	 * Show how each upload went.
 	 *
-	 * @param {Object[]} results One { success, error } per image.
+	 * @param {Object[]} results One { success, error } per image sent, or one error for a refused upload.
+	 * @param {number}   total   How many images were selected.
 	 */
-	showResults(results) {
+	showResults(results, total) {
 		const failures = results.filter((result) => !result.success);
 		const successCount = results.length - failures.length;
+		const failedCount = total - successCount;
 
 		let message = `Successfully uploaded ${successCount} image(s).`;
-		if (failures.length > 0) {
-			message += ` ${failures.length} upload(s) failed.`;
+		if (failedCount > 0) {
+			message += ` ${failedCount} upload(s) failed.`;
 		}
 
 		this.progressSection.innerHTML = `<p class="success">${message}</p>`;
