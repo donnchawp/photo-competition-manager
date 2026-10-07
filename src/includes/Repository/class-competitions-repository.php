@@ -557,6 +557,7 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$upload_token_repo->delete_by_competition( $id );
 		$voting_token_repo->delete_by_competition( $id );
+		( new Recorded_Results_Repository() )->delete_by_competition( $id );
 
 		// Finally, delete the competition itself.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching

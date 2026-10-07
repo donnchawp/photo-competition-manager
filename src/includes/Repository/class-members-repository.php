@@ -402,7 +402,8 @@ class Members_Repository extends Abstract_Repository {
 	 * Delete a member.
 	 *
 	 * Their entries have to be removed first, through the Entries module, so their files go
-	 * with them. Until then this refuses with `has_entries`.
+	 * with them. Until then this refuses with `has_entries`. Their recorded results stay,
+	 * without their ID.
 	 *
 	 * @since 0.4.0 Refuses while the member has entries, instead of removing them itself.
 	 *
@@ -437,6 +438,8 @@ class Members_Repository extends Abstract_Repository {
 		if ( false === $deleted ) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete member.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
+
+		( new Recorded_Results_Repository() )->forget_member( $id );
 
 		return true;
 	}

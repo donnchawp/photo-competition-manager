@@ -429,7 +429,8 @@ class Images_Repository extends Abstract_Repository {
 	/**
 	 * Delete an image record.
 	 *
-	 * Also deletes any votes associated with the image.
+	 * Also deletes any votes associated with the image. Its recorded results
+	 * stay, without its ID.
 	 *
 	 * @param int $id Image ID.
 	 * @return bool|WP_Error
@@ -461,6 +462,7 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		( new Votes_Repository() )->delete_by_image( $id );
+		( new Recorded_Results_Repository() )->forget_entry( $id );
 
 		return true;
 	}
