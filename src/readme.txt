@@ -175,7 +175,7 @@ Yes. Visit **Competitions → Export** to download:
   * A file over the server's upload limit is reported as too big, on the upload form and in batch upload
   * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
   * Moving entries between categories happens all at once or not at all
-  * A category that has votes takes no new entries
+  * A category takes no new entries once voting has started in it, or once it has votes
   * An image is never saved or moved onto another entry's file
   * Deleting a competition or a member deletes their entry files too
   * Originals are discarded one at a time and exported at full size
