@@ -71,6 +71,8 @@ window.photoCompUpload = {
 	allowedFormats: [ 'jpg', 'jpeg' ],
 };
 
+const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
+
 // The script starts an uploader on each DOMContentLoaded, so it's loaded once and each test fires the event.
 require( '../../assets/src/js/drag-drop-upload' );
 
@@ -205,7 +207,7 @@ describe( 'drag-and-drop upload', () => {
 		input.dispatchEvent( new Event( 'change' ) );
 
 		expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe(
-			'Only 2 file(s) added. 1 file(s) rejected due to quota limits.'
+			'Only 2 files added. 1 file rejected due to quota limits.'
 		);
 	} );
 
@@ -284,7 +286,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 image(s). 1 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
@@ -319,7 +321,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image(s). 1 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
@@ -335,10 +337,178 @@ describe( 'drag-and-drop upload', () => {
 
 		expect( FakeXhr.requests ).toHaveLength( 1 );
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 image(s). 2 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 images. 2 uploads failed.' );
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
+	} );
+
+	describe( 'on a site in another language', () => {
+		beforeEach( () => {
+			setLocaleData(
+				{
+					'': { domain: 'photo-competition-manager', plural_forms: 'nplurals=2; plural=n != 1;' },
+					'No valid image files selected.': [ 'Níor roghnaíodh aon chomhad íomhá bailí.' ],
+					'Successfully uploaded %d image.': [ 'Uploaded %d picture.', 'Uploaded %d pictures.' ],
+				},
+				'photo-competition-manager'
+			);
+		} );
+
+		afterEach( () => {
+			resetLocaleData( undefined, 'photo-competition-manager' );
+		} );
+
+		it( 'shows the translated message when no file is an image', () => {
+			const input = document.querySelector( '#batch-file-input' );
+			Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
+			input.dispatchEvent( new Event( 'change' ) );
+
+			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
+		} );
+
+		it( 'picks the translated plural for the count', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+			expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Uploaded 2 pictures.' );
+		} );
+	} );
+
+	it( 'says one image went in, in the singular', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 0 ].respond( 200, uploaded ) );
+
+		expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Successfully uploaded 1 image.' );
+	} );
+
+	it( 'shows a category label with HTML in it as written', async () => {
+		const config = window.photoCompUpload;
+		window.photoCompUpload = { ...config, categories: [ { slug: 'colour', label: '<b>Colour</b>', quota: 3 } ] };
+		renderPage();
+		document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		window.photoCompUpload = config;
+
+		await selectFiles( [ 'one.jpg' ] );
+
+		const label = document.querySelector( '.photo-comp-category-label' );
+		expect( label.textContent ).toBe( 'Category: <b>Colour</b> (2 remaining)' );
+		expect( label.querySelector( 'b' ) ).toBeNull();
+	} );
+
+	describe( 'with two categories', () => {
+		beforeEach( () => {
+			const config = window.photoCompUpload;
+			window.photoCompUpload = {
+				...config,
+				categories: [
+					{ slug: 'colour', label: 'Colour', quota: 1 },
+					{ slug: 'mono', label: 'Mono', quota: 2 },
+				],
+				quotas: {
+					colour: { current: 0, quota: 1, remaining: 1 },
+					mono: { current: 0, quota: 2, remaining: 2 },
+				},
+			};
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+			window.photoCompUpload = config;
+		} );
+
+		/**
+		 * Select files and wait until each one's preview is on the page.
+		 *
+		 * @param {string[]} names The file names.
+		 */
+		async function selectUnassigned( names ) {
+			const input = document.querySelector( '#batch-file-input' );
+			const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
+			Object.defineProperty( input, 'files', { value: files, configurable: true } );
+			input.dispatchEvent( new Event( 'change' ) );
+
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+				await settle();
+			}
+		}
+
+		/**
+		 * The category control under a file's preview.
+		 *
+		 * @param {string} name The file name.
+		 * @return {HTMLElement} The control's container.
+		 */
+		function categoryControl( name ) {
+			const item = Array.from( document.querySelectorAll( '.photo-comp-preview-item' ) ).find(
+				( preview ) => preview.querySelector( 'img' ).alt === name
+			);
+			return item.querySelector( '.photo-comp-category-select-container' );
+		}
+
+		function choose( name, slug ) {
+			const select = categoryControl( name ).querySelector( 'select' );
+			select.value = slug;
+			select.dispatchEvent( new Event( 'change' ) );
+		}
+
+		it( 'shows the other image the one category left once a full category is chosen', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+
+			choose( 'one.jpg', 'colour' );
+
+			const one = categoryControl( 'one.jpg' ).querySelector( 'select' );
+			expect( one.value ).toBe( 'colour' );
+			expect( Array.from( one.options, ( option ) => option.textContent ) ).toEqual( [
+				'-- Select Category --',
+				'Colour',
+				'Mono (1 remaining)',
+			] );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ) ).toBeNull();
+			expect( categoryControl( 'two.jpg' ).textContent ).toBe( 'Category: Mono (1 remaining)' );
+			expect( document.querySelector( '.photo-comp-upload-all-btn' ).disabled ).toBe( false );
+		} );
+
+		it( 'gives the other image its dropdown back once the full category is freed', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			choose( 'one.jpg', 'mono' );
+
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'mono' );
+			const two = categoryControl( 'two.jpg' ).querySelector( 'select' );
+			expect( two.value ).toBe( 'mono' );
+			expect( Array.from( two.options, ( option ) => option.value ) ).toEqual( [ '', 'colour', 'mono' ] );
+		} );
+	} );
+
+	/**
+	 * Select a 2.5 MB image on a page in the given language, and return the size shown under it.
+	 *
+	 * @param {string} lang The page's lang attribute.
+	 * @return {Promise<string>} The size shown.
+	 */
+	async function sizeShownIn( lang ) {
+		document.documentElement.lang = lang;
+		const input = document.querySelector( '#batch-file-input' );
+		const file = new File( [ new Uint8Array( 2.5 * 1024 * 1024 ) ], 'big.jpg', { type: 'image/jpeg' } );
+		Object.defineProperty( input, 'files', { value: [ file ], configurable: true } );
+		input.dispatchEvent( new Event( 'change' ) );
+		for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-file-info' ); i++ ) {
+			await settle();
+		}
+		document.documentElement.lang = '';
+
+		return document.querySelector( '.photo-comp-file-info' ).textContent;
+	}
+
+	it( "shows an image's size in the site's number format", async () => {
+		expect( await sizeShownIn( 'de-DE' ) ).toBe( '2,5 MB' );
+	} );
+
+	it( "shows an image's size when the page's language isn't one the browser knows", async () => {
+		expect( await sizeShownIn( 'not a language!' ) ).toBe( '2.5 MB' );
 	} );
 
 	it( 'says the image is too big when the web server refuses it before WordPress', async () => {

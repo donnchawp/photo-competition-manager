@@ -73,6 +73,9 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		);
 
 		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 	}
 
 	public function tearDown(): void {
@@ -125,14 +128,46 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				return $server_limit;
 			}
 		);
-		// The page only registers the script when the JS has been built, which CI doesn't do.
-		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 		$_GET['token'] = $this->issue_token( true );
 
 		$output = $this->shortcode->render( array() );
 
 		$this->assertStringContainsString( "Max size: {$shown_mb} MB.", $output );
 		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	public function test_the_upload_page_loads_the_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_a_deactivated_members_page_loads_no_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( false );
+
+		$this->shortcode->render( array() );
+
+		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_a_member_with_every_category_full_loads_no_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+		$member        = $this->members->find_by_email( 'uploader@example.com' );
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $member->id,
+				'category'       => 'colour',
+				'filename'       => 'entry.jpg',
+			)
+		);
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'You have reached the maximum number of submissions for all categories.', $output );
+		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
 	}
 
 	/**
