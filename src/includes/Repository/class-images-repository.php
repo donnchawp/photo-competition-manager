@@ -326,13 +326,12 @@ class Images_Repository extends Abstract_Repository {
 			'category'               => $category,
 			'filename'               => $filename,
 			'random_number'          => $random_number,
-			'score'                  => null,
 			'original_attachment_id' => $original_attachment_id,
 			'created_at'             => utc_time(),
 			'updated_at'             => utc_time(),
 		);
 
-		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s', '%s' );
+		$format = array( '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert( $this->table(), $payload, $format );
@@ -342,45 +341,6 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		return (int) $wpdb->insert_id;
-	}
-
-	/**
-	 * Update image score.
-	 *
-	 * @param int $id    Image ID.
-	 * @param int $score Score value.
-	 * @return bool|WP_Error
-	 */
-	public function update_score( int $id, int $score ) {
-		global $wpdb;
-
-		if ( $id <= 0 ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
-		}
-
-		// Check if image exists.
-		$image = $this->find( $id );
-		if ( ! $image ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
-		}
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$updated = $wpdb->update(
-			$this->table(),
-			array(
-				'score'      => $score,
-				'updated_at' => utc_time(),
-			),
-			array( 'id' => $id ),
-			array( '%d', '%s' ),
-			array( '%d' )
-		);
-
-		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not update image score.', 'photo-competition-manager' ), $wpdb->last_error );
-		}
-
-		return true;
 	}
 
 	/**
@@ -429,7 +389,8 @@ class Images_Repository extends Abstract_Repository {
 	/**
 	 * Delete an image record.
 	 *
-	 * Also deletes any votes associated with the image.
+	 * Also deletes any votes associated with the image. Its recorded results
+	 * stay, without its ID.
 	 *
 	 * @param int $id Image ID.
 	 * @return bool|WP_Error
@@ -461,6 +422,7 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		( new Votes_Repository() )->delete_by_image( $id );
+		( new Recorded_Results_Repository() )->forget_entry( $id );
 
 		return true;
 	}
@@ -470,25 +432,6 @@ class Images_Repository extends Abstract_Repository {
 	 */
 	protected function table_suffix(): string {
 		return 'photocomp_images';
-	}
-
-	/**
-	 * Get all images with uploader info.
-	 *
-	 * @return array<object>
-	 */
-	public function get_all_images_with_uploader_info(): array {
-		global $wpdb;
-
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return $wpdb->get_results(
-			$wpdb->prepare(
-				'SELECT i.id, i.competition_id, i.member_id, i.category, i.filename, i.random_number, i.score, i.created_at, m.name AS member_name, m.email AS member_email FROM %i AS i LEFT JOIN %i AS m ON i.member_id = m.id ORDER BY i.member_id ASC',
-				$this->table(),
-				$wpdb->prefix . 'photocomp_members'
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 
 	/**

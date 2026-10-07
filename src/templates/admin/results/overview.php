@@ -11,7 +11,6 @@
  * $data['selected_category']   string Selected category slug, empty when there are no categories.
  * $data['breakdown']           array{images?: int, votes?: int, average_score?: float, min_score?: float, max_score?: float, participation_rate?: float} Category breakdown stats; empty when no category is selected.
  * $data['results_table_html'] string Pre-rendered results table HTML (trusted, pre-escaped); empty when no category is selected.
- * $data['recalculate_url']    string Nonced recalculate-scores URL.
  * $data['export_url']         string Nonced CSV export URL.
  * $data['email_url']          string Nonced email-results URL.
  * $data['share_hash']         string Competition share hash, empty when not generated.
@@ -90,11 +89,6 @@ if ( ! empty( $data['selected_category'] ) ) {
 
 // Action buttons.
 echo '<div class="photo-comp-actions" style="margin: 20px 0;">';
-
-echo '<a href="' . esc_url( $data['recalculate_url'] ) . '" class="button button-secondary">';
-echo '<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> ';
-echo esc_html__( 'Recalculate Scores', 'photo-competition-manager' );
-echo '</a> ';
 
 echo '<a href="' . esc_url( $data['export_url'] ) . '" class="button button-primary">';
 echo '<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> ';

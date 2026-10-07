@@ -53,15 +53,22 @@ A member's vote on their own entry. Members vote on their own entries like any o
 ### Results
 
 **Total score**:
-The sum of an entry's current votes. An entry with no votes has a total score of 0.
+The sum of an entry's votes. An entry with no votes has a total score of 0. It's worked out from the current votes until it's recorded, when results are published or, if they never were, when the competition closes.
 _Avoid_: Score (alone), points
 
 **Ungraded entry**:
-An entry whose member has no grade from the club's list, or no longer exists. It is a data error: only admins see it, so they can fix it, and it has no position in anything members see.
+An entry whose member has no grade from the club's list, or no longer exists. It is a data error: only admins see it, so they can fix it, and it has no position in anything members see. In recorded results, an entry whose member was deleted after recording isn't ungraded: it's a former member's.
 
 **Position**:
-An entry's place within its category and grade, ordered by total score. Tied entries share a position, and the next score takes the next position (1, 1, 2), so no position is skipped.
+An entry's place within its category and grade, ordered by total score. Tied entries share a position, and the next score takes the next position (1, 1, 2), so no position is skipped. Recorded with the total score.
 _Avoid_: Rank, place
+
+**Recorded results**:
+Each entry's total score, vote count, grade and position, kept when results are published, or the first time they're needed once the competition has closed. Every results page, the Results screen, the export and the results email read them from then on, so deleting a member, removing an entry or changing a grade afterwards moves nobody. A recorded entry keeps the grade it was entered in. Publishing again replaces them until the competition closes; after that, results can't be hidden and publishing keeps them. To correct them after the competition has closed, move its close date into the future, then hide and publish the results again.
+_Avoid_: Snapshot, frozen results
+
+**Former member**:
+How recorded results show an entry whose member has since been deleted, for whatever reason. No name is kept, the image went with the entry, and the entry keeps its position.
 
 ### Email
 

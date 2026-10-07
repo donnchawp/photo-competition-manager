@@ -374,31 +374,6 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertEquals( 1, $random_number );
 	}
 
-	public function test_update_score_modifies_image_score(): void {
-		$image_id = $this->images_repo->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $this->member_id,
-				'category'       => 'colour',
-				'filename'       => 'testuser-colour-1.jpg',
-			)
-		);
-
-		$result = $this->images_repo->update_score( $image_id, 8 );
-
-		$this->assertTrue( $result );
-
-		$image = $this->images_repo->find( $image_id );
-		$this->assertEquals( 8, $image->score );
-	}
-
-	public function test_update_score_rejects_invalid_id(): void {
-		$result = $this->images_repo->update_score( 9999, 7.0 );
-
-		$this->assertWPError( $result );
-		$this->assertEquals( 'invalid_image', $result->get_error_code() );
-	}
-
 	public function test_delete_removes_image_record(): void {
 		$image_id = $this->images_repo->create(
 			array(
@@ -565,27 +540,6 @@ class Images_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'invalid_image', $result->get_error_code() );
-	}
-
-	// ---------------------------------------------------------------
-	// get_all_images_with_uploader_info()
-	// ---------------------------------------------------------------
-
-	public function test_get_all_images_with_uploader_info_joins_member_data(): void {
-		$this->images_repo->create(
-			array(
-				'competition_id' => $this->competition_id,
-				'member_id'      => $this->member_id,
-				'category'       => 'colour',
-				'filename'       => 'test.jpg',
-			)
-		);
-
-		$results = $this->images_repo->get_all_images_with_uploader_info();
-
-		$this->assertCount( 1, $results );
-		$this->assertSame( 'Test User', $results[0]->member_name );
-		$this->assertSame( 'test@example.com', $results[0]->member_email );
 	}
 
 	// ---------------------------------------------------------------

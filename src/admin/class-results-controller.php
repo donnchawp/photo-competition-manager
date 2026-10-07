@@ -16,11 +16,11 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
@@ -71,13 +71,6 @@ class Results_Controller {
 	private $analytics;
 
 	/**
-	 * Score calculator service.
-	 *
-	 * @var Score_Calculator
-	 */
-	private $calculator;
-
-	/**
 	 * Results ranking service.
 	 *
 	 * @var Results_Ranking
@@ -99,6 +92,13 @@ class Results_Controller {
 	private $entries;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions      Competitions repository.
@@ -106,7 +106,6 @@ class Results_Controller {
 	 * @param Members_Repository      $members           Members repository.
 	 * @param Votes_Repository        $votes             Votes repository.
 	 * @param Results_Analytics       $analytics         Results analytics service.
-	 * @param Score_Calculator        $calculator        Score calculator service.
 	 * @param Results_Ranking         $ranking           Results ranking service.
 	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 * @param Entries|null            $entries           Entries module.
@@ -117,7 +116,6 @@ class Results_Controller {
 		Members_Repository $members,
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
-		Score_Calculator $calculator,
 		Results_Ranking $ranking,
 		Email_Job_Manager $email_job_manager,
 		?Entries $entries = null
@@ -127,10 +125,10 @@ class Results_Controller {
 		$this->members           = $members;
 		$this->votes             = $votes;
 		$this->analytics         = $analytics;
-		$this->calculator        = $calculator;
 		$this->ranking           = $ranking;
 		$this->email_job_manager = $email_job_manager;
 		$this->entries           = $entries ?? new Entries( $competitions, $images, $members );
+		$this->workflow          = new Competition_Workflow( $competitions, $images, $votes, null, $ranking );
 	}
 
 	/**
@@ -189,10 +187,10 @@ class Results_Controller {
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
 
-		if ( 'recalculate_scores' === $action ) {
+		if ( 'email_results' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
-			check_admin_referer( 'photo_competition_recalculate_scores_' . $competition_id );
+			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
 			$redirect_url = add_query_arg(
 				array(
@@ -202,39 +200,18 @@ class Results_Controller {
 				admin_url( 'admin.php' )
 			);
 
+			// Members are told their positions only once they're published, so they match the record.
 			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
+			if ( $competition && ! $this->workflow->results_published( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
+					'results_not_published',
+					__( 'Show results before emailing them, so every member is told the positions that are published.', 'photo-competition-manager' ),
 					'error'
 				);
+
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
-
-			// Score_Calculator::calculate_scores() always returns an array{updated, errors};
-			// it has no whole-run failure mode, so there is no WP_Error path to handle here.
-			$result = $this->calculator->calculate_scores( $competition_id );
-
-			add_settings_error(
-				'photo_competition_results',
-				'scores_recalculated',
-				sprintf(
-					/* translators: %d: number of images updated */
-					__( 'Scores recalculated successfully. %d images updated.', 'photo-competition-manager' ),
-					$result['updated']
-				),
-				'updated'
-			);
-
-			$this->redirect_with_settings_errors( $redirect_url );
-		}
-
-		if ( 'email_results' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
 			// Queue a background job for email sending.
 			$job_id = $this->email_job_manager->queue_results( $competition_id );
@@ -247,27 +224,17 @@ class Results_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager-results',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
 			// Redirect to results page with job status.
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => $competition_id,
-						'job_id'      => $job_id,
-						'status'      => 'processing',
+						'job_id' => $job_id,
+						'status' => 'processing',
 					),
-					admin_url( 'admin.php' )
+					$redirect_url
 				)
 			);
 			exit;
@@ -292,6 +259,17 @@ class Results_Controller {
 					'photo_competition_results',
 					'competition_not_found',
 					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
+			// The committee checks results before they're public, so only their link goes early.
+			if ( 'send_results_all' === $action && ! $this->workflow->results_published( $competition ) ) {
+				add_settings_error(
+					'photo_competition_results',
+					'results_not_published',
+					__( 'Show results before sending the results link to every member. The committee can be sent it before then.', 'photo-competition-manager' ),
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
@@ -502,18 +480,6 @@ class Results_Controller {
 		}
 
 		// Action buttons.
-		$recalculate_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'action'      => 'recalculate_scores',
-					'competition' => (int) $competition->id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_recalculate_scores_' . (int) $competition->id
-		);
-
 		$export_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -584,7 +550,6 @@ class Results_Controller {
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
-				'recalculate_url'      => $recalculate_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
 				'share_hash'           => $share_hash,
@@ -633,6 +598,11 @@ class Results_Controller {
 				}
 
 				foreach ( $group['entries'] as $entry ) {
+					// A recorded entry removed since has nothing left to fix.
+					if ( ! $entry['image'] ) {
+						continue;
+					}
+
 					if ( $entry['member'] ) {
 						$members[ (int) $entry['member']->id ] = array(
 							'name'  => $entry['member']->name,
@@ -679,7 +649,8 @@ class Results_Controller {
 				$image  = $entry['image'];
 				$member = $entry['member'];
 
-				$detail_url = add_query_arg(
+				// A recorded entry removed since has no image or details.
+				$detail_url = $image ? add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
 						'competition' => (int) $competition->id,
@@ -687,11 +658,11 @@ class Results_Controller {
 						'image'       => (int) $image->id,
 					),
 					admin_url( 'admin.php' )
-				);
+				) : '';
 
 				$rows[] = array(
 					'rank'        => $entry['position'],
-					'image_url'   => $this->entries->urls( $competition, $image )['thumb'],
+					'image_url'   => $image ? $this->entries->urls( $competition, $image )['thumb'] : '',
 					'member_name' => $member ? $member->name : null,
 					'total_score' => $entry['total_score'],
 					'vote_count'  => $entry['vote_count'],
@@ -845,12 +816,12 @@ class Results_Controller {
 						$group['label'],
 						$category_label,
 						$entry['position'],
-						$image->random_number,
-						$member ? $member->name : '',
+						$image ? $image->random_number : '',
+						$member ? $member->name : __( 'Former member', 'photo-competition-manager' ),
 						$member ? $member->email : '',
 						number_format( $entry['total_score'], 0 ),
 						$entry['vote_count'],
-						$image->filename,
+						$image ? $image->filename : '',
 					);
 				}
 			}

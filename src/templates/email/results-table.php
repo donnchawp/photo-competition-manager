@@ -15,9 +15,12 @@
  *     total_in_grade: int,
  *     grade: string,
  *     thumbnail_url: string,
+ *     total_score: int,
+ *     vote_count: int,
  *     statistics: array{count: int, average: float, median: float, min: float, max: float},
  *     votes: array<int, object>,
  * }> The member's entries; empty when they entered nothing. An entry with no rank is ungraded.
+ * The total score and vote count are the ones in the results; the statistics come from the votes.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -68,11 +71,11 @@ defined( 'ABSPATH' ) || exit;
 								<?php endif; ?>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
-									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['statistics']['average'] * $image_data['statistics']['count'], 0 ) ); ?></strong></td>
+									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['total_score'], 0 ) ); ?></strong></td>
 								</tr>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total Votes:', 'photo-competition-manager' ); ?></td>
-									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['statistics']['count'] ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['vote_count'] ); ?></td>
 								</tr>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Average Score:', 'photo-competition-manager' ); ?></td>

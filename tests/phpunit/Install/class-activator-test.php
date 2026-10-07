@@ -11,8 +11,11 @@ use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Legacy_Tables;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -415,7 +418,7 @@ class Activator_Test extends WP_UnitTestCase {
 		Activator::maybe_upgrade();
 
 		$this->assertSame( array(), $this->ddl );
-		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_6_keeps_each_members_ballot_and_deletes_their_other_tokens(): void {
@@ -490,6 +493,102 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $this->shadowed ) ) );
 		$this->assertSame( array(), preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
 		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_7_records_published_closed_and_archived_competitions(): void {
+		$competitions = new Competitions_Repository();
+		$published    = $this->competition_with_an_entry( 'Published', -1, 1 );
+		Workflow_Fixtures::publish_results( $published );
+		$closed   = $this->competition_with_an_entry( 'Closed', -8, -7 );
+		$archived = $this->competition_with_an_entry( 'Archived', -10, -9 );
+		$competitions->archive( $archived );
+		$upcoming = $this->competition_with_an_entry( 'Upcoming', 2, 3 );
+		// Before version 7, publishing recorded nothing.
+		( new Recorded_Results_Repository() )->delete_by_competition( $published );
+		update_option( 'photo_comp_db_version', 6 );
+
+		Activator::maybe_upgrade();
+
+		$record = new Recorded_Results_Repository();
+		$this->assertSame(
+			array( true, true, true, false ),
+			array_map( array( $record, 'has_record' ), array( $published, $closed, $archived, $upcoming ) )
+		);
+		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_7_running_again_changes_nothing(): void {
+		$closed = $this->competition_with_an_entry( 'Closed', -8, -7 );
+		update_option( 'photo_comp_db_version', 6 );
+		Activator::maybe_upgrade();
+		$recorded = ( new Recorded_Results_Repository() )->find_by_category( $closed, 'colour' );
+		Entry_Fixtures::insert_scored_entry( $closed, 'colour', 'Latecomer', 'beginner', array( 9 ) );
+
+		update_option( 'photo_comp_db_version', 6 );
+		Activator::maybe_upgrade();
+
+		$this->assertEquals( $recorded, ( new Recorded_Results_Repository() )->find_by_category( $closed, 'colour' ) );
+	}
+
+	public function test_upgrade_to_7_drops_the_unused_score_column(): void {
+		$this->shadow_v6_images_table();
+		update_option( 'photo_comp_db_version', 6 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertCount( 1, preg_grep( '/^ALTER TABLE `?\w*photocomp_images`? DROP COLUMN `?score`?$/i', $this->ddl ), implode( "\n", $this->ddl ) );
+		// The swallowed ALTER leaves the column, so the step runs again on the next request.
+		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	/**
+	 * Create a competition with one scored colour entry.
+	 *
+	 * @param string $title     Title.
+	 * @param int    $opens_in  Days from now it opens, negative in the past.
+	 * @param int    $closes_in Days from now it closes, negative in the past.
+	 * @return int Competition ID.
+	 */
+	private function competition_with_an_entry( string $title, int $opens_in, int $closes_in ): int {
+		$id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'title'      => $title,
+				'slug'       => sanitize_title( $title ) . '-' . wp_generate_password( 6, false ),
+				'open_date'  => utc_time( $opens_in * DAY_IN_SECONDS ),
+				'close_date' => utc_time( $closes_in * DAY_IN_SECONDS ),
+			)
+		);
+		$this->assertGreaterThan( 0, $id );
+		Entry_Fixtures::insert_scored_entry( $id, 'colour', $title . ' Entrant', 'beginner', array( 7 ) );
+
+		return $id;
+	}
+
+	/**
+	 * Hide the images table behind one shaped as version 6 left it, with the
+	 * score column nothing read.
+	 */
+	private function shadow_v6_images_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_images';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				member_id BIGINT UNSIGNED NOT NULL,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				filename VARCHAR(191) NOT NULL,
+				random_number BIGINT UNSIGNED NOT NULL,
+				score INT NULL,
+				original_attachment_id BIGINT UNSIGNED NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id)
+			) {$wpdb->get_charset_collate()}"
+		);
+
+		$this->record_ddl();
 	}
 
 	/**

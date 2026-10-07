@@ -11,7 +11,9 @@ use PhotoCompetitionManager\Frontend\Results_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -245,5 +247,24 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Old Grade', $html );
 		$this->assertStringNotContainsString( 'Ungraded', $html );
 		$this->assertMatchesRegularExpression( '#<td class="position">1</td>.*?Ben Example.*?<td class="position">2</td>.*?Ann Example#s', $html );
+	}
+
+	/**
+	 * A member deleted after results are published stays in their place,
+	 * as a former member without an image, and nobody moves up.
+	 */
+	public function test_a_deleted_members_entry_keeps_its_place_as_a_former_member(): void {
+		$winner    = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Zed Winner', 'beginner', array( 9 ) );
+		$member_id = (int) ( new Images_Repository() )->find( $winner )->member_id;
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $member_id );
+		( new Members_Repository() )->delete( $member_id );
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Former member</td>', $html );
+		$this->assertStringNotContainsString( 'Zed Winner', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+		$this->assertMatchesRegularExpression( '/Former member.*Ann Example/s', $html );
 	}
 }

@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
@@ -20,6 +21,7 @@ use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 class Email_Job_Manager_Test extends WP_UnitTestCase {
@@ -307,6 +309,43 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$text = preg_replace( '/\s+/', ' ', wp_strip_all_tags( $this->bodies['scored@example.com'] ) );
 		$this->assertStringContainsString( 'Final Score: 27 Total Votes: 4 Average Score: 6.75 Median Score: 6.50 Score Range: 5 - 9', $text );
 		$this->assertMatchesRegularExpression( '/Vote # Score( \d \d){4} /', $text );
+	}
+
+	public function test_results_email_keeps_recorded_positions_after_a_member_is_deleted(): void {
+		$winner = $this->seed_entrant( 'winner@example.com' );
+		$this->vote_for( $winner, 9 );
+		$this->vote_for( $this->seed_entrant( 'runner-up@example.com' ), 5 );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $winner );
+		$this->members->delete( $winner );
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertSame( array( 'runner-up@example.com' ), $this->recipients );
+		$this->assertStringContainsString( '2 of 2 (Beginner)', $this->bodies['runner-up@example.com'] );
+	}
+
+	public function test_results_email_gives_the_recorded_score_after_votes_are_cleared(): void {
+		$this->vote_for( $this->seed_entrant( 'scored@example.com' ), 9 );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		( new Competition_Workflow() )->reset_category( $this->competition_id, 'colour', true );
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$text = preg_replace( '/\s+/', ' ', wp_strip_all_tags( $this->bodies['scored@example.com'] ) );
+		$this->assertStringContainsString( 'Final Score: 9 Total Votes: 1', $text );
+	}
+
+	public function test_results_email_leaves_out_an_entry_removed_after_results_are_recorded(): void {
+		$member_id = $this->seed_entrant( 'two-entries@example.com' );
+		$this->add_entry( $member_id );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$removed = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[0];
+		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $removed->id );
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertSame( 1, substr_count( $this->bodies['two-entries@example.com'], 'Final Score:' ) );
 	}
 
 	public function test_results_email_does_not_reload_the_entry_or_member(): void {

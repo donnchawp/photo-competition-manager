@@ -169,10 +169,13 @@ Admins can upload or replace images for any member directly from the dashboard.
   - `settings`: the competition's configuration (categories, upload limits, voting options)
   - `workflow`: uploads closed, results published, and each category's voting stage. Only `Competition_Workflow` reads or writes it, so saving settings can't change it.
 - `wp_photocomp_images`
-  - id, member_id, competition_id, category, filename, random_number, score, created_at
+  - id, member_id, competition_id, category, filename, random_number, created_at
 - `wp_photocomp_votes`
   - id, competition_id, category, voter_name, voting_token_id, image_id, score, created_at
   - A voter gets one vote per image: unique keys on (image_id, voting_token_id) and (image_id, voter_name) refuse a second ballot, which the voting page reports as already voted.
+- `wp_photocomp_recorded_results`
+  - id, competition_id, category, entry_id, member_id, grade, total_score, vote_count, position, created_at
+  - One row per entry, written when results are published, or the first time they're needed once the competition has closed. Results are read from here from then on. Deleting the entry or member sets its ID to null and keeps the row, so nobody else moves; a unique key on (competition_id, entry_id) stops two requests recording a competition twice.
 - `wp_photocomp_voting_tokens`
   - id, member_id, competition_id, category, token_hash, expires_at, first_accessed_at, sent_at, created_at
   - A member has one token per competition and category: a unique key on (member_id, competition_id, category). Asking for a voting link again renews it with a new hash and expiry, so the old link stops working and the member's ballot stays with the token.
@@ -197,6 +200,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - Groups results by member grade, in the club's grade order
 - Sorts by total score (highest to lowest); tied entries share a position (1, 1, 2)
 - Leaves out ungraded entries; the admin Results screen lists them with a warning
+- Once results are published, or the competition has closed, shows the recorded results: a member deleted since shows as "Former member" in their place, without an image
 - Shows position, image thumbnail, member name, category, score, and vote count
 - Responsive table design with mobile-friendly layout
 - Clickable thumbnails link to full-size images

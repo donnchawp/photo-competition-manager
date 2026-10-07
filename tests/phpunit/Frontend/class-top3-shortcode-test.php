@@ -11,7 +11,9 @@ use PhotoCompetitionManager\Frontend\Top3_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -195,5 +197,24 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( 'No Grade', $html );
 		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
+	}
+
+	/**
+	 * A member deleted after results are published stays in their place,
+	 * as a former member without an image, and nobody moves up.
+	 */
+	public function test_a_deleted_members_entry_keeps_its_place_as_a_former_member(): void {
+		$winner    = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Zed Winner', 'beginner', array( 9 ) );
+		$member_id = (int) ( new Images_Repository() )->find( $winner )->member_id;
+		( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $member_id );
+		( new Members_Repository() )->delete( $member_id );
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		$this->assertStringContainsString( '<div class="member-name">Former member</div>', $html );
+		$this->assertStringNotContainsString( 'Zed Winner', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+		$this->assertMatchesRegularExpression( '/Former member.*Ann Example/s', $html );
 	}
 }

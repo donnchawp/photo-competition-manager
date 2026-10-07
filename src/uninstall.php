@@ -185,6 +185,7 @@ function photo_competition_manager_drop_tables( $wpdb ) {
 		'photocomp_upload_tokens',
 		'photocomp_voting_tokens',
 		'photocomp_logs',
+		'photocomp_recorded_results',
 	);
 
 	// Drop each table.

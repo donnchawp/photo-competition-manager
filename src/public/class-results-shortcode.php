@@ -82,7 +82,7 @@ class Results_Shortcode {
 		$this->images_repo       = $images_repo ?? new Images_Repository();
 		$members_repo            = $members_repo ?? new Members_Repository();
 		$this->workflow          = new Competition_Workflow( $this->competitions_repo, $this->images_repo );
-		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo );
+		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo, $this->competitions_repo, $this->workflow );
 		$this->entries           = $entries ?? new Entries( $this->competitions_repo, $this->images_repo, $members_repo );
 	}
 
@@ -211,10 +211,14 @@ class Results_Shortcode {
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
 													$position    = $result['position'];
-													$image_urls  = $this->entries->urls( $competition, $image );
-													$thumb_url   = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
+													// A recorded entry deleted since has no image.
+													$image_urls = $image ? $this->entries->urls( $competition, $image ) : array(
+														'full'  => '',
+														'thumb' => '',
+													);
+													$thumb_url  = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 													/* translators: %d: Anonymised image identifier. */
-													$alt_text = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
+													$alt_text = $image ? sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number ) : '';
 													?>
 													<tr>
 														<td class="position"><?php echo esc_html( $position ); ?></td>
@@ -226,10 +230,12 @@ class Results_Shortcode {
 																	<?php esc_html_e( 'Image unavailable', 'photo-competition-manager' ); ?>
 																</div>
 															<?php endif; ?>
-															<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+															<?php if ( $image ) : ?>
+																<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+															<?php endif; ?>
 														</td>
 														<?php if ( ! $hide_names ) : ?>
-															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member->name ); ?></td>
+															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member ? $member->name : __( 'Former member', 'photo-competition-manager' ) ); ?></td>
 														<?php endif; ?>
 														<td class="score" data-label="<?php esc_attr_e( 'Score', 'photo-competition-manager' ); ?>"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
 													</tr>

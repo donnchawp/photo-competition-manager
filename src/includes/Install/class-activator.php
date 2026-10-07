@@ -10,12 +10,15 @@ namespace PhotoCompetitionManager\Install;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
@@ -29,7 +32,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 6;
+	const DB_VERSION = 7;
 
 	/**
 	 * Option holding the installed data version.
@@ -101,6 +104,13 @@ class Activator {
 		// A member has one voting token per category, and asking for a link
 		// again renews it. Old tables never got the unique key that says so.
 		if ( $installed < 6 && ! self::make_voting_tokens_unique() ) {
+			return;
+		}
+
+		// Results are recorded when they're published, so deleting a member
+		// later moves nobody. Record what past competitions have now, and
+		// drop the score column nothing read.
+		if ( $installed < 7 && ( ! self::record_past_results() || ! self::drop_image_score() ) ) {
 			return;
 		}
 
@@ -444,6 +454,57 @@ class Activator {
 	}
 
 	/**
+	 * Record the results of every competition whose results are published,
+	 * or that has closed or been archived, unless they're recorded already.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if a competition couldn't be recorded.
+	 */
+	private static function record_past_results(): bool {
+		global $wpdb;
+
+		// Requests run upgrades without activating, so add the table here.
+		// Only when it's missing: DDL ends the running transaction.
+		if ( ! ( new Recorded_Results_Repository() )->table_exists() ) {
+			self::create_tables();
+		}
+
+		$ranking = new Results_Ranking( new Images_Repository(), new Votes_Repository(), new Members_Repository() );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		foreach ( $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i', ( new Competitions_Repository() )->table() ) ) as $competition ) {
+			if ( is_wp_error( $ranking->record_if_missing( $competition ) ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Drop images.score. Nothing read it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the column couldn't be dropped.
+	 */
+	private static function drop_image_score(): bool {
+		global $wpdb;
+
+		$table = ( new Images_Repository() )->table();
+
+		if ( ! self::column_exists( $table, 'score' ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP COLUMN score', $table ) );
+
+		return ! self::column_exists( $table, 'score' );
+	}
+
+	/**
 	 * Drop voting_tokens.used_at. Nothing ever set it.
 	 *
 	 * @since 0.4.0
@@ -625,7 +686,6 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			filename VARCHAR(191) NOT NULL,
 			random_number BIGINT UNSIGNED NOT NULL,
-			score INT NULL,
 			original_attachment_id BIGINT UNSIGNED NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
@@ -702,6 +762,24 @@ class Activator {
 			KEY created_at (created_at)
 		) {$charset_collate};";
 
+		// A row outlives its entry and member: deleting either sets its ID to null.
+		$recorded_results = "CREATE TABLE {$wpdb->prefix}photocomp_recorded_results (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			category VARCHAR(100) NOT NULL,
+			entry_id BIGINT UNSIGNED NULL,
+			member_id BIGINT UNSIGNED NULL,
+			grade VARCHAR(100) NOT NULL DEFAULT '',
+			total_score INT NOT NULL,
+			vote_count INT NOT NULL,
+			position INT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY competition_entry (competition_id, entry_id),
+			KEY entry (entry_id),
+			KEY member (member_id)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -710,6 +788,7 @@ class Activator {
 			$upload_tokens,
 			$voting_tokens,
 			$logs,
+			$recorded_results,
 		);
 	}
 }

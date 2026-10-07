@@ -15,6 +15,8 @@
  *         detail_url: string,
  *     }>,
  * }> Per-grade result tables to render; grades with no results are omitted.
+ * A row with no member name is a former member's, and one with no detail URL
+ * is a recorded entry removed since.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -53,7 +55,7 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 		if ( null !== $row['member_name'] ) {
 			echo esc_html( $row['member_name'] );
 		} else {
-			echo '<em>' . esc_html__( 'Unknown', 'photo-competition-manager' ) . '</em>';
+			echo '<em>' . esc_html__( 'Former member', 'photo-competition-manager' ) . '</em>';
 		}
 		echo '</td>';
 
@@ -62,7 +64,9 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 		echo '<td>' . absint( $row['vote_count'] ) . '</td>';
 
 		echo '<td>';
-		echo '<a href="' . esc_url( $row['detail_url'] ) . '" class="button button-small">' . esc_html__( 'View Details', 'photo-competition-manager' ) . '</a>';
+		if ( '' !== $row['detail_url'] ) {
+			echo '<a href="' . esc_url( $row['detail_url'] ) . '" class="button button-small">' . esc_html__( 'View Details', 'photo-competition-manager' ) . '</a>';
+		}
 		echo '</td>';
 
 		echo '</tr>';
