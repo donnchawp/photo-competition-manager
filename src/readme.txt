@@ -160,9 +160,8 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs three database upgrades (versions 2, 3 and 4) on the first request after it's installed.
+  * Back up the database first. The update runs four database upgrades (versions 2 to 5) on the first request after it's installed.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
-  * If you customised the Voting Opened email template, members who ask for a voting link get the built-in email until you save the Email Templates screen, which stores the new Voting Link template.
 
 * **Competitions**
   * Only one competition can be open at a time, with a new Close Competition action
@@ -203,6 +202,11 @@ Yes. Visit **Competitions → Export** to download:
   * Upload and voting links are no longer sent to deactivated members, whose email addresses are now marked
   * Bulk member emails go out in batches, and stopped email jobs show on every admin page
   * Editors can use the Email Templates page
+  * Every email sends the text the Email Templates page shows, even on a site that has never saved it
+  * Only the Voting Opened and Submission Confirmed notifications can be switched off. Upload links, voting links and results emails always send
+  * Names and links are escaped in emails, and the detailed results table is no longer reformatted
+  * The submission confirmation counts the image just uploaded
+  * Each sent email is logged under its kind of email and against its competition
   * Saving the club settings no longer reassigns member grades, and every way of saving a member requires a club grade
 
 * **Errors and logging**
