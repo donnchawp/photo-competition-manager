@@ -272,6 +272,48 @@ class Email_Service_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Site names as typed in Settings > General.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function site_names(): array {
+		return array(
+			'plain'                 => array( 'Camera Club' ),
+			'ampersand'             => array( 'Camera & Club' ),
+			'apostrophe and quotes' => array( 'Seán\'s "Snappers"' ),
+		);
+	}
+
+	/**
+	 * WordPress saves the site name escaped, so it's decoded before going
+	 * into the plain-text subject and escaped exactly once in the body.
+	 *
+	 * @dataProvider site_names
+	 *
+	 * @param string $typed Site name as typed.
+	 */
+	public function test_the_site_name_appears_as_typed( string $typed ) {
+		update_option( 'blogname', $typed );
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'upload_reminder' => array(
+					'enabled' => true,
+					'subject' => '{site_name}: {competition_title}',
+					'body'    => 'Welcome to {site_name}',
+				),
+			)
+		);
+
+		$this->send_upload_link();
+
+		$this->assertSame( "[{$typed}] {$typed}: Spring Show", $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Welcome to ' . esc_html( $typed ), $this->last_mail['message'] );
+		$this->assertStringContainsString( 'This email was sent by ' . esc_html( $typed ), $this->last_mail['message'] );
+		$this->assertStringNotContainsString( '&amp;amp;', $this->last_mail['message'] );
+	}
+
+	/**
 	 * A value that looks like a tag is left as it is, not filled in.
 	 */
 	public function test_a_value_that_looks_like_a_tag_stays_as_it_is() {
