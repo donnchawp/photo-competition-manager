@@ -267,4 +267,46 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Image unavailable', $html );
 		$this->assertMatchesRegularExpression( '/Former member.*Ann Example/s', $html );
 	}
+
+	/**
+	 * Recorded results stay on the page after every entry is removed, as
+	 * they do on the Results screen.
+	 */
+	public function test_recorded_results_are_shown_after_every_entry_is_removed(): void {
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+		$image = ( new Images_Repository() )->find_by_competition( $this->competition_id )[0];
+
+		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $image->id );
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringNotContainsString( 'No images submitted', $html );
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+	}
+
+	/**
+	 * A recorded entry keeps the grade it was entered in, even once that
+	 * grade is gone from the club's list.
+	 */
+	public function test_recorded_entries_in_a_grade_since_removed_are_shown(): void {
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				)
+			)
+		);
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( '<h4>beginner</h4>', $html );
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+	}
 }

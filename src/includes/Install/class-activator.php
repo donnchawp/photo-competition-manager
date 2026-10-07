@@ -393,8 +393,14 @@ class Activator {
 
 		// Old tables have a plain key with this name, so dbDelta can't add
 		// the unique one: drop it and add it back unique in one statement.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
-		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition_category, ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+		// Without one, the drop would fail every time, so just add it.
+		if ( self::has_key( $table, 'member_competition_category' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition_category, ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+		}
 
 		return self::voting_tokens_are_unique( $table );
 	}
@@ -450,8 +456,14 @@ class Activator {
 
 		// Old tables have a plain key with this name, so dbDelta can't add
 		// the unique one: drop it and add it back unique in one statement.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
-		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition, ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+		// Without one, the drop would fail every time, so just add it.
+		if ( self::has_key( $table, 'member_competition' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition, ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+		}
 
 		return self::upload_tokens_are_unique( $table );
 	}
@@ -511,6 +523,22 @@ class Activator {
 		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Non_unique = 0', $table ), 2 );
 
 		return array() === array_diff( $keys, $found );
+	}
+
+	/**
+	 * Whether a table has a key of that name, unique or not.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Table name.
+	 * @param string $key   Key name.
+	 * @return bool
+	 */
+	private static function has_key( string $table, string $key ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Key_name = %s', $table, $key ) );
 	}
 
 	/**

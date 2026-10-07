@@ -334,6 +334,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$text = preg_replace( '/\s+/', ' ', wp_strip_all_tags( $this->bodies['scored@example.com'] ) );
 		$this->assertStringContainsString( 'Final Score: 9 Total Votes: 1', $text );
+		// The votes behind the record are gone, so there's nothing to break
+		// the score down from: an average of 0 beside it would be wrong.
+		$this->assertStringNotContainsString( 'Average Score', $text );
+		$this->assertStringNotContainsString( 'Median Score', $text );
+		$this->assertStringNotContainsString( 'Score Range', $text );
+		$this->assertStringNotContainsString( 'Individual Votes', $text );
 	}
 
 	public function test_results_email_leaves_out_an_entry_removed_after_results_are_recorded(): void {

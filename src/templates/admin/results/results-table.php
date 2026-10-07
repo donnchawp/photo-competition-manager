@@ -13,10 +13,12 @@
  *         total_score: int,
  *         vote_count: int,
  *         detail_url: string,
+ *         recorded: bool,
  *     }>,
  * }> Per-grade result tables to render; grades with no results are omitted.
- * A row with no member name is a former member's, and one with no detail URL
- * is a recorded entry removed since.
+ * A recorded row with no member name is a former member's; an unrecorded one
+ * has lost its member, a data error. A row with no detail URL is a recorded
+ * entry removed since.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -54,8 +56,10 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 		echo '<td>';
 		if ( null !== $row['member_name'] ) {
 			echo esc_html( $row['member_name'] );
-		} else {
+		} elseif ( $row['recorded'] ) {
 			echo '<em>' . esc_html__( 'Former member', 'photo-competition-manager' ) . '</em>';
+		} else {
+			echo '<em>' . esc_html__( 'Unknown', 'photo-competition-manager' ) . '</em>';
 		}
 		echo '</td>';
 

@@ -75,6 +75,8 @@ class Results_Ranking {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param Images_Repository                $images       Images repository.
 	 * @param Votes_Repository                 $votes        Votes repository.
 	 * @param Members_Repository               $members      Members repository.
@@ -108,16 +110,19 @@ class Results_Ranking {
 	 * In recorded results, an entry keeps the grade it was entered in, and
 	 * an entry whose member or entry has since been deleted keeps its place
 	 * with a null `member` or `image`. A grade no longer on the club's list
-	 * follows the club's grades, labelled with its slug.
+	 * follows the club's grades, labelled with its slug. Each entry's
+	 * `recorded` says whether it was read from the record.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	public function rank_category( int $competition_id, string $category ): array {
 		$competition = $this->competitions->find( $competition_id, true );
 
-		if ( $competition && $this->keeps_record( $competition ) && true === $this->record_if_missing( $competition ) ) {
+		if ( $competition && $this->workflow->reads_recorded_results( $competition ) && true === $this->record_if_missing( $competition ) ) {
 			$groups = $this->rank_recorded( $competition_id, $category );
 		} else {
 			$groups = $this->rank_live( $competition_id, $category );
@@ -140,6 +145,8 @@ class Results_Ranking {
 	 * The record is replaced, unless the competition has closed: then an
 	 * existing record stays, so nobody deleted since drops out of it.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */
@@ -157,25 +164,17 @@ class Results_Ranking {
 	 * Record a competition's results if they're published, or it has closed,
 	 * and they aren't recorded yet.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error True when there's nothing to record, or it's recorded.
 	 */
 	public function record_if_missing( object $competition ) {
-		if ( ! $this->keeps_record( $competition ) ) {
+		if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
 			return true;
 		}
 
 		return $this->insert_if_missing( $competition );
-	}
-
-	/**
-	 * Whether a competition's results are read from its record.
-	 *
-	 * @param object $competition Competition row.
-	 * @return bool
-	 */
-	private function keeps_record( object $competition ): bool {
-		return $this->workflow->results_published( $competition ) || $this->workflow->has_closed( $competition );
 	}
 
 	/**
@@ -231,7 +230,7 @@ class Results_Ranking {
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	private function rank_recorded( int $competition_id, string $category ): array {
 		$rows = $this->record->find_by_category( $competition_id, $category );
@@ -267,6 +266,7 @@ class Results_Ranking {
 				'member'      => $members[ (int) $row->member_id ] ?? null,
 				'total_score' => (int) $row->total_score,
 				'vote_count'  => (int) $row->vote_count,
+				'recorded'    => true,
 			);
 		}
 
@@ -322,7 +322,7 @@ class Results_Ranking {
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	private function rank_live( int $competition_id, string $category ): array {
 		$images = $this->images->find_by_competition( $competition_id, $category );
@@ -344,6 +344,7 @@ class Results_Ranking {
 				'member'      => $member,
 				'total_score' => $votes[ (int) $image->id ]['total_score'] ?? 0,
 				'vote_count'  => $votes[ (int) $image->id ]['vote_count'] ?? 0,
+				'recorded'    => false,
 			);
 		}
 

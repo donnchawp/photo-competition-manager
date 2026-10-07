@@ -143,7 +143,6 @@ class Results_Shortcode {
 	 */
 	private function render_results( object $competition, bool $hide_names, string $share_hash ): void {
 		$settings   = Competition_Settings::parse( $competition->settings );
-		$grades     = Competition_Settings::club_grades();
 		$categories = Competition_Settings::get_categories( $settings );
 
 		if ( ! $this->results_viewable( $competition, $share_hash ) ) {
@@ -154,19 +153,27 @@ class Results_Shortcode {
 			return;
 		}
 
-		if ( empty( $this->images_repo->find_by_competition( (int) $competition->id ) ) ) {
+		// Rank each category by grade. A recorded entry keeps the grade it
+		// was entered in, even one since removed from the club's list.
+		$rankings = array();
+		foreach ( $categories as $category_config ) {
+			$rankings[ $category_config['slug'] ] = $this->ranking->rank_category( (int) $competition->id, $category_config['slug'] );
+		}
+
+		if ( empty( array_filter( $rankings ) ) ) {
 			echo '<p class="notice">' . esc_html__( 'No images submitted for this competition yet.', 'photo-competition-manager' ) . '</p>';
 			return;
 		}
 
-		// Rank each category within the club's grades. Ungraded entries are for admins to fix and aren't shown.
+		// Ungraded entries are for admins to fix and aren't shown.
 		$results_by_category = array();
-		foreach ( $categories as $category_config ) {
-			foreach ( $this->ranking->rank_category( (int) $competition->id, $category_config['slug'] ) as $group ) {
-				if ( ! $group['ungraded'] ) {
-					$results_by_category[ $category_config['slug'] ][ $group['slug'] ] = $group['entries'];
-				}
-			}
+		foreach ( $rankings as $category_slug => $groups ) {
+			$results_by_category[ $category_slug ] = array_values(
+				array_filter(
+					$groups,
+					static fn( array $group ): bool => ! $group['ungraded']
+				)
+			);
 		}
 
 		?>
@@ -183,11 +190,10 @@ class Results_Shortcode {
 					<div class="results-category-section">
 						<h3><?php echo esc_html( $category_label ); ?></h3>
 
-						<?php foreach ( $grades as $grade_config ) : ?>
+						<?php foreach ( $category_results as $grade_group ) : ?>
 							<?php
-							$grade_slug    = $grade_config['slug'];
-							$grade_label   = $grade_config['label'];
-							$grade_results = $category_results[ $grade_slug ] ?? array();
+							$grade_label   = $grade_group['label'];
+							$grade_results = $grade_group['entries'];
 							?>
 							<?php if ( ! empty( $grade_results ) ) : ?>
 								<div class="results-grade-section">

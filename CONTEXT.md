@@ -42,6 +42,7 @@ The score one entry got on one ballot.
 
 **Voter**:
 Whoever casts a ballot. A link voter is a member, proved by their voting link. A named voter is a name given with the club's voting password, taken on trust. Names that differ only in case, accents or surrounding spaces belong to the same voter, so "Seán" and "sean" are one voter.
+Asking for a voting link replaces the member's earlier one. That's an accepted trade-off: anyone who knows a member's email can make their earlier link stop working, at most once every 5 minutes, but the member always receives the newest link, so no votes are lost.
 _Avoid_: User, member (for a named voter)
 
 **Reset**:

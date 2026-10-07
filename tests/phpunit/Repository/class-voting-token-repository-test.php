@@ -98,7 +98,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
 
-		$this->assertSame( '1', $this->repository->get_tracking_by_competition( 2 )[1]->token_count );
+		global $wpdb;
+		$this->assertSame( '1', $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = 1', $this->shadowed ) ) );
 	}
 
 	/**
@@ -164,6 +165,33 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertIsInt( $token_id );
 		$this->assertGreaterThan( 0, $token_id );
+	}
+
+	/**
+	 * When the database refuses the renewal, the member gets an error, not
+	 * a link that was never saved.
+	 *
+	 * @return void
+	 */
+	public function test_renew_fails_when_the_token_cannot_be_updated(): void {
+		global $wpdb;
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'first' ), $expires_at );
+		$break_update = function ( $query ) {
+			return 0 === strpos( $query, 'UPDATE' ) && false !== strpos( $query, 'photocomp_voting_tokens' )
+				? 'UPDATE photocomp_no_such_table SET id = 1'
+				: $query;
+		};
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+
+		$result = $this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
+		$this->assertWPError( $result );
+		$this->assertSame( 'db_update_failed', $result->get_error_code() );
+		$this->assertNotNull( $this->repository->find_valid_token( hash( 'sha256', 'first' ) ) );
 	}
 
 	/**
@@ -459,6 +487,10 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 		// Member 3 should have opened link.
 		$this->assertArrayHasKey( 3, $tracking );
 		$this->assertNotNull( $tracking[3]->first_opened_at );
+
+		// Renewing resets created_at and keeps one token, so nothing else
+		// it could report would mean what it says.
+		$this->assertSame( array( 'member_id', 'first_opened_at' ), array_keys( get_object_vars( $tracking[1] ) ) );
 	}
 
 	/**

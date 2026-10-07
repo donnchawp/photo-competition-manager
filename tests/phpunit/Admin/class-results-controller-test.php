@@ -139,6 +139,22 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Create a competition with no dates, so it's open and its results are
+	 * worked out from the votes until they're published.
+	 *
+	 * @param array<string, mixed> $overrides Field overrides.
+	 * @return int Competition ID.
+	 */
+	private function create_open_competition( array $overrides = array() ): int {
+		return $this->create_competition(
+			array(
+				'open_date'  => null,
+				'close_date' => null,
+			) + $overrides
+		);
+	}
+
+	/**
 	 * Seed a member and an image they submitted in a category.
 	 *
 	 * @param int    $competition_id Competition ID.
@@ -258,6 +274,32 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * is told is the recorded one.
 	 */
 	public function test_email_results_before_results_are_published_is_refused(): void {
+		$id = $this->create_open_competition();
+		$this->seed_member_with_image( $id, 'colour' );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertStringContainsString( 'or once the competition has closed', implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_results' ), 'message' ) ) );
+	}
+
+	/**
+	 * A competition that closed without anyone pressing Show Results is read
+	 * from its record, so its results can be emailed.
+	 */
+	public function test_email_results_once_the_competition_has_closed_is_allowed(): void {
 		$this->seed_member_with_image( $this->competition_id, 'colour' );
 		$this->set_request(
 			array(
@@ -273,8 +315,8 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
-		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertStringContainsString( 'job_id=', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**
@@ -401,7 +443,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * The results link goes to every member only once results are published.
 	 */
 	public function test_send_results_all_before_results_are_published_is_refused(): void {
-		$id = $this->create_competition(
+		$id = $this->create_open_competition(
 			array(
 				'share_hash' => 'jkl012hash',
 				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
@@ -425,6 +467,37 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
 		$this->assertStringNotContainsString( 'job_id=', $location );
+	}
+
+	/**
+	 * Once the competition has closed, its results are read from the
+	 * record, so every member can be sent the link.
+	 */
+	public function test_send_results_all_once_the_competition_has_closed_is_allowed(): void {
+		$id = $this->create_competition(
+			array(
+				'share_hash' => 'closedhash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**
@@ -771,6 +844,34 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$this->summarize_export_rows( $rows )
 		);
 		$this->assertSame( array( '', '', '' ), array( $rows[1][4], $rows[1][6], $rows[1][9] ) );
+	}
+
+	/**
+	 * Before results are recorded, an entry whose member is missing is an
+	 * ungraded data error, not a former member's, so it's exported as
+	 * "Unknown", as the Results screen shows it.
+	 */
+	public function test_export_rows_call_a_missing_member_unknown_before_results_are_recorded(): void {
+		$this->competition_id = $this->create_open_competition();
+		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
+		$this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => 999999,
+				'category'       => 'colour',
+				'filename'       => 'orphan.jpg',
+			)
+		);
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Colour|1|Winner',
+				'Ungraded|Colour|1|Unknown',
+			),
+			$this->summarize_export_rows( $rows )
+		);
 	}
 
 	/*
