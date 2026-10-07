@@ -29,7 +29,8 @@ class Email_Kinds {
 	 * Each kind has a label and description for the Email Templates screen,
 	 * whether it is a notification (which an admin can switch off) and, if so,
 	 * whether it is on by default, its default subject and body, and its own
-	 * merge tags. A tag's type is text, link or html.
+	 * merge tags. A tag's type is text, link or html. A kind sent to members in
+	 * bulk by an email job has the job's wording and the admin page that sends it.
 	 *
 	 * @since 0.4.0
 	 *
@@ -50,6 +51,13 @@ class Email_Kinds {
 					__( 'Once voting opens, you can vote at {voting_page}', 'photo-competition-manager' ),
 					__( "If you didn't ask for this email, your club's competitions officer may have sent it. You can ignore it if you don't want to enter this competition.", 'photo-competition-manager' ),
 					__( 'If you have any questions, please contact your club competitions officer.', 'photo-competition-manager' )
+				),
+				'job'          => array(
+					'page'    => 'photo-competition-manager',
+					'sending' => __( 'Sending upload link emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Upload link emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{upload_link}' => array(
@@ -73,6 +81,13 @@ class Email_Kinds {
 					__( 'Voting is now open for {competition_title}. Visit the voting page to see the entries and cast your votes.', 'photo-competition-manager' ),
 					self::button( '{voting_page}', __( 'Go to the voting page', 'photo-competition-manager' ) ),
 					__( 'Voting closes on {close_date}.', 'photo-competition-manager' )
+				),
+				'job'           => array(
+					'page'    => 'photo-competition-manager-voting',
+					'sending' => __( 'Sending voting opened emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Voting opened emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
 				),
 				'tags'          => array(
 					'{voting_page}' => array(
@@ -120,6 +135,13 @@ class Email_Kinds {
 					__( "This is a private link. Please don't share it publicly.", 'photo-competition-manager' ),
 					__( 'Thank you to everyone who took part.', 'photo-competition-manager' )
 				),
+				'job'          => array(
+					'page'    => 'photo-competition-manager-results',
+					'sending' => __( 'Sending results link emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Results link emails sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+				),
 				'tags'         => array(
 					'{results_page}'       => array(
 						'type'        => 'link',
@@ -142,6 +164,13 @@ class Email_Kinds {
 					__( 'The results for {competition_title} are now available. Here are your results:', 'photo-competition-manager' )
 				) . "\n\n{results_table}\n\n" . self::body(
 					__( 'Thank you for taking part in this competition!', 'photo-competition-manager' )
+				),
+				'job'          => array(
+					'page'    => 'photo-competition-manager-results',
+					'sending' => __( 'Sending results emails...', 'photo-competition-manager' ),
+					'sent'    => __( 'Email results sent successfully!', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{results_table}' => array(

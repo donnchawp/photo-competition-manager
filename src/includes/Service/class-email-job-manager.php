@@ -24,8 +24,8 @@ use function PhotoCompetitionManager\Support\utc_time;
 /**
  * Class Email_Job_Manager
  *
- * A job is one bulk send of one email type to a list of members. Job types:
- * results, upload_link, voting_opened, results_share.
+ * A job is one bulk send of one kind of email to a list of members. A job's
+ * type is the kind's key, from Email_Kinds.
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -219,7 +219,7 @@ class Email_Job_Manager {
 			return false;
 		}
 
-		return $this->queue( 'results', $competition_id, $member_ids );
+		return $this->queue( 'results_detailed', $competition_id, $member_ids );
 	}
 
 	/**
@@ -334,13 +334,6 @@ class Email_Job_Manager {
 
 		if ( ! $competition ) {
 			$this->fail_job( $job_id, $job, 'Competition not found' );
-			return;
-		}
-
-		// Unlike the other emails, voting opened has no built-in fallback, so
-		// every member would fail with a misleading wp_mail() error.
-		if ( 'voting_opened' === ( $job['type'] ?? '' ) && ! $this->email_service->is_template_enabled( 'voting_opened' ) ) {
-			$this->fail_job( $job_id, $job, 'The Voting Opened email template was turned off or has no subject or body.' );
 			return;
 		}
 
@@ -468,54 +461,45 @@ class Email_Job_Manager {
 	 * @param array  $job         Job data.
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
-	 * @return string|WP_Error 'sent', 'skipped' (e.g. rate limited), or an error.
+	 * @return string|WP_Error 'sent', 'skipped' (e.g. rate limited, or the notification is off), or an error.
 	 */
 	private function send_to_member( array $job, object $competition, object $member ) {
 		$args = $job['args'] ?? array();
 
-		switch ( $job['type'] ?? 'results' ) {
-			case 'results':
-				$sent = $this->send_results( $competition, $member );
-				break;
+		switch ( $job['type'] ) {
+			case 'results_detailed':
+				return $this->email_service->send( 'results_detailed', $member, $competition, array( '{results_table}' => $this->results_table( $competition, $member ) ) );
 
-			case 'upload_link':
+			case 'upload_reminder':
 				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id, (string) $args['upload_page_url'] );
 
 			case 'voting_opened':
-				$sent = $this->email_service->send_voting_opened_notification(
-					$member->email,
-					$member->name,
-					$competition->title,
-					(string) $args['voting_page_url'],
-					(string) $args['close_date']
+				return $this->email_service->send(
+					'voting_opened',
+					$member,
+					$competition,
+					array(
+						'{voting_page}' => (string) $args['voting_page_url'],
+						'{close_date}'  => (string) $args['close_date'],
+					)
 				);
-				break;
 
-			case 'results_share':
-				$sent = $this->email_service->send_results_share_link(
-					$member->email,
-					$member->name,
-					$competition->title,
-					(string) $args['share_url'],
-					(int) $competition->id
-				);
-				break;
+			case 'results_published':
+				return $this->email_service->send( 'results_published', $member, $competition, array( '{results_page}' => (string) $args['share_url'] ) );
 
 			default:
 				return new WP_Error( 'unknown_email_job_type', sprintf( 'Unknown email job type "%s"', $job['type'] ) );
 		}
-
-		return $sent ? 'sent' : new WP_Error( 'send_failed', 'wp_mail() failed' );
 	}
 
 	/**
-	 * Build and send one member's detailed results email.
+	 * A member's results table: the rank, scores and votes for each of their entries.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
-	 * @return bool Whether the email was sent.
+	 * @return string HTML.
 	 */
-	private function send_results( object $competition, object $member ): bool {
+	private function results_table( object $competition, object $member ): string {
 		$competition_id = (int) $competition->id;
 		$member_id      = (int) $member->id;
 
@@ -558,12 +542,120 @@ class Email_Job_Manager {
 			}
 		}
 
-		return $this->email_service->send_results_email(
-			$member->email,
-			$member->name,
-			$competition->title,
-			$member_results
-		);
+		return $this->render_results_table( $member_results );
+	}
+
+	/**
+	 * Render the per-image results detail blocks.
+	 *
+	 * @param array<string, mixed> $member_results Member results payload.
+	 * @return string HTML for the results detail section.
+	 */
+	private function render_results_table( array $member_results ): string {
+		ob_start();
+		?>
+				<?php if ( empty( $member_results['images'] ) ) : ?>
+					<p><em><?php esc_html_e( 'You did not submit any images for this competition.', 'photo-competition-manager' ); ?></em></p>
+				<?php else : ?>
+					<?php foreach ( $member_results['images'] as $image_data ) : ?>
+						<div style="margin: 30px 0; padding: 20px; background-color: #f9f9f9; border-left: 4px solid #0073aa;">
+							<h3 style="margin-top: 0; color: #0073aa;">
+								<?php echo esc_html( $image_data['category_label'] ); ?> -
+								<?php
+								printf(
+									/* translators: %s: Image number */
+									esc_html__( 'Image #%s', 'photo-competition-manager' ),
+									esc_html( $image_data['image_number'] )
+								);
+								?>
+							</h3>
+
+							<?php if ( ! empty( $image_data['thumbnail_url'] ) ) : ?>
+								<div style="margin-bottom: 15px;">
+									<img src="<?php echo esc_url( $image_data['thumbnail_url'] ); ?>" alt="<?php esc_attr_e( 'Your submitted image', 'photo-competition-manager' ); ?>" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;">
+								</div>
+							<?php endif; ?>
+
+							<table style="width: 100%; border-collapse: collapse;">
+								<?php if ( null !== $image_data['rank'] ) : ?>
+									<tr>
+										<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php esc_html_e( 'Rank:', 'photo-competition-manager' ); ?></td>
+										<td style="padding: 8px 0;">
+											<?php
+											$rank_display = $image_data['rank'];
+											if ( ! empty( $image_data['total_in_grade'] ) ) {
+												$rank_display .= ' ' . sprintf(
+													/* translators: %d: Total number of images in the grade */
+													__( 'of %d', 'photo-competition-manager' ),
+													$image_data['total_in_grade']
+												);
+											}
+											if ( ! empty( $image_data['grade'] ) ) {
+												$rank_display .= ' (' . esc_html( $image_data['grade'] ) . ')';
+											}
+											echo esc_html( $rank_display );
+											?>
+										</td>
+									</tr>
+								<?php endif; ?>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['statistics']['average'] * $image_data['statistics']['count'], 0 ) ); ?></strong></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total Votes:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['statistics']['count'] ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Average Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( number_format( $image_data['statistics']['average'], 2 ) ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Median Score:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( number_format( $image_data['statistics']['median'], 2 ) ); ?></td>
+								</tr>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Score Range:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;">
+										<?php
+										printf(
+											'%s - %s',
+											esc_html( number_format( $image_data['statistics']['min'], 0 ) ),
+											esc_html( number_format( $image_data['statistics']['max'], 0 ) )
+										);
+										?>
+									</td>
+								</tr>
+							</table>
+
+							<h4 style="margin-top: 20px; margin-bottom: 10px;"><?php esc_html_e( 'Individual Votes:', 'photo-competition-manager' ); ?></h4>
+							<table style="width: 100%; border-collapse: collapse; background-color: white;">
+								<thead>
+									<tr style="background-color: #0073aa; color: white;">
+										<th style="padding: 10px; text-align: left;"><?php esc_html_e( 'Vote #', 'photo-competition-manager' ); ?></th>
+										<th style="padding: 10px; text-align: left;"><?php esc_html_e( 'Score', 'photo-competition-manager' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php
+									$vote_number = 1;
+									foreach ( $image_data['votes'] as $vote ) :
+										?>
+										<tr style="border-bottom: 1px solid #ddd;">
+											<td style="padding: 10px;"><?php echo esc_html( $vote_number ); ?></td>
+											<td style="padding: 10px;"><strong><?php echo esc_html( number_format( (float) $vote->score, 0 ) ); ?></strong></td>
+										</tr>
+										<?php
+										++$vote_number;
+									endforeach;
+									?>
+								</tbody>
+							</table>
+						</div>
+					<?php endforeach; ?>
+				<?php endif; ?>
+		<?php
+		return ob_get_clean();
 	}
 
 	/**
@@ -783,7 +875,7 @@ class Email_Job_Manager {
 		foreach ( $this->get_all_jobs() as $job_id => $job ) {
 			if (
 				self::is_unfinished( $job )
-				&& ( $job['type'] ?? 'results' ) === $type
+				&& $job['type'] === $type
 				&& (int) $job['competition_id'] === $competition_id
 				&& ( $job['args'] ?? array() ) === $args
 			) {

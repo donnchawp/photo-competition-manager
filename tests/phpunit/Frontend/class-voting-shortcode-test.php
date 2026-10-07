@@ -304,19 +304,25 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertDoesNotMatchRegularExpression( '/\{[a-z_]+\}/', $this->last_mail['subject'] . $this->last_mail['message'] );
 	}
 
-	public function test_voting_link_falls_back_to_the_built_in_email_when_its_template_is_off(): void {
+	public function test_voting_link_with_nothing_saved_sends_the_email_the_screen_shows(): void {
+		$this->make_member( 'mary@example.com', true, 'Mary Murphy' );
+
+		$this->request_token( 'mary@example.com' );
+
+		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'You asked to vote in Token Comp.', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'token=', $this->last_mail['message'] );
+	}
+
+	public function test_voting_link_sends_its_saved_template_even_when_saved_switched_off(): void {
 		update_option(
 			'photo_comp_email_templates',
 			array(
-				'voting_link'   => array(
+				'voting_link' => array(
 					'enabled' => false,
-					'subject' => 'Ignored subject',
-					'body'    => 'Ignored body',
-				),
-				'voting_opened' => array(
-					'enabled' => true,
-					'subject' => 'Voting is now open for {competition_title}',
-					'body'    => '<p>Hi {member_name}, voting closes on {close_date}.</p>',
+					'subject' => 'Saved subject',
+					'body'    => 'Saved body for {member_name}',
 				),
 			)
 		);
@@ -325,10 +331,8 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->request_token( 'mary@example.com' );
 
 		$this->assertSame( 1, $this->mail_count );
-		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
-		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
-		$this->assertStringContainsString( 'This link will expire in 1 hour and can only be used once.', $this->last_mail['message'] );
-		$this->assertStringNotContainsString( 'Ignored', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'Saved subject', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Saved body for Mary Murphy', $this->last_mail['message'] );
 	}
 
 	public function test_voting_link_is_logged_under_the_members_name(): void {
@@ -338,7 +342,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$logs = ( new Logs_Repository() )->find_by_competition( (int) $this->competition->id, 50, 0, array( 'event_type' => 'voting_link' ) );
 		$this->assertCount( 1, $logs );
-		$this->assertSame( 'Sent voting link email to Mary Murphy', $logs[0]->description );
+		$this->assertSame( 'Email sent to Mary Murphy: Voting link', $logs[0]->description );
 		$this->assertSame( 'mary@example.com', json_decode( $logs[0]->metadata, true )['email'] );
 	}
 

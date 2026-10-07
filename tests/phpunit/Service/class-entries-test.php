@@ -91,6 +91,31 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( 'add-comp', get_post_meta( (int) $entry->original_attachment_id, '_photo_comp_slug', true ) );
 	}
 
+	public function test_a_member_whose_submission_confirmation_is_on_gets_one_for_each_entry(): void {
+		update_option( 'photo_comp_email_templates', array( 'submission_confirmed' => array( 'enabled' => true ) ) );
+		$mails = array();
+		add_filter(
+			'wp_mail',
+			function ( $atts ) use ( &$mails ) {
+				$mails[] = $atts;
+				return $atts;
+			}
+		);
+		$competition_id = $this->create_competition( 'confirm-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$this->assertCount( 1, $mails );
+		$this->assertSame( 'jane@example.com', $mails[0]['to'] );
+		$this->assertStringContainsString( 'Your image has been uploaded to confirm-comp in the Colour category.', $mails[0]['message'] );
+		$this->assertStringContainsString( 'You are entering in the beginner grade.', $mails[0]['message'] );
+		$this->assertStringContainsString( 'You have uploaded 1 of 1 images for this category.', $mails[0]['message'] );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'submission_confirmed' ) );
+		$this->assertCount( 1, $logs );
+	}
+
 	public function test_an_upload_that_isnt_an_image_writes_nothing(): void {
 		$competition_id = $this->create_competition( 'invalid-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );

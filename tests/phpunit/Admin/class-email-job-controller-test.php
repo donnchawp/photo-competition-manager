@@ -93,7 +93,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 			);
 		}
 
-		return $this->jobs->queue( 'results_share', $this->competition_id, $member_ids, array( 'share_url' => 'https://example.com/r?share=abc' ) );
+		return $this->jobs->queue( 'results_published', $this->competition_id, $member_ids, array( 'share_url' => 'https://example.com/r?share=abc' ) );
 	}
 
 	/**
@@ -277,9 +277,9 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function carry_on_pages(): array {
 		return array(
-			'upload links'  => array( 'upload_link', array( 'page' => 'photo-competition-manager' ) ),
-			'results'       => array( 'results', array( 'page' => 'photo-competition-manager-results' ) ),
-			'results link'  => array( 'results_share', array( 'page' => 'photo-competition-manager-results' ) ),
+			'upload links'  => array( 'upload_reminder', array( 'page' => 'photo-competition-manager' ) ),
+			'results'       => array( 'results_detailed', array( 'page' => 'photo-competition-manager-results' ) ),
+			'results link'  => array( 'results_published', array( 'page' => 'photo-competition-manager-results' ) ),
 			'voting opened' => array( 'voting_opened', array( 'page' => 'photo-competition-manager-voting' ) ),
 		);
 	}

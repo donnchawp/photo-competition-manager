@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
@@ -28,7 +29,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 4;
+	const DB_VERSION = 5;
 
 	/**
 	 * Option holding the installed data version.
@@ -90,7 +91,53 @@ class Activator {
 			return;
 		}
 
+		// A kind of email has one name, so an email job's type is its kind's key.
+		if ( $installed < 5 ) {
+			self::name_email_jobs_by_kind();
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * Old email job types and the kind of email each one sends. Jobs from
+	 * before job types existed have no type and send detailed results.
+	 */
+	const LEGACY_EMAIL_JOB_TYPES = array(
+		''              => 'results_detailed',
+		'results'       => 'results_detailed',
+		'results_share' => 'results_published',
+		'upload_link'   => 'upload_reminder',
+	);
+
+	/**
+	 * Rename the type of every stored email job to its kind of email.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return void
+	 */
+	private static function name_email_jobs_by_kind(): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$names = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT option_name FROM %i WHERE option_name LIKE %s',
+				$wpdb->options,
+				$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
+			)
+		);
+
+		foreach ( $names as $name ) {
+			$job  = get_option( $name );
+			$type = is_array( $job ) ? (string) ( $job['type'] ?? '' ) : null;
+
+			if ( null !== $type && isset( self::LEGACY_EMAIL_JOB_TYPES[ $type ] ) ) {
+				$job['type'] = self::LEGACY_EMAIL_JOB_TYPES[ $type ];
+				update_option( $name, $job, false );
+			}
+		}
 	}
 
 	/**

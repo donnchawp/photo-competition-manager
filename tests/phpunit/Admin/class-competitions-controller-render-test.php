@@ -271,7 +271,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2, 3 ),
 				'status'         => 'completed',
@@ -297,7 +297,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_failed_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2 ),
 				'status'         => 'completed',
@@ -323,7 +323,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_running_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1 ),
 				'status'         => 'processing',
