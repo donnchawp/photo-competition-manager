@@ -226,6 +226,16 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_hiding_results_keeps_their_record(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
+
+		$rows = ( new Recorded_Results_Repository() )->find_by_category( $this->competition_id, 'colour' );
+		$this->assertSame( array( 9 ), array_map( 'intval', array_column( $rows, 'total_score' ) ) );
+	}
+
 	public function test_entries_say_whether_they_come_from_the_record(): void {
 		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		$this->seed_entry( 'Orphan', 'retired', array( 5 ) );

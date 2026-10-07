@@ -532,6 +532,30 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_7_adds_the_recorded_results_table_before_recording(): void {
+		$closed = $this->competition_with_an_entry( 'Closed', -8, -7 );
+		update_option( 'photo_comp_db_version', 6 );
+		// A 0.3.0 site has no recorded results table. Dropping the real one
+		// would end the test's transaction, so every query is pointed at a
+		// table that doesn't exist yet. The test suite makes the table it
+		// creates temporary.
+		$table          = ( new Recorded_Results_Repository() )->table();
+		$this->shadowed = $table . '_missing';
+		$missing        = function ( $query ) use ( $table ) {
+			return preg_replace( '/\b' . $table . '\b/', $this->shadowed, $query );
+		};
+		add_filter( 'query', $missing );
+		$this->record_ddl();
+
+		Activator::maybe_upgrade();
+
+		$has_record = ( new Recorded_Results_Repository() )->has_record( $closed );
+		remove_filter( 'query', $missing );
+		$this->assertCount( 1, preg_grep( '/^CREATE TEMPORARY TABLE ' . $this->shadowed . ' /', $this->ddl ), implode( "\n", $this->ddl ) );
+		$this->assertTrue( $has_record );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	public function test_upgrade_to_7_running_again_changes_nothing(): void {
 		$closed = $this->competition_with_an_entry( 'Closed', -8, -7 );
 		update_option( 'photo_comp_db_version', 6 );

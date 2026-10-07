@@ -168,6 +168,33 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * When the database refuses the renewal, the member gets an error, not
+	 * a link that was never saved.
+	 *
+	 * @return void
+	 */
+	public function test_renew_fails_when_the_token_cannot_be_updated(): void {
+		global $wpdb;
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'first' ), $expires_at );
+		$break_update = function ( $query ) {
+			return 0 === strpos( $query, 'UPDATE' ) && false !== strpos( $query, 'photocomp_voting_tokens' )
+				? 'UPDATE photocomp_no_such_table SET id = 1'
+				: $query;
+		};
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+
+		$result = $this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
+		$this->assertWPError( $result );
+		$this->assertSame( 'db_update_failed', $result->get_error_code() );
+		$this->assertNotNull( $this->repository->find_valid_token( hash( 'sha256', 'first' ) ) );
+	}
+
+	/**
 	 * Test renewing a token with invalid member ID fails.
 	 *
 	 * @return void
