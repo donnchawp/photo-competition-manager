@@ -324,16 +324,131 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	public function test_results_hidden_when_the_competition_closes_are_recorded_afresh(): void {
 		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
-		Workflow_Fixtures::publish_results( $this->competition_id );
-		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
-		$this->record_made_an_hour_ago();
-		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		$this->publish_then_hide_an_hour_ago();
+		$this->late_vote( $bob, 9 );
 		$this->close_competition();
 
 		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
 
 		$this->assertSame( array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ), $this->summarize( $groups ) );
 		$this->assertSame( array( true, true ), array_column( $groups[0]['entries'], 'recorded' ) );
+	}
+
+	public function test_showing_results_after_close_keeps_the_record_made_at_close(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->publish_then_hide_an_hour_ago();
+		$this->late_vote( $bob, 9 );
+		$this->close_competition();
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->late_vote( $ann, 9 );
+
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_competition_archived_while_open_is_recorded_afresh_once_restored_and_closed(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob          = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$competitions = new Competitions_Repository();
+		$this->assertTrue( $competitions->archive( $this->competition_id ) );
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->late_vote( $bob, 9 );
+		$this->assertSame(
+			array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) ),
+			'A record made while archived is read while it stays archived.'
+		);
+		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
+
+		$this->assertTrue( $competitions->restore( $this->competition_id ) );
+		$this->close_competition();
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_results_published_when_the_competition_closes_keep_their_record(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
+		$this->close_competition();
+		$this->late_vote( $bob, 9 );
+
+		$this->delete_member_of( $ann );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_archiving_a_closed_competition_keeps_the_record_made_at_close(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->closed_at( utc_time( -2 * HOUR_IN_SECONDS ) );
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
+		$this->assertTrue( ( new Competitions_Repository() )->archive( $this->competition_id ) );
+		$this->late_vote( $bob, 9 );
+
+		$this->delete_member_of( $ann );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_record_made_before_close_is_replaced_before_an_entry_is_removed(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->publish_then_hide_an_hour_ago();
+		$this->late_vote( $bob, 9 );
+		$this->close_competition();
+
+		$this->assertTrue( ( new Entries() )->remove( Actor::admin(), $this->competition_id, $ann ) );
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->assertSame( array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ), $this->summarize( $groups ) );
+		$this->assertNull( $groups[0]['entries'][1]['image'] );
+	}
+
+	public function test_a_record_made_a_second_before_the_close_date_is_replaced(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob   = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$close = utc_time( -HOUR_IN_SECONDS );
+		$this->closed_at( $close );
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->record_made_at( gmdate( 'Y-m-d H:i:s', strtotime( $close . ' UTC' ) - 1 ) );
+		$this->late_vote( $bob, 9 );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_record_made_a_second_after_the_close_date_is_kept(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob   = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$close = utc_time( -HOUR_IN_SECONDS );
+		$this->closed_at( $close );
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->record_made_at( gmdate( 'Y-m-d H:i:s', strtotime( $close . ' UTC' ) + 1 ) );
+		$this->late_vote( $bob, 9 );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
 	}
 
 	public function test_recorded_entries_keep_a_grade_no_longer_on_the_club_list(): void {
@@ -418,6 +533,15 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Publish the results, then hide them, an hour ago.
+	 */
+	private function publish_then_hide_an_hour_ago(): void {
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
+		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
+	}
+
+	/**
 	 * Close the competition now, as the Competitions screen does.
 	 */
 	private function close_competition(): void {
@@ -425,19 +549,41 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Make the competition's record an hour older, so it was made before
-	 * anything the test does next, even within the same second.
+	 * Say the competition's record was made at a given time, such as before
+	 * something the test does next within the same second.
+	 *
+	 * @param string $utc UTC datetime.
 	 */
-	private function record_made_an_hour_ago(): void {
+	private function record_made_at( string $utc ): void {
 		global $wpdb;
 
 		$wpdb->query(
 			$wpdb->prepare(
-				'UPDATE %i SET created_at = DATE_SUB(created_at, INTERVAL 1 HOUR) WHERE competition_id = %d',
+				'UPDATE %i SET created_at = %s WHERE competition_id = %d',
 				( new Recorded_Results_Repository() )->table(),
+				$utc,
 				$this->competition_id
 			)
 		);
+	}
+
+	/**
+	 * Say the competition closed at a given time.
+	 *
+	 * @param string $utc UTC datetime, in the past.
+	 */
+	private function closed_at( string $utc ): void {
+		$this->assertTrue( ( new Competitions_Repository() )->update( $this->competition_id, array( 'close_date' => $utc ) ) );
+	}
+
+	/**
+	 * Add a vote for an entry.
+	 *
+	 * @param int $image_id Image ID.
+	 * @param int $score    Score.
+	 */
+	private function late_vote( int $image_id, int $score ): void {
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $image_id, $score );
 	}
 
 	/**
