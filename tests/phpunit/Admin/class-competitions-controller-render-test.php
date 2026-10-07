@@ -242,6 +242,37 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
 	}
 
+	public function test_render_greys_out_open_uploads_once_a_category_has_started_voting(): void {
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+				),
+			)
+		);
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => 'critique' ),
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<span title="Voting has started in Colour. Reset that category before reopening uploads." style="color: #888">Open Uploads</span>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( 'Spring Show', 'spring-show' );
 		$this->insert_overlapping_competition( 'Autumn Show', 'autumn-show' );
