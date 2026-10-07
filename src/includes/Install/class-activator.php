@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -32,7 +33,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 7;
+	const DB_VERSION = 8;
 
 	/**
 	 * Option holding the installed data version.
@@ -111,6 +112,12 @@ class Activator {
 		// later moves nobody. Record what past competitions have now, and
 		// drop the score column nothing read.
 		if ( $installed < 7 && ( ! self::record_past_results() || ! self::drop_image_score() ) ) {
+			return;
+		}
+
+		// A member has one upload token per competition. Old tables never got
+		// the unique key that says so.
+		if ( $installed < 8 && ! self::make_upload_tokens_unique() ) {
 			return;
 		}
 
@@ -393,6 +400,63 @@ class Activator {
 	}
 
 	/**
+	 * Keep one upload token per member and competition, then add the unique
+	 * key that stops a second one.
+	 *
+	 * The earliest token stays: it's the one find_or_create() returns and
+	 * refreshes. Nothing refers to a token by its ID, so deleting the others
+	 * only stops their emailed links working.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the key couldn't be added.
+	 */
+	private static function make_upload_tokens_unique(): bool {
+		global $wpdb;
+
+		$table = ( new Upload_Token_Repository() )->table();
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::upload_tokens_are_unique( $table ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$duplicates = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT member_id, competition_id, MIN(id) AS earliest FROM %i
+				GROUP BY member_id, competition_id
+				HAVING COUNT(*) > 1',
+				$table
+			)
+		);
+
+		foreach ( $duplicates as $duplicate ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$deleted = $wpdb->query(
+				$wpdb->prepare(
+					'DELETE FROM %i WHERE member_id = %d AND competition_id = %d AND id <> %d',
+					$table,
+					$duplicate->member_id,
+					$duplicate->competition_id,
+					$duplicate->earliest
+				)
+			);
+
+			if ( false === $deleted ) {
+				return false;
+			}
+		}
+
+		// Old tables have a plain key with this name, so dbDelta can't add
+		// the unique one: drop it and add it back unique in one statement.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition, ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+
+		return self::upload_tokens_are_unique( $table );
+	}
+
+	/**
 	 * Whether the votes table has its unique keys.
 	 *
 	 * @since 0.4.0
@@ -417,10 +481,22 @@ class Activator {
 	}
 
 	/**
+	 * Whether the upload tokens table has its unique key.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Upload tokens table.
+	 * @return bool
+	 */
+	private static function upload_tokens_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'member_competition' ) );
+	}
+
+	/**
 	 * Whether a table has all of the named keys, and each is unique.
 	 *
-	 * A name isn't enough: old voting tokens tables have a plain key named
-	 * as the unique one is now.
+	 * A name isn't enough: old voting and upload tokens tables have a plain
+	 * key named as the unique one is now.
 	 *
 	 * @since 0.4.0
 	 *

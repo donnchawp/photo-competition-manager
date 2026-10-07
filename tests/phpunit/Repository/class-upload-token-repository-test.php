@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Legacy_Tables;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -19,6 +20,13 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * @var Upload_Token_Repository
 	 */
 	private $repo;
+
+	/**
+	 * Table hidden behind a temporary one by the test, if any.
+	 *
+	 * @var string
+	 */
+	private $shadowed = '';
 
 	/**
 	 * Set up test environment.
@@ -41,6 +49,43 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Drop the temporary table a test hid the real one behind.
+	 */
+	public function tearDown(): void {
+		global $wpdb;
+
+		if ( '' !== $this->shadowed ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( "DROP TEMPORARY TABLE {$this->shadowed}" );
+		}
+
+		parent::tearDown();
+	}
+
+	/**
+	 * A table without the unique key, whose upgrade hasn't run, may hold two
+	 * tokens for a member: the earliest is theirs, as the upgrade keeps it.
+	 */
+	public function test_find_or_create_returns_the_earliest_of_a_members_tokens() {
+		global $wpdb;
+		$this->shadowed = Legacy_Tables::shadow_v7_upload_tokens();
+		foreach ( array( 'earliest', 'later' ) as $token ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->insert(
+				$this->shadowed,
+				array(
+					'member_id'      => 1,
+					'competition_id' => 2,
+					'token'          => $token,
+					'expires_at'     => utc_time( WEEK_IN_SECONDS ),
+				)
+			);
+		}
+
+		$this->assertSame( 'earliest', $this->repo->find_or_create( 1, 2 )->token );
 	}
 
 	/**

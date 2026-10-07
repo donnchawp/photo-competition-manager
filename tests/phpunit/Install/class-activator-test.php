@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Legacy_Tables;
@@ -514,7 +515,7 @@ class Activator_Test extends WP_UnitTestCase {
 			array( true, true, true, false ),
 			array_map( array( $record, 'has_record' ), array( $published, $closed, $archived, $upcoming ) )
 		);
-		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_7_running_again_changes_nothing(): void {
@@ -539,6 +540,80 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, preg_grep( '/^ALTER TABLE `?\w*photocomp_images`? DROP COLUMN `?score`?$/i', $this->ddl ), implode( "\n", $this->ddl ) );
 		// The swallowed ALTER leaves the column, so the step runs again on the next request.
 		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_8_leaves_upload_tokens_with_the_unique_key_alone(): void {
+		global $wpdb;
+		$this->record_ddl();
+		$token = ( new Upload_Token_Repository() )->find_or_create( 1, 1 );
+		update_option( 'photo_comp_db_version', 7 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array(), $this->ddl );
+		$this->assertSame( array( $token->id ), $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i', $wpdb->prefix . 'photocomp_upload_tokens' ) ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_8_keeps_each_members_earliest_upload_token(): void {
+		global $wpdb;
+		$this->shadow_v7_upload_tokens_table();
+		$three_earliest = $this->insert_v7_upload_token( 1, 1 );
+		$this->insert_v7_upload_token( 1, 1 );
+		$other_member = $this->insert_v7_upload_token( 2, 1 );
+		$this->insert_v7_upload_token( 1, 1 );
+		$other_competition = $this->insert_v7_upload_token( 1, 2 );
+		$two_earliest      = $this->insert_v7_upload_token( 3, 2 );
+		$this->insert_v7_upload_token( 3, 2 );
+		update_option( 'photo_comp_db_version', 7 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame(
+			array( $three_earliest, $other_member, $other_competition, $two_earliest ),
+			array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) ) )
+		);
+	}
+
+	public function test_upgrade_to_8_makes_the_plain_upload_tokens_key_unique(): void {
+		global $wpdb;
+		$this->shadow_v7_upload_tokens_table();
+		$tokens = array( $this->insert_v7_upload_token( 1, 1 ), $this->insert_v7_upload_token( 2, 1 ), $this->insert_v7_upload_token( 1, 2 ) );
+		update_option( 'photo_comp_db_version', 7 );
+
+		Activator::maybe_upgrade();
+
+		$replaced = preg_grep( '/^ALTER TABLE `?\w*photocomp_upload_tokens`? DROP INDEX `?member_competition`?, ADD UNIQUE KEY `?member_competition`? \(`?member_id`?, `?competition_id`?\)$/i', $this->ddl );
+		$this->assertCount( 1, $replaced, implode( "\n", $this->ddl ) );
+		$this->assertSame( $tokens, array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) ) ) );
+		// The swallowed ALTER means the key never appears, so the upgrade
+		// stops there and runs again on the next request.
+		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_8_runs_again_when_a_duplicate_cant_be_deleted(): void {
+		global $wpdb;
+		$this->shadow_v7_upload_tokens_table();
+		$tokens = array( $this->insert_v7_upload_token( 1, 1 ), $this->insert_v7_upload_token( 1, 1 ) );
+		update_option( 'photo_comp_db_version', 7 );
+
+		$break_delete = function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_upload_tokens' )
+				? 'DELETE FROM photocomp_no_such_table'
+				: $query;
+		};
+		add_filter( 'query', $break_delete );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_delete );
+
+		// The ALTER would fail on the duplicate left behind.
+		$this->assertSame( array(), preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
+		$this->assertSame( $tokens, array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) ) ) );
+		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	/**
@@ -636,6 +711,39 @@ class Activator_Test extends WP_UnitTestCase {
 				'score'           => 5,
 			)
 		);
+	}
+
+	/**
+	 * Hide the upload tokens table behind one shaped as version 7 left it on
+	 * old sites, with a plain key where the unique one goes, so duplicates
+	 * can be stored.
+	 */
+	private function shadow_v7_upload_tokens_table(): void {
+		$this->shadowed = Legacy_Tables::shadow_v7_upload_tokens();
+		$this->record_ddl();
+	}
+
+	/**
+	 * Insert an upload token into the version 7 upload tokens table.
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return int Token ID.
+	 */
+	private function insert_v7_upload_token( int $member_id, int $competition_id ): int {
+		global $wpdb;
+
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+				'token'          => wp_generate_password( 64, false ),
+				'expires_at'     => utc_time( WEEK_IN_SECONDS ),
+			)
+		);
+
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
