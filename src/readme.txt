@@ -187,6 +187,10 @@ Yes. Visit **Competitions → Export** to download:
   * A ballot is stored whole or not at all: if it can't be saved, the voter is asked to try again instead of being thanked with votes missing
   * The voting link a member asks for has its own Voting Link email template, with every merge tag filled in
   * The "Check If Voting Is Open" button keeps the voting token
+  * The page redirects after a ballot is cast, so reloading it doesn't send the ballot again, and a second ballot shows one notice instead of two
+  * The voter's name and the voting password are remembered on classic themes too
+  * An unanswered score is no longer counted as 0, and a score that isn't in the list is refused with a message
+  * A ballot sent with an expired voting link says so, instead of being ignored
 
 * **Results**
   * Tied entries share a position in the results email
