@@ -539,6 +539,7 @@ class DragDropUpload {
 		barContainer.append(bar, barText);
 
 		this.progressSection.replaceChildren(status, barContainer);
+		this.statusRegion.replaceChildren();
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
@@ -667,6 +668,10 @@ class DragDropUpload {
 	/**
 	 * Show how each upload went.
 	 *
+	 * The summary is styled as a success only when every image went in, as a
+	 * notice when some did, and as an error when none did. It's announced
+	 * through the page's live region, and takes focus when anything failed.
+	 *
 	 * When every image went in, the page reloads to show the new entries. When
 	 * some failed, the failures stay listed with a button to reload, so the
 	 * member can see which images to fix first.
@@ -702,7 +707,9 @@ class DragDropUpload {
 		}
 		summary.textContent = message;
 		this.statusRegion.replaceChildren(summary);
+		// The progress box holds only the failures from here on, so it's hidden when there are none.
 		this.progressSection.replaceChildren();
+		this.progressSection.style.display = failures.length > 0 ? 'block' : 'none';
 
 		if (failures.length > 0) {
 			const errorList = document.createElement('ul');
@@ -715,6 +722,12 @@ class DragDropUpload {
 			});
 
 			this.progressSection.appendChild(errorList);
+		}
+
+		// Take keyboard users to the summary, so the failures listed under it come next.
+		if (failedCount > 0) {
+			summary.tabIndex = -1;
+			summary.focus();
 		}
 
 		if (successCount === 0) {
@@ -741,11 +754,8 @@ class DragDropUpload {
 		errorDiv.className = 'photo-comp-error-message';
 		errorDiv.textContent = message;
 
-		// Added below whatever is there, so a batch's failure list stays on screen.
-		if (this.progressSection) {
-			this.progressSection.appendChild(errorDiv);
-			this.progressSection.style.display = 'block';
-		}
+		// Added below whatever is there, so a batch's summary stays on screen.
+		this.statusRegion.appendChild(errorDiv);
 
 		setTimeout(() => {
 			errorDiv.remove();

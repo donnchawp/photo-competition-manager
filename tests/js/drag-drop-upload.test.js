@@ -223,6 +223,16 @@ describe( 'drag-and-drop upload', () => {
 		expect( FakeXhr.requests[ 2 ].body.get( 'file_0' ).name ).toBe( 'two.jpg' );
 	} );
 
+	it( "takes the last batch's summary away when the next batch starts", async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await jest.advanceTimersByTimeAsync( 0 );
+
+		expect( summary() ).toBeNull();
+	} );
+
 	it( 'hides Upload All when the failed image is removed after a mixed batch', async () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
@@ -280,12 +290,12 @@ describe( 'drag-and-drop upload', () => {
 		Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
 		input.dispatchEvent( new Event( 'change' ) );
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'No valid image files selected.' );
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: Only JPEG images are allowed.',
 		] );
-		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).not.toBeNull();
+		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
 	} );
 
 	it( 'keeps the refusal on screen when the link is refused after an image went in', async () => {
@@ -346,6 +356,55 @@ describe( 'drag-and-drop upload', () => {
 		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images.' );
 	} );
 
+	it( 'announces the outcome in the live region already on the page, but not the progress', async () => {
+		const liveRegion = document.querySelector( '[role="status"]' );
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].sendProgress( 50, 100 );
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].sendProgress( 50, 100 );
+
+		expect( liveRegion.textContent ).toBe( '' );
+
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( liveRegion.isConnected ).toBe( true );
+		expect( liveRegion.textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
+	it( 'moves focus to the summary after a batch with a failure', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( document.activeElement ).toBe( summary() );
+	} );
+
+	it( 'leaves focus alone after a batch where every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.activeElement ).not.toBe( summary() );
+	} );
+
+	it( 'announces an error in the live region already on the page', () => {
+		const liveRegion = document.querySelector( '[role="status"]' );
+		const input = document.querySelector( '#batch-file-input' );
+		Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
+		input.dispatchEvent( new Event( 'change' ) );
+
+		expect( liveRegion.textContent ).toBe( 'No valid image files selected.' );
+	} );
+
+	it( 'hides the emptied progress box once every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.querySelector( '.photo-comp-upload-progress' ).style.display ).toBe( 'none' );
+	} );
+
 	it( 'sends each image in a request of its own', async () => {
 		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
 
@@ -378,7 +437,6 @@ describe( 'drag-and-drop upload', () => {
 		FakeXhr.requests[ 2 ].respond( 200, { results: { file_0: { success: true, image_id: 3 } }, success_count: 1, error_count: 0, total: 1 } );
 		await settle();
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
@@ -413,7 +471,6 @@ describe( 'drag-and-drop upload', () => {
 		FakeXhr.requests[ 1 ].respond( 200, uploaded );
 		await settle();
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
@@ -429,7 +486,6 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		expect( FakeXhr.requests ).toHaveLength( 1 );
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
