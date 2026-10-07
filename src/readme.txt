@@ -160,9 +160,10 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs five database upgrades (versions 2 to 6) on the first request after it's installed.
+  * Back up the database first. The update runs six database upgrades (versions 2 to 7) on the first request after it's installed.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
   * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
+  * The upgrade records the results of every competition whose results are published, or that has closed or been archived, from the entries and votes as they are when it runs. Entries already deleted, and members deleted before the upgrade, stay missing from those results.
 
 * **Competitions**
   * Only one competition can be open at a time, with a new Close Competition action
@@ -203,6 +204,10 @@ Yes. Visit **Competitions → Export** to download:
   * The results and Top 3 pages show the latest published results, without vote counts
   * The results table stacks into cards on mobile
   * The detailed results email uses the email template system
+  * Results are recorded when they're published, or the first time they're needed after the competition closes. Deleting a member, removing an entry or changing a member's grade afterwards moves nobody, and a deleted member's entries show as "Former member" in their place, without an image
+  * Results can't be hidden once the competition has closed. To correct them, move the close date into the future, then hide and publish them again
+  * Email Results and the results link to all members wait until results are shown, so everyone is told the published positions. The committee's link can still go first
+  * The Recalculate Scores button is gone: nothing used the score it saved
 
 * **Members and email**
   * Upload and voting links are no longer sent to deactivated members, whose email addresses are now marked
