@@ -160,10 +160,7 @@ trait Form_Rendering {
 	}
 
 	/**
-	 * Render a template partial to a string.
-	 *
-	 * The partial receives a single variable, $data (array), in scope and is
-	 * responsible for its own output escaping.
+	 * Render a template partial to a string through Support\render_template().
 	 *
 	 * @since 0.3.0
 	 * @param string $relative Relative partial path under src/templates/.
