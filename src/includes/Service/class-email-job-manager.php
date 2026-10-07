@@ -539,7 +539,9 @@ class Email_Job_Manager {
 			foreach ( $this->get_ranking( $competition_id, $category_slug ) as $group ) {
 				foreach ( $group['entries'] as $entry ) {
 					$image = $entry['image'];
-					if ( (int) $image->member_id !== $member_id ) {
+
+					// A recorded entry removed since has no image or votes to report.
+					if ( ! $image || (int) $image->member_id !== $member_id ) {
 						continue;
 					}
 
@@ -553,6 +555,8 @@ class Email_Job_Manager {
 						'total_in_grade' => count( $group['entries'] ),
 						'grade'          => $group['label'],
 						'thumbnail_url'  => $this->entries->urls( $competition, $image )['thumb'],
+						'total_score'    => $entry['total_score'],
+						'vote_count'     => $entry['vote_count'],
 						'statistics'     => $this->analytics->get_vote_statistics( $votes ),
 						'votes'          => $votes,
 					);
