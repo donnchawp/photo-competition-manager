@@ -62,3 +62,15 @@ An entry whose member has no grade from the club's list, or no longer exists. It
 **Position**:
 An entry's place within its category and grade, ordered by total score. Tied entries share a position, and the next score takes the next position (1, 1, 2), so no position is skipped.
 _Avoid_: Rank, place
+
+### Email
+
+**Email template**:
+The subject and body one kind of email is sent with, with merge tags filled in for each member. Every kind has a default template, and an admin's edited template replaces it until they restore the default. What the Email Templates screen shows is what members get.
+
+**Requested email**:
+An email sent because a member or an admin asked for it: an upload link, a voting link, or the results. It always sends.
+
+**Notification**:
+An email sent automatically when something happens, such as voting opening in a category or a member's upload being saved. A club can switch each kind of notification off.
+_Avoid_: Alert
