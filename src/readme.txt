@@ -174,6 +174,8 @@ Yes. Visit **Competitions → Export** to download:
   * The upload page says why an upload or delete was refused, instead of "Upload failed. Please try again."
   * A file over the server's upload limit is reported as too big, on the upload form and in batch upload
   * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
+  * The upload limit takes the server's `post_max_size` into account too, and an upload over it is reported as too big instead of "Category assignments are required." or no message at all
+  * Drag-and-drop upload sends one image at a time, so a large selection no longer fails as a whole
   * Moving entries between categories happens all at once or not at all
   * A category takes no new entries once voting has started in it, or once it has votes
   * An image is never saved or moved onto another entry's file
