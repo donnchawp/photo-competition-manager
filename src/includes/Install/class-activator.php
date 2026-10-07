@@ -59,6 +59,13 @@ class Activator {
 			return;
 		}
 
+		// A kind of email has one name, so an email job's type is its kind's
+		// key. First, because it needs no other step and every admin page
+		// shows unfinished jobs by their kind. Renaming is safe to repeat.
+		if ( $installed < 5 ) {
+			self::name_email_jobs_by_kind();
+		}
+
 		// Leave the version alone on failure so the step runs again on the next request.
 		if ( $installed < 1 && false === ( new Members_Repository() )->mark_inactive_emails() ) {
 			return;
@@ -89,11 +96,6 @@ class Activator {
 		// are the only record of a used voting token.
 		if ( $installed < 4 && ( ! self::make_votes_unique() || ! self::drop_token_used_at() ) ) {
 			return;
-		}
-
-		// A kind of email has one name, so an email job's type is its kind's key.
-		if ( $installed < 5 ) {
-			self::name_email_jobs_by_kind();
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );

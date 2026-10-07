@@ -311,6 +311,29 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_email_jobs_are_renamed_even_when_an_earlier_upgrade_step_fails(): void {
+		global $wpdb;
+		update_option( 'photo_comp_email_job_a', array( 'type' => 'results' ), false );
+		delete_option( 'photo_comp_db_version' );
+
+		$break_update = function ( $query ) {
+			return 0 === strpos( $query, 'UPDATE' ) && false !== strpos( $query, 'photocomp_members' )
+				? 'UPDATE photocomp_no_such_table SET email = email'
+				: $query;
+		};
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
+
+		// The admin pages show every unfinished job, and need its kind of email.
+		$this->assertSame( 'results_detailed', get_option( 'photo_comp_email_job_a' )['type'] );
+		$this->assertFalse( get_option( 'photo_comp_db_version' ) );
+	}
+
 	public function test_upgrade_to_4_keeps_the_earliest_of_duplicate_votes(): void {
 		global $wpdb;
 		$this->shadow_v3_votes_table();

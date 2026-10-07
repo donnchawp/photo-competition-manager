@@ -72,6 +72,7 @@ trait Email_Job_Notice {
 				'status'          => $job['status'],
 				'sending_label'   => $label['sending'],
 				'sent_label'      => $label['sent'],
+				'skipped_label'   => $label['skipped'],
 				'processed_count' => $processed,
 				'total_count'     => $job['total_count'],
 				'percent'         => $job['total_count'] > 0 ? ( $processed / $job['total_count'] ) * 100 : 0,
@@ -103,9 +104,9 @@ trait Email_Job_Notice {
 	 * Wording for a job's kind of email.
 	 *
 	 * @param array $job Job data.
-	 * @return array{sending: string, sent: string, stopped: string} The stopped
+	 * @return array{sending: string, sent: string, stopped: string, skipped: array} The stopped
 	 *     message takes the competition title, members emailed so far and
-	 *     members in the job.
+	 *     members in the job. Skipped is an _n_noop() plural taking the count.
 	 */
 	private function email_job_labels( array $job ): array {
 		return Email_Kinds::get( $job['type'] )['job'];

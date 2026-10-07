@@ -58,6 +58,8 @@ class Email_Kinds {
 					'sent'    => __( 'Upload link emails sent.', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+					/* translators: %d: Members skipped */
+					'skipped' => _n_noop( '%d member was skipped because they were emailed in the last 5 minutes.', '%d members were skipped because they were emailed in the last 5 minutes.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{upload_link}' => array(
@@ -88,6 +90,8 @@ class Email_Kinds {
 					'sent'    => __( 'Voting opened emails sent.', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+					/* translators: %d: Members skipped */
+					'skipped' => _n_noop( '%d member was skipped because the Voting opened email was switched off.', '%d members were skipped because the Voting opened email was switched off.', 'photo-competition-manager' ),
 				),
 				'tags'          => array(
 					'{voting_page}' => array(
@@ -141,6 +145,8 @@ class Email_Kinds {
 					'sent'    => __( 'Results link emails sent.', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+					/* translators: %d: Members skipped */
+					'skipped' => _n_noop( '%d member was skipped.', '%d members were skipped.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{results_page}'       => array(
@@ -171,6 +177,8 @@ class Email_Kinds {
 					'sent'    => __( 'Email results sent successfully!', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+					/* translators: %d: Members skipped */
+					'skipped' => _n_noop( '%d member was skipped.', '%d members were skipped.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{results_table}' => array(
