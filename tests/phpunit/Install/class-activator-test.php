@@ -25,6 +25,13 @@ class Activator_Test extends WP_UnitTestCase {
 	 */
 	private $shadowed = '';
 
+	/**
+	 * Schema queries the upgrade ran, or tried to: ALTER TABLE is swallowed.
+	 *
+	 * @var array<string>
+	 */
+	private $ddl = array();
+
 	public function setUp(): void {
 		parent::setUp();
 		Activator::activate();
@@ -308,7 +315,7 @@ class Activator_Test extends WP_UnitTestCase {
 			),
 			$types
 		);
-		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_email_jobs_are_renamed_even_when_an_earlier_upgrade_step_fails(): void {
@@ -383,6 +390,75 @@ class Activator_Test extends WP_UnitTestCase {
 		$logs = ( new Logs_Repository() )->find_by_competition( 1, 50, 0, array( 'event_type' => 'duplicate_votes_removed' ) );
 		$this->assertSame( 'system', $logs[0]->actor_type );
 		$this->assertNull( $logs[0]->actor_id );
+	}
+
+	public function test_upgrade_to_6_adds_the_unique_key_to_voting_tokens_without_it(): void {
+		$this->shadow_v5_voting_tokens_table();
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$added = preg_grep( '/^ALTER TABLE \S*photocomp_voting_tokens ADD UNIQUE KEY `?member_competition_category`?/i', $this->ddl );
+		$this->assertCount( 1, $added );
+		// The swallowed ALTER means the key never appears, so the upgrade
+		// stops there and runs again on the next request.
+		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_6_leaves_voting_tokens_with_the_unique_key_alone(): void {
+		$this->record_ddl();
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array(), $this->ddl );
+		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	/**
+	 * Hide the voting tokens table behind a temporary one shaped as version
+	 * 5 left it on old sites, without the unique key, so duplicates can be
+	 * stored. Schema changes are swallowed, as in shadow_v3_votes_table().
+	 */
+	private function shadow_v5_voting_tokens_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_voting_tokens';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				member_id BIGINT UNSIGNED NOT NULL,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				token_hash VARCHAR(64) NOT NULL,
+				expires_at DATETIME NOT NULL,
+				first_accessed_at DATETIME NULL,
+				sent_at DATETIME NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				KEY token_hash (token_hash),
+				KEY expires_at (expires_at)
+			) {$wpdb->get_charset_collate()}"
+		);
+
+		$this->record_ddl();
+	}
+
+	/**
+	 * Record the schema queries the upgrade runs into $this->ddl, and
+	 * swallow ALTER TABLE so the test's transaction survives.
+	 */
+	private function record_ddl(): void {
+		add_filter(
+			'query',
+			function ( $query ) {
+				if ( preg_match( '/^\s*(ALTER|CREATE|DROP|DESCRIBE)\s/i', $query ) ) {
+					$this->ddl[] = trim( $query );
+				}
+
+				return 0 === stripos( ltrim( $query ), 'ALTER TABLE' ) ? 'SELECT 1' : $query;
+			}
+		);
 	}
 
 	/**

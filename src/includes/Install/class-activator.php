@@ -29,7 +29,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 5;
+	const DB_VERSION = 6;
 
 	/**
 	 * Option holding the installed data version.
@@ -95,6 +95,12 @@ class Activator {
 		// A voter gets one vote per image. Unique keys enforce it, and votes
 		// are the only record of a used voting token.
 		if ( $installed < 4 && ( ! self::make_votes_unique() || ! self::drop_token_used_at() ) ) {
+			return;
+		}
+
+		// A member has one voting token per category, and asking for a link
+		// again renews it. Old tables never got the unique key that says so.
+		if ( $installed < 6 && ! self::make_voting_tokens_unique() ) {
 			return;
 		}
 
@@ -278,6 +284,27 @@ class Activator {
 	}
 
 	/**
+	 * Add the unique key that gives a member one voting token per
+	 * competition and category.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the key couldn't be added.
+	 */
+	private static function make_voting_tokens_unique(): bool {
+		$table = ( new Voting_Token_Repository() )->table();
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::has_keys( $table, array( 'member_competition_category' ) ) ) {
+			return true;
+		}
+
+		self::create_tables();
+
+		return self::has_keys( $table, array( 'member_competition_category' ) );
+	}
+
+	/**
 	 * Whether the votes table has its unique keys.
 	 *
 	 * @since 0.4.0
@@ -286,12 +313,25 @@ class Activator {
 	 * @return bool
 	 */
 	private static function votes_are_unique( string $table ): bool {
+		return self::has_keys( $table, array( 'image_token', 'image_voter' ) );
+	}
+
+	/**
+	 * Whether a table has all of the named keys.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string        $table Table name.
+	 * @param array<string> $keys  Key names.
+	 * @return bool
+	 */
+	private static function has_keys( string $table, array $keys ): bool {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$keys = $wpdb->get_col( $wpdb->prepare( "SHOW INDEX FROM %i WHERE Key_name IN ('image_token', 'image_voter')", $table ), 2 );
+		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i', $table ), 2 );
 
-		return 2 === count( array_unique( $keys ) );
+		return array() === array_diff( $keys, $found );
 	}
 
 	/**
