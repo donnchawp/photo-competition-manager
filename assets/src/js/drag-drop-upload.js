@@ -28,6 +28,8 @@ class DragDropUpload {
 		this.previewGrid = document.querySelector('.photo-comp-preview-grid');
 		this.uploadButton = document.querySelector('.photo-comp-upload-all-btn');
 		this.progressSection = document.querySelector('.photo-comp-upload-progress');
+		// A live region already in the page, so screen readers announce what's written into it.
+		this.statusRegion = document.querySelector('.photo-comp-upload-status');
 
 		if (!this.dropZone || !this.fileInput || !this.previewGrid) {
 			return;
@@ -677,11 +679,13 @@ class DragDropUpload {
 		const successCount = results.length - failures.length;
 		const failedCount = total - successCount;
 
-		let message = sprintf(
-			/* translators: %d: number of images uploaded. */
-			_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
-			successCount
-		);
+		let message = successCount > 0
+			? sprintf(
+				/* translators: %d: number of images uploaded. */
+				_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
+				successCount
+			)
+			: __('No images were uploaded.', 'photo-competition-manager');
 		if (failedCount > 0) {
 			message += ' ' + sprintf(
 				/* translators: %d: number of images that failed to upload. */
@@ -691,9 +695,14 @@ class DragDropUpload {
 		}
 
 		const summary = document.createElement('p');
-		summary.className = 'success';
+		if (failedCount === 0) {
+			summary.className = 'success';
+		} else {
+			summary.className = successCount > 0 ? 'notice' : 'error';
+		}
 		summary.textContent = message;
-		this.progressSection.replaceChildren(summary);
+		this.statusRegion.replaceChildren(summary);
+		this.progressSection.replaceChildren();
 
 		if (failures.length > 0) {
 			const errorList = document.createElement('ul');

@@ -58,6 +58,7 @@ function renderPage() {
 		<input type="file" id="batch-file-input" multiple />
 		<div class="photo-comp-preview-grid"></div>
 		<button type="button" class="photo-comp-upload-all-btn">Upload All</button>
+		<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>
 		<div class="photo-comp-upload-progress"></div>`;
 }
 
@@ -124,6 +125,15 @@ async function answerLastAndWait( answer ) {
  */
 function errorLines() {
 	return Array.from( document.querySelectorAll( '.photo-comp-upload-progress .photo-comp-error-list li' ), ( li ) => li.textContent );
+}
+
+/**
+ * The line that sums up how a batch went.
+ *
+ * @return {HTMLElement|null} The summary.
+ */
+function summary() {
+	return document.querySelector( '.photo-comp-upload-status p' );
 }
 
 /**
@@ -304,6 +314,38 @@ describe( 'drag-and-drop upload', () => {
 		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).toBeNull();
 	} );
 
+	it( 'shows a batch where no image went in as an error', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].fail();
+		await settle();
+		FakeXhr.requests[ 1 ].fail();
+		await settle();
+
+		expect( summary().classList.contains( 'error' ) ).toBe( true );
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
+	} );
+
+	it( 'shows a batch where some images went in as a notice, with both counts', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().classList.contains( 'notice' ) ).toBe( true );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+	} );
+
+	it( 'shows a batch where every image went in as a success', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( summary().className ).toBe( 'success' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
 	it( 'sends each image in a request of its own', async () => {
 		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
 
@@ -337,7 +379,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
@@ -372,7 +414,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
@@ -388,7 +430,7 @@ describe( 'drag-and-drop upload', () => {
 
 		expect( FakeXhr.requests ).toHaveLength( 1 );
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 images. 2 uploads failed.' );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
@@ -422,7 +464,7 @@ describe( 'drag-and-drop upload', () => {
 			await sendTwoWithFirstUploaded();
 			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
 
-			expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Uploaded 2 pictures.' );
+			expect( summary().textContent ).toBe( 'Uploaded 2 pictures.' );
 		} );
 	} );
 
@@ -433,7 +475,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 		await answerLastAndWait( () => FakeXhr.requests[ 0 ].respond( 200, uploaded ) );
 
-		expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Successfully uploaded 1 image.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image.' );
 	} );
 
 	it( 'shows a category label with HTML in it as written', async () => {

@@ -196,6 +196,15 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		return json_decode( $matches[1] ?? 'null', true ) ?? array();
 	}
 
+	public function test_the_upload_page_has_a_live_region_for_the_drag_and_drop_results(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		// Screen readers announce only what's written into a live region already on the page.
+		$this->assertStringContainsString( '<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>', $output );
+	}
+
 	public function test_submission_delete_form_uses_two_tap_confirmation(): void {
 		$_GET['token'] = $this->issue_token( true );
 		$member        = $this->members->find_by_email( 'uploader@example.com' );
