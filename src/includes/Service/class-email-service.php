@@ -78,7 +78,7 @@ class Email_Service {
 		// Tags are filled in after wpautop(), so an HTML value isn't reformatted.
 		// An HTML tag on its own line comes out of wpautop() as a paragraph,
 		// which it would be invalid inside, so that paragraph is unwrapped.
-		$body = wpautop( wp_kses_post( $template['body'] ) );
+		$body = $this->sendable_body( $template['body'] );
 		foreach ( $html_tags as $tag ) {
 			$body = preg_replace( '#<p[^>]*>\s*' . preg_quote( $tag, '#' ) . '\s*</p>#', $tag, $body );
 		}
@@ -152,6 +152,48 @@ class Email_Service {
 			'subject' => ! empty( $saved['subject'] ) ? (string) $saved['subject'] : $definition['subject'],
 			'body'    => ! empty( $saved['body'] ) ? (string) $saved['body'] : $definition['body'],
 		);
+	}
+
+	/**
+	 * Whether a subject and body are the kind's default.
+	 *
+	 * The body is compared as it would be sent, so the editor's paragraph and
+	 * whitespace reformatting doesn't count as an edit, and with quotes as
+	 * plain characters, since the editor writes back a default's &#039; or
+	 * &quot; that way.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $kind    Kind key, from Email_Kinds.
+	 * @param string $subject Subject.
+	 * @param string $body    Body.
+	 * @return bool
+	 */
+	public function is_default_template( string $kind, string $subject, string $body ): bool {
+		$definition = Email_Kinds::get( $kind );
+		$comparable = function ( string $body ): string {
+			$quotes = array(
+				'&#039;' => "'",
+				'&#39;'  => "'",
+				'&quot;' => '"',
+				'&#034;' => '"',
+				'&#34;'  => '"',
+			);
+			return trim( strtr( $this->sendable_body( $body ), $quotes ) );
+		};
+
+		return sanitize_text_field( $subject ) === sanitize_text_field( $definition['subject'] )
+			&& $comparable( $body ) === $comparable( $definition['body'] );
+	}
+
+	/**
+	 * A body in the form it is sent, before its tags are filled in.
+	 *
+	 * @param string $body Body.
+	 * @return string
+	 */
+	private function sendable_body( string $body ): string {
+		return wpautop( wp_kses_post( $body ) );
 	}
 
 	/**

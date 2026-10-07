@@ -33,7 +33,9 @@ class Email_Templates_Controller {
 	}
 
 	/**
-	 * Enqueue inline styles for email templates page.
+	 * Enqueue the email templates page's styles and Restore default script.
+	 *
+	 * @since 0.4.0 Enqueues the Restore default script.
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
@@ -47,8 +49,16 @@ class Email_Templates_Controller {
 		wp_register_style( 'photo-comp-email-templates-style', '', array(), PHOTO_COMPETITION_MANAGER_VERSION );
 		wp_enqueue_style( 'photo-comp-email-templates-style' );
 
-		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;}';
+		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;} .photo-comp-template-edited{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:2px;background:#dcdcde;color:#1d2327;font-size:12px;font-weight:400;vertical-align:middle;}';
 		wp_add_inline_style( 'photo-comp-email-templates-style', $inline_css );
+
+		wp_enqueue_script(
+			'photo-comp-admin-email-templates',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-email-templates.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -71,22 +81,10 @@ class Email_Templates_Controller {
 		if ( 'save_email_templates' === $action ) {
 			check_admin_referer( 'photo_competition_email_templates' );
 
-			$templates = array();
-
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized below per field.
 			$raw_templates = isset( $_POST['templates'] ) && is_array( $_POST['templates'] ) ? wp_unslash( $_POST['templates'] ) : array();
 
-			foreach ( $raw_templates as $template_key => $template_data ) {
-				$key = sanitize_key( $template_key );
-
-				$templates[ $key ] = array(
-					'enabled' => isset( $template_data['enabled'] ) && '1' === $template_data['enabled'],
-					'subject' => isset( $template_data['subject'] ) ? sanitize_text_field( $template_data['subject'] ) : '',
-					'body'    => isset( $template_data['body'] ) ? wp_kses_post( $template_data['body'] ) : '',
-				);
-			}
-
-			update_option( 'photo_comp_email_templates', $templates );
+			update_option( 'photo_comp_email_templates', $this->templates_to_store( $raw_templates ) );
 
 			add_settings_error(
 				'photo_competition_email_templates',
@@ -97,6 +95,59 @@ class Email_Templates_Controller {
 
 			$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-email-templates' ) );
 		}
+	}
+
+	/**
+	 * What to store from the posted form: a notification's switch once it has
+	 * been set away from its default, and a kind's subject and body only where
+	 * either differs from its default, so the rest keep following their
+	 * defaults. A kind missing from the post keeps what was stored.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $raw_templates Posted templates, unslashed.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function templates_to_store( array $raw_templates ): array {
+		$email_service = new Email_Service();
+		$saved         = (array) get_option( 'photo_comp_email_templates', array() );
+		$templates     = array();
+
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			if ( ! isset( $raw_templates[ $kind ] ) || ! is_array( $raw_templates[ $kind ] ) ) {
+				if ( ! empty( $saved[ $kind ] ) ) {
+					$templates[ $kind ] = $saved[ $kind ];
+				}
+				continue;
+			}
+
+			$posted = $raw_templates[ $kind ];
+			$stored = array();
+
+			if ( $definition['notification'] ) {
+				$enabled = isset( $posted['enabled'] ) && '1' === $posted['enabled'];
+				// Once switched away from its default, the switch stays the admin's choice.
+				if ( $enabled !== $definition['on_by_default'] || isset( $saved[ $kind ]['enabled'] ) ) {
+					$stored['enabled'] = $enabled;
+				}
+			}
+
+			// An emptied field sends the default, so it is saved as the default.
+			$subject = isset( $posted['subject'] ) ? sanitize_text_field( $posted['subject'] ) : '';
+			$body    = isset( $posted['body'] ) ? wp_kses_post( $posted['body'] ) : '';
+			$subject = '' !== trim( $subject ) ? $subject : $definition['subject'];
+			$body    = '' !== trim( $body ) ? $body : $definition['body'];
+			if ( ! $email_service->is_default_template( $kind, $subject, $body ) ) {
+				$stored['subject'] = $subject;
+				$stored['body']    = $body;
+			}
+
+			if ( $stored ) {
+				$templates[ $kind ] = $stored;
+			}
+		}
+
+		return $templates;
 	}
 
 	/**
@@ -114,13 +165,17 @@ class Email_Templates_Controller {
 		$email_service = new Email_Service();
 		$templates     = array();
 		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$template           = $email_service->get_template( $kind );
 			$templates[ $kind ] = array(
-				'name'         => $definition['label'],
-				'description'  => $definition['description'],
-				'notification' => $definition['notification'],
-				'enabled'      => $email_service->is_template_enabled( $kind ),
-				'merge_tags'   => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
-			) + $email_service->get_template( $kind );
+				'name'            => $definition['label'],
+				'description'     => $definition['description'],
+				'notification'    => $definition['notification'],
+				'enabled'         => $email_service->is_template_enabled( $kind ),
+				'edited'          => ! $email_service->is_default_template( $kind, $template['subject'], $template['body'] ),
+				'default_subject' => $definition['subject'],
+				'default_body'    => $definition['body'],
+				'merge_tags'      => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
+			) + $template;
 		}
 
 		echo '<div class="wrap">';
