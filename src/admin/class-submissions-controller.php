@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
  * Manage submissions viewing page.
@@ -726,12 +727,13 @@ class Submissions_Controller {
 		$upload_token_repo  = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
 		$member_upload_urls = array();
 
-		// Get upload page URL - assume it's at /photo-upload/.
-		$upload_page_url = home_url( '/photo-upload/' );
+		// The same upload page the member's upload link emails use.
+		$link_competition = $selected_competition ?? ( $competition_lookup[ $competition_id ] ?? null );
+		$upload_page_url  = $link_competition ? Competition_Settings::page_url( 'upload_page', $link_competition ) : '';
 
 		foreach ( $submissions as $submission ) {
 			$submission_member_id = (int) $submission->member_id;
-			if ( ! isset( $member_upload_urls[ $submission_member_id ] ) ) {
+			if ( '' !== $upload_page_url && ! isset( $member_upload_urls[ $submission_member_id ] ) ) {
 				$upload_url = $upload_token_repo->generate_upload_url( $competition_id, $submission_member_id, $upload_page_url );
 				if ( ! is_wp_error( $upload_url ) ) {
 					$member_upload_urls[ $submission_member_id ] = $upload_url;

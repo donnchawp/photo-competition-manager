@@ -49,6 +49,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function set_up(): void {
 		parent::set_up();
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'http://example.org/photo-upload/' ) ) ) );
 		$this->competitions = new Competitions_Repository();
 		$this->members      = new Members_Repository();
 		$this->images       = new Images_Repository();
@@ -511,5 +512,46 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array( $ada, $grace ),
 			array( $grace_img )
 		);
+	}
+
+	/**
+	 * Render the entries of one competition with one entry, given the club's upload page.
+	 *
+	 * @param string $club_upload_page Club upload page URL, or '' for none.
+	 * @return string Rendered HTML.
+	 */
+	private function render_one_entry( string $club_upload_page ): string {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => $club_upload_page ) ) ) );
+		$comp_id = $this->seed_competition( 'Autumn Exhibition', 'autumn-exhibition' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $this->seed_member( 'Ada Lovelace', 'ada@example.com' ),
+				'category'  => 'colour',
+				'filename'  => 'ada-photo.jpg',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_a_members_upload_link_uses_the_competitions_upload_page(): void {
+		$html = $this->render_one_entry( 'https://example.com/club-upload/' );
+
+		$this->assertMatchesRegularExpression( '#<a href="https://example.com/club-upload/\?token=[a-f0-9]{64}[^"]*"#', $html );
+	}
+
+	public function test_no_upload_link_is_shown_without_an_upload_page(): void {
+		$html = $this->render_one_entry( '' );
+
+		$this->assertStringNotContainsString( 'token=', $html );
 	}
 }
