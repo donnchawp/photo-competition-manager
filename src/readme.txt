@@ -180,6 +180,7 @@ Yes. Visit **Competitions → Export** to download:
   * The upload limit takes the server's `post_max_size` into account too, and an upload over it is reported as too big instead of "Category assignments are required." or no message at all
   * Drag-and-drop upload sends one image at a time, so a large selection no longer fails as a whole
   * Drag-and-drop upload says an image is too big when the web server in front of WordPress refuses it, and stops after the first image if the upload link is refused
+  * When some images in a drag-and-drop batch fail, the page no longer reloads and hides the failures. The list stays on screen with a "Show my entries" button, and the images that went in leave the selection
   * Moving entries between categories happens all at once or not at all
   * A category takes no new entries once voting has started in it, or once it has votes
   * Uploads can't reopen once any category's voting has started. Reset that category first
