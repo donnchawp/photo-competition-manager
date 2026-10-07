@@ -200,13 +200,13 @@ class Results_Controller {
 				admin_url( 'admin.php' )
 			);
 
-			// Members are told their positions only once they're published, so they match the record.
+			// Members are told their positions only once they're read from the record.
 			$competition = $this->competitions->find( $competition_id );
-			if ( $competition && ! $this->workflow->results_published( $competition ) ) {
+			if ( $competition && ! $this->workflow->reads_recorded_results( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
 					'results_not_published',
-					__( 'Show results before emailing them, so every member is told the positions that are published.', 'photo-competition-manager' ),
+					__( 'Results can be emailed once they\'re shown, or once the competition has closed, so every member is told the positions that are recorded.', 'photo-competition-manager' ),
 					'error'
 				);
 
@@ -265,11 +265,11 @@ class Results_Controller {
 			}
 
 			// The committee checks results before they're public, so only their link goes early.
-			if ( 'send_results_all' === $action && ! $this->workflow->results_published( $competition ) ) {
+			if ( 'send_results_all' === $action && ! $this->workflow->reads_recorded_results( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
 					'results_not_published',
-					__( 'Show results before sending the results link to every member. The committee can be sent it before then.', 'photo-competition-manager' ),
+					__( 'The results link can be sent to every member once results are shown, or once the competition has closed. The committee can be sent it before then.', 'photo-competition-manager' ),
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );

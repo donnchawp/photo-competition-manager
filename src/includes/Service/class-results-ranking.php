@@ -117,7 +117,7 @@ class Results_Ranking {
 	public function rank_category( int $competition_id, string $category ): array {
 		$competition = $this->competitions->find( $competition_id, true );
 
-		if ( $competition && $this->keeps_record( $competition ) && true === $this->record_if_missing( $competition ) ) {
+		if ( $competition && $this->workflow->reads_recorded_results( $competition ) && true === $this->record_if_missing( $competition ) ) {
 			$groups = $this->rank_recorded( $competition_id, $category );
 		} else {
 			$groups = $this->rank_live( $competition_id, $category );
@@ -161,21 +161,11 @@ class Results_Ranking {
 	 * @return true|WP_Error True when there's nothing to record, or it's recorded.
 	 */
 	public function record_if_missing( object $competition ) {
-		if ( ! $this->keeps_record( $competition ) ) {
+		if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
 			return true;
 		}
 
 		return $this->insert_if_missing( $competition );
-	}
-
-	/**
-	 * Whether a competition's results are read from its record.
-	 *
-	 * @param object $competition Competition row.
-	 * @return bool
-	 */
-	private function keeps_record( object $competition ): bool {
-		return $this->workflow->results_published( $competition ) || $this->workflow->has_closed( $competition );
 	}
 
 	/**

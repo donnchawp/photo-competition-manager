@@ -324,6 +324,20 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Whether the competition's results are read from its record: they're
+	 * published, or the competition has closed. Members can be told them
+	 * from then on.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public function reads_recorded_results( object $competition ): bool {
+		return $this->results_published( $competition ) || $this->has_closed( $competition );
+	}
+
+	/**
 	 * Whether results may be published: uploads are closed and no category
 	 * is accepting votes.
 	 *
