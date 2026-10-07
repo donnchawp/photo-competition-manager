@@ -70,7 +70,7 @@ class Email_Service {
 		$values      = array(
 			'{member_name}'       => $member_name,
 			'{competition_title}' => $competition ? (string) $competition->title : '',
-			'{site_name}'         => get_bloginfo( 'name' ),
+			'{site_name}'         => $this->site_name(),
 		) + $tags;
 		$types       = wp_list_pluck( Email_Kinds::tags( $kind ), 'type' );
 		$html_tags   = array_keys( $types, 'html', true );
@@ -225,8 +225,20 @@ class Email_Service {
 	 * @return string Subject prefixed with [Site Title].
 	 */
 	private function prefix_subject( string $subject ): string {
-		$site_title = get_bloginfo( 'name' );
-		return sprintf( '[%s] %s', $site_title, $subject );
+		return sprintf( '[%s] %s', $this->site_name(), $subject );
+	}
+
+	/**
+	 * The site name as typed. WordPress saves it HTML-escaped, which would
+	 * show in a plain-text subject, so it's decoded here and the body
+	 * escapes it again.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string Site name.
+	 */
+	private function site_name(): string {
+		return wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
 	}
 
 	/**
@@ -254,7 +266,7 @@ class Email_Service {
 					printf(
 						/* translators: %s: Site name */
 						esc_html__( 'This email was sent by %s', 'photo-competition-manager' ),
-						esc_html( get_bloginfo( 'name' ) )
+						esc_html( $this->site_name() )
 					);
 					?>
 				</p>
