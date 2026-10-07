@@ -206,6 +206,13 @@ class Upload_Link_Service {
 
 		// Checked before the member, so it says nothing about who is registered.
 		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
+			// The member only sees a generic failure, so the admin finds the cause in the log.
+			( new Event_Logger() )->log(
+				$competition_id,
+				'upload_link_no_upload_page',
+				'email',
+				__( 'A member asked for an upload link, but no upload page is set and no published page has the upload shortcode.', 'photo-competition-manager' )
+			);
 			return false;
 		}
 

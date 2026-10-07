@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
@@ -201,6 +202,17 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 		$this->assertFalse( $this->service->send_by_email( $competition_id, 'bob@example.com' ) );
 		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_send_by_email_logs_why_it_failed_when_no_upload_page_can_be_found() {
+		delete_option( 'photo_comp_default_settings' );
+		$competition_id = $this->make_open_competition();
+
+		$this->service->send_by_email( $competition_id, 'bob@example.com' );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'upload_link_no_upload_page' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertStringNotContainsString( 'bob@example.com', wp_json_encode( $logs ) );
 	}
 
 	public function test_send_to_member_send_failed() {
