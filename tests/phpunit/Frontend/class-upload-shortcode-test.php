@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -278,6 +279,18 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
 
 		$this->assertStringContainsString( 'This competition isn&#039;t accepting uploads right now.', $output );
+	}
+
+	public function test_an_upload_to_a_category_whose_voting_ended_with_no_votes_says_voting_has_started(): void {
+		$token   = $this->issue_token( true );
+		$someone = Member_Fixtures::insert_with_grade( 'Someone Else', 'someone@example.com', 'beginner' );
+		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $someone, array() );
+		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', Competition_Workflow::STAGE_CRITIQUE );
+		$this->assertTrue( ( new Competition_Workflow() )->reopen_uploads( $this->competition_id ) );
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'Voting has started in this category, so it can&#039;t take new entries.', $output );
 	}
 
 	public function test_deleting_an_entry_thats_already_gone_says_so(): void {
