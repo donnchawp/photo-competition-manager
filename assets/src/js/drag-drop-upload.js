@@ -399,21 +399,26 @@ class DragDropUpload {
 				return;
 			}
 
-			// A dropdown that still has a choice to offer only needs its options updated.
+			// A dropdown that still has a choice to offer keeps its place; its options are refreshed below.
 			const existingSelect = existingContainer.querySelector('select');
 			if (existingSelect && availableCategories.length > 1) {
-				this.fillCategoryOptions(existingSelect, availableCategories);
-				existingSelect.value = fileData.category;
 				return;
 			}
 
 			// Otherwise rebuild it: a label when one category fits (auto-assigned), a dropdown when several do.
-			const newContainer = this.createCategorySelect(fileData);
-			existingContainer.replaceWith(newContainer);
-			const newSelect = newContainer.querySelector('select');
-			if (newSelect && fileData.category) {
-				newSelect.value = fileData.category;
+			existingContainer.replaceWith(this.createCategorySelect(fileData));
+		});
+
+		// Fill the dropdowns last, so their counts include every file given its only category above.
+		this.selectedFiles.forEach((fileData) => {
+			const select = this.previewGrid.querySelector(`select[data-file-id="${fileData.id}"]`);
+			const availableCategories = this.getAvailableCategoriesForFile(fileData);
+			if (!select || availableCategories.length < 2) {
+				return;
 			}
+
+			this.fillCategoryOptions(select, availableCategories);
+			select.value = fileData.category;
 		});
 
 		this.updateUploadButton();
@@ -770,10 +775,32 @@ class DragDropUpload {
 			__('MB', 'photo-competition-manager'),
 			__('GB', 'photo-competition-manager'),
 		];
-		if (bytes === 0) return `0 ${sizes[0]}`;
 		const k = 1024;
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+		const i = bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(k));
+		const size = Math.round(bytes / Math.pow(k, i) * 100) / 100;
+		return sprintf(
+			/* translators: 1: file size, such as "2.5", 2: unit, such as "MB". */
+			__('%1$s %2$s', 'photo-competition-manager'),
+			this.formatNumber(size),
+			sizes[i]
+		);
+	}
+
+	/**
+	 * Format a number the way the site's language writes it, such as "2,5" on a German site.
+	 *
+	 * The site's language comes from the page's lang attribute, which WordPress sets.
+	 *
+	 * @param {number} number The number.
+	 * @return {string} The formatted number.
+	 */
+	formatNumber(number) {
+		try {
+			return new Intl.NumberFormat(document.documentElement.lang || undefined).format(number);
+		} catch (e) {
+			// A theme can print a lang attribute Intl doesn't accept.
+			return String(number);
+		}
 	}
 }
 

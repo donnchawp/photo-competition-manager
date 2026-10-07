@@ -399,6 +399,118 @@ describe( 'drag-and-drop upload', () => {
 		expect( label.querySelector( 'b' ) ).toBeNull();
 	} );
 
+	describe( 'with two categories', () => {
+		beforeEach( () => {
+			const config = window.photoCompUpload;
+			window.photoCompUpload = {
+				...config,
+				categories: [
+					{ slug: 'colour', label: 'Colour', quota: 1 },
+					{ slug: 'mono', label: 'Mono', quota: 2 },
+				],
+				quotas: {
+					colour: { current: 0, quota: 1, remaining: 1 },
+					mono: { current: 0, quota: 2, remaining: 2 },
+				},
+			};
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+			window.photoCompUpload = config;
+		} );
+
+		/**
+		 * Select files and wait until each one's preview is on the page.
+		 *
+		 * @param {string[]} names The file names.
+		 */
+		async function selectUnassigned( names ) {
+			const input = document.querySelector( '#batch-file-input' );
+			const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
+			Object.defineProperty( input, 'files', { value: files, configurable: true } );
+			input.dispatchEvent( new Event( 'change' ) );
+
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+				await settle();
+			}
+		}
+
+		/**
+		 * The category control under a file's preview.
+		 *
+		 * @param {string} name The file name.
+		 * @return {HTMLElement} The control's container.
+		 */
+		function categoryControl( name ) {
+			const item = Array.from( document.querySelectorAll( '.photo-comp-preview-item' ) ).find(
+				( preview ) => preview.querySelector( 'img' ).alt === name
+			);
+			return item.querySelector( '.photo-comp-category-select-container' );
+		}
+
+		function choose( name, slug ) {
+			const select = categoryControl( name ).querySelector( 'select' );
+			select.value = slug;
+			select.dispatchEvent( new Event( 'change' ) );
+		}
+
+		it( 'shows the other image the one category left once a full category is chosen', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+
+			choose( 'one.jpg', 'colour' );
+
+			const one = categoryControl( 'one.jpg' ).querySelector( 'select' );
+			expect( one.value ).toBe( 'colour' );
+			expect( Array.from( one.options, ( option ) => option.textContent ) ).toEqual( [
+				'-- Select Category --',
+				'Colour',
+				'Mono (1 remaining)',
+			] );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ) ).toBeNull();
+			expect( categoryControl( 'two.jpg' ).textContent ).toBe( 'Category: Mono (1 remaining)' );
+			expect( document.querySelector( '.photo-comp-upload-all-btn' ).disabled ).toBe( false );
+		} );
+
+		it( 'gives the other image its dropdown back once the full category is freed', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			choose( 'one.jpg', 'mono' );
+
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'mono' );
+			const two = categoryControl( 'two.jpg' ).querySelector( 'select' );
+			expect( two.value ).toBe( 'mono' );
+			expect( Array.from( two.options, ( option ) => option.value ) ).toEqual( [ '', 'colour', 'mono' ] );
+		} );
+	} );
+
+	/**
+	 * Select a 2.5 MB image on a page in the given language, and return the size shown under it.
+	 *
+	 * @param {string} lang The page's lang attribute.
+	 * @return {Promise<string>} The size shown.
+	 */
+	async function sizeShownIn( lang ) {
+		document.documentElement.lang = lang;
+		const input = document.querySelector( '#batch-file-input' );
+		const file = new File( [ new Uint8Array( 2.5 * 1024 * 1024 ) ], 'big.jpg', { type: 'image/jpeg' } );
+		Object.defineProperty( input, 'files', { value: [ file ], configurable: true } );
+		input.dispatchEvent( new Event( 'change' ) );
+		for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-file-info' ); i++ ) {
+			await settle();
+		}
+		document.documentElement.lang = '';
+
+		return document.querySelector( '.photo-comp-file-info' ).textContent;
+	}
+
+	it( "shows an image's size in the site's number format", async () => {
+		expect( await sizeShownIn( 'de-DE' ) ).toBe( '2,5 MB' );
+	} );
+
+	it( "shows an image's size when the page's language isn't one the browser knows", async () => {
+		expect( await sizeShownIn( 'not a language!' ) ).toBe( '2.5 MB' );
+	} );
+
 	it( 'says the image is too big when the web server refuses it before WordPress', async () => {
 		await selectFiles( [ 'one.jpg' ] );
 
