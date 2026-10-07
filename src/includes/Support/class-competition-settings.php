@@ -638,7 +638,7 @@ class Competition_Settings {
 	}
 
 	/**
-	 * The URL of a competition's voting, upload or results page.
+	 * The URL of a competition's voting, upload, results or top 3 page.
 	 *
 	 * Every email with a page link, the Members screen and the reminder job
 	 * use this, so a competition always gets the same link. It takes the
@@ -648,7 +648,7 @@ class Competition_Settings {
 	 * setting gets a say.
 	 *
 	 * @since 0.4.0
-	 * @param string      $page        'voting_page', 'upload_page' or 'results_page'.
+	 * @param string      $page        'voting_page', 'upload_page', 'results_page' or 'top3_page'.
 	 * @param object|null $competition Competition row, or null for the club's page.
 	 * @return string The page URL, or '' when no page can be found.
 	 */

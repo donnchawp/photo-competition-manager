@@ -482,6 +482,21 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-settings-tab-defaults', array( $comp_id ) );
 	}
 
+	public function test_render_edit_settings_tab_share_link_uses_the_clubs_results_page(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'results_page' => 'https://example.com/club-results/' ) ) ) );
+		$comp_id = $this->seed_competition( 'Club Results', 'club-results', array( 'share_hash' => 'clubhash' ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		$this->assertStringContainsString( 'href="https://example.com/club-results/?share=clubhash"', $this->render_normalized( array( $comp_id ) ) );
+	}
+
 	public function test_render_edit_settings_tab_configured(): void {
 		// tab=settings with a fully configured, non-default settings array:
 		// 3 categories and 2 grades (both counts different from the 2/3

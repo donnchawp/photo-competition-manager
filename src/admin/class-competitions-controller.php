@@ -844,6 +844,7 @@ class Competitions_Controller {
 				'progress_meter_type' => $progress_meter_type,
 				'urls'                => $urls,
 				'share_hash'          => $competition->share_hash ?? '',
+				'results_page_url'    => Competition_Settings::page_url( 'results_page', $competition ),
 			)
 		);
 	}
