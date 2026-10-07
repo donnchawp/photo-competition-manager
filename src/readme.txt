@@ -176,6 +176,7 @@ Yes. Visit **Competitions → Export** to download:
   * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
   * The upload limit takes the server's `post_max_size` into account too, and an upload over it is reported as too big instead of "Category assignments are required." or no message at all
   * Drag-and-drop upload sends one image at a time, so a large selection no longer fails as a whole
+  * Drag-and-drop upload says an image is too big when the web server in front of WordPress refuses it, and stops after the first image if the upload link is refused
   * Moving entries between categories happens all at once or not at all
   * A category takes no new entries once voting has started in it, or once it has votes
   * An image is never saved or moved onto another entry's file
