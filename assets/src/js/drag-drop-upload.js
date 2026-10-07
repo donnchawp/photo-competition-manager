@@ -488,7 +488,7 @@ class DragDropUpload {
 		return true;
 	}
 
-	uploadAll() {
+	async uploadAll() {
 		if (this.selectedFiles.length === 0) {
 			return;
 		}
@@ -507,75 +507,74 @@ class DragDropUpload {
 			</div>
 		`;
 
-		const formData = new FormData();
-		const assignments = {};
+		// One image per request, so no request is bigger than PHP's post_max_size allows.
+		const files = this.selectedFiles.slice();
+		const combined = { results: {}, success_count: 0, error_count: 0 };
 
-		this.selectedFiles.forEach((fileData, index) => {
-			const fileKey = `file_${index}`;
-			formData.append(fileKey, fileData.file);
-			assignments[fileKey] = fileData.category;
-		});
+		for (const [index, fileData] of files.entries()) {
+			const result = await this.uploadOne(fileData);
 
-		// Send assignments as individual form fields instead of JSON.
-		Object.keys(assignments).forEach((key) => {
-			formData.append(`assignments[${key}]`, assignments[key]);
-		});
-
-		// Use XMLHttpRequest for progress tracking.
-		const xhr = new XMLHttpRequest();
-
-		// Track upload progress.
-		xhr.upload.addEventListener('progress', (e) => {
-			if (e.lengthComputable) {
-				const percentComplete = Math.round((e.loaded / e.total) * 100);
-				this.updateProgressBar(percentComplete);
+			combined.results[fileData.id] = result.success
+				? result
+				: { success: false, error: `${fileData.file.name}: ${result.error}` };
+			if (result.success) {
+				++combined.success_count;
+			} else {
+				++combined.error_count;
 			}
-		});
 
-		// Handle completion.
-		xhr.addEventListener('load', () => {
-			if (xhr.status >= 200 && xhr.status < 300) {
+			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
+		}
+
+		this.handleUploadSuccess(combined);
+		this.uploadButton.disabled = false;
+		this.uploadButton.textContent = 'Upload All';
+	}
+
+	/**
+	 * Upload one image to the batch endpoint.
+	 *
+	 * @param {Object} fileData The selected file and its category.
+	 * @return {Promise<Object>} Resolves to { success: true } or { success: false, error }.
+	 */
+	uploadOne(fileData) {
+		const formData = new FormData();
+		formData.append('file_0', fileData.file);
+		formData.append('assignments[file_0]', fileData.category);
+
+		return new Promise((resolve) => {
+			const xhr = new XMLHttpRequest();
+
+			xhr.addEventListener('load', () => {
+				let data = null;
 				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadSuccess(data);
+					data = JSON.parse(xhr.responseText);
 				} catch (error) {
-					this.showError('Failed to parse server response.');
 					console.error('Parse error:', error);
 				}
-			} else {
-				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadError(data);
-				} catch (error) {
-					this.showError('Upload failed. Please try again.');
-					console.error('Upload error:', error);
+
+				if (xhr.status >= 200 && xhr.status < 300 && data && data.results && data.results.file_0) {
+					resolve(data.results.file_0);
+				} else {
+					resolve({ success: false, error: (data && data.message) || 'Upload failed. Please try again.' });
 				}
-			}
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
+			});
 
-		// Handle errors.
-		xhr.addEventListener('error', () => {
-			this.showError('Network error. Please check your connection and try again.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
+			xhr.addEventListener('error', () => {
+				resolve({ success: false, error: 'Network error. Please check your connection and try again.' });
+			});
 
-		// Handle abort.
-		xhr.addEventListener('abort', () => {
-			this.showError('Upload cancelled.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
+			xhr.addEventListener('abort', () => {
+				resolve({ success: false, error: 'Upload cancelled.' });
+			});
 
-		// Send request.
-		xhr.open(
-			'POST',
-			`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
-		);
-		xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
-		xhr.send(formData);
+			xhr.open(
+				'POST',
+				`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
+			);
+			xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
+			xhr.send(formData);
+		});
 	}
 
 	updateProgressBar(percent) {
