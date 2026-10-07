@@ -388,8 +388,8 @@ class Competition_Workflow {
 	 * Publish the results, recording them first.
 	 *
 	 * Publishing again replaces the record, as the votes can change while
-	 * results are hidden. Once the competition has closed, an existing
-	 * record stays as it is (see Results_Ranking::record()).
+	 * results are hidden. Once the competition has closed, a record made
+	 * since it closed stays as it is (see Results_Ranking::record()).
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error
@@ -434,7 +434,8 @@ class Competition_Workflow {
 	}
 
 	/**
-	 * Unpublish the results. Their record stays.
+	 * Unpublish the results. Their record stays, but once the competition
+	 * closes it's made afresh the next time it's needed.
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error

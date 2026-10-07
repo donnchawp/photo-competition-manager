@@ -24,7 +24,8 @@ use WP_Error;
  * Once a competition's results are published, or it has closed, its results
  * are read from its record, so deleting a member, removing an entry or
  * changing a grade afterwards moves nobody. Until then they're worked out
- * from the votes on every read.
+ * from the votes on every read. A record made before the competition closed
+ * counts only while results are published; otherwise it's made afresh.
  *
  * @since 0.4.0
  */
@@ -104,8 +105,8 @@ class Results_Ranking {
 	 * Rank a category's entries within each of the club's grades.
 	 *
 	 * A competition whose results are published, or that has closed, is
-	 * read from its record, and recorded first if it has none. Other
-	 * competitions are worked out from the votes.
+	 * read from its record, and recorded first if it has no trusted one.
+	 * Other competitions are worked out from the votes.
 	 *
 	 * In recorded results, an entry keeps the grade it was entered in, and
 	 * an entry whose member or entry has since been deleted keeps its place
