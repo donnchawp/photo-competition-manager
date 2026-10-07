@@ -135,6 +135,25 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
 	}
 
+	public function test_the_upload_page_loads_the_upload_script_translations(): void {
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_a_deactivated_members_page_loads_no_upload_script_translations(): void {
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
+		$_GET['token'] = $this->issue_token( false );
+
+		$this->shortcode->render( array() );
+
+		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
 	/**
 	 * Server limits, and the limit the page should show for each.
 	 *

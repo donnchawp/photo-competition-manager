@@ -729,6 +729,9 @@ class Upload_Shortcode {
 							'allowedFormats' => $constraints['allowed_formats'],
 						)
 					);
+
+					// The script's messages come from the plugin's language pack, like the rest of the page.
+					wp_set_script_translations( 'photo-comp-drag-drop-upload', 'photo-competition-manager' );
 					?>
 
 					<!-- Fallback: Traditional single upload -->
