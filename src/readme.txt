@@ -169,6 +169,7 @@ Yes. Visit **Competitions → Export** to download:
 * **Competitions**
   * Only one competition can be open at a time, with a new Close Competition action
   * Competitions close at their close date, and overlapping dates are refused
+  * Setting an open competition's close date to today in the edit form closes it when you save, and saving the form without changing the day keeps the time it closed
   * Competitions use the club's grade list, and the club's categories when they have none of their own
   * Voting Controls, Results and Submissions act on the current competition
 
