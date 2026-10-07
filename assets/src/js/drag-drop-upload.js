@@ -97,10 +97,9 @@ class DragDropUpload {
 			return;
 		}
 
-		// Calculate total available quota across all categories.
-		const totalAvailableQuota = this.getTotalAvailableQuota();
-		const currentFileCount = this.selectedFiles.length;
-		const availableSlots = totalAvailableQuota - currentFileCount;
+		// The total available quota already counts the selected images that have a category.
+		const unassignedCount = this.selectedFiles.filter((fileData) => !fileData.category).length;
+		const availableSlots = this.getTotalAvailableQuota() - unassignedCount;
 
 		if (availableSlots <= 0) {
 			this.showError(__('All category quotas are full. Cannot add more files.', 'photo-competition-manager'));

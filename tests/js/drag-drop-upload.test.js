@@ -211,6 +211,52 @@ describe( 'drag-and-drop upload', () => {
 		);
 	} );
 
+	/**
+	 * The names of the images selected so far.
+	 *
+	 * @return {string[]} Each preview's file name.
+	 */
+	function selectedNames() {
+		return Array.from( document.querySelectorAll( '.photo-comp-preview-item img' ), ( img ) => img.alt );
+	}
+
+	/**
+	 * The quota message on screen, if there is one.
+	 *
+	 * @return {string|null} The message.
+	 */
+	function quotaMessage() {
+		const message = document.querySelector( '.photo-comp-error-message' );
+		return message ? message.textContent : null;
+	}
+
+	it( 'adds an image in a second go while the quota has room for it', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBeNull();
+	} );
+
+	it( 'turns away an image in a second go once the quota is full', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+
+		await selectFiles( [ 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'All category quotas are full. Cannot add more files.' );
+	} );
+
+	it( 'adds as many images in a second go as the quota has room for', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg', 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
+	} );
+
 	it( 'keeps the failures on screen when a later file is turned away', async () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
@@ -427,9 +473,10 @@ describe( 'drag-and-drop upload', () => {
 			const input = document.querySelector( '#batch-file-input' );
 			const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
 			Object.defineProperty( input, 'files', { value: files, configurable: true } );
+			const before = document.querySelectorAll( '.photo-comp-preview-item' ).length;
 			input.dispatchEvent( new Event( 'change' ) );
 
-			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < before + names.length; i++ ) {
 				await settle();
 			}
 		}
@@ -480,6 +527,16 @@ describe( 'drag-and-drop upload', () => {
 			const two = categoryControl( 'two.jpg' ).querySelector( 'select' );
 			expect( two.value ).toBe( 'mono' );
 			expect( Array.from( two.options, ( option ) => option.value ) ).toEqual( [ '', 'colour', 'mono' ] );
+		} );
+
+		it( 'adds an image in a second go after a category is chosen, while the quotas have room', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			await selectUnassigned( [ 'three.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBeNull();
 		} );
 	} );
 
