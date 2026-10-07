@@ -100,7 +100,7 @@ class Entries {
 	 *
 	 * A member may add only their own entries, and only while the competition accepts uploads.
 	 * An admin may add for any member at any time. Both are held to the category's quota, and
-	 * neither can add to a category that already has votes.
+	 * neither can add to a category once its voting is past Previewed, or that already has votes.
 	 *
 	 * @param Actor                $actor          Who is adding the entry.
 	 * @param int                  $competition_id Competition ID.
@@ -142,7 +142,13 @@ class Entries {
 		}
 
 		// Members can't get here in practice: voting needs uploads closed, and uploads can't reopen
-		// once there are votes. The rule doesn't rely on that.
+		// once there are votes. These rules don't rely on that.
+		$stage = $this->workflow->stage( $competition, $category );
+		if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so it can\'t take new entries. Reset the category first.', 'photo-competition-manager' ) );
+		}
+
+		// A reset can keep a category's votes, so the stage alone doesn't rule them out.
 		$voted = $this->voted_category_error( $competition_id, $category );
 		if ( $voted ) {
 			return $voted;
