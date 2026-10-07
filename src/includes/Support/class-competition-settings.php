@@ -623,6 +623,50 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The URL of a competition's voting, upload or results page.
+	 *
+	 * Every email with a page link, the Members screen and the reminder job
+	 * use this, so a competition always gets the same link. It takes the
+	 * competition's own setting, then the club's, then a published page
+	 * containing the page's shortcode. It reads the stored settings rather
+	 * than parse(), which fills in a shortcode page before the club's
+	 * setting gets a say.
+	 *
+	 * @since 0.4.0
+	 * @param string      $page        'voting_page', 'upload_page' or 'results_page'.
+	 * @param object|null $competition Competition row, or null for the club's page.
+	 * @return string The page URL, or '' when no page can be found.
+	 */
+	public static function page_url( string $page, ?object $competition = null ): string {
+		$url = $competition ? self::stored_page_url( $competition->settings ?? '', $page ) : '';
+
+		if ( '' === $url ) {
+			$club = get_option( 'photo_comp_default_settings', '' );
+			$url  = self::stored_page_url( is_string( $club ) ? $club : '', $page );
+		}
+
+		if ( '' === $url && isset( self::PAGE_SHORTCODES[ $page ] ) ) {
+			$url = self::find_page_url_with_shortcode( self::PAGE_SHORTCODES[ $page ] );
+		}
+
+		return $url;
+	}
+
+	/**
+	 * A page URL as stored in settings JSON, before any shortcode page is filled in.
+	 *
+	 * @param string|null $json Settings JSON.
+	 * @param string      $page Settings URL key.
+	 * @return string The stored URL, or ''.
+	 */
+	private static function stored_page_url( ?string $json, string $page ): string {
+		$settings = ! empty( $json ) ? json_decode( $json, true ) : array();
+		$url      = is_array( $settings ) ? ( $settings['urls'][ $page ] ?? '' ) : '';
+
+		return is_string( $url ) ? $url : '';
+	}
+
+	/**
 	 * Find a page URL that contains a specific shortcode.
 	 *
 	 * @param string $shortcode_tag The shortcode tag to search for (without brackets).

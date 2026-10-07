@@ -7,6 +7,7 @@
 
 namespace PhotoCompetitionManager\Tests\Support;
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
@@ -752,5 +753,77 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( get_permalink( $page_id ), Competition_Settings::find_page_url_with_shortcode( 'gallery' ) );
 		$this->assertSame( '', Competition_Settings::find_page_url_with_shortcode( 'no_such_shortcode' ) );
+	}
+
+	// ---------------------------------------------------------------
+	// page_url(): one rule for the voting, upload and results pages.
+	// ---------------------------------------------------------------
+
+	/**
+	 * Create a competition and load it back.
+	 *
+	 * @param array<string, string> $urls The competition's own page URLs.
+	 * @return object Competition row.
+	 */
+	private function competition_with_urls( array $urls ): object {
+		$repo = new Competitions_Repository();
+		$id   = $repo->create(
+			array(
+				'title'    => 'Links',
+				'slug'     => 'links-' . wp_generate_password( 6, false ),
+				'settings' => array( 'urls' => $urls ),
+			)
+		);
+
+		return $repo->find( (int) $id );
+	}
+
+	/**
+	 * Save the club's page URLs.
+	 *
+	 * @param array<string, string> $urls Club page URLs.
+	 */
+	private function set_club_urls( array $urls ): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => $urls ) ) );
+	}
+
+	public function test_page_url_prefers_the_competitions_own_page(): void {
+		$this->create_page( '[competition_voting]' );
+		$this->set_club_urls( array( 'voting_page' => 'https://example.com/club-vote/' ) );
+		$competition = $this->competition_with_urls( array( 'voting_page' => 'https://example.com/comp-vote/' ) );
+
+		$this->assertSame( 'https://example.com/comp-vote/', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_uses_the_clubs_page_before_a_shortcode_page(): void {
+		$this->create_page( '[competition_voting]' );
+		$this->set_club_urls( array( 'voting_page' => 'https://example.com/club-vote/' ) );
+		$competition = $this->competition_with_urls( array( 'voting_page' => '' ) );
+
+		$this->assertSame( 'https://example.com/club-vote/', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_falls_back_to_a_page_with_the_shortcode(): void {
+		$voting      = $this->create_page( '[competition_voting]' );
+		$upload      = $this->create_page( '[competition_upload]' );
+		$results     = $this->create_page( '[competition_results]' );
+		$competition = $this->competition_with_urls( array() );
+
+		$this->assertSame( get_permalink( $voting ), Competition_Settings::page_url( 'voting_page', $competition ) );
+		$this->assertSame( get_permalink( $upload ), Competition_Settings::page_url( 'upload_page', $competition ) );
+		$this->assertSame( get_permalink( $results ), Competition_Settings::page_url( 'results_page', $competition ) );
+	}
+
+	public function test_page_url_is_empty_when_no_page_can_be_found(): void {
+		$this->create_page( '[competition_upload]' );
+		$competition = $this->competition_with_urls( array() );
+
+		$this->assertSame( '', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_without_a_competition_uses_the_clubs_page(): void {
+		$this->set_club_urls( array( 'results_page' => 'https://example.com/results/' ) );
+
+		$this->assertSame( 'https://example.com/results/', Competition_Settings::page_url( 'results_page' ) );
 	}
 }
