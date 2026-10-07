@@ -4,6 +4,20 @@
  * @package PhotoCompetitionManager
  */
 
+// The plugin's primary button look, shared by the browse, Upload All and refresh buttons.
+@mixin primary-button {
+	background: #2271b1;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 0.3s ease;
+
+	&:hover:not(:disabled) {
+		background: #135e96;
+	}
+}
+
 .photo-comp-upload {
 	max-width: 1200px;
 	margin: 0 auto;
@@ -56,17 +70,8 @@
 		display: inline-block;
 		margin-top: 15px;
 		padding: 12px 24px;
-		background: #2271b1;
-		color: #fff;
-		border: none;
-		border-radius: 4px;
 		font-size: 16px;
-		cursor: pointer;
-		transition: background 0.3s ease;
-
-		&:hover {
-			background: #135e96;
-		}
+		@include primary-button;
 	}
 }
 
@@ -182,19 +187,10 @@
 .photo-comp-upload-all-btn {
 	display: none; // Hidden until files are ready
 	padding: 15px 30px;
-	background: #2271b1;
-	color: #fff;
-	border: none;
-	border-radius: 4px;
 	font-size: 18px;
 	font-weight: 600;
-	cursor: pointer;
-	transition: background 0.3s ease;
 	margin-bottom: 20px;
-
-	&:hover:not(:disabled) {
-		background: #135e96;
-	}
+	@include primary-button;
 
 	&:disabled {
 		background: #ccc;
@@ -316,17 +312,9 @@
 .photo-comp-refresh-btn {
 	margin-top: 15px;
 	padding: 10px 20px;
-	background: #2271b1;
-	color: #fff;
-	border: none;
-	border-radius: 4px;
 	font-size: 16px;
 	font-weight: 600;
-	cursor: pointer;
-
-	&:hover {
-		background: #135e96;
-	}
+	@include primary-button;
 }
 
 // Fallback section (traditional single upload)

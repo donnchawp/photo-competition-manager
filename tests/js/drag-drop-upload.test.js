@@ -106,6 +106,27 @@ async function answerLastAndWait( answer ) {
 	await jest.advanceTimersByTimeAsync( 10000 );
 }
 
+/**
+ * The failure lines listed under the upload progress.
+ *
+ * @return {string[]} Each line's text.
+ */
+function errorLines() {
+	return Array.from( document.querySelectorAll( '.photo-comp-upload-progress .photo-comp-error-list li' ), ( li ) => li.textContent );
+}
+
+/**
+ * Send one.jpg and two.jpg, and answer the first request with a success.
+ */
+async function sendTwoWithFirstUploaded() {
+	await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+	document.querySelector( '.photo-comp-upload-all-btn' ).click();
+	await settle();
+	FakeXhr.requests[ 0 ].respond( 200, uploaded );
+	await settle();
+}
+
 const realLocation = window.location;
 
 describe( 'drag-and-drop upload', () => {
@@ -124,29 +145,19 @@ describe( 'drag-and-drop upload', () => {
 	} );
 
 	it( 'reloads the page to show the new entries when every image went in', async () => {
-		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
-
-		document.querySelector( '.photo-comp-upload-all-btn' ).click();
-		await settle();
-		FakeXhr.requests[ 0 ].respond( 200, uploaded );
-		await settle();
+		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
 
 		expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
 	} );
 
 	it( 'keeps the failures on screen after a mixed batch, with a button to show the new entries', async () => {
-		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
-
-		document.querySelector( '.photo-comp-upload-all-btn' ).click();
-		await settle();
-		FakeXhr.requests[ 0 ].respond( 200, uploaded );
-		await settle();
+		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
 
 		expect( window.location.reload ).not.toHaveBeenCalled();
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'two.jpg: Only JPEG images are allowed.',
 		] );
 
@@ -168,7 +179,7 @@ describe( 'drag-and-drop upload', () => {
 
 		expect( window.location.reload ).not.toHaveBeenCalled();
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
 		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).toBeNull();
@@ -208,7 +219,7 @@ describe( 'drag-and-drop upload', () => {
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 image(s). 1 upload(s) failed.' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
 	} );
@@ -243,7 +254,7 @@ describe( 'drag-and-drop upload', () => {
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image(s). 1 upload(s) failed.' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
 	} );
@@ -259,7 +270,7 @@ describe( 'drag-and-drop upload', () => {
 		expect( FakeXhr.requests ).toHaveLength( 1 );
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 image(s). 2 upload(s) failed.' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
 	} );
@@ -272,8 +283,7 @@ describe( 'drag-and-drop upload', () => {
 		FakeXhr.requests[ 0 ].respondWithText( 413, '<html><body>413 Request Entity Too Large</body></html>' );
 		await settle();
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+		expect( errorLines() ).toEqual( [
 			'one.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
 	} );
