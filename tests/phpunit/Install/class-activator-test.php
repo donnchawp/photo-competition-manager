@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Legacy_Tables;
 use WP_UnitTestCase;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -24,6 +25,13 @@ class Activator_Test extends WP_UnitTestCase {
 	 * @var string
 	 */
 	private $shadowed = '';
+
+	/**
+	 * Schema queries the upgrade ran, or tried to: ALTER TABLE is swallowed.
+	 *
+	 * @var array<string>
+	 */
+	private $ddl = array();
 
 	public function setUp(): void {
 		parent::setUp();
@@ -308,7 +316,7 @@ class Activator_Test extends WP_UnitTestCase {
 			),
 			$types
 		);
-		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_email_jobs_are_renamed_even_when_an_earlier_upgrade_step_fails(): void {
@@ -385,6 +393,180 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertNull( $logs[0]->actor_id );
 	}
 
+	public function test_upgrade_to_6_makes_the_plain_voting_tokens_key_unique(): void {
+		$this->shadow_v5_voting_tokens_table();
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		// The plain key has the unique key's name, so it goes in the same
+		// statement: dbDelta would try to add a second key with that name.
+		$replaced = preg_grep( '/^ALTER TABLE `?\w*photocomp_voting_tokens`? DROP INDEX `?member_competition_category`?, ADD UNIQUE KEY `?member_competition_category`? \(`?member_id`?, `?competition_id`?, `?category`?\)$/i', $this->ddl );
+		$this->assertCount( 1, $replaced, implode( "\n", $this->ddl ) );
+		// The swallowed ALTER means the key never appears, so the upgrade
+		// stops there and runs again on the next request.
+		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_6_leaves_voting_tokens_with_the_unique_key_alone(): void {
+		$this->record_ddl();
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array(), $this->ddl );
+		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_6_keeps_each_members_ballot_and_deletes_their_other_tokens(): void {
+		global $wpdb;
+		$this->shadow_v5_voting_tokens_table();
+		// The first link went unused and the ballot is on a later one.
+		$this->insert_v5_token( 1, 1 );
+		$later_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $later_ballot, 1, 10 );
+		// Two ballots from one member: the second shouldn't exist.
+		$first_ballot  = $this->insert_v5_token( 2, 1 );
+		$second_ballot = $this->insert_v5_token( 2, 1 );
+		$this->insert_vote( $first_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 11 );
+		// No ballot: the latest link is the one the member has.
+		$this->insert_v5_token( 3, 2 );
+		$latest = $this->insert_v5_token( 3, 2 );
+		$alone  = $this->insert_v5_token( 4, 3 );
+		$this->insert_vote( $alone, 3, 30 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$tokens = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) );
+		$this->assertSame( array( $later_ballot, $first_ballot, $latest, $alone ), array_map( 'intval', $tokens ) );
+		$voters = $wpdb->get_col( $wpdb->prepare( 'SELECT voting_token_id FROM %i ORDER BY id', $wpdb->prefix . 'photocomp_votes' ) );
+		$this->assertSame( array( $later_ballot, $first_ballot, $alone ), array_map( 'intval', $voters ) );
+	}
+
+	public function test_upgrade_to_6_logs_the_votes_it_removes_with_duplicate_tokens(): void {
+		$this->shadow_v5_voting_tokens_table();
+		$this->insert_vote( $this->insert_v5_token( 1, 1 ), 1, 10 );
+		$second_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 11 );
+		$this->insert_v5_token( 2, 2 );
+		$this->insert_v5_token( 2, 2 );
+		$this->insert_vote( $this->insert_v5_token( 3, 3 ), 3, 30 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array( 2, 0, 0 ), array_map( array( $this, 'removed_votes_logged' ), array( 1, 2, 3 ) ) );
+		$logs = ( new Logs_Repository() )->find_by_competition( 1, 50, 0, array( 'event_type' => 'duplicate_votes_removed' ) );
+		$this->assertSame( 'system', $logs[0]->actor_type );
+	}
+
+	public function test_upgrade_to_6_keeps_a_token_and_runs_again_when_its_votes_cant_be_deleted(): void {
+		global $wpdb;
+		$this->shadow_v5_voting_tokens_table();
+		$this->insert_vote( $this->insert_v5_token( 1, 1 ), 1, 10 );
+		$second_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		$break_delete = function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_votes' )
+				? 'DELETE FROM photocomp_no_such_table'
+				: $query;
+		};
+		add_filter( 'query', $break_delete );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_delete );
+
+		// A token deleted without its votes would leave a second ballot
+		// counting in the results with nothing to find it by.
+		$this->assertSame( 2, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $this->shadowed ) ) );
+		$this->assertSame( array(), preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
+		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	/**
+	 * Insert a voting token into the version 5 voting tokens table.
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return int Token ID.
+	 */
+	private function insert_v5_token( int $member_id, int $competition_id ): int {
+		global $wpdb;
+
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+				'category'       => 'colour',
+				'token_hash'     => wp_generate_password( 64, false ),
+				'expires_at'     => utc_time( HOUR_IN_SECONDS ),
+			)
+		);
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Insert a vote cast with a voting token.
+	 *
+	 * @param int $voting_token_id Token.
+	 * @param int $competition_id  Competition ID.
+	 * @param int $image_id        Image ID.
+	 * @return void
+	 */
+	private function insert_vote( int $voting_token_id, int $competition_id, int $image_id ): void {
+		global $wpdb;
+
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_votes',
+			array(
+				'competition_id'  => $competition_id,
+				'category'        => 'colour',
+				'voting_token_id' => $voting_token_id,
+				'image_id'        => $image_id,
+				'score'           => 5,
+			)
+		);
+	}
+
+	/**
+	 * Hide the voting tokens table behind one shaped as version 5 left it on
+	 * old sites, with a plain key where the unique one goes, so duplicates
+	 * can be stored.
+	 */
+	private function shadow_v5_voting_tokens_table(): void {
+		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens();
+		$this->record_ddl();
+	}
+
+	/**
+	 * Record the schema queries the upgrade runs into $this->ddl, and
+	 * swallow ALTER TABLE: it would end the test's transaction, so nothing
+	 * the upgrade does to the schema reaches the database.
+	 */
+	private function record_ddl(): void {
+		add_filter(
+			'query',
+			function ( $query ) {
+				if ( preg_match( '/^\s*(ALTER|CREATE|DROP|DESCRIBE)\s/i', $query ) ) {
+					$this->ddl[] = trim( $query );
+				}
+
+				return 0 === stripos( ltrim( $query ), 'ALTER TABLE' ) ? 'SELECT 1' : $query;
+			}
+		);
+	}
+
 	/**
 	 * How many removed duplicate votes the upgrade logged for a competition.
 	 *
@@ -400,11 +582,8 @@ class Activator_Test extends WP_UnitTestCase {
 
 	/**
 	 * Hide the votes table behind a temporary one shaped as version 3 left
-	 * it, without unique keys, so duplicates can be stored.
-	 *
-	 * Creating a temporary table doesn't end the test's transaction. ALTER
-	 * TABLE would, so it's swallowed: nothing the upgrade does to the schema
-	 * reaches the database.
+	 * it, without unique keys, so duplicates can be stored. Creating a
+	 * temporary table doesn't end the test's transaction.
 	 */
 	private function shadow_v3_votes_table(): void {
 		global $wpdb;
@@ -425,12 +604,7 @@ class Activator_Test extends WP_UnitTestCase {
 			) {$wpdb->get_charset_collate()}"
 		);
 
-		add_filter(
-			'query',
-			function ( $query ) {
-				return 0 === stripos( ltrim( $query ), 'ALTER TABLE' ) ? 'SELECT 1' : $query;
-			}
-		);
+		$this->record_ddl();
 	}
 
 	/**

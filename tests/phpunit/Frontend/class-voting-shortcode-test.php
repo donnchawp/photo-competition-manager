@@ -209,7 +209,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS ): string {
 		$token_string = bin2hex( random_bytes( 32 ) );
-		$this->tokens->create(
+		$this->tokens->renew(
 			$member_id,
 			(int) $this->competition->id,
 			'colour',
@@ -354,6 +354,98 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 0, $this->mail_count );
 		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	/**
+	 * Asking again renews the member's one token: the new link works and the
+	 * first one doesn't.
+	 *
+	 * @dataProvider ages_of_a_first_link
+	 *
+	 * @param int $age How long ago the first link was sent.
+	 */
+	public function test_a_member_who_asks_again_gets_a_working_link_on_their_one_token( int $age ): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$first       = $this->link_from_last_mail();
+		$first_token = $this->tokens->find_valid_token( hash( 'sha256', $first ) );
+		$this->age_tokens( $age );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'class="success"', $message );
+		$this->assertSame( 2, $this->mail_count );
+		$renewed = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
+		$this->assertSame( $first_token->id, $renewed->id );
+		$this->assertNull( $this->tokens->find_valid_token( hash( 'sha256', $first ) ) );
+	}
+
+	/**
+	 * How long ago a member's first link was sent when they ask again.
+	 *
+	 * @return array<string, array<int>>
+	 */
+	public function ages_of_a_first_link(): array {
+		return array(
+			'after five minutes' => array( 6 * MINUTE_IN_SECONDS ),
+			'after it expired'   => array( 2 * HOUR_IN_SECONDS ),
+		);
+	}
+
+	public function test_a_member_who_voted_is_told_so_by_the_renewed_link(): void {
+		$permalink = $this->view_page();
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$_POST = array();
+		$_GET  = array();
+		$this->request_token( 'active@example.com' );
+
+		$location = $this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+
+		$this->assertSame( add_query_arg( 'ballot', 'already_cast', $permalink ), $location );
+		$this->assertSame( 1, $this->vote_count() );
+	}
+
+	public function test_a_request_within_five_minutes_of_a_renewal_sends_nothing(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$this->request_token( 'active@example.com' );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
+		$this->assertSame( 2, $this->mail_count );
+	}
+
+	/**
+	 * Age every voting token, as if it was sent that long ago.
+	 *
+	 * @param int $seconds How long ago the tokens were sent.
+	 */
+	private function age_tokens( int $seconds ): void {
+		global $wpdb;
+
+		$wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET created_at = created_at - INTERVAL %d SECOND, expires_at = expires_at - INTERVAL %d SECOND',
+				$wpdb->prefix . 'photocomp_voting_tokens',
+				$seconds,
+				$seconds
+			)
+		);
+	}
+
+	/**
+	 * The raw token in the voting link of the last email sent.
+	 *
+	 * @return string
+	 */
+	private function link_from_last_mail(): string {
+		$this->assertSame( 1, preg_match( '/token=([0-9a-f]{64})/', $this->last_mail['message'], $matches ) );
+		return $matches[1];
 	}
 
 	public function test_active_member_token_opens_ballot(): void {

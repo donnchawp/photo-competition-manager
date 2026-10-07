@@ -29,7 +29,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 5;
+	const DB_VERSION = 6;
 
 	/**
 	 * Option holding the installed data version.
@@ -95,6 +95,12 @@ class Activator {
 		// A voter gets one vote per image. Unique keys enforce it, and votes
 		// are the only record of a used voting token.
 		if ( $installed < 4 && ( ! self::make_votes_unique() || ! self::drop_token_used_at() ) ) {
+			return;
+		}
+
+		// A member has one voting token per category, and asking for a link
+		// again renews it. Old tables never got the unique key that says so.
+		if ( $installed < 6 && ! self::make_voting_tokens_unique() ) {
 			return;
 		}
 
@@ -254,10 +260,28 @@ class Activator {
 			}
 		}
 
-		// Totals come from the votes, so say which competitions' results changed.
-		// The upgrade runs on whichever request comes first, so the system is
-		// the actor, not the current user. It runs before translations can
-		// load, so the description is in English.
+		self::log_removed_votes( $removed, 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.' );
+
+		self::create_tables();
+
+		return self::votes_are_unique( $table );
+	}
+
+	/**
+	 * Log, per competition, the votes an upgrade deleted.
+	 *
+	 * Totals come from the votes, so say which competitions' results changed.
+	 * The upgrade runs on whichever request comes first, so the system is
+	 * the actor, not the current user. It runs before translations can
+	 * load, so the description is in English.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<int, int> $removed     Votes deleted, by competition ID.
+	 * @param string          $description Description, with %d for the count.
+	 * @return void
+	 */
+	private static function log_removed_votes( array $removed, string $description ): void {
 		foreach ( array_filter( $removed ) as $competition_id => $count ) {
 			( new Logs_Repository() )->create(
 				array(
@@ -266,15 +290,96 @@ class Activator {
 					'event_category' => 'voting',
 					'actor_type'     => 'system',
 					'actor_name'     => 'System',
-					'description'    => sprintf( 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.', $count ),
+					'description'    => sprintf( $description, $count ),
 					'metadata'       => array( 'removed' => $count ),
 				)
 			);
 		}
+	}
 
-		self::create_tables();
+	/**
+	 * Keep one voting token per member, competition and category, then add
+	 * the unique key that stops a second one.
+	 *
+	 * Of a member's tokens for a category, the one renew() would use stays
+	 * (see Voting_Token_Repository::member_token_id()). The other tokens go,
+	 * and their votes with them: those can only be a second ballot from the
+	 * same member.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the key couldn't be added.
+	 */
+	private static function make_voting_tokens_unique(): bool {
+		global $wpdb;
 
-		return self::votes_are_unique( $table );
+		$tokens = new Voting_Token_Repository();
+		$table  = $tokens->table();
+		$votes  = ( new Votes_Repository() )->table();
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::voting_tokens_are_unique( $table ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$duplicates = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT member_id, competition_id, category FROM %i
+				GROUP BY member_id, competition_id, category
+				HAVING COUNT(*) > 1',
+				$table
+			)
+		);
+
+		$removed  = array();
+		$complete = true;
+
+		foreach ( $duplicates as $duplicate ) {
+			$competition_id = (int) $duplicate->competition_id;
+			$keep           = $tokens->member_token_id( (int) $duplicate->member_id, $competition_id, $duplicate->category );
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$others = $wpdb->get_col(
+				$wpdb->prepare(
+					'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s AND id <> %d',
+					$table,
+					$duplicate->member_id,
+					$competition_id,
+					$duplicate->category,
+					$keep
+				)
+			);
+
+			foreach ( $others as $token_id ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$deleted = $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
+
+				// Keep the token, or its votes would count with no token to
+				// find them by. The step runs again on the next request.
+				if ( false === $deleted ) {
+					$complete = false;
+					continue;
+				}
+
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + $deleted;
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->delete( $table, array( 'id' => $token_id ), array( '%d' ) );
+			}
+		}
+
+		self::log_removed_votes( $removed, 'Upgrade removed %d vote(s) cast with a member\'s second voting link, keeping their earliest ballot in each category.' );
+
+		if ( ! $complete ) {
+			return false;
+		}
+
+		// Old tables have a plain key with this name, so dbDelta can't add
+		// the unique one: drop it and add it back unique in one statement.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition_category, ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+
+		return self::voting_tokens_are_unique( $table );
 	}
 
 	/**
@@ -286,12 +391,40 @@ class Activator {
 	 * @return bool
 	 */
 	private static function votes_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'image_token', 'image_voter' ) );
+	}
+
+	/**
+	 * Whether the voting tokens table has its unique key.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Voting tokens table.
+	 * @return bool
+	 */
+	private static function voting_tokens_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'member_competition_category' ) );
+	}
+
+	/**
+	 * Whether a table has all of the named keys, and each is unique.
+	 *
+	 * A name isn't enough: old voting tokens tables have a plain key named
+	 * as the unique one is now.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string        $table Table name.
+	 * @param array<string> $keys  Key names.
+	 * @return bool
+	 */
+	private static function has_unique_keys( string $table, array $keys ): bool {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$keys = $wpdb->get_col( $wpdb->prepare( "SHOW INDEX FROM %i WHERE Key_name IN ('image_token', 'image_voter')", $table ), 2 );
+		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Non_unique = 0', $table ), 2 );
 
-		return 2 === count( array_unique( $keys ) );
+		return array() === array_diff( $keys, $found );
 	}
 
 	/**

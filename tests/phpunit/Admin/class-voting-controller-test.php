@@ -143,7 +143,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	private function seed_token( int $competition_id, string $category ): void {
 		$tokens = new Voting_Token_Repository();
-		$tokens->create( $this->admin_id, $competition_id, $category, 'hash_' . $category, '2099-12-31 00:00:00' );
+		$tokens->renew( $this->admin_id, $competition_id, $category, 'hash_' . $category, '2099-12-31 00:00:00' );
 	}
 
 	/**

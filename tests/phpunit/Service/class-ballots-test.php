@@ -105,7 +105,7 @@ class Ballots_Test extends WP_UnitTestCase {
 	 */
 	private function issue_link( int $member_id, string $category = 'colour', int $expires = HOUR_IN_SECONDS ): string {
 		$token = bin2hex( random_bytes( 32 ) );
-		( new Voting_Token_Repository() )->create( $member_id, (int) $this->competition->id, $category, hash( 'sha256', $token ), gmdate( 'Y-m-d H:i:s', time() + $expires ) );
+		( new Voting_Token_Repository() )->renew( $member_id, (int) $this->competition->id, $category, hash( 'sha256', $token ), gmdate( 'Y-m-d H:i:s', time() + $expires ) );
 		return $token;
 	}
 
