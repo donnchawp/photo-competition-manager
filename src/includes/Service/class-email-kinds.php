@@ -30,13 +30,34 @@ class Email_Kinds {
 	 * whether it is a notification (which an admin can switch off) and, if so,
 	 * whether it is on by default, its default subject and body, and its own
 	 * merge tags. A tag's type is text, link or html. A kind sent to members in
-	 * bulk by an email job has the job's wording and the admin page that sends it.
+	 * bulk by an email job has the job's wording (sending, sent, and stopped,
+	 * which takes the competition title, members emailed so far and members in
+	 * the job), the admin page that sends it and, if the job can skip members,
+	 * an _n_noop() plural saying why.
+	 *
+	 * Built once per locale, since it never changes within a request.
 	 *
 	 * @since 0.4.0
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
 	public static function all(): array {
+		static $kinds = array();
+
+		$locale = determine_locale();
+		if ( ! isset( $kinds[ $locale ] ) ) {
+			$kinds[ $locale ] = self::build();
+		}
+
+		return $kinds[ $locale ];
+	}
+
+	/**
+	 * Build the table of kinds, translated.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	private static function build(): array {
 		return array(
 			'upload_reminder'      => array(
 				'label'        => __( 'Upload link', 'photo-competition-manager' ),
@@ -145,8 +166,6 @@ class Email_Kinds {
 					'sent'    => __( 'Results link emails sent.', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-					/* translators: %d: Members skipped */
-					'skipped' => _n_noop( '%d member was skipped.', '%d members were skipped.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{results_page}'       => array(
@@ -156,7 +175,6 @@ class Email_Kinds {
 					'{results_share_link}' => array(
 						'type'        => 'link',
 						'description' => __( 'The same as {results_page}.', 'photo-competition-manager' ),
-						'alias_of'    => '{results_page}',
 					),
 				),
 			),
@@ -167,8 +185,8 @@ class Email_Kinds {
 				'subject'      => __( 'Results for {competition_title}', 'photo-competition-manager' ),
 				'body'         => self::body(
 					__( 'Hi {member_name},', 'photo-competition-manager' ),
-					__( 'The results for {competition_title} are now available. Here are your results:', 'photo-competition-manager' )
-				) . "\n\n{results_table}\n\n" . self::body(
+					__( 'The results for {competition_title} are now available. Here are your results:', 'photo-competition-manager' ),
+					'{results_table}',
 					__( 'Thank you for taking part in this competition!', 'photo-competition-manager' )
 				),
 				'job'          => array(
@@ -177,8 +195,6 @@ class Email_Kinds {
 					'sent'    => __( 'Email results sent successfully!', 'photo-competition-manager' ),
 					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
 					'stopped' => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-					/* translators: %d: Members skipped */
-					'skipped' => _n_noop( '%d member was skipped.', '%d members were skipped.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{results_table}' => array(
@@ -232,6 +248,18 @@ class Email_Kinds {
 	 */
 	public static function get( string $kind ): ?array {
 		return self::all()[ $kind ] ?? null;
+	}
+
+	/**
+	 * Every merge tag a kind takes: the shared ones and its own.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $kind Kind key.
+	 * @return array<string, array{type: string, description: string}>
+	 */
+	public static function tags( string $kind ): array {
+		return self::shared_tags() + self::get( $kind )['tags'];
 	}
 
 	/**

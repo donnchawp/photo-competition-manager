@@ -13,7 +13,7 @@
  *     @type int      $percent         Progress percentage.
  *     @type int      $sent_count      Emails sent.
  *     @type int      $skipped_count   Members skipped (e.g. rate limited).
- *     @type array    $skipped_label   Why they were skipped, from _n_noop().
+ *     @type array|null $skipped_label Why they were skipped, from _n_noop(), if the kind can skip anyone.
  *     @type int      $failed_count    Emails that failed to send.
  *     @type string[] $errors          First few error log entries.
  *     @type string   $job_id          Job ID.
@@ -60,7 +60,7 @@ if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
 		esc_html( $data['total_count'] )
 	);
 
-	if ( $data['skipped_count'] > 0 ) {
+	if ( $data['skipped_count'] > 0 && $data['skipped_label'] ) {
 		echo ' ';
 		printf(
 			esc_html( translate_nooped_plural( $data['skipped_label'], $data['skipped_count'], 'photo-competition-manager' ) ),

@@ -62,7 +62,7 @@ trait Email_Job_Notice {
 			);
 		}
 
-		$label = $this->email_job_labels( $job );
+		$label = Email_Kinds::get( $job['type'] )['job'];
 
 		$processed = $this->email_job_progress( $job );
 
@@ -72,7 +72,7 @@ trait Email_Job_Notice {
 				'status'          => $job['status'],
 				'sending_label'   => $label['sending'],
 				'sent_label'      => $label['sent'],
-				'skipped_label'   => $label['skipped'],
+				'skipped_label'   => $label['skipped'] ?? null,
 				'processed_count' => $processed,
 				'total_count'     => $job['total_count'],
 				'percent'         => $job['total_count'] > 0 ? ( $processed / $job['total_count'] ) * 100 : 0,
@@ -98,17 +98,5 @@ trait Email_Job_Notice {
 	 */
 	private function email_job_progress( array $job ): int {
 		return $job['sent_count'] + ( $job['skipped_count'] ?? 0 ) + $job['failed_count'];
-	}
-
-	/**
-	 * Wording for a job's kind of email.
-	 *
-	 * @param array $job Job data.
-	 * @return array{sending: string, sent: string, stopped: string, skipped: array} The stopped
-	 *     message takes the competition title, members emailed so far and
-	 *     members in the job. Skipped is an _n_noop() plural taking the count.
-	 */
-	private function email_job_labels( array $job ): array {
-		return Email_Kinds::get( $job['type'] )['job'];
 	}
 }

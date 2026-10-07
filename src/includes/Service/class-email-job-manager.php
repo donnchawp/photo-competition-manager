@@ -485,7 +485,16 @@ class Email_Job_Manager {
 				);
 
 			case 'results_published':
-				return $this->email_service->send( 'results_published', $member, $competition, array( '{results_page}' => (string) $args['share_url'] ) );
+				// {results_share_link} is the link's old name, kept for saved templates.
+				return $this->email_service->send(
+					'results_published',
+					$member,
+					$competition,
+					array(
+						'{results_page}'       => (string) $args['share_url'],
+						'{results_share_link}' => (string) $args['share_url'],
+					)
+				);
 
 			default:
 				return new WP_Error( 'unknown_email_job_type', sprintf( 'Unknown email job type "%s"', $job['type'] ) );
@@ -755,7 +764,7 @@ class Email_Job_Manager {
 		$cutoff    = time() - self::ABANDONED_AFTER;
 		$abandoned = array();
 
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if ( ! self::is_unfinished( $job ) ) {
 				continue;
 			}
@@ -814,7 +823,7 @@ class Email_Job_Manager {
 	public function discard_competition_jobs( int $competition_id, string $reason ): int {
 		$discarded = 0;
 
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if ( (int) $job['competition_id'] === $competition_id && self::is_unfinished( $job ) && $this->discard_job( (string) $job_id, $reason ) ) {
 				++$discarded;
 			}
@@ -843,7 +852,7 @@ class Email_Job_Manager {
 
 		$cleaned = 0;
 
-		foreach ( $this->get_all_jobs() as $job_id => $job_data ) {
+		foreach ( self::get_all_jobs() as $job_id => $job_data ) {
 			// Only clean up completed or failed jobs.
 			if ( ! in_array( $job_data['status'], array( 'completed', 'failed' ), true ) ) {
 				continue;
@@ -872,7 +881,7 @@ class Email_Job_Manager {
 	 * @return string|null Job ID, or null if there is no unfinished match.
 	 */
 	private function find_unfinished_job( string $type, int $competition_id, array $args ): ?string {
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if (
 				self::is_unfinished( $job )
 				&& $job['type'] === $type
@@ -889,9 +898,11 @@ class Email_Job_Manager {
 	/**
 	 * Load every stored email job.
 	 *
+	 * @since 0.4.0 Public and static, for the data upgrade that renames job types.
+	 *
 	 * @return array<string, array> Job data keyed by job ID.
 	 */
-	private function get_all_jobs(): array {
+	public static function get_all_jobs(): array {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

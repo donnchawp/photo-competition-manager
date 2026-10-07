@@ -303,24 +303,23 @@ class Email_Service_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * A saved template may still use the old name for the results link.
+	 * A saved template's paragraph around the results table is unwrapped, whatever the editor saved.
 	 */
-	public function test_the_results_link_fills_its_old_name_too() {
+	public function test_the_results_table_isnt_left_inside_a_saved_paragraph() {
 		update_option(
 			'photo_comp_email_templates',
 			array(
-				'results_published' => array(
-					'enabled' => true,
+				'results_detailed' => array(
 					'subject' => 'Results',
-					'body'    => 'See {results_share_link}',
+					'body'    => "<p>Hi</p>\n<p style=\"text-align: left;\"> {results_table} </p>",
 				),
 			)
 		);
+		$table = '<div class="results">Rank: 1</div>';
 
-		$result = $this->service->send( 'results_published', $this->member(), $this->competition(), array( '{results_page}' => 'https://example.org/results/?share=x' ) );
+		$this->service->send( 'results_detailed', $this->member(), $this->competition(), array( '{results_table}' => $table ) );
 
-		$this->assertSame( 'sent', $result );
-		$this->assertStringContainsString( 'See https://example.org/results/?share=x', $this->last_mail['message'] );
+		$this->assertStringContainsString( "<p>Hi</p>\n" . $table, $this->last_mail['message'] );
 	}
 
 	/**

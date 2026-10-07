@@ -119,12 +119,7 @@ class Email_Templates_Controller {
 				'description'  => $definition['description'],
 				'notification' => $definition['notification'],
 				'enabled'      => $email_service->is_template_enabled( $kind ),
-				'merge_tags'   => array_map(
-					function ( $tag ) {
-						return $tag['description'];
-					},
-					Email_Kinds::shared_tags() + $definition['tags']
-				),
+				'merge_tags'   => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
 			) + $email_service->get_template( $kind );
 		}
 

@@ -90,8 +90,6 @@ class Event_Logger {
 	 * @return bool
 	 */
 	public function log_email_sent( ?int $competition_id, string $kind, string $recipient, array $metadata = array() ): bool {
-		$definition = Email_Kinds::get( $kind );
-
 		return $this->log(
 			$competition_id,
 			$kind,
@@ -100,7 +98,7 @@ class Event_Logger {
 				/* translators: 1: Recipient name or email, 2: Kind of email, e.g. "Upload link" */
 				__( 'Email sent to %1$s: %2$s', 'photo-competition-manager' ),
 				$recipient,
-				$definition ? $definition['label'] : $kind
+				Email_Kinds::get( $kind )['label']
 			),
 			$metadata
 		);

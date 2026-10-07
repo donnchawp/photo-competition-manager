@@ -137,7 +137,7 @@ class Upload_Link_Service {
 		);
 
 		if ( is_wp_error( $sent ) ) {
-			return new WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
+			return $sent;
 		}
 
 		$this->token_repo->mark_sent( (int) $token_obj->id );

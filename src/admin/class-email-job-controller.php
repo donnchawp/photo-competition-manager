@@ -108,7 +108,7 @@ class Email_Job_Controller {
 				'admin/abandoned-email-job-notice.php',
 				array(
 					'message'      => sprintf(
-						$this->email_job_labels( $job )['stopped'],
+						Email_Kinds::get( $job['type'] )['job']['stopped'],
 						$competition ? $competition->title : '#' . $job['competition_id'],
 						$this->email_job_progress( $job ),
 						$job['total_count']

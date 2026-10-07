@@ -53,15 +53,7 @@ class Email_Service {
 			return new WP_Error( 'unknown_email_kind', sprintf( 'Unknown email kind "%s"', $kind ) );
 		}
 
-		// An alias is another name for a tag, kept for saved templates. The caller doesn't pass it.
-		$aliases = array();
-		foreach ( $definition['tags'] as $tag => $spec ) {
-			if ( ! empty( $spec['alias_of'] ) ) {
-				$aliases[ $tag ] = $spec['alias_of'];
-			}
-		}
-
-		$declared = array_keys( array_diff_key( $definition['tags'], $aliases ) );
+		$declared = array_keys( $definition['tags'] );
 		if ( array_diff( $declared, array_keys( $tags ) ) || array_diff( array_keys( $tags ), $declared ) ) {
 			return new WP_Error(
 				'wrong_email_tags',
@@ -69,51 +61,44 @@ class Email_Service {
 			);
 		}
 
-		foreach ( $aliases as $alias => $tag ) {
-			$tags[ $alias ] = $tags[ $tag ];
-		}
-
 		if ( ! $this->is_template_enabled( $kind ) ) {
 			return 'skipped';
 		}
 
-		$template = $this->get_template( $kind );
-
+		$template    = $this->get_template( $kind );
 		$member_name = '' !== (string) ( $member->name ?? '' ) ? (string) $member->name : (string) $member->email;
 		$values      = array(
 			'{member_name}'       => $member_name,
 			'{competition_title}' => $competition ? (string) $competition->title : '',
 			'{site_name}'         => get_bloginfo( 'name' ),
 		) + $tags;
-		$types       = array_map(
-			function ( $tag ) {
-				return $tag['type'];
-			},
-			Email_Kinds::shared_tags() + $definition['tags']
-		);
+		$types       = wp_list_pluck( Email_Kinds::tags( $kind ), 'type' );
+		$html_tags   = array_keys( $types, 'html', true );
 
-		$escaped = array();
-		$html    = array();
+		// Tags are filled in after wpautop(), so an HTML value isn't reformatted.
+		// An HTML tag on its own line comes out of wpautop() as a paragraph,
+		// which it would be invalid inside, so that paragraph is unwrapped.
+		$body = wpautop( wp_kses_post( $template['body'] ) );
+		foreach ( $html_tags as $tag ) {
+			$body = preg_replace( '#<p[^>]*>\s*' . preg_quote( $tag, '#' ) . '\s*</p>#', $tag, $body );
+		}
+
+		$filled = array();
 		foreach ( $values as $tag => $value ) {
 			if ( 'html' === $types[ $tag ] ) {
-				// After wpautop(), so it isn't reformatted. A tag on its own line
-				// comes out of wpautop() as a paragraph, which it replaces.
-				$html[ '<p>' . $tag . '</p>' ] = $value;
-				$html[ $tag ]                  = $value;
-				$values[ $tag ]                = '';
+				$filled[ $tag ] = $value;
 			} else {
-				$escaped[ $tag ] = 'link' === $types[ $tag ] ? esc_url( $value ) : esc_html( $value );
+				$filled[ $tag ] = 'link' === $types[ $tag ] ? esc_url( $value ) : esc_html( $value );
 			}
 		}
 
-		$subject = $this->replace_merge_tags( $template['subject'], $values );
-		$body    = wpautop( $this->replace_merge_tags( wp_kses_post( $template['body'] ), $escaped ) );
-		$message = $this->wrap_html_email( $this->replace_merge_tags( $body, $html ) );
+		$subject = $this->replace_merge_tags( $template['subject'], array_diff_key( $values, array_flip( $html_tags ) ) );
+		$message = $this->wrap_html_email( $this->replace_merge_tags( $body, $filled ) );
 
 		$sent = $this->send_mail( $member->email, $this->prefix_subject( $subject ), $message, array( 'Content-Type: text/html; charset=UTF-8' ) );
 
 		if ( ! $sent ) {
-			return new WP_Error( 'send_failed', 'wp_mail() failed' );
+			return new WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
 		}
 
 		$this->event_logger->log_email_sent(
@@ -148,9 +133,7 @@ class Email_Service {
 			return true;
 		}
 
-		$saved = get_option( 'photo_comp_email_templates', array() )[ $template_key ] ?? array();
-
-		return (bool) ( $saved['enabled'] ?? $definition['on_by_default'] );
+		return (bool) ( $this->saved_template( $template_key )['enabled'] ?? $definition['on_by_default'] );
 	}
 
 	/**
@@ -163,12 +146,22 @@ class Email_Service {
 	 */
 	public function get_template( string $kind ): array {
 		$definition = Email_Kinds::get( $kind );
-		$saved      = get_option( 'photo_comp_email_templates', array() )[ $kind ] ?? array();
+		$saved      = $this->saved_template( $kind );
 
 		return array(
 			'subject' => ! empty( $saved['subject'] ) ? (string) $saved['subject'] : $definition['subject'],
 			'body'    => ! empty( $saved['body'] ) ? (string) $saved['body'] : $definition['body'],
 		);
+	}
+
+	/**
+	 * What an admin saved for a kind on the Email Templates screen.
+	 *
+	 * @param string $kind Kind key.
+	 * @return array<string, mixed> Any of enabled, subject and body, or nothing.
+	 */
+	private function saved_template( string $kind ): array {
+		return get_option( 'photo_comp_email_templates', array() )[ $kind ] ?? array();
 	}
 
 	/**

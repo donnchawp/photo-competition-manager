@@ -120,24 +120,12 @@ class Activator {
 	 * @return void
 	 */
 	private static function name_email_jobs_by_kind(): void {
-		global $wpdb;
+		foreach ( Email_Job_Manager::get_all_jobs() as $job_id => $job ) {
+			$type = (string) ( $job['type'] ?? '' );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$names = $wpdb->get_col(
-			$wpdb->prepare(
-				'SELECT option_name FROM %i WHERE option_name LIKE %s',
-				$wpdb->options,
-				$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
-			)
-		);
-
-		foreach ( $names as $name ) {
-			$job  = get_option( $name );
-			$type = is_array( $job ) ? (string) ( $job['type'] ?? '' ) : null;
-
-			if ( null !== $type && isset( self::LEGACY_EMAIL_JOB_TYPES[ $type ] ) ) {
+			if ( isset( self::LEGACY_EMAIL_JOB_TYPES[ $type ] ) ) {
 				$job['type'] = self::LEGACY_EMAIL_JOB_TYPES[ $type ];
-				update_option( $name, $job, false );
+				update_option( Email_Job_Manager::OPTION_PREFIX . $job_id, $job, false );
 			}
 		}
 	}

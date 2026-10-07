@@ -543,6 +543,23 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->manager->get_job( $job_id )['sent_count'] );
 	}
 
+	public function test_results_published_job_fills_the_results_links_old_name_too(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'results_published' => array(
+					'subject' => 'Results',
+					'body'    => 'See {results_share_link}',
+				),
+			)
+		);
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+
+		$this->manager->process_batch( $job_id );
+
+		$this->assertStringContainsString( 'See https://example.com/results?share=abc', $this->bodies['a@example.com'] );
+	}
+
 	public function test_voting_opened_job_sends_notification(): void {
 		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
 		$member_id = $this->seed_member( 'a@example.com' );
