@@ -175,6 +175,30 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * When the competition became Closed or Archived: the earlier of its
+	 * close date, once that has passed, and when it was archived.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return string|null UTC datetime, or null if it hasn't closed.
+	 */
+	public function closed_at( object $competition ): ?string {
+		if ( ! $this->has_closed( $competition ) ) {
+			return null;
+		}
+
+		$times = array_filter(
+			array(
+				$competition->deleted_at ?? null,
+				! empty( $competition->close_date ) && $competition->close_date <= utc_time() ? $competition->close_date : null,
+			)
+		);
+
+		return $times ? min( $times ) : null;
+	}
+
+	/**
 	 * Whether the competition is accepting uploads.
 	 *
 	 * @param object $competition Competition row.

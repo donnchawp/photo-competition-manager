@@ -33,18 +33,19 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Whether a competition's results are recorded.
+	 * When a competition's results were recorded. A record is written in one
+	 * statement, so all its rows share the time.
 	 *
 	 * @since 0.4.0
 	 *
 	 * @param int $competition_id Competition ID.
-	 * @return bool
+	 * @return string|null UTC datetime, or null if they aren't recorded.
 	 */
-	public function has_record( int $competition_id ): bool {
+	public function recorded_at( int $competition_id ): ?string {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE competition_id = %d LIMIT 1', $this->table(), $competition_id ) );
+		return $wpdb->get_var( $wpdb->prepare( 'SELECT MIN(created_at) FROM %i WHERE competition_id = %d', $this->table(), $competition_id ) );
 	}
 
 	/**

@@ -142,8 +142,8 @@ class Results_Ranking {
 	/**
 	 * Record a competition's results as they are now, when they're published.
 	 *
-	 * The record is replaced, unless the competition has closed: then an
-	 * existing record stays, so nobody deleted since drops out of it.
+	 * The record is replaced, unless the competition has closed: then a
+	 * trusted record stays, so nobody deleted since drops out of it.
 	 *
 	 * @since 0.4.0
 	 *
@@ -152,7 +152,7 @@ class Results_Ranking {
 	 */
 	public function record( object $competition ) {
 		if ( $this->workflow->has_closed( $competition ) ) {
-			return $this->insert_if_missing( $competition );
+			return $this->record_unless_trusted( $competition );
 		}
 
 		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
@@ -162,7 +162,7 @@ class Results_Ranking {
 
 	/**
 	 * Record a competition's results if they're published, or it has closed,
-	 * and they aren't recorded yet.
+	 * and they have no trusted record yet.
 	 *
 	 * @since 0.4.0
 	 *
@@ -174,23 +174,49 @@ class Results_Ranking {
 			return true;
 		}
 
-		return $this->insert_if_missing( $competition );
+		return $this->record_unless_trusted( $competition );
 	}
 
 	/**
-	 * Record a competition's results as they are now, unless they're recorded.
+	 * Record a competition's results as they are now, replacing any record
+	 * that isn't trusted.
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */
-	private function insert_if_missing( object $competition ) {
-		if ( $this->record->has_record( (int) $competition->id ) ) {
+	private function record_unless_trusted( object $competition ) {
+		if ( $this->has_trusted_record( $competition ) ) {
 			return true;
 		}
 
-		$inserted = $this->record->insert( $this->live_rows( $competition ) );
+		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
 
-		return is_wp_error( $inserted ) ? $inserted : true;
+		return is_wp_error( $replaced ) ? $replaced : true;
+	}
+
+	/**
+	 * Whether the competition has a record that can be trusted: results are
+	 * published, so publishing made it, or it was made once the competition
+	 * had become Closed or Archived. A record made before then, while results
+	 * were hidden, misses whatever changed since.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	private function has_trusted_record( object $competition ): bool {
+		$recorded_at = $this->record->recorded_at( (int) $competition->id );
+
+		if ( null === $recorded_at ) {
+			return false;
+		}
+
+		if ( $this->workflow->results_published( $competition ) ) {
+			return true;
+		}
+
+		$closed_at = $this->workflow->closed_at( $competition );
+
+		return null !== $closed_at && $recorded_at >= $closed_at;
 	}
 
 	/**

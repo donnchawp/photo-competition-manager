@@ -527,7 +527,7 @@ class Activator_Test extends WP_UnitTestCase {
 		$record = new Recorded_Results_Repository();
 		$this->assertSame(
 			array( true, true, true, false ),
-			array_map( array( $record, 'has_record' ), array( $published, $closed, $archived, $upcoming ) )
+			array_map( static fn( int $id ): bool => null !== $record->recorded_at( $id ), array( $published, $closed, $archived, $upcoming ) )
 		);
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
@@ -549,10 +549,10 @@ class Activator_Test extends WP_UnitTestCase {
 
 		Activator::maybe_upgrade();
 
-		$has_record = ( new Recorded_Results_Repository() )->has_record( $closed );
+		$recorded_at = ( new Recorded_Results_Repository() )->recorded_at( $closed );
 		remove_filter( 'query', $missing );
 		$this->assertCount( 1, preg_grep( '/^CREATE TEMPORARY TABLE ' . $this->shadowed . ' /', $this->ddl ), implode( "\n", $this->ddl ) );
-		$this->assertTrue( $has_record );
+		$this->assertNotNull( $recorded_at );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 

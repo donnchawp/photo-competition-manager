@@ -321,6 +321,21 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_results_hidden_when_the_competition_closes_are_recorded_afresh(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
+		$this->record_made_an_hour_ago();
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		$this->close_competition();
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ), $this->summarize( $groups ) );
+		$this->assertSame( array( true, true ), array_column( $groups[0]['entries'], 'recorded' ) );
+	}
+
 	public function test_recorded_entries_keep_a_grade_no_longer_on_the_club_list(): void {
 		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		Workflow_Fixtures::publish_results( $this->competition_id );
@@ -354,7 +369,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 
 		$competition = ( new Competitions_Repository() )->find( $this->competition_id );
 		$this->assertFalse( $workflow->results_published( $competition ) );
-		$this->assertFalse( ( new Recorded_Results_Repository() )->has_record( $this->competition_id ) );
+		$this->assertNull( ( new Recorded_Results_Repository() )->recorded_at( $this->competition_id ) );
 	}
 
 	public function test_nothing_is_removed_from_a_closed_competition_that_cannot_be_recorded(): void {
@@ -378,7 +393,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$groups = $this->failing_ranking()->rank_category( $this->competition_id, 'colour' );
 
 		$this->assertSame( array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ), $this->summarize( $groups ) );
-		$this->assertFalse( ( new Recorded_Results_Repository() )->has_record( $this->competition_id ) );
+		$this->assertNull( ( new Recorded_Results_Repository() )->recorded_at( $this->competition_id ) );
 	}
 
 	/**
@@ -407,6 +422,22 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	 */
 	private function close_competition(): void {
 		$this->assertTrue( ( new Competition_Workflow() )->close_competition( $this->competition_id ) );
+	}
+
+	/**
+	 * Make the competition's record an hour older, so it was made before
+	 * anything the test does next, even within the same second.
+	 */
+	private function record_made_an_hour_ago(): void {
+		global $wpdb;
+
+		$wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET created_at = DATE_SUB(created_at, INTERVAL 1 HOUR) WHERE competition_id = %d',
+				( new Recorded_Results_Repository() )->table(),
+				$this->competition_id
+			)
+		);
 	}
 
 	/**

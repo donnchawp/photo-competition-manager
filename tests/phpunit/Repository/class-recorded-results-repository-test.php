@@ -74,7 +74,7 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 		( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );
 		( new Competitions_Repository() )->delete( $this->competition_id );
 
-		$this->assertFalse( $this->record->has_record( $this->competition_id ) );
+		$this->assertNull( $this->record->recorded_at( $this->competition_id ) );
 	}
 
 	public function test_recording_the_same_entries_twice_leaves_one_record(): void {
