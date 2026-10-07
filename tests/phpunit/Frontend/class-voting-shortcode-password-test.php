@@ -79,8 +79,10 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 
 	public function tearDown(): void {
 		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
+		unset( $GLOBALS['post'] );
 		unset( $_COOKIE['photo_competition_voter'] );
 		parent::tearDown();
 	}
@@ -153,9 +155,11 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_cast_ballot_redirects_to_the_thank_you_page_and_remembers_the_voter(): void {
+		$GLOBALS['post'] = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+
 		$location = $this->submit_ballot( $this->full_ballot() );
 
-		$this->assertStringEndsWith( 'ballot=cast', $location );
+		$this->assertSame( add_query_arg( 'ballot', 'cast', get_permalink( $GLOBALS['post'] ) ), $location );
 		$this->assertSame( 2, $this->vote_count() );
 		$this->assertSame(
 			array(
@@ -167,7 +171,6 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 
 		$_GET['ballot'] = 'cast';
 		$this->assertStringContainsString( 'Thank you for voting! Your votes have been recorded.', $this->view() );
-		unset( $_GET['ballot'] );
 	}
 
 	public function test_a_refused_ballot_shows_why_and_keeps_the_voters_scores(): void {
@@ -227,6 +230,5 @@ class Voting_Shortcode_Password_Test extends WP_UnitTestCase {
 
 		$_GET['ballot'] = 'already_cast';
 		$this->assertSame( 1, substr_count( $this->view(), 'Your votes for this category have already been recorded.' ) );
-		unset( $_GET['ballot'] );
 	}
 }

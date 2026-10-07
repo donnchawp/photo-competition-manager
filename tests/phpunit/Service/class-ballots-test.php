@@ -275,7 +275,25 @@ class Ballots_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 'incomplete_ballot', $result->get_error_code() );
 		$this->assertSame( 'You must vote for all images. You have voted for 1 of 2 images.', $result->get_error_message() );
+		$this->assertSame(
+			array(
+				'voted' => 1,
+				'total' => 2,
+			),
+			$result->get_error_data()
+		);
 		$this->assertSame( 0, $this->vote_count() );
+	}
+
+	/**
+	 * @dataProvider voters
+	 *
+	 * @param string $kind link or named.
+	 */
+	public function test_an_incomplete_ballot_is_incomplete_before_its_scores_are_checked( string $kind ): void {
+		$result = $this->ballots->cast( $this->competition, 'colour', $this->voter( $kind ), array( $this->images['colour'][0] => '6' ) );
+
+		$this->assertSame( 'incomplete_ballot', $result->get_error_code() );
 	}
 
 	/**
