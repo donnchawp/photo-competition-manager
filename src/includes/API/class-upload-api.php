@@ -229,7 +229,7 @@ class Upload_API extends WP_REST_Controller {
 		if ( Oversized_Post::detected() ) {
 			return new WP_Error(
 				'file_too_large',
-				__( 'That image is too big to upload. Check the size limit under the upload form.', 'photo-competition-manager' ),
+				__( 'That image is too big. Check the size limit under the upload form.', 'photo-competition-manager' ),
 				array( 'status' => 413 )
 			);
 		}

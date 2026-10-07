@@ -509,24 +509,19 @@ class DragDropUpload {
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
-		const combined = { results: {}, success_count: 0, error_count: 0 };
+		const results = [];
 
 		for (const [index, fileData] of files.entries()) {
 			const result = await this.uploadOne(fileData);
 
-			combined.results[fileData.id] = result.success
-				? result
-				: { success: false, error: `${fileData.file.name}: ${result.error}` };
-			if (result.success) {
-				++combined.success_count;
-			} else {
-				++combined.error_count;
-			}
+			results.push(
+				result.success ? result : { success: false, error: `${fileData.file.name}: ${result.error}` }
+			);
 
 			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
 		}
 
-		this.handleUploadSuccess(combined);
+		this.showResults(results);
 		this.uploadButton.disabled = false;
 		this.uploadButton.textContent = 'Upload All';
 	}
@@ -590,34 +585,33 @@ class DragDropUpload {
 		}
 	}
 
-	handleUploadSuccess(data) {
-		const successCount = data.success_count || 0;
-		const errorCount = data.error_count || 0;
+	/**
+	 * Show how each upload went.
+	 *
+	 * @param {Object[]} results One { success, error } per image.
+	 */
+	showResults(results) {
+		const failures = results.filter((result) => !result.success);
+		const successCount = results.length - failures.length;
 
 		let message = `Successfully uploaded ${successCount} image(s).`;
-		if (errorCount > 0) {
-			message += ` ${errorCount} upload(s) failed.`;
+		if (failures.length > 0) {
+			message += ` ${failures.length} upload(s) failed.`;
 		}
 
 		this.progressSection.innerHTML = `<p class="success">${message}</p>`;
 
-		// Show individual results.
-		if (data.results && errorCount > 0) {
+		if (failures.length > 0) {
 			const errorList = document.createElement('ul');
 			errorList.className = 'photo-comp-error-list';
 
-			Object.keys(data.results).forEach((fileKey) => {
-				const result = data.results[fileKey];
-				if (!result.success) {
-					const li = document.createElement('li');
-					li.textContent = result.error;
-					errorList.appendChild(li);
-				}
+			failures.forEach((result) => {
+				const li = document.createElement('li');
+				li.textContent = result.error;
+				errorList.appendChild(li);
 			});
 
-			if (errorList.children.length > 0) {
-				this.progressSection.appendChild(errorList);
-			}
+			this.progressSection.appendChild(errorList);
 		}
 
 		// Clear successful uploads.
@@ -627,11 +621,6 @@ class DragDropUpload {
 				window.location.reload();
 			}, 2000);
 		}
-	}
-
-	handleUploadError(data) {
-		const message = data.message || 'Upload failed. Please try again.';
-		this.showError(message);
 	}
 
 	showError(message) {

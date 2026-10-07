@@ -7,9 +7,7 @@
  */
 class FakeXhr {
 	constructor() {
-		this.upload = { addEventListener() {} };
 		this.listeners = {};
-		this.headers = {};
 		FakeXhr.requests.push( this );
 	}
 
@@ -18,13 +16,10 @@ class FakeXhr {
 	}
 
 	open( method, url ) {
-		this.method = method;
 		this.url = url;
 	}
 
-	setRequestHeader( name, value ) {
-		this.headers[ name ] = value;
-	}
+	setRequestHeader() {}
 
 	send( body ) {
 		this.body = body;
@@ -115,7 +110,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 		FakeXhr.requests[ 0 ].respond( 200, { results: { file_0: { success: true, image_id: 1 } }, success_count: 1, error_count: 0, total: 1 } );
 		await settle();
-		FakeXhr.requests[ 1 ].respond( 413, { code: 'file_too_large', message: 'That image is too big to upload. Check the size limit under the upload form.' } );
+		FakeXhr.requests[ 1 ].respond( 413, { code: 'file_too_large', message: 'That image is too big. Check the size limit under the upload form.' } );
 		await settle();
 		FakeXhr.requests[ 2 ].respond( 200, { results: { file_0: { success: true, image_id: 3 } }, success_count: 1, error_count: 0, total: 1 } );
 		await settle();
@@ -123,7 +118,7 @@ describe( 'drag-and-drop upload', () => {
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
 		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 image(s). 1 upload(s) failed.' );
 		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
-			'two.jpg: That image is too big to upload. Check the size limit under the upload form.',
+			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
 	} );
 } );

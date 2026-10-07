@@ -287,7 +287,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 413, $response->get_status() );
 		$this->assertSame( 'file_too_large', $response->as_error()->get_error_code() );
-		$this->assertSame( 'That image is too big to upload. Check the size limit under the upload form.', $response->get_data()['message'] );
+		$this->assertSame( 'That image is too big. Check the size limit under the upload form.', $response->get_data()['message'] );
 	}
 
 	public function test_a_batch_upload_with_a_body_is_checked_as_usual_whatever_its_length(): void {
