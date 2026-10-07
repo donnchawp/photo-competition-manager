@@ -322,6 +322,24 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'class="error"', $output );
 	}
 
+	public function test_a_message_shows_its_translation(): void {
+		$translate = static function ( $translation, $text, $domain ) {
+			if ( 'photo-competition-manager' === $domain && 'Upload failed. Please try again.' === $text ) {
+				return 'Níor éirigh leis an uaslódáil.';
+			}
+			return $translation;
+		};
+		add_filter( 'gettext', $translate, 10, 3 );
+
+		try {
+			$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_PARTIAL ) );
+		} finally {
+			remove_filter( 'gettext', $translate, 10 );
+		}
+
+		$this->assertStringContainsString( '<p class="error">Níor éirigh leis an uaslódáil.</p>', $output );
+	}
+
 	/**
 	 * Post the upload page's own form, and return where it redirects.
 	 *
