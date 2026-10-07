@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -18,6 +19,7 @@ use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
+use WP_Error;
 use WP_UnitTestCase;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -319,6 +321,63 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 'beginner' => array( 'Ann:1:9' ) ), $this->summarize( $groups ) );
 		$this->assertSame( 'beginner', $groups[0]['label'] );
 		$this->assertFalse( $groups[0]['ungraded'] );
+	}
+
+	public function test_results_are_not_published_when_they_cannot_be_recorded(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		Workflow_Fixtures::close_uploads( $this->competition_id );
+		$workflow = new Competition_Workflow( null, null, null, null, $this->failing_ranking() );
+
+		$this->assertWPError( $workflow->publish_results( $this->competition_id ) );
+
+		$competition = ( new Competitions_Repository() )->find( $this->competition_id );
+		$this->assertFalse( $workflow->results_published( $competition ) );
+		$this->assertFalse( ( new Recorded_Results_Repository() )->has_record( $this->competition_id ) );
+	}
+
+	public function test_nothing_is_removed_from_a_closed_competition_that_cannot_be_recorded(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+		$entries = new Entries( null, null, null, null, null, null, $this->failing_ranking() );
+
+		$this->assertWPError( $entries->remove( Actor::admin(), $this->competition_id, $ann ) );
+		$this->assertWPError( $entries->remove_member_entries( Actor::admin(), $this->member_id_of( $bob ) ) );
+
+		$this->assertNotNull( $this->images->find( $ann ) );
+		$this->assertNotNull( $this->images->find( $bob ) );
+	}
+
+	public function test_a_closed_competition_that_cannot_be_recorded_is_worked_out_from_the_votes(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+
+		$groups = $this->failing_ranking()->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ), $this->summarize( $groups ) );
+		$this->assertFalse( ( new Recorded_Results_Repository() )->has_record( $this->competition_id ) );
+	}
+
+	/**
+	 * A ranking whose record can't be written, as when the database refuses.
+	 *
+	 * @return Results_Ranking
+	 */
+	private function failing_ranking(): Results_Ranking {
+		$record = new class() extends Recorded_Results_Repository {
+			/**
+			 * Refuse to record.
+			 *
+			 * @param array $rows Rows to record.
+			 * @return WP_Error
+			 */
+			public function insert( array $rows ) {
+				return new WP_Error( 'record_failed', 'Could not record the results.' );
+			}
+		};
+
+		return new Results_Ranking( $this->images, new Votes_Repository(), new Members_Repository(), null, null, $record );
 	}
 
 	/**
