@@ -188,18 +188,46 @@ class Entries_Test extends WP_UnitTestCase {
 		);
 	}
 
-	public function test_an_admin_adds_an_entry_to_a_category_without_votes_even_during_voting(): void {
-		$competition_id = $this->create_competition( 'unvoted-comp', 2 );
+	public function test_an_admin_adds_an_entry_to_a_category_thats_been_previewed_while_another_has_votes(): void {
+		$competition_id = $this->create_competition( 'previewed-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
 		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
-		$this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
-		$voted_id = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 200, 0 ) );
-		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'mono', array( 0, 200, 0 ) );
+		Workflow_Fixtures::close_uploads( $competition_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_PREVIEWED );
 		( new Votes_Repository() )->create( $competition_id, 'mono', 'A Voter', $voted_id, 5 );
 
 		$entry_id = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
 
 		$this->assertSame( 'colour', $this->images_repo->find( $entry_id )->category );
+	}
+
+	public function test_an_admin_cant_add_an_entry_to_a_category_thats_voting_before_anyone_votes(): void {
+		$competition_id = $this->create_competition( 'unvoted-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/unvoted-comp/colour/jane-doe*' ) );
+		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+	}
+
+	public function test_a_category_thats_voting_and_has_votes_says_voting_has_started(): void {
+		$competition_id = $this->create_competition( 'voting-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
+		$voted_id       = $this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		( new Votes_Repository() )->create( $competition_id, 'colour', 'A Voter', $voted_id, 5 );
+
+		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
 	}
 
 	public function test_a_member_cant_add_an_entry_for_someone_else(): void {
