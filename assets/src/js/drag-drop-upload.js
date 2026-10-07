@@ -707,11 +707,10 @@ class DragDropUpload {
 		}
 		summary.textContent = message;
 		this.statusRegion.replaceChildren(summary);
-		// The progress box holds only the failures from here on, so it's hidden when there are none.
-		this.progressSection.replaceChildren();
-		this.progressSection.style.display = failures.length > 0 ? 'block' : 'none';
 
-		if (failures.length > 0) {
+		// The progress box holds only the failures from here on, so it's hidden when there are none.
+		// A refused upload always adds a failure, so failures is empty exactly when failedCount is 0.
+		if (failedCount > 0) {
 			const errorList = document.createElement('ul');
 			errorList.className = 'photo-comp-error-list';
 
@@ -721,13 +720,15 @@ class DragDropUpload {
 				errorList.appendChild(li);
 			});
 
-			this.progressSection.appendChild(errorList);
-		}
+			this.progressSection.replaceChildren(errorList);
+			this.progressSection.style.display = 'block';
 
-		// Take keyboard users to the summary, so the failures listed under it come next.
-		if (failedCount > 0) {
+			// Take keyboard users to the summary, so the failures listed under it come next.
 			summary.tabIndex = -1;
 			summary.focus();
+		} else {
+			this.progressSection.replaceChildren();
+			this.progressSection.style.display = 'none';
 		}
 
 		if (successCount === 0) {

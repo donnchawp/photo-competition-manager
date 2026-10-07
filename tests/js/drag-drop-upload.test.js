@@ -78,13 +78,14 @@ const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
 require( '../../assets/src/js/drag-drop-upload' );
 
 /**
- * Pick JPEG files in the file input, without waiting for the uploader to read them.
+ * Pick files in the file input, without waiting for the uploader to read them.
  *
  * @param {string[]} names The file names.
+ * @param {string}   type  The files' MIME type.
  */
-function pickFiles( names ) {
+function pickFiles( names, type = 'image/jpeg' ) {
 	const input = document.querySelector( '#batch-file-input' );
-	const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
+	const files = names.map( ( name ) => new File( [ 'data' ], name, { type } ) );
 	Object.defineProperty( input, 'files', { value: files, configurable: true } );
 	input.dispatchEvent( new Event( 'change' ) );
 }
@@ -134,6 +135,15 @@ function errorLines() {
  */
 function summary() {
 	return document.querySelector( '.photo-comp-upload-status p' );
+}
+
+/**
+ * The live region the upload page renders for the uploader's messages.
+ *
+ * @return {HTMLElement|null} The live region.
+ */
+function liveRegion() {
+	return document.querySelector( '[role="status"]' );
 }
 
 /**
@@ -286,9 +296,7 @@ describe( 'drag-and-drop upload', () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
 
-		const input = document.querySelector( '#batch-file-input' );
-		Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
-		input.dispatchEvent( new Event( 'change' ) );
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
 
 		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
 		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
@@ -357,7 +365,7 @@ describe( 'drag-and-drop upload', () => {
 	} );
 
 	it( 'announces the outcome in the live region already on the page, but not the progress', async () => {
-		const liveRegion = document.querySelector( '[role="status"]' );
+		const region = liveRegion();
 		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
 
 		document.querySelector( '.photo-comp-upload-all-btn' ).click();
@@ -367,12 +375,12 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 		FakeXhr.requests[ 1 ].sendProgress( 50, 100 );
 
-		expect( liveRegion.textContent ).toBe( '' );
+		expect( region.textContent ).toBe( '' );
 
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
 
-		expect( liveRegion.isConnected ).toBe( true );
-		expect( liveRegion.textContent ).toBe( 'Successfully uploaded 2 images.' );
+		expect( region.isConnected ).toBe( true );
+		expect( region.textContent ).toBe( 'Successfully uploaded 2 images.' );
 	} );
 
 	it( 'moves focus to the summary after a batch with a failure', async () => {
@@ -390,12 +398,10 @@ describe( 'drag-and-drop upload', () => {
 	} );
 
 	it( 'announces an error in the live region already on the page', () => {
-		const liveRegion = document.querySelector( '[role="status"]' );
-		const input = document.querySelector( '#batch-file-input' );
-		Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
-		input.dispatchEvent( new Event( 'change' ) );
+		const region = liveRegion();
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
 
-		expect( liveRegion.textContent ).toBe( 'No valid image files selected.' );
+		expect( region.textContent ).toBe( 'No valid image files selected.' );
 	} );
 
 	it( 'hides the emptied progress box once every image went in', async () => {
@@ -509,9 +515,7 @@ describe( 'drag-and-drop upload', () => {
 		} );
 
 		it( 'shows the translated message when no file is an image', () => {
-			const input = document.querySelector( '#batch-file-input' );
-			Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
-			input.dispatchEvent( new Event( 'change' ) );
+			pickFiles( [ 'notes.txt' ], 'text/plain' );
 
 			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
 		} );
