@@ -14,9 +14,12 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Link_Voter;
+use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\format_site_date;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -24,7 +27,8 @@ use function PhotoCompetitionManager\Support\utc_time;
 /**
  * Shortcode renderer for competition voting (token- and password-based).
  *
- * Responsible for rendering forms, validating input, and recording votes.
+ * Renders the voting page. Ballots are cast by handle_ballot() on
+ * template_redirect, through the Ballots module.
  *
  * @since 0.1.0
  */
@@ -87,6 +91,21 @@ class Voting_Shortcode {
 	private $workflow;
 
 	/**
+	 * Ballots module.
+	 *
+	 * @var Ballots
+	 */
+	private $ballots;
+
+	/**
+	 * A ballot refused earlier in this request, for the page to show with the
+	 * voter's form as they filled it in.
+	 *
+	 * @var array{error:\WP_Error,name:string,password:string,category:string,scores:array}|null
+	 */
+	private $refused = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
@@ -96,6 +115,8 @@ class Voting_Shortcode {
 	 * @param Voting_Token_Repository|null $token_repo        Token repository.
 	 * @param Email_Service|null           $email_service     Email service.
 	 * @param Entries|null                 $entries           Entries module.
+	 * @param Ballots|null                 $ballots           Ballots module.
+	 * @param Competition_Workflow|null    $workflow          Competition workflow.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
@@ -104,16 +125,19 @@ class Voting_Shortcode {
 		?Members_Repository $members_repo = null,
 		?Voting_Token_Repository $token_repo = null,
 		?Email_Service $email_service = null,
-		?Entries $entries = null
+		?Entries $entries = null,
+		?Ballots $ballots = null,
+		?Competition_Workflow $workflow = null
 	) {
 		$this->competitions_repo = $competitions_repo ? $competitions_repo : new Competitions_Repository();
-		$this->workflow          = new Competition_Workflow( $this->competitions_repo );
+		$this->workflow          = $workflow ? $workflow : new Competition_Workflow( $this->competitions_repo );
 		$this->images_repo       = $images_repo ? $images_repo : new Images_Repository();
 		$this->votes_repo        = $votes_repo ? $votes_repo : new Votes_Repository();
 		$this->members_repo      = $members_repo ? $members_repo : new Members_Repository();
 		$this->token_repo        = $token_repo ? $token_repo : new Voting_Token_Repository();
 		$this->email_service     = $email_service ? $email_service : new Email_Service();
 		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo, $this->members_repo );
+		$this->ballots           = $ballots ? $ballots : new Ballots( $this->workflow, $this->votes_repo, $this->token_repo, $this->members_repo, $this->images_repo );
 	}
 
 	/**
@@ -123,6 +147,63 @@ class Voting_Shortcode {
 	 */
 	public function register(): void {
 		add_shortcode( 'competition_voting', array( $this, 'render' ) );
+		add_action( 'template_redirect', array( $this, 'handle_ballot' ) );
+	}
+
+	/**
+	 * Cast a posted ballot, before the page renders. A cast ballot, or one
+	 * already cast, redirects to the page with ?ballot=cast or
+	 * ?ballot=already_cast; a refused one is kept for render() to show.
+	 *
+	 * @return void
+	 */
+	public function handle_ballot(): void {
+		if ( ! isset( $_POST['photo_competition_vote'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Checked below, once the competition says which form this is.
+			return;
+		}
+
+		$competition = $this->competitions_repo->find_current_active();
+		if ( ! $competition ) {
+			return;
+		}
+
+		$voting   = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
+		$name     = '';
+		$password = '';
+
+		if ( 'token' === ( $voting['auth_mode'] ?? 'password' ) ) {
+			check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' );
+			$token    = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+			$voter    = $this->ballots->link_voter( $competition, $token );
+			$category = is_wp_error( $voter ) ? '' : $voter->category();
+		} else {
+			check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' );
+			$name     = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
+			$password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : '';
+			$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+			$voter    = $this->ballots->named_voter( $competition, $name, $password );
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Ballots::cast() accepts only whole-number scores in the matrix.
+		$scores = isset( $_POST['votes'] ) && is_array( $_POST['votes'] ) ? wp_unslash( $_POST['votes'] ) : array();
+		$result = is_wp_error( $voter ) ? $voter : $this->ballots->cast( $competition, $category, $voter, $scores );
+
+		if ( true === $result || 'already_cast' === $result->get_error_code() ) {
+			if ( $voter instanceof Named_Voter ) {
+				$voter->remember( $password );
+			}
+
+			wp_safe_redirect( add_query_arg( 'ballot', true === $result ? 'cast' : 'already_cast', get_permalink() ) );
+			exit;
+		}
+
+		$this->refused = array(
+			'error'    => $result,
+			'name'     => $name,
+			'password' => $password,
+			'category' => $category,
+			'scores'   => array_filter( $scores, 'is_scalar' ),
+		);
 	}
 
 	/**
@@ -204,12 +285,51 @@ class Voting_Shortcode {
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$auth_mode     = $voting_config['auth_mode'] ?? 'password';
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only picks which thank-you message to show.
+		$outcome = isset( $_GET['ballot'] ) ? sanitize_key( wp_unslash( $_GET['ballot'] ) ) : '';
+		if ( 'cast' === $outcome || 'already_cast' === $outcome ) {
+			return $this->render_outcome( $competition, $outcome, $auth_mode );
+		}
+
 		// Branch based on authentication mode.
 		if ( 'token' === $auth_mode ) {
 			return $this->render_token_based_voting( $competition, $settings );
 		} else {
 			return $this->render_password_based_voting( $competition, $settings );
 		}
+	}
+
+	/**
+	 * The page after a ballot was cast, or turned out to be cast already.
+	 *
+	 * @param object $competition Competition object.
+	 * @param string $outcome     cast or already_cast.
+	 * @param string $auth_mode   token or password.
+	 * @return string
+	 */
+	private function render_outcome( object $competition, string $outcome, string $auth_mode ): string {
+		if ( 'already_cast' === $outcome ) {
+			$message = $this->already_voted_notice();
+		} elseif ( 'token' === $auth_mode ) {
+			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded anonymously.', 'photo-competition-manager' ) . '</p>';
+		} else {
+			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
+		}
+
+		return '<div class="photo-comp-voting">'
+			. '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</h2>'
+			. wp_kses_post( $message )
+			. '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>'
+			. '</div>';
+	}
+
+	/**
+	 * Why the ballot posted in this request was refused, as a notice.
+	 *
+	 * @return string
+	 */
+	private function refused_notice(): string {
+		return $this->refused ? '<p class="error">' . esc_html( $this->refused['error']->get_error_message() ) . '</p>' : '';
 	}
 
 	/**
@@ -221,37 +341,21 @@ class Voting_Shortcode {
 	 */
 	private function render_token_based_voting( object $competition, array $settings ): string {
 		// Check for voting token in URL.
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading a read-only token from the URL for magic-link auth; sanitized and hashed below.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading a read-only token from the URL for magic-link auth; sanitized and hashed by Ballots.
 		$token_string = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-		$token_hash   = $token_string ? hash( 'sha256', $token_string ) : '';
-		$token_record = null;
-		$member       = null;
-		$category     = '';
+		$voter        = $this->ballots->link_voter( $competition, $token_string );
+		$voter        = is_wp_error( $voter ) ? null : $voter;
 
-		if ( $token_hash ) {
-			$token_record = $this->token_repo->find_valid_token( $token_hash );
-			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
-				$member   = $this->members_repo->find( (int) $token_record->member_id );
-				$category = $token_record->category;
-			}
-		}
+		// A closed category says so on the page itself.
+		$message = $this->refused && 'voting_closed' !== $this->refused['error']->get_error_code() ? $this->refused_notice() : '';
 
 		// Handle token request form submission.
-		$message = '';
 		if ( isset( $_POST['photo_competition_request_voting_token'] ) && check_admin_referer( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
 			$message = $this->handle_token_request( $competition, $_POST );
 		}
 
-		$submitted_votes = array();
-
-		// Handle vote submission with token.
-		if ( $token_record && $member && isset( $_POST['photo_competition_vote'] ) && check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' ) ) {
-			$submitted_votes = $this->collect_vote_selections_from_request( $_POST, $settings );
-			$message         = $this->handle_vote_submission_token( $competition, $token_record, $submitted_votes );
-		}
-
 		ob_start();
-		$this->render_voting_interface( $competition, $message, $token_record, $member, $settings, $category, $submitted_votes, $token_string );
+		$this->render_voting_interface( $competition, $message, $voter, $settings, $this->refused['scores'] ?? array(), $token_string );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -264,50 +368,15 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_password_based_voting( object $competition, array $settings ): string {
-		// Handle vote submission.
-		$message      = '';
-		$status_param = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';
-		if ( 'success' === $status_param ) {
-			$message  = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
-			$message .= '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
-
-			ob_start();
-			echo '<div class="photo-comp-voting">';
-			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</h2>';
-			echo wp_kses_post( $message );
-			echo '</div>';
-			return ob_get_clean();
-		}
-
-		$submitted_data = array(
-			'voter_name'      => '',
-			'category'        => '',
-			'voting_password' => '',
-			'votes'           => array(),
+		$form  = $this->refused ?? Named_Voter::remembered() + array(
+			'category' => '',
+			'scores'   => array(),
 		);
-
-		if ( isset( $_POST['photo_competition_vote'] ) && check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' ) ) {
-			$submitted_data = $this->collect_password_submission_data( $_POST, $settings );
-			$result         = $this->handle_vote_submission_password( $competition, $settings, $submitted_data );
-
-			if ( 'success' === $result['status'] ) {
-				$redirect_args = array(
-					'vote_status' => 'success',
-				);
-
-				if ( ! empty( $result['category'] ) ) {
-					$redirect_args['vote_category'] = $result['category'];
-				}
-
-				wp_safe_redirect( add_query_arg( $redirect_args, get_permalink() ) );
-				exit;
-			}
-
-			$message = $result['message'];
-		}
+		$voter = $this->ballots->named_voter( $competition, $form['name'], $form['password'] );
+		$voter = is_wp_error( $voter ) ? null : $voter;
 
 		ob_start();
-		$this->render_password_voting_interface( $competition, $message, $settings, $submitted_data );
+		$this->render_password_voting_interface( $competition, $this->refused_notice(), $settings, $form, $voter );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -390,204 +459,17 @@ class Voting_Shortcode {
 	}
 
 	/**
-	 * Handle vote submission with valid token (for token-based voting).
-	 *
-	 * @param object         $competition     Competition object.
-	 * @param object         $token_record    Token record.
-	 * @param array<int,int> $submitted_votes Sanitized vote selections keyed by image ID.
-	 * @return string Message to display.
-	 */
-	private function handle_vote_submission_token( object $competition, object $token_record, array $submitted_votes ): string {
-		// Get all images for this category to validate all have been voted for.
-		$images          = $this->images_repo->find_by_competition( (int) $competition->id, $token_record->category );
-		$image_count     = count( $images );
-		$submitted_votes = $this->votes_for_images( $submitted_votes, $images );
-
-		if ( empty( $submitted_votes ) ) {
-			return '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		// Validate that all images have received a vote.
-		if ( count( $submitted_votes ) < $image_count ) {
-			return '<p class="error">' . esc_html(
-				sprintf(
-					/* translators: %1$d: number of images voted for, %2$d: total number of images */
-					_n(
-						'You must vote for all images. You have voted for %1$d of %2$d image.',
-						'You must vote for all images. You have voted for %1$d of %2$d images.',
-						$image_count,
-						'photo-competition-manager'
-					),
-					count( $submitted_votes ),
-					$image_count
-				)
-			) . '</p>';
-		}
-
-		// Verify voting is still open for this category.
-		if ( ! $this->workflow->is_accepting_votes( $competition, $token_record->category ) ) {
-			return '<p class="error">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		$result = $this->votes_repo->create_anonymous_ballot(
-			(int) $competition->id,
-			$token_record->category,
-			(int) $token_record->id,
-			$submitted_votes
-		);
-
-		// Another submission of this ballot got there first.
-		if ( $this->is_duplicate_vote( $result ) ) {
-			return $this->already_voted_notice();
-		}
-
-		if ( is_wp_error( $result ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		return '<p class="success">' . esc_html__( 'Thank you for voting! Your latest votes have been recorded anonymously.', 'photo-competition-manager' ) . '</p>';
-	}
-
-	/**
-	 * Handle vote submission with password (for password-based voting).
-	 *
-	 * @param object $competition Competition object.
-	 * @param array  $settings    Competition settings.
-	 * @param array  $submission  Sanitized submission data.
-	 * @return array{status:string,message:string,category:string} Submission outcome.
-	 */
-	private function handle_vote_submission_password( object $competition, array $settings, array $submission ): array {
-		$voter_name    = $submission['voter_name'] ?? '';
-		$category      = $submission['category'] ?? '';
-		$votes         = $submission['votes'] ?? array();
-		$provided_pass = $submission['voting_password'] ?? '';
-
-		if ( '' === $voter_name ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html__( 'Please enter your name.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		if ( '' === $category ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html__( 'Invalid category.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		// Verify voting is open for this category.
-		$voting_config = Competition_Settings::get_voting_config( $settings );
-
-		$expected_password = isset( $voting_config['password'] ) ? (string) $voting_config['password'] : '';
-
-		if ( '' !== $expected_password ) {
-			if ( '' === $provided_pass ) {
-				return array(
-					'status'   => 'error',
-					'message'  => '<p class="error">' . esc_html__( 'Please enter the voting password.', 'photo-competition-manager' ) . '</p>',
-					'category' => $category,
-				);
-			}
-
-			// Try direct case-insensitive comparison first (plaintext), fall back to wp_check_password for legacy hashes.
-			$password_matches = strtolower( $provided_pass ) === strtolower( $expected_password )
-				|| wp_check_password( strtolower( $provided_pass ), $expected_password );
-			if ( ! $password_matches ) {
-				return array(
-					'status'   => 'error',
-					'message'  => '<p class="error">' . esc_html__( 'The voting password is incorrect.', 'photo-competition-manager' ) . '</p>',
-					'category' => $category,
-				);
-			}
-		}
-
-		if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		// Get all images for this category to validate all have been voted for.
-		$images      = $this->images_repo->find_by_competition( (int) $competition->id, $category );
-		$image_count = count( $images );
-		$votes       = $this->votes_for_images( $votes, $images );
-
-		if ( empty( $votes ) ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html__( 'Please select at least one image to vote for.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		// Validate that all images have received a vote.
-		if ( count( $votes ) < $image_count ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html(
-					sprintf(
-						/* translators: %1$d: number of images voted for, %2$d: total number of images */
-						_n(
-							'You must vote for all images. You have voted for %1$d of %2$d image.',
-							'You must vote for all images. You have voted for %1$d of %2$d images.',
-							$image_count,
-							'photo-competition-manager'
-						),
-						count( $votes ),
-						$image_count
-					)
-				) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		$result = $this->votes_repo->create_ballot( (int) $competition->id, $category, $voter_name, $votes );
-
-		// Another submission of this ballot got there first.
-		if ( $this->is_duplicate_vote( $result ) ) {
-			$this->refresh_voter_cookie( $voter_name, $provided_pass );
-			return array(
-				'status'   => 'already_voted',
-				'message'  => $this->already_voted_notice(),
-				'category' => $category,
-			);
-		}
-
-		if ( is_wp_error( $result ) ) {
-			return array(
-				'status'   => 'error',
-				'message'  => '<p class="error">' . esc_html__( 'Failed to record votes. Please try again.', 'photo-competition-manager' ) . '</p>',
-				'category' => $category,
-			);
-		}
-
-		$this->refresh_voter_cookie( $voter_name, $provided_pass );
-		return array(
-			'status'   => 'success',
-			'message'  => '',
-			'category' => $category,
-		);
-	}
-
-	/**
 	 * Render voting interface for token-based voting.
 	 *
-	 * @param object           $competition     Competition object.
-	 * @param string           $message         Message to display.
-	 * @param object|null      $token_record    Token record if validated.
-	 * @param object|null      $member          Member object if authenticated.
-	 * @param array            $settings        Competition settings.
-	 * @param string           $category        Category slug from token.
-	 * @param array<int,float> $submitted_votes Previously submitted vote selections.
-	 * @param string           $token_string    Raw voting token from the URL, kept on the "Check If Voting Is Open" link.
+	 * @param object            $competition     Competition object.
+	 * @param string            $message         Message to display.
+	 * @param Link_Voter|null   $voter           The voter, if their link checks out.
+	 * @param array             $settings        Competition settings.
+	 * @param array<int,string> $submitted_votes The refused ballot's scores, to fill the form back in.
+	 * @param string            $token_string    Raw voting token from the URL, kept on the "Check If Voting Is Open" link.
 	 * @return void
 	 */
-	private function render_voting_interface( object $competition, string $message, ?object $token_record, ?object $member, array $settings, string $category, array $submitted_votes, string $token_string ): void {
+	private function render_voting_interface( object $competition, string $message, ?Link_Voter $voter, array $settings, array $submitted_votes, string $token_string ): void {
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$categories    = Competition_Settings::get_categories( $settings );
 
@@ -623,7 +505,7 @@ class Voting_Shortcode {
 				<?php return; ?>
 			<?php endif; ?>
 
-			<?php if ( ! $token_record || ! $member ) : ?>
+			<?php if ( ! $voter ) : ?>
 				<!-- Token request form -->
 				<div class="token-request-section">
 					<p><?php esc_html_e( 'To vote, please enter your registered email address and select a category. We will send you a secure voting link.', 'photo-competition-manager' ); ?></p>
@@ -671,6 +553,8 @@ class Voting_Shortcode {
 			<?php else : ?>
 				<!-- Member is authenticated with valid token, show voting form -->
 				<?php
+				$category = $voter->category();
+
 				// Verify voting is still open for this category.
 				if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
 					// Another category is open, so drop the token: the bare page lets the voter request a link for it.
@@ -679,13 +563,7 @@ class Voting_Shortcode {
 					return;
 				}
 
-				$existing_votes = array();
-				if ( $token_record ) {
-					$existing_scores = $this->votes_repo->get_votes_by_token( (int) $token_record->id );
-					$existing_votes  = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
-				}
-
-				if ( ! empty( $existing_votes ) ) {
+				if ( $this->ballots->has_cast( $competition, $category, $voter ) ) {
 					echo wp_kses_post( $this->already_voted_notice() );
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
@@ -713,7 +591,7 @@ class Voting_Shortcode {
 							sprintf(
 								/* translators: %s: member name */
 								__( 'Authenticated as: %s', 'photo-competition-manager' ),
-								$member->name
+								$voter->member()->name
 							)
 						);
 						?>
@@ -875,13 +753,14 @@ class Voting_Shortcode {
 	/**
 	 * Render voting interface for password-based voting.
 	 *
-	 * @param object $competition    Competition object.
-	 * @param string $message        Message to display.
-	 * @param array  $settings       Competition settings.
-	 * @param array  $submitted_data Sanitized previously submitted data.
+	 * @param object           $competition Competition object.
+	 * @param string           $message     Message to display.
+	 * @param array            $settings    Competition settings.
+	 * @param array            $form        The form as the voter filled it in or this device remembers it: name, password, category and scores.
+	 * @param Named_Voter|null $voter       The voter, if their name and password check out.
 	 * @return void
 	 */
-	private function render_password_voting_interface( object $competition, string $message, array $settings, array $submitted_data ): void {
+	private function render_password_voting_interface( object $competition, string $message, array $settings, array $form, ?Named_Voter $voter ): void {
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$categories    = Competition_Settings::get_categories( $settings );
 
@@ -900,31 +779,6 @@ class Voting_Shortcode {
 		$password_enabled    = '' !== $voting_password;
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
-		$cookie_payload      = $this->get_voter_cookie();
-
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended
-		$success_status = isset( $_GET['vote_status'] ) ? sanitize_key( wp_unslash( $_GET['vote_status'] ) ) : '';
-		$requested_slug = isset( $_GET['vote_category'] ) ? sanitize_text_field( wp_unslash( $_GET['vote_category'] ) ) : '';
-		// phpcs:enable WordPress.Security.NonceVerification.Recommended
-		$valid_slugs            = array_map(
-			function ( $category ) {
-				return $category['slug'] ?? '';
-			},
-			$voting_categories
-		);
-		$limit_prefill_category = ( 'success' === $success_status && in_array( $requested_slug, $valid_slugs, true ) ) ? $requested_slug : '';
-
-		$voter_name_value = $submitted_data['voter_name'] ?? '';
-		if ( '' === $voter_name_value ) {
-			$voter_name_value = $cookie_payload['name'];
-		}
-
-		$password_value = $submitted_data['voting_password'] ?? '';
-		if ( '' === $password_value ) {
-			$password_value = $cookie_payload['password'];
-		}
-		$current_category = $submitted_data['category'] ?? '';
-		$submitted_votes  = $submitted_data['votes'] ?? array();
 
 		?>
 		<div class="photo-comp-voting">
@@ -956,12 +810,7 @@ class Voting_Shortcode {
 						continue;
 					}
 
-					$has_voted = false;
-					if ( '' !== $voter_name_value ) {
-						$has_voted = $this->votes_repo->has_voted( (int) $competition->id, $category_slug, $voter_name_value );
-					}
-
-					if ( $has_voted ) {
+					if ( $voter && $this->ballots->has_cast( $competition, $category_slug, $voter ) ) {
 						echo '<div class="voting-category-section voting-category-complete">';
 						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
 						echo wp_kses_post( $this->already_voted_notice() );
@@ -970,13 +819,7 @@ class Voting_Shortcode {
 						continue;
 					}
 
-					$category_votes = array();
-					if ( $current_category === $category_slug && ! empty( $submitted_votes ) ) {
-						$category_votes = $submitted_votes;
-					} elseif ( '' !== $voter_name_value && ( '' === $limit_prefill_category || $limit_prefill_category === $category_slug ) ) {
-						$existing_scores = $this->votes_repo->get_votes_by_voter( (int) $competition->id, $category_slug, $voter_name_value );
-						$category_votes  = $this->sanitize_vote_selections( $existing_scores, $score_matrix );
-					}
+					$category_votes = $form['category'] === $category_slug ? $form['scores'] : array();
 					?>
 
 					<div class="voting-category-section">
@@ -1032,7 +875,7 @@ class Voting_Shortcode {
 									type="text"
 									id="voter_name_<?php echo esc_attr( $category_slug ); ?>"
 									name="voter_name"
-									value="<?php echo esc_attr( $voter_name_value ); ?>"
+									value="<?php echo esc_attr( $form['name'] ); ?>"
 									required
 								/>
 							</p>
@@ -1047,7 +890,7 @@ class Voting_Shortcode {
 										type="text"
 										id="voting_password_<?php echo esc_attr( $category_slug ); ?>"
 										name="voting_password"
-										value="<?php echo esc_attr( $password_value ); ?>"
+										value="<?php echo esc_attr( $form['password'] ); ?>"
 										required
 									/>
 									<small><?php esc_html_e( 'Password is not case-sensitive', 'photo-competition-manager' ); ?></small>
@@ -1113,105 +956,6 @@ class Voting_Shortcode {
 	}
 
 	/**
-	 * Collect sanitized submission values for password-based voting.
-	 *
-	 * @param array $request  Request array (typically $_POST) already nonce-verified by the caller.
-	 * @param array $settings Competition settings.
-	 * @return array{
-	 *     voter_name:string,
-	 *     category:string,
-	 *     voting_password:string,
-	 *     votes:array<int,float>
-	 * }
-	 */
-	private function collect_password_submission_data( array $request, array $settings ): array {
-		$voter_name      = isset( $request['voter_name'] ) ? sanitize_text_field( wp_unslash( $request['voter_name'] ) ) : '';
-		$voter_name      = rtrim( mb_substr( $voter_name, 0, 191 ) ); // The votes table holds 191 characters, and the cookie and lookups must use the same name.
-		$category        = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
-		$voting_password = isset( $request['voting_password'] ) ? sanitize_text_field( wp_unslash( $request['voting_password'] ) ) : '';
-		$votes           = $this->collect_vote_selections_from_request( $request, $settings );
-
-		return array(
-			'voter_name'      => $voter_name,
-			'category'        => $category,
-			'voting_password' => $voting_password,
-			'votes'           => $votes,
-		);
-	}
-
-	/**
-	 * Collect sanitized vote selections from the given request array.
-	 *
-	 * @param array $request  Request array (typically $_POST) already nonce-verified by the caller.
-	 * @param array $settings Competition settings.
-	 * @return array<int, float> Sanitized vote selections keyed by image ID.
-	 */
-	private function collect_vote_selections_from_request( array $request, array $settings ): array {
-		if ( ! isset( $request['votes'] ) || ! is_array( $request['votes'] ) ) {
-			return array();
-		}
-
-		$raw_votes = wp_unslash( $request['votes'] );
-		if ( ! is_array( $raw_votes ) ) {
-			return array();
-		}
-
-		$voting_config   = Competition_Settings::get_voting_config( $settings );
-		$score_matrix    = $voting_config['score_matrix'];
-		$sanitized_votes = $this->sanitize_vote_selections( $raw_votes, $score_matrix );
-
-		return $sanitized_votes;
-	}
-
-	/**
-	 * Sanitize vote selections by enforcing valid image IDs and allowed score values.
-	 *
-	 * @param array<int|string, mixed> $votes          Raw vote selections.
-	 * @param array<int, int>          $allowed_scores Allowed score values.
-	 * @return array<int, int> Sanitized vote selections keyed by image ID.
-	 */
-	private function sanitize_vote_selections( array $votes, array $allowed_scores ): array {
-		$sanitized = array();
-
-		if ( empty( $allowed_scores ) ) {
-			return $sanitized;
-		}
-
-		$allowed_lookup = array_flip( array_map( 'intval', $allowed_scores ) );
-
-		foreach ( $votes as $image_id => $raw_score ) {
-			$image_id = absint( $image_id );
-			$score    = (int) $raw_score;
-
-			if ( $image_id < 1 ) {
-				continue;
-			}
-
-			if ( ! isset( $allowed_lookup[ $score ] ) ) {
-				continue;
-			}
-
-			$sanitized[ $image_id ] = $score;
-		}
-
-		return $sanitized;
-	}
-
-	/**
-	 * Keep only the votes for the given images, so votes for images outside
-	 * the category can't make up the count of a ballot.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param array<int, int> $votes  Vote selections keyed by image ID.
-	 * @param array<object>   $images The category's images.
-	 * @return array<int, int>
-	 */
-	private function votes_for_images( array $votes, array $images ): array {
-		return array_intersect_key( $votes, array_flip( array_column( $images, 'id' ) ) );
-	}
-
-	/**
 	 * The notice shown to a voter whose ballot for the category is already saved.
 	 *
 	 * @since 0.4.0
@@ -1220,92 +964,5 @@ class Voting_Shortcode {
 	 */
 	private function already_voted_notice(): string {
 		return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
-	}
-
-	/**
-	 * Whether a ballot was refused because the voter's votes are already recorded.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param int|WP_Error $result Outcome of recording a ballot.
-	 * @return bool
-	 */
-	private function is_duplicate_vote( $result ): bool {
-		return is_wp_error( $result ) && 'duplicate_vote' === $result->get_error_code();
-	}
-
-	/**
-	 * Retrieve the persisted voter cookie values.
-	 *
-	 * @return array{name:string,password:string}
-	 */
-	private function get_voter_cookie(): array {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Value is sanitized after json_decode.
-		if ( empty( $_COOKIE['photo_competition_voter'] ) ) {
-			return array(
-				'name'     => '',
-				'password' => '',
-			);
-		}
-
-		$raw_cookie = wp_unslash( $_COOKIE['photo_competition_voter'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Value is sanitized after json_decode.
-		if ( ! is_string( $raw_cookie ) ) {
-			return array(
-				'name'     => '',
-				'password' => '',
-			);
-		}
-
-		$decoded = json_decode( $raw_cookie, true );
-
-		if ( ! is_array( $decoded ) ) {
-			return array(
-				'name'     => '',
-				'password' => '',
-			);
-		}
-
-		$name     = isset( $decoded['name'] ) ? sanitize_text_field( $decoded['name'] ) : '';
-		$password = isset( $decoded['password'] ) ? sanitize_text_field( $decoded['password'] ) : '';
-
-		return array(
-			'name'     => $name,
-			'password' => $password,
-		);
-	}
-
-	/**
-	 * Persist voter name and password in a long-lived cookie.
-	 *
-	 * @param string $name     Voter name.
-	 * @param string $password Voting password (if applicable).
-	 * @return void
-	 */
-	private function refresh_voter_cookie( string $name, string $password ): void {
-		$payload = array(
-			'name'     => $name,
-			'password' => $password, // Store password for accessibility on mobile devices.
-		);
-
-		// The ballot is handled while the shortcode renders, inside the page, so
-		// headers can already be sent (classic themes, and PHPUnit). Handling
-		// the POST on template_redirect would fix this and the redirect after it.
-		if ( ! headers_sent() ) {
-			setcookie(
-				'photo_competition_voter',
-				wp_json_encode( $payload ),
-				array(
-					'expires'  => time() + YEAR_IN_SECONDS,
-					'path'     => COOKIEPATH ? COOKIEPATH : '/',
-					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
-					'samesite' => 'Lax',
-					'httponly' => true, // Prevent JavaScript access for security.
-				)
-			);
-		}
-
-		// Make the cookie immediately available during this request.
-		$_COOKIE['photo_competition_voter'] = wp_json_encode( $payload );
 	}
 }
