@@ -208,7 +208,7 @@ Yes. Visit **Competitions → Export** to download:
   * The detailed results email uses the email template system
   * Results are recorded when they're published, or the first time they're needed after the competition closes. Deleting a member, removing an entry or changing a member's grade afterwards moves nobody, and a deleted member's entries show as "Former member" in their place, without an image
   * Results can't be hidden once the competition has closed. To correct them, move the close date into the future, then hide and publish them again
-  * Email Results and the results link to all members wait until results are shown, so everyone is told the published positions. The committee's link can still go first
+  * Email Results and the results link to all members wait until results are shown or the competition has closed, so everyone is told the recorded positions. The committee's link can still go first
   * The Recalculate Scores button is gone: nothing used the score it saved
 
 * **Members and email**
