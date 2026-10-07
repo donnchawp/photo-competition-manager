@@ -20,6 +20,8 @@ use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * Manage competitions dashboard and CRUD operations.
  *
@@ -211,7 +213,7 @@ class Competitions_Controller {
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
-				'close_date' => $this->parse_date_input( $close_date_raw ),
+				'close_date' => $this->close_date_from_form( $competition_id, $this->parse_date_input( $close_date_raw ) ),
 			);
 
 			$result = $this->link_overlap_error( $this->competitions->update( $competition_id, $data ) );
@@ -641,6 +643,42 @@ class Competitions_Controller {
 				)
 			);
 		}
+	}
+
+	/**
+	 * The close date to save from the edit form, which only has the day.
+	 *
+	 * The same day keeps the stored time, such as the one Close Competition
+	 * set. A day that has come, on a competition its close date hasn't
+	 * closed yet, closes it now. The start of the day would date the close
+	 * before anything done earlier that day, such as hiding results to
+	 * correct them, and a record made then would be trusted (see
+	 * Results_Ranking::record()).
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $day            Close day from the form (Y-m-d), or null for none.
+	 * @return string|null Close date to save.
+	 */
+	private function close_date_from_form( int $competition_id, ?string $day ): ?string {
+		$competition = $this->competitions->find( $competition_id );
+
+		if ( ! $competition || null === $day ) {
+			return $day;
+		}
+
+		$current = $competition->close_date;
+
+		if ( $day === $this->format_date_for_input( $current ) ) {
+			return $current;
+		}
+
+		$now          = utc_time();
+		$had_closed   = ! empty( $current ) && $current <= $now;
+		$day_has_come = $day . ' 00:00:00' <= $now;
+
+		return ! $had_closed && $day_has_come ? $now : $day;
 	}
 
 	/**

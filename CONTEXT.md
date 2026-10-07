@@ -24,7 +24,7 @@ _Avoid_: Submission, image (for the record)
 The full-size file a member uploaded for an entry, kept in the media library for export until an admin discards it. Discarding originals leaves the entries in place. WordPress also keeps a 2560px `-scaled` copy of a larger original as its attached file; that copy isn't the original, and export uses the full-size file.
 
 **Competition phase**:
-Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived.
+Where a competition is in its life: Scheduled, Accepting uploads, Uploads closed, Results published, Closed or Archived. It's Closed from its close date. The edit form has only the day, so setting an open competition's close date to today or earlier closes it when the form is saved, and saving the form with the day unchanged keeps the time it closed.
 _Avoid_: Status, state
 
 ### Voting
