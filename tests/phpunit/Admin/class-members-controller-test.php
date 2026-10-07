@@ -528,6 +528,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * Sending to an active member of an open competition reports success.
 	 */
 	public function test_send_member_upload_email_success(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 		$competition_id = $this->create_open_competition();
 		$member_id      = $this->create_member(
 			array(
@@ -552,6 +553,46 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'upload_email_sent', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * With no upload page anywhere, the admin is told so rather than the
+	 * member getting a link to the home page.
+	 */
+	public function test_send_member_upload_email_without_an_upload_page_says_why(): void {
+		$competition_id = $this->create_open_competition();
+		$member_id      = $this->create_member(
+			array(
+				'active' => 1,
+				'email'  => 'active@example.com',
+			)
+		);
+		$mail_count = 0;
+		add_filter(
+			'pre_wp_mail',
+			function () use ( &$mail_count ) {
+				++$mail_count;
+				return true;
+			}
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_member_upload_email',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_email_' . $member_id . '_' . $competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'no_upload_page', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 0, $mail_count );
 	}
 
 	/**

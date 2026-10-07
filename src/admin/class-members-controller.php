@@ -183,26 +183,10 @@ class Members_Controller {
 				$this->redirect_with_settings_errors( $this->members_url() );
 			}
 
-			// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
-			$settings        = Competition_Settings::parse( $competition->settings );
-			$urls            = $settings['urls'] ?? array();
-			$upload_page_url = $urls['upload_page'] ?? '';
-
-			if ( empty( $upload_page_url ) ) {
-				$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
-			}
-
-			if ( empty( $upload_page_url ) ) {
-				$upload_page_url = home_url( '/' );
-			}
-
-			$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
-
 			$upload_link_service = new Upload_Link_Service();
 			$result              = $upload_link_service->send_to_member(
 				(int) $competition_id,
 				(int) $member_id,
-				$upload_page_url,
 				true // Send email immediately.
 			);
 
@@ -905,28 +889,18 @@ class Members_Controller {
 	/**
 	 * Generate the upload URL for a member for a specific competition.
 	 *
-	 * Retrieves the upload page URL from competition settings or auto-discovers it,
-	 * then generates a tokenized URL that can be shared with the member.
+	 * Builds it on the same upload page the member's upload link emails use.
 	 *
 	 * @param  int    $member_id   Member ID.
 	 * @param  object $competition Competition object.
 	 * @return string Upload URL with token, or empty string if URL cannot be determined.
 	 */
 	private function get_member_upload_url( int $member_id, object $competition ): string {
-		// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
-		$settings        = Competition_Settings::parse( $competition->settings );
-		$urls            = $settings['urls'] ?? array();
-		$upload_page_url = $urls['upload_page'] ?? '';
+		$upload_page_url = Competition_Settings::page_url( 'upload_page', $competition );
 
-		if ( empty( $upload_page_url ) ) {
-			$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
-		}
-
-		if ( empty( $upload_page_url ) ) {
+		if ( '' === $upload_page_url ) {
 			return '';
 		}
-
-		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 		// Use the repository to generate the upload URL with a fresh token.
 		$token_repo = new Upload_Token_Repository();

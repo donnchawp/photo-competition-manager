@@ -524,7 +524,8 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_upload_link_job_sends_then_skips_rate_limited_members(): void {
 		$alice = $this->seed_member( 'alice@example.com' );
 		$bob   = $this->seed_member( 'bob@example.com' );
-		$args  = array( 'upload_page_url' => 'https://example.com/upload/' );
+		$args  = array();
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 
 		$first = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $alice, $bob ), $args );
 		$this->manager->process_batch( $first );

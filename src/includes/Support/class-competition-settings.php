@@ -649,6 +649,19 @@ class Competition_Settings {
 			$url = self::find_page_url_with_shortcode( self::PAGE_SHORTCODES[ $page ] );
 		}
 
+		if ( 'upload_page' === $page ) {
+			/**
+			 * Filters the upload page URL that members' upload links are built on.
+			 *
+			 * @since 0.3.0
+			 * @since 0.4.0 Runs on every upload link, and may be passed ''.
+			 *
+			 * @param string      $url         Upload page URL, or '' when none was found.
+			 * @param object|null $competition Competition row.
+			 */
+			$url = (string) apply_filters( 'photo_competition_manager_upload_page_url', $url, $competition );
+		}
+
 		return $url;
 	}
 
