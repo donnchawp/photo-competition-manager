@@ -76,11 +76,20 @@ const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
 // The script starts an uploader on each DOMContentLoaded, so it's loaded once and each test fires the event.
 require( '../../assets/src/js/drag-drop-upload' );
 
-async function selectFiles( names ) {
+/**
+ * Pick JPEG files in the file input, without waiting for the uploader to read them.
+ *
+ * @param {string[]} names The file names.
+ */
+function pickFiles( names ) {
 	const input = document.querySelector( '#batch-file-input' );
 	const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
 	Object.defineProperty( input, 'files', { value: files, configurable: true } );
 	input.dispatchEvent( new Event( 'change' ) );
+}
+
+async function selectFiles( names ) {
+	pickFiles( names );
 
 	// Each preview is read in the background, and the button waits until each one's category is assigned.
 	const button = document.querySelector( '.photo-comp-upload-all-btn' );
@@ -115,6 +124,25 @@ async function answerLastAndWait( answer ) {
  */
 function errorLines() {
 	return Array.from( document.querySelectorAll( '.photo-comp-upload-progress .photo-comp-error-list li' ), ( li ) => li.textContent );
+}
+
+/**
+ * The names of the images selected so far.
+ *
+ * @return {string[]} Each preview's file name.
+ */
+function selectedNames() {
+	return Array.from( document.querySelectorAll( '.photo-comp-preview-item img' ), ( img ) => img.alt );
+}
+
+/**
+ * The quota message on screen, if there is one.
+ *
+ * @return {string|null} The message.
+ */
+function quotaMessage() {
+	const message = document.querySelector( '.photo-comp-error-message' );
+	return message ? message.textContent : null;
 }
 
 /**
@@ -173,8 +201,7 @@ describe( 'drag-and-drop upload', () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
 
-		const previews = document.querySelectorAll( '.photo-comp-preview-item img' );
-		expect( Array.from( previews, ( img ) => img.alt ) ).toEqual( [ 'two.jpg' ] );
+		expect( selectedNames() ).toEqual( [ 'two.jpg' ] );
 
 		// Upload All sends only the image that failed, so one.jpg isn't entered twice.
 		const uploadAll = document.querySelector( '.photo-comp-upload-all-btn' );
@@ -201,14 +228,38 @@ describe( 'drag-and-drop upload', () => {
 
 		// Of the 3 allowed, one.jpg is entered, so with two.jpg removed two more fit.
 		document.querySelector( '.photo-comp-preview-item .photo-comp-remove-btn' ).click();
-		const input = document.querySelector( '#batch-file-input' );
-		const files = [ 'three.jpg', 'four.jpg', 'five.jpg' ].map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
-		Object.defineProperty( input, 'files', { value: files, configurable: true } );
-		input.dispatchEvent( new Event( 'change' ) );
+		pickFiles( [ 'three.jpg', 'four.jpg', 'five.jpg' ] );
 
-		expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe(
+		expect( quotaMessage() ).toBe(
 			'Only 2 files added. 1 file rejected due to quota limits.'
 		);
+	} );
+
+	it( 'adds an image in a second go while the quota has room for it', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBeNull();
+	} );
+
+	it( 'turns away an image in a second go once the quota is full', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+
+		await selectFiles( [ 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'All category quotas are full. Cannot add more files.' );
+	} );
+
+	it( 'adds as many images in a second go as the quota has room for', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg', 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
 	} );
 
 	it( 'keeps the failures on screen when a later file is turned away', async () => {
@@ -424,12 +475,10 @@ describe( 'drag-and-drop upload', () => {
 		 * @param {string[]} names The file names.
 		 */
 		async function selectUnassigned( names ) {
-			const input = document.querySelector( '#batch-file-input' );
-			const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
-			Object.defineProperty( input, 'files', { value: files, configurable: true } );
-			input.dispatchEvent( new Event( 'change' ) );
+			const before = document.querySelectorAll( '.photo-comp-preview-item' ).length;
+			pickFiles( names );
 
-			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < before + names.length; i++ ) {
 				await settle();
 			}
 		}
@@ -480,6 +529,32 @@ describe( 'drag-and-drop upload', () => {
 			const two = categoryControl( 'two.jpg' ).querySelector( 'select' );
 			expect( two.value ).toBe( 'mono' );
 			expect( Array.from( two.options, ( option ) => option.value ) ).toEqual( [ '', 'colour', 'mono' ] );
+		} );
+
+		it( 'adds an image in a second go after a category is chosen, while the quotas have room', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			await selectUnassigned( [ 'three.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBeNull();
+		} );
+
+		it( 'counts every selected image against the total when a category has more than its quota', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+			choose( 'one.jpg', 'mono' );
+			choose( 'two.jpg', 'colour' );
+			choose( 'one.jpg', 'colour' );
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+
+			// Two of the 3 places are taken, so only one more image fits.
+			await selectUnassigned( [ 'three.jpg', 'four.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
 		} );
 	} );
 
