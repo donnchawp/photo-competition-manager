@@ -319,6 +319,116 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The Results and Top 3 buttons use the competition's own pages, the same
+	 * ones the missing-pages check and the emails go by, over the club's.
+	 */
+	public function test_render_quick_actions_link_the_competitions_own_pages(): void {
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'urls' => array(
+						'voting_page'  => 'https://example.com/club-vote',
+						'results_page' => 'https://example.com/club-results',
+						'top3_page'    => 'https://example.com/club-top3',
+					),
+				)
+			)
+		);
+		$comp_id   = $this->competitions->create(
+			array(
+				'title'    => 'Spring Show',
+				'slug'     => 'spring-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'urls'       => array(
+						'results_page' => 'https://example.com/spring-results',
+						'top3_page'    => 'https://example.com/spring-top3',
+					),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+				'random_number'  => 100,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'href="https://example.com/spring-results"', $html );
+		$this->assertStringContainsString( 'href="https://example.com/spring-top3"', $html );
+		$this->assertStringNotContainsString( 'club-results', $html );
+		$this->assertStringNotContainsString( 'club-top3', $html );
+	}
+
+	/**
+	 * With no top 3 page anywhere, the Voting screen offers no Top 3 button.
+	 */
+	public function test_render_quick_actions_omit_top3_without_a_top3_page(): void {
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'urls' => array(
+						'voting_page'  => 'https://example.com/vote',
+						'results_page' => 'https://example.com/results',
+					),
+				)
+			)
+		);
+		$comp_id   = $this->seed_competition(
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+				'random_number'  => 100,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'href="https://example.com/results"', $html );
+		$this->assertStringNotContainsString( 'Top 3 Results', $html );
+	}
+
+	/**
 	 * More than one open competition is a setup mistake, left over from
 	 * before only one could be open, so warn and name the competitions.
 	 */

@@ -13,7 +13,6 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
@@ -896,22 +895,9 @@ class Members_Controller {
 	 * @return string Upload URL with token, or empty string if URL cannot be determined.
 	 */
 	private function get_member_upload_url( int $member_id, object $competition ): string {
-		$upload_page_url = Competition_Settings::page_url( 'upload_page', $competition );
+		$upload_url = ( new Upload_Link_Service() )->upload_url( $competition, $member_id );
 
-		if ( '' === $upload_page_url ) {
-			return '';
-		}
-
-		// Use the repository to generate the upload URL with a fresh token.
-		$token_repo = new Upload_Token_Repository();
-		$upload_url = $token_repo->generate_upload_url( (int) $competition->id, $member_id, $upload_page_url );
-
-		// Return empty string if there was an error.
-		if ( is_wp_error( $upload_url ) ) {
-			return '';
-		}
-
-		return $upload_url;
+		return is_wp_error( $upload_url ) ? '' : $upload_url;
 	}
 
 	/**

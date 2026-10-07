@@ -487,7 +487,7 @@ class Email_Job_Manager {
 					$member,
 					$competition,
 					array(
-						'{voting_page}' => (string) $args['voting_page_url'],
+						'{voting_page}' => Competition_Settings::page_url( 'voting_page', $competition ),
 						'{close_date}'  => (string) $args['close_date'],
 					)
 				);

@@ -341,8 +341,7 @@ class Voting_Controller {
 	 * @param string         $success_message Human-readable success message.
 	 * @param string         $focus           Focus-panel key to preserve across the redirect.
 	 * @param callable|null  $on_success      Optional side-effect to run only on success. If it
-	 *                                        returns an email job ID, the page shows the job's progress;
-	 *                                        if it returns a WP_Error, the page shows it as a warning.
+	 *                                        returns an email job ID, the page shows the job's progress.
 	 * @return void
 	 */
 	private function finish_voting_update( $result, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
@@ -364,11 +363,6 @@ class Voting_Controller {
 			);
 
 			$job_id = $on_success ? $on_success() : null;
-
-			if ( is_wp_error( $job_id ) ) {
-				add_settings_error( 'photo_competition_voting', $job_id->get_error_code(), $job_id->get_error_message(), 'warning' );
-				$job_id = null;
-			}
 		}
 
 		$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
@@ -434,6 +428,7 @@ class Voting_Controller {
 		// Check that required pages are configured.
 		$voting_page  = Competition_Settings::page_url( 'voting_page', $active_competition );
 		$results_page = Competition_Settings::page_url( 'results_page', $active_competition );
+		$top3_page    = Competition_Settings::page_url( 'top3_page', $active_competition );
 		if ( empty( $voting_page ) || empty( $results_page ) ) {
 			$missing = array();
 			if ( empty( $voting_page ) ) {
@@ -555,7 +550,7 @@ class Voting_Controller {
 
 		if ( $all_complete && ! $voting_open_globally ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings );
+			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings, $results_page, $top3_page );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
@@ -563,7 +558,7 @@ class Voting_Controller {
 
 		// Render Quick Actions.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_quick_actions( $voting_page, $global_settings, $active_settings );
+		echo $this->render_quick_actions( $voting_page, $results_page, $top3_page, $active_settings );
 
 		// Hidden meter type setting for slideshow.
 		$meter_type = $active_settings['slideshow']['progress_meter_type'] ?? 'bar';
@@ -590,27 +585,29 @@ class Voting_Controller {
 	/**
 	 * Queue voting opened notifications to all active members.
 	 *
+	 * When members would be told but there's no voting page to link, nothing
+	 * is queued and the page warns that they weren't emailed.
+	 *
 	 * @param object $competition Competition object.
-	 * @return string|\WP_Error|null Job ID, 'no_voting_page' when members would be
-	 *                               told but there's no voting page to link, or null
-	 *                               if nothing was queued.
+	 * @return string|null Job ID, or null if nothing was queued.
 	 */
-	private function queue_voting_opened_notifications( object $competition ) {
+	private function queue_voting_opened_notifications( object $competition ): ?string {
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
 			return null;
 		}
 
-		$voting_page_url = Competition_Settings::page_url( 'voting_page', $competition );
-
-		if ( '' === $voting_page_url ) {
-			return new \WP_Error(
+		if ( '' === Competition_Settings::page_url( 'voting_page', $competition ) ) {
+			add_settings_error(
+				'photo_competition_voting',
 				'no_voting_page',
 				sprintf(
 					/* translators: %s: URL of the plugin's Settings screen */
 					__( 'Members weren\'t emailed that voting is open, because no voting page is set. <a href="%s">Set the voting page in Settings</a>, or publish a page with the [competition_voting] shortcode.', 'photo-competition-manager' ),
-					esc_url( admin_url( 'admin.php?page=photo-competition-manager-settings' ) )
-				)
+					esc_url( $this->settings_url() )
+				),
+				'warning'
 			);
+			return null;
 		}
 
 		$member_ids = array();
@@ -624,10 +621,7 @@ class Voting_Controller {
 			'voting_opened',
 			(int) $competition->id,
 			$member_ids,
-			array(
-				'voting_page_url' => $voting_page_url,
-				'close_date'      => format_site_date( $competition->close_date ),
-			)
+			array( 'close_date' => format_site_date( $competition->close_date ) )
 		);
 
 		return $job_id ? $job_id : null;
@@ -874,15 +868,13 @@ class Voting_Controller {
 	/**
 	 * Render collapsible quick actions bar.
 	 *
-	 * @param string $voting_page_url    The voting page URL for QR code.
-	 * @param array  $settings           Global settings.
+	 * @param string $voting_page_url      The voting page URL for QR code.
+	 * @param string $results_url          The results page URL.
+	 * @param string $top3_url             The top 3 page URL.
 	 * @param array  $competition_settings Active competition settings.
 	 * @return string
 	 */
-	private function render_quick_actions( string $voting_page_url, array $settings, array $competition_settings = array() ): string {
-		$results_url = $settings['urls']['results_page'] ?? '';
-		$top3_url    = $settings['urls']['top3_page'] ?? '';
-
+	private function render_quick_actions( string $voting_page_url, string $results_url, string $top3_url, array $competition_settings ): string {
 		// Get voting password if it's stored as plaintext (not a legacy hash).
 		$voting_password = '';
 		$raw_password    = $competition_settings['voting']['password'] ?? '';
@@ -908,12 +900,12 @@ class Voting_Controller {
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
 	 * @param array  $global_settings   Global settings.
+	 * @param string $results_url       The results page URL.
+	 * @param string $top3_url          The top 3 page URL.
 	 * @return string
 	 */
-	private function render_competition_complete( object $competition, array $all_categories, array $global_settings ): string {
+	private function render_competition_complete( object $competition, array $all_categories, array $global_settings, string $results_url, string $top3_url ): string {
 		$results_visible = $this->workflow->results_published( $competition );
-		$results_url     = $global_settings['urls']['results_page'] ?? '';
-		$top3_url        = $global_settings['urls']['top3_page'] ?? '';
 
 		// Duration defaults for replay.
 		$slideshow_replay_duration = $global_settings['slideshow']['voting_duration'] ?? 15;

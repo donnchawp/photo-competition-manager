@@ -127,13 +127,7 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function parse( ?string $json ): array {
-		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
-
-		if ( ! is_array( $decoded ) ) {
-			$decoded = array();
-		}
-
-		$merged = self::merge_with_defaults( $decoded );
+		$merged = self::merge_with_defaults( self::decode( $json ) );
 
 		// Auto-detect page URLs if not set.
 		$merged = self::auto_detect_page_urls( $merged );
@@ -151,9 +145,30 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function global_settings(): array {
+		return self::parse( self::stored_club_settings() );
+	}
+
+	/**
+	 * The club's settings JSON as stored in the site options.
+	 *
+	 * @return string
+	 */
+	private static function stored_club_settings(): string {
 		$saved = get_option( 'photo_comp_default_settings', '' );
 
-		return self::parse( is_string( $saved ) ? $saved : '' );
+		return is_string( $saved ) ? $saved : '';
+	}
+
+	/**
+	 * Decode settings JSON, treating empty or invalid JSON as no settings.
+	 *
+	 * @param string|null $json Settings JSON.
+	 * @return array<string, mixed>
+	 */
+	private static function decode( ?string $json ): array {
+		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
+
+		return is_array( $decoded ) ? $decoded : array();
 	}
 
 	/**
@@ -641,8 +656,7 @@ class Competition_Settings {
 		$url = $competition ? self::stored_page_url( $competition->settings ?? '', $page ) : '';
 
 		if ( '' === $url ) {
-			$club = get_option( 'photo_comp_default_settings', '' );
-			$url  = self::stored_page_url( is_string( $club ) ? $club : '', $page );
+			$url = self::stored_page_url( self::stored_club_settings(), $page );
 		}
 
 		if ( '' === $url && isset( self::PAGE_SHORTCODES[ $page ] ) ) {
@@ -673,8 +687,7 @@ class Competition_Settings {
 	 * @return string The stored URL, or ''.
 	 */
 	private static function stored_page_url( ?string $json, string $page ): string {
-		$settings = ! empty( $json ) ? json_decode( $json, true ) : array();
-		$url      = is_array( $settings ) ? ( $settings['urls'][ $page ] ?? '' ) : '';
+		$url = self::decode( $json )['urls'][ $page ] ?? '';
 
 		return is_string( $url ) ? $url : '';
 	}

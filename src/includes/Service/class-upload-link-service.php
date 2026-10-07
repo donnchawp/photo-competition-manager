@@ -105,6 +105,42 @@ class Upload_Link_Service {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
+		return $this->send_link( $competition, $member, (bool) $force_send );
+	}
+
+	/**
+	 * A member's tokenised upload link for a competition.
+	 *
+	 * Built on the competition's upload page, found by
+	 * Competition_Settings::page_url(), so every screen and email shows the
+	 * same link.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @return string|WP_Error The upload link, 'no_upload_page' when no upload page can be found, or the token error.
+	 */
+	public function upload_url( object $competition, int $member_id ) {
+		$upload_page_url = Competition_Settings::page_url( 'upload_page', $competition );
+		if ( '' === $upload_page_url ) {
+			return self::no_upload_page();
+		}
+
+		return $this->token_repo->generate_upload_url( (int) $competition->id, $member_id, $upload_page_url );
+	}
+
+	/**
+	 * Email a loaded member their upload link for a loaded competition.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @param bool   $force_send  Force sending even if a recent token exists.
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	private function send_link( object $competition, object $member, bool $force_send ) {
+		$competition_id = (int) $competition->id;
+		$member_id      = (int) $member->id;
+
 		if ( ! $member->active ) {
 			return new WP_Error( 'inactive_member', __( 'Member account is not active.', 'photo-competition-manager' ) );
 		}
@@ -118,19 +154,14 @@ class Upload_Link_Service {
 			return true;
 		}
 
-		$upload_page_url = Competition_Settings::page_url( 'upload_page', $competition );
-		if ( '' === $upload_page_url ) {
-			return self::no_upload_page();
+		$upload_url = $this->upload_url( $competition, $member_id );
+		if ( is_wp_error( $upload_url ) ) {
+			return $upload_url;
 		}
 
 		$token_obj = $this->token_repo->find_or_create( $member_id, $competition_id );
 		if ( is_wp_error( $token_obj ) ) {
 			return $token_obj;
-		}
-
-		$upload_url = $this->token_repo->generate_upload_url( $competition_id, $member_id, $upload_page_url );
-		if ( is_wp_error( $upload_url ) ) {
-			return $upload_url;
 		}
 
 		$sent = $this->email_service->send(
@@ -167,9 +198,14 @@ class Upload_Link_Service {
 			return false;
 		}
 
-		// Checked before the member, so it says nothing about who is registered.
+		// Without the competition there's nothing to send, whoever asks.
 		$competition = $this->competitions_repo->find( $competition_id );
-		if ( $competition && '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
+		if ( ! $competition ) {
+			return true;
+		}
+
+		// Checked before the member, so it says nothing about who is registered.
+		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
 			return false;
 		}
 
@@ -180,7 +216,7 @@ class Upload_Link_Service {
 			return true;
 		}
 
-		$result = $this->send_to_member( $competition_id, (int) $member->id );
+		$result = $this->send_link( $competition, $member, false );
 
 		// Treat most errors as success to preserve privacy; only fail on hard send errors.
 		if ( is_wp_error( $result ) ) {
