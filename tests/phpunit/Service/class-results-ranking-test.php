@@ -13,7 +13,10 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 class Results_Ranking_Test extends WP_UnitTestCase {
@@ -173,5 +176,42 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->seed_entry( 'Colour Only', 'beginner', array( 5 ) );
 
 		$this->assertSame( array(), $this->ranking->rank_category( $this->competition_id, 'mono' ) );
+	}
+
+	public function test_published_results_keep_their_order_after_a_member_is_deleted_or_changes_grade(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9, 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 7, 7 ) );
+		$this->seed_entry( 'Cat', 'beginner', array( 5, 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->delete_member_of( $ann );
+		( new Members_Repository() )->update( $this->member_id_of( $bob ), array( 'grade' => 'intermediate' ) );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:18', 'Bob:2:14', 'Cat:3:10' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	/**
+	 * The member who entered an entry.
+	 *
+	 * @param int $image_id Image ID.
+	 * @return int Member ID.
+	 */
+	private function member_id_of( int $image_id ): int {
+		return (int) $this->images->find( $image_id )->member_id;
+	}
+
+	/**
+	 * Delete the member who entered an entry, as the Members screen does.
+	 *
+	 * @param int $image_id Image ID.
+	 */
+	private function delete_member_of( int $image_id ): void {
+		$member_id = $this->member_id_of( $image_id );
+
+		$this->assertTrue( ( new Entries() )->remove_member_entries( Actor::admin(), $member_id ) );
+		$this->assertTrue( ( new Members_Repository() )->delete( $member_id ) );
 	}
 }

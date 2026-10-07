@@ -702,6 +702,24 @@ class Activator {
 			KEY created_at (created_at)
 		) {$charset_collate};";
 
+		// A row outlives its entry and member: deleting either sets its ID to null.
+		$recorded_results = "CREATE TABLE {$wpdb->prefix}photocomp_recorded_results (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			category VARCHAR(100) NOT NULL,
+			entry_id BIGINT UNSIGNED NULL,
+			member_id BIGINT UNSIGNED NULL,
+			grade VARCHAR(100) NOT NULL DEFAULT '',
+			total_score INT NOT NULL,
+			vote_count INT NOT NULL,
+			position INT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY competition_entry (competition_id, entry_id),
+			KEY entry (entry_id),
+			KEY member (member_id)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -710,6 +728,7 @@ class Activator {
 			$upload_tokens,
 			$voting_tokens,
 			$logs,
+			$recorded_results,
 		);
 	}
 }
