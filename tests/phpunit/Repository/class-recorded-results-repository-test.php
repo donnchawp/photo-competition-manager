@@ -78,16 +78,7 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 	}
 
 	public function test_recording_the_same_entries_twice_leaves_one_record(): void {
-		$row = array(
-			'competition_id' => $this->competition_id,
-			'category'       => 'colour',
-			'entry_id'       => 41,
-			'member_id'      => 7,
-			'grade'          => 'beginner',
-			'total_score'    => 9,
-			'vote_count'     => 1,
-			'position'       => 1,
-		);
+		$row = $this->row();
 
 		// Two first reads at once both find no record and both record it.
 		$this->assertSame( 1, $this->record->insert( array( $row ) ) );
@@ -102,26 +93,31 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 		$wpdb->query( "SET time_zone = '+05:00'" );
 
 		try {
-			$this->record->insert(
-				array(
-					array(
-						'competition_id' => $this->competition_id,
-						'category'       => 'colour',
-						'entry_id'       => 41,
-						'member_id'      => 7,
-						'grade'          => 'beginner',
-						'total_score'    => 9,
-						'vote_count'     => 1,
-						'position'       => 1,
-					),
-				)
-			);
+			$this->record->insert( array( $this->row() ) );
 		} finally {
 			$wpdb->query( $wpdb->prepare( 'SET time_zone = %s', $zone ) );
 		}
 
 		$recorded_at = strtotime( $this->record->recorded_at( $this->competition_id ) . ' UTC' );
 		$this->assertEqualsWithDelta( time(), $recorded_at, 60 );
+	}
+
+	/**
+	 * A recorded row for one entry in the competition.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function row(): array {
+		return array(
+			'competition_id' => $this->competition_id,
+			'category'       => 'colour',
+			'entry_id'       => 41,
+			'member_id'      => 7,
+			'grade'          => 'beginner',
+			'total_score'    => 9,
+			'vote_count'     => 1,
+			'position'       => 1,
+		);
 	}
 
 	/**

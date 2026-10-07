@@ -203,7 +203,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
 
-		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		$this->late_vote( $bob, 9 );
 		Workflow_Fixtures::publish_results( $this->competition_id );
 
 		$this->assertSame(
@@ -218,7 +218,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
 
-		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		$this->late_vote( $bob, 9 );
 
 		$this->assertSame(
 			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
@@ -310,9 +310,9 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$workflow = new Competition_Workflow();
 		$this->assertWPError( $workflow->unpublish_results( $this->competition_id ) );
 
-		( new Competitions_Repository() )->update( $this->competition_id, array( 'close_date' => utc_time( DAY_IN_SECONDS ) ) );
+		$this->close_at( utc_time( DAY_IN_SECONDS ) );
 		$this->assertTrue( $workflow->unpublish_results( $this->competition_id ) );
-		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		$this->late_vote( $bob, 9 );
 		Workflow_Fixtures::publish_results( $this->competition_id );
 
 		$this->assertSame(
@@ -393,7 +393,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	public function test_archiving_a_closed_competition_keeps_the_record_made_at_close(): void {
 		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
-		$this->closed_at( utc_time( -2 * HOUR_IN_SECONDS ) );
+		$this->close_at( utc_time( -2 * HOUR_IN_SECONDS ) );
 		$this->ranking->rank_category( $this->competition_id, 'colour' );
 		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
 		$this->assertTrue( ( new Competitions_Repository() )->archive( $this->competition_id ) );
@@ -421,32 +421,37 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertNull( $groups[0]['entries'][1]['image'] );
 	}
 
-	public function test_a_record_made_a_second_before_the_close_date_is_replaced(): void {
-		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
-		$bob   = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
-		$close = utc_time( -HOUR_IN_SECONDS );
-		$this->closed_at( $close );
-		$this->ranking->rank_category( $this->competition_id, 'colour' );
-		$this->record_made_at( gmdate( 'Y-m-d H:i:s', strtotime( $close . ' UTC' ) - 1 ) );
-		$this->late_vote( $bob, 9 );
-
-		$this->assertSame(
-			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
-			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+	/**
+	 * Records made just either side of the close date.
+	 *
+	 * @return array<string, array{int, string[]}>
+	 */
+	public function records_around_the_close_date(): array {
+		return array(
+			'a second before is replaced' => array( -1, array( 'Bob:1:14', 'Ann:2:9' ) ),
+			'a second after is kept'      => array( 1, array( 'Ann:1:9', 'Bob:2:5' ) ),
 		);
 	}
 
-	public function test_a_record_made_a_second_after_the_close_date_is_kept(): void {
+	/**
+	 * A record made before the close date is replaced; one made after is kept.
+	 *
+	 * @dataProvider records_around_the_close_date
+	 *
+	 * @param int      $offset   Seconds from the close date the record was made.
+	 * @param string[] $expected Summarised ranking.
+	 */
+	public function test_a_record_counts_only_if_made_once_the_close_date_passed( int $offset, array $expected ): void {
 		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		$bob   = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
 		$close = utc_time( -HOUR_IN_SECONDS );
-		$this->closed_at( $close );
+		$this->close_at( $close );
 		$this->ranking->rank_category( $this->competition_id, 'colour' );
-		$this->record_made_at( gmdate( 'Y-m-d H:i:s', strtotime( $close . ' UTC' ) + 1 ) );
+		$this->record_made_at( gmdate( 'Y-m-d H:i:s', strtotime( $close . ' UTC' ) + $offset ) );
 		$this->late_vote( $bob, 9 );
 
 		$this->assertSame(
-			array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ),
+			array( 'beginner' => $expected ),
 			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
 		);
 	}
@@ -568,11 +573,11 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Say the competition closed at a given time.
+	 * Set the competition's close date.
 	 *
-	 * @param string $utc UTC datetime, in the past.
+	 * @param string $utc UTC datetime.
 	 */
-	private function closed_at( string $utc ): void {
+	private function close_at( string $utc ): void {
 		$this->assertTrue( ( new Competitions_Repository() )->update( $this->competition_id, array( 'close_date' => $utc ) ) );
 	}
 

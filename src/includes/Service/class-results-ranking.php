@@ -24,8 +24,7 @@ use WP_Error;
  * Once a competition's results are published, or it has closed, its results
  * are read from its record, so deleting a member, removing an entry or
  * changing a grade afterwards moves nobody. Until then they're worked out
- * from the votes on every read. A record made before the competition closed
- * counts only while results are published; otherwise it's made afresh.
+ * from the votes on every read.
  *
  * @since 0.4.0
  */
@@ -152,13 +151,11 @@ class Results_Ranking {
 	 * @return true|WP_Error
 	 */
 	public function record( object $competition ) {
-		if ( $this->workflow->has_closed( $competition ) ) {
-			return $this->record_unless_trusted( $competition );
+		if ( $this->workflow->has_closed( $competition ) && $this->has_trusted_record( $competition ) ) {
+			return true;
 		}
 
-		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
-
-		return is_wp_error( $replaced ) ? $replaced : true;
+		return $this->replace_record( $competition );
 	}
 
 	/**
@@ -171,25 +168,20 @@ class Results_Ranking {
 	 * @return true|WP_Error True when there's nothing to record, or it's recorded.
 	 */
 	public function record_if_missing( object $competition ) {
-		if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
+		if ( ! $this->workflow->reads_recorded_results( $competition ) || $this->has_trusted_record( $competition ) ) {
 			return true;
 		}
 
-		return $this->record_unless_trusted( $competition );
+		return $this->replace_record( $competition );
 	}
 
 	/**
-	 * Record a competition's results as they are now, replacing any record
-	 * that isn't trusted.
+	 * Record a competition's results as they are now, replacing any record.
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */
-	private function record_unless_trusted( object $competition ) {
-		if ( $this->has_trusted_record( $competition ) ) {
-			return true;
-		}
-
+	private function replace_record( object $competition ) {
 		$replaced = $this->record->replace( (int) $competition->id, $this->live_rows( $competition ) );
 
 		return is_wp_error( $replaced ) ? $replaced : true;
