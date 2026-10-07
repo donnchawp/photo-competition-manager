@@ -207,7 +207,7 @@ describe( 'drag-and-drop upload', () => {
 		input.dispatchEvent( new Event( 'change' ) );
 
 		expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe(
-			'Only 2 file(s) added. 1 file(s) rejected due to quota limits.'
+			'Only 2 files added. 1 file rejected due to quota limits.'
 		);
 	} );
 
@@ -286,7 +286,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 image(s). 1 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
@@ -321,7 +321,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image(s). 1 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
@@ -337,7 +337,7 @@ describe( 'drag-and-drop upload', () => {
 
 		expect( FakeXhr.requests ).toHaveLength( 1 );
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 image(s). 2 upload(s) failed.' );
+		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 images. 2 uploads failed.' );
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
@@ -349,6 +349,7 @@ describe( 'drag-and-drop upload', () => {
 				{
 					'': { domain: 'photo-competition-manager', plural_forms: 'nplurals=2; plural=n != 1;' },
 					'No valid image files selected.': [ 'Níor roghnaíodh aon chomhad íomhá bailí.' ],
+					'Successfully uploaded %d image.': [ 'Uploaded %d picture.', 'Uploaded %d pictures.' ],
 				},
 				'photo-competition-manager'
 			);
@@ -365,6 +366,37 @@ describe( 'drag-and-drop upload', () => {
 
 			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
 		} );
+
+		it( 'picks the translated plural for the count', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+			expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Uploaded 2 pictures.' );
+		} );
+	} );
+
+	it( 'says one image went in, in the singular', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 0 ].respond( 200, uploaded ) );
+
+		expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Successfully uploaded 1 image.' );
+	} );
+
+	it( 'shows a category label with HTML in it as written', async () => {
+		const config = window.photoCompUpload;
+		window.photoCompUpload = { ...config, categories: [ { slug: 'colour', label: '<b>Colour</b>', quota: 3 } ] };
+		renderPage();
+		document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		window.photoCompUpload = config;
+
+		await selectFiles( [ 'one.jpg' ] );
+
+		const label = document.querySelector( '.photo-comp-category-label' );
+		expect( label.textContent ).toBe( 'Category: <b>Colour</b> (2 remaining)' );
+		expect( label.querySelector( 'b' ) ).toBeNull();
 	} );
 
 	it( 'says the image is too big when the web server refuses it before WordPress', async () => {

@@ -4,7 +4,7 @@
  * @package PhotoCompetitionManager
  */
 
-import { __ } from '@wordpress/i18n';
+import { __, _n, sprintf } from '@wordpress/i18n';
 
 class DragDropUpload {
 	constructor(config) {
@@ -103,7 +103,7 @@ class DragDropUpload {
 		const availableSlots = totalAvailableQuota - currentFileCount;
 
 		if (availableSlots <= 0) {
-			this.showError('All category quotas are full. Cannot add more files.');
+			this.showError(__('All category quotas are full. Cannot add more files.', 'photo-competition-manager'));
 			return;
 		}
 
@@ -112,9 +112,17 @@ class DragDropUpload {
 		const rejectedCount = validFiles.length - filesToAdd.length;
 
 		if (rejectedCount > 0) {
-			this.showError(
-				`Only ${filesToAdd.length} file(s) added. ${rejectedCount} file(s) rejected due to quota limits.`
+			const added = sprintf(
+				/* translators: %d: number of files added. */
+				_n('Only %d file added.', 'Only %d files added.', filesToAdd.length, 'photo-competition-manager'),
+				filesToAdd.length
 			);
+			const rejected = sprintf(
+				/* translators: %d: number of files turned away. */
+				_n('%d file rejected due to quota limits.', '%d files rejected due to quota limits.', rejectedCount, 'photo-competition-manager'),
+				rejectedCount
+			);
+			this.showError(`${added} ${rejected}`);
 		}
 
 		filesToAdd.forEach((file) => {
@@ -201,7 +209,12 @@ class DragDropUpload {
 		// Check file size.
 		if (file.size > this.maxFileSize) {
 			this.showError(
-				`${file.name} is too large. Maximum file size is ${this.formatFileSize(this.maxFileSize)}.`
+				sprintf(
+					/* translators: 1: file name, 2: maximum file size, such as "5 MB". */
+					__('%1$s is too large. Maximum file size is %2$s.', 'photo-competition-manager'),
+					file.name,
+					this.formatFileSize(this.maxFileSize)
+				)
 			);
 			return false;
 		}
@@ -258,20 +271,12 @@ class DragDropUpload {
 		// If only one category is available, auto-select it and show as text.
 		if (availableCategories.length === 1) {
 			const cat = availableCategories[0];
-			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
 
 			// Auto-assign the category.
 			fileData.category = cat.slug;
 
 			// Display as text instead of dropdown.
-			const categoryLabel = document.createElement('div');
-			categoryLabel.className = 'photo-comp-category-label';
-
-			// Only show remaining count if quota is more than 1.
-			const quota = this.quotas[cat.slug];
-			const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
-			categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
-			container.appendChild(categoryLabel);
+			container.appendChild(this.createCategoryLabel(cat));
 
 			// Trigger update since we auto-assigned.
 			this.updateUploadButton();
@@ -285,21 +290,7 @@ class DragDropUpload {
 		select.className = 'photo-comp-category-select';
 		select.dataset.fileId = fileData.id;
 
-		const defaultOption = document.createElement('option');
-		defaultOption.value = '';
-		defaultOption.textContent = '-- Select Category --';
-		select.appendChild(defaultOption);
-
-		availableCategories.forEach((cat) => {
-			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
-			const option = document.createElement('option');
-			option.value = cat.slug;
-			// Only show remaining count if quota is more than 1.
-			const quota = this.quotas[cat.slug];
-			const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
-			option.textContent = `${cat.label}${remainingText}`;
-			select.appendChild(option);
-		});
+		this.fillCategoryOptions(select, availableCategories);
 
 		select.addEventListener('change', (e) => {
 			fileData.category = e.target.value;
@@ -310,6 +301,76 @@ class DragDropUpload {
 
 		container.appendChild(select);
 		return container;
+	}
+
+	/**
+	 * Build the text shown in place of the dropdown when only one category fits.
+	 *
+	 * The label is added as text, so a category label with HTML in it shows as written.
+	 *
+	 * @param {Object} cat The category.
+	 * @return {HTMLElement} The label.
+	 */
+	createCategoryLabel(cat) {
+		const categoryLabel = document.createElement('div');
+		categoryLabel.className = 'photo-comp-category-label';
+
+		const heading = document.createElement('strong');
+		heading.textContent = __('Category:', 'photo-competition-manager');
+		categoryLabel.append(heading, ` ${cat.label}`);
+
+		const remaining = this.remainingText(cat);
+		if (remaining) {
+			const small = document.createElement('small');
+			small.textContent = remaining;
+			categoryLabel.append(' ', small);
+		}
+
+		return categoryLabel;
+	}
+
+	/**
+	 * Replace a dropdown's options with a prompt and the given categories.
+	 *
+	 * @param {HTMLSelectElement} select     The dropdown.
+	 * @param {Object[]}          categories The categories to offer.
+	 */
+	fillCategoryOptions(select, categories) {
+		select.replaceChildren();
+
+		const defaultOption = document.createElement('option');
+		defaultOption.value = '';
+		defaultOption.textContent = __('-- Select Category --', 'photo-competition-manager');
+		select.appendChild(defaultOption);
+
+		categories.forEach((cat) => {
+			const option = document.createElement('option');
+			option.value = cat.slug;
+			const remaining = this.remainingText(cat);
+			option.textContent = remaining ? `${cat.label} ${remaining}` : cat.label;
+			select.appendChild(option);
+		});
+	}
+
+	/**
+	 * How many more images a category takes, such as "(2 remaining)".
+	 *
+	 * Left out for a category that takes only one image.
+	 *
+	 * @param {Object} cat The category.
+	 * @return {string} The text, or an empty string.
+	 */
+	remainingText(cat) {
+		if (this.quotas[cat.slug].quota <= 1) {
+			return '';
+		}
+
+		const remaining = this.getEffectiveRemainingQuota(cat.slug);
+		return sprintf(
+			/* translators: %d: number of images the category still takes. */
+			_n('(%d remaining)', '(%d remaining)', remaining, 'photo-competition-manager'),
+			remaining
+		);
 	}
 
 	refreshCategorySelects() {
@@ -337,7 +398,6 @@ class DragDropUpload {
 			// If only one category available now, switch to label.
 			if (availableCategories.length === 1) {
 				const cat = availableCategories[0];
-				const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
 
 				// Auto-assign if not already assigned.
 				if (fileData.category === '') {
@@ -345,11 +405,7 @@ class DragDropUpload {
 				}
 
 				// Replace with label.
-				const categoryLabel = document.createElement('div');
-				categoryLabel.className = 'photo-comp-category-label';
-				const quota = this.quotas[cat.slug];
-				const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
-				categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
+				const categoryLabel = this.createCategoryLabel(cat);
 
 				const newContainer = document.createElement('div');
 				newContainer.className = 'photo-comp-category-select-container';
@@ -374,23 +430,7 @@ class DragDropUpload {
 				} else {
 					// Update existing dropdown options.
 					const currentValue = fileData.category;
-					existingSelect.innerHTML = '';
-
-					const defaultOption = document.createElement('option');
-					defaultOption.value = '';
-					defaultOption.textContent = '-- Select Category --';
-					existingSelect.appendChild(defaultOption);
-
-					availableCategories.forEach((cat) => {
-						const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
-						const option = document.createElement('option');
-						option.value = cat.slug;
-						const quota = this.quotas[cat.slug];
-						const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
-						option.textContent = `${cat.label}${remainingText}`;
-						existingSelect.appendChild(option);
-					});
-
+					this.fillCategoryOptions(existingSelect, availableCategories);
 					existingSelect.value = currentValue;
 				}
 			}
@@ -409,7 +449,10 @@ class DragDropUpload {
 		if (!this.validateQuotas()) {
 			const warning = document.createElement('div');
 			warning.className = 'photo-comp-quota-warning';
-			warning.textContent = 'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.';
+			warning.textContent = __(
+				'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
+				'photo-competition-manager'
+			);
 			this.previewGrid.parentNode.insertBefore(warning, this.previewGrid);
 		}
 	}
@@ -418,8 +461,15 @@ class DragDropUpload {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'photo-comp-remove-btn';
-		button.textContent = 'Remove';
-		button.setAttribute('aria-label', `Remove ${fileData.file.name}`);
+		button.textContent = __('Remove', 'photo-competition-manager');
+		button.setAttribute(
+			'aria-label',
+			sprintf(
+				/* translators: %s: file name. */
+				__('Remove %s', 'photo-competition-manager'),
+				fileData.file.name
+			)
+		);
 
 		button.addEventListener('click', () => {
 			this.removeFile(fileData.id);
@@ -500,17 +550,22 @@ class DragDropUpload {
 
 		// Disable upload button.
 		this.uploadButton.disabled = true;
-		this.uploadButton.textContent = 'Uploading...';
+		this.uploadButton.textContent = __('Uploading...', 'photo-competition-manager');
 
 		// Show progress section with progress bar.
 		this.progressSection.style.display = 'block';
 		this.progressSection.innerHTML = `
-			<p>Uploading ${this.selectedFiles.length} image(s)...</p>
+			<p></p>
 			<div class="photo-comp-progress-bar-container">
 				<div class="photo-comp-progress-bar" id="upload-progress-bar"></div>
 				<div class="photo-comp-progress-text" id="upload-progress-text">0%</div>
 			</div>
 		`;
+		this.progressSection.querySelector('p').textContent = sprintf(
+			/* translators: %d: number of images being uploaded. */
+			_n('Uploading %d image...', 'Uploading %d images...', this.selectedFiles.length, 'photo-competition-manager'),
+			this.selectedFiles.length
+		);
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
@@ -532,7 +587,15 @@ class DragDropUpload {
 				entered.push(fileData);
 				results.push(result);
 			} else {
-				results.push({ success: false, error: `${fileData.file.name}: ${result.error}` });
+				results.push({
+					success: false,
+					error: sprintf(
+						/* translators: 1: file name, 2: why the upload failed. */
+						__('%1$s: %2$s', 'photo-competition-manager'),
+						fileData.file.name,
+						result.error
+					),
+				});
 			}
 
 			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
@@ -544,7 +607,7 @@ class DragDropUpload {
 			this.quotas[fileData.category].remaining -= 1;
 			this.removeFile(fileData.id);
 		});
-		this.uploadButton.textContent = 'Upload All';
+		this.uploadButton.textContent = __('Upload All', 'photo-competition-manager');
 		this.updateUI();
 
 		this.showResults(results, files.length);
@@ -587,20 +650,23 @@ class DragDropUpload {
 					return;
 				}
 
-				let error = (data && data.message) || 'Upload failed. Please try again.';
+				let error = (data && data.message) || __('Upload failed. Please try again.', 'photo-competition-manager');
 				if (xhr.status === 413 && !(data && data.message)) {
-					error = 'That image is too big. Check the size limit under the upload form.';
+					error = __('That image is too big. Check the size limit under the upload form.', 'photo-competition-manager');
 				}
 
 				resolve({ success: false, error, refused: [401, 403, 404].includes(xhr.status) });
 			});
 
 			xhr.addEventListener('error', () => {
-				resolve({ success: false, error: 'Network error. Please check your connection and try again.' });
+				resolve({
+					success: false,
+					error: __('Network error. Please check your connection and try again.', 'photo-competition-manager'),
+				});
 			});
 
 			xhr.addEventListener('abort', () => {
-				resolve({ success: false, error: 'Upload cancelled.' });
+				resolve({ success: false, error: __('Upload cancelled.', 'photo-competition-manager') });
 			});
 
 			xhr.open(
@@ -640,12 +706,23 @@ class DragDropUpload {
 		const successCount = results.length - failures.length;
 		const failedCount = total - successCount;
 
-		let message = `Successfully uploaded ${successCount} image(s).`;
+		let message = sprintf(
+			/* translators: %d: number of images uploaded. */
+			_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
+			successCount
+		);
 		if (failedCount > 0) {
-			message += ` ${failedCount} upload(s) failed.`;
+			message += ' ' + sprintf(
+				/* translators: %d: number of images that failed to upload. */
+				_n('%d upload failed.', '%d uploads failed.', failedCount, 'photo-competition-manager'),
+				failedCount
+			);
 		}
 
-		this.progressSection.innerHTML = `<p class="success">${message}</p>`;
+		const summary = document.createElement('p');
+		summary.className = 'success';
+		summary.textContent = message;
+		this.progressSection.replaceChildren(summary);
 
 		if (failures.length > 0) {
 			const errorList = document.createElement('ul');
@@ -674,7 +751,7 @@ class DragDropUpload {
 		const refreshButton = document.createElement('button');
 		refreshButton.type = 'button';
 		refreshButton.className = 'photo-comp-refresh-btn';
-		refreshButton.textContent = 'Show my entries';
+		refreshButton.textContent = __('Show my entries', 'photo-competition-manager');
 		refreshButton.addEventListener('click', () => window.location.reload());
 		this.progressSection.appendChild(refreshButton);
 	}
@@ -700,9 +777,14 @@ class DragDropUpload {
 	}
 
 	formatFileSize(bytes) {
-		if (bytes === 0) return '0 Bytes';
+		const sizes = [
+			__('Bytes', 'photo-competition-manager'),
+			__('KB', 'photo-competition-manager'),
+			__('MB', 'photo-competition-manager'),
+			__('GB', 'photo-competition-manager'),
+		];
+		if (bytes === 0) return `0 ${sizes[0]}`;
 		const k = 1024;
-		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 	}
