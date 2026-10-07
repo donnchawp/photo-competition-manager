@@ -73,6 +73,9 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		);
 
 		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 	}
 
 	public function tearDown(): void {
@@ -125,8 +128,6 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				return $server_limit;
 			}
 		);
-		// The page only registers the script when the JS has been built, which CI doesn't do.
-		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 		$_GET['token'] = $this->issue_token( true );
 
 		$output = $this->shortcode->render( array() );
@@ -136,8 +137,6 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_the_upload_page_loads_the_upload_script_translations(): void {
-		// The page only registers the script when the JS has been built, which CI doesn't do.
-		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 		$_GET['token'] = $this->issue_token( true );
 
 		$this->shortcode->render( array() );
@@ -146,7 +145,6 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_deactivated_members_page_loads_no_upload_script_translations(): void {
-		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
 		$_GET['token'] = $this->issue_token( false );
 
 		$this->shortcode->render( array() );

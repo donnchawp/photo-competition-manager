@@ -395,44 +395,24 @@ class DragDropUpload {
 			// Get available categories for this specific file (includes current category even if exhausted).
 			const availableCategories = this.getAvailableCategoriesForFile(fileData);
 
-			// If only one category available now, switch to label.
-			if (availableCategories.length === 1) {
-				const cat = availableCategories[0];
+			if (availableCategories.length === 0) {
+				return;
+			}
 
-				// Auto-assign if not already assigned.
-				if (fileData.category === '') {
-					fileData.category = cat.slug;
-				}
+			// A dropdown that still has a choice to offer only needs its options updated.
+			const existingSelect = existingContainer.querySelector('select');
+			if (existingSelect && availableCategories.length > 1) {
+				this.fillCategoryOptions(existingSelect, availableCategories);
+				existingSelect.value = fileData.category;
+				return;
+			}
 
-				// Replace with label.
-				const categoryLabel = this.createCategoryLabel(cat);
-
-				const newContainer = document.createElement('div');
-				newContainer.className = 'photo-comp-category-select-container';
-				newContainer.appendChild(categoryLabel);
-
-				existingContainer.replaceWith(newContainer);
-			} else if (availableCategories.length > 1) {
-				// Multiple categories - ensure dropdown is up to date.
-				const existingSelect = existingContainer.querySelector('select');
-
-				// If it's currently a label, recreate as dropdown.
-				if (!existingSelect) {
-					const newContainer = this.createCategorySelect(fileData);
-					existingContainer.replaceWith(newContainer);
-					// Set the value if there was a previous assignment.
-					if (fileData.category) {
-						const newSelect = newContainer.querySelector('select');
-						if (newSelect) {
-							newSelect.value = fileData.category;
-						}
-					}
-				} else {
-					// Update existing dropdown options.
-					const currentValue = fileData.category;
-					this.fillCategoryOptions(existingSelect, availableCategories);
-					existingSelect.value = currentValue;
-				}
+			// Otherwise rebuild it: a label when one category fits (auto-assigned), a dropdown when several do.
+			const newContainer = this.createCategorySelect(fileData);
+			existingContainer.replaceWith(newContainer);
+			const newSelect = newContainer.querySelector('select');
+			if (newSelect && fileData.category) {
+				newSelect.value = fileData.category;
 			}
 		});
 
@@ -554,18 +534,25 @@ class DragDropUpload {
 
 		// Show progress section with progress bar.
 		this.progressSection.style.display = 'block';
-		this.progressSection.innerHTML = `
-			<p></p>
-			<div class="photo-comp-progress-bar-container">
-				<div class="photo-comp-progress-bar" id="upload-progress-bar"></div>
-				<div class="photo-comp-progress-text" id="upload-progress-text">0%</div>
-			</div>
-		`;
-		this.progressSection.querySelector('p').textContent = sprintf(
+		const status = document.createElement('p');
+		status.textContent = sprintf(
 			/* translators: %d: number of images being uploaded. */
 			_n('Uploading %d image...', 'Uploading %d images...', this.selectedFiles.length, 'photo-competition-manager'),
 			this.selectedFiles.length
 		);
+
+		const barContainer = document.createElement('div');
+		barContainer.className = 'photo-comp-progress-bar-container';
+		const bar = document.createElement('div');
+		bar.className = 'photo-comp-progress-bar';
+		bar.id = 'upload-progress-bar';
+		const barText = document.createElement('div');
+		barText.className = 'photo-comp-progress-text';
+		barText.id = 'upload-progress-text';
+		barText.textContent = '0%';
+		barContainer.append(bar, barText);
+
+		this.progressSection.replaceChildren(status, barContainer);
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
