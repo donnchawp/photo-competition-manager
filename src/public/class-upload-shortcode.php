@@ -237,7 +237,7 @@ class Upload_Shortcode {
 				$msg_type = sanitize_text_field( wp_unslash( $_GET['msg_type'] ) );
 				$msg_key  = sanitize_text_field( wp_unslash( $_GET['msg_key'] ) );
 
-				// Only display message if the key is in the allowed list.
+				// Unknown keys show nothing.
 				$msg_text = $this->message_text( $msg_key );
 				if ( null !== $msg_text ) {
 					$class   = 'success' === $msg_type ? 'success' : 'error';
