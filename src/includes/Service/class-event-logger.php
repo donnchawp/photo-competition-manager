@@ -81,63 +81,25 @@ class Event_Logger {
 	/**
 	 * Log an email sent event.
 	 *
+	 * @since 0.4.0 Takes a kind of email, from Email_Kinds, and describes it by the kind's label.
+	 *
 	 * @param int|null $competition_id Competition ID.
-	 * @param string   $email_type Email type (e.g., 'upload_reminder', 'voting_link').
-	 * @param string   $recipient Recipient email or name.
-	 * @param array    $metadata Optional metadata.
+	 * @param string   $kind           Kind of email.
+	 * @param string   $recipient      Recipient email or name.
+	 * @param array    $metadata       Optional metadata.
 	 * @return bool
 	 */
-	public function log_email_sent( ?int $competition_id, string $email_type, string $recipient, array $metadata = array() ): bool {
-		$descriptions = array(
-			'upload_reminder'            => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent upload reminder email to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'voting_link'                => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent voting link email to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'results_email'              => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent results email to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'submission_confirmed'       => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent submission confirmation to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'voting_opened_notification' => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent voting opened notification to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'competition_closed'         => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent competition closed notification to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-			'results_published'          => sprintf(
-				/* translators: %s: Recipient name/email */
-				__( 'Sent results published notification to %s', 'photo-competition-manager' ),
-				$recipient
-			),
-		);
-
-		$description = $descriptions[ $email_type ] ?? sprintf(
-			/* translators: 1: Email type, 2: Recipient */
-			__( 'Sent %1$s email to %2$s', 'photo-competition-manager' ),
-			$email_type,
-			$recipient
-		);
-
+	public function log_email_sent( ?int $competition_id, string $kind, string $recipient, array $metadata = array() ): bool {
 		return $this->log(
 			$competition_id,
-			$email_type,
+			$kind,
 			'email',
-			$description,
+			sprintf(
+				/* translators: 1: Recipient name or email, 2: Kind of email, e.g. "Upload link" */
+				__( 'Email sent to %1$s: %2$s', 'photo-competition-manager' ),
+				$recipient,
+				Email_Kinds::get( $kind )['label']
+			),
 			$metadata
 		);
 	}

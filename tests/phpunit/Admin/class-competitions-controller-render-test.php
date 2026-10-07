@@ -271,7 +271,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2, 3 ),
 				'status'         => 'completed',
@@ -292,12 +292,37 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because they were emailed in the last 5 minutes.', $html );
 	}
 
+	public function test_render_voting_opened_job_notice_says_skipped_members_werent_sent_it_because_it_was_switched_off(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_voting_opened_test',
+			array(
+				'type'           => 'voting_opened',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2, 3 ),
+				'status'         => 'completed',
+				'total_count'    => 3,
+				'sent_count'     => 1,
+				'skipped_count'  => 2,
+				'failed_count'   => 0,
+				'error_log'      => array(),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'voting_opened_test' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because the Voting opened email was switched off.', $html );
+	}
+
 	public function test_render_completed_job_notice_lists_failures(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 		update_option(
 			'photo_comp_email_job_upload_failed_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2 ),
 				'status'         => 'completed',
@@ -323,7 +348,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_running_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1 ),
 				'status'         => 'processing',

@@ -124,20 +124,20 @@ class Upload_Link_Service {
 			return $upload_url;
 		}
 
-		$settings        = Competition_Settings::parse( $competition->settings );
-		$voting_page_url = $settings['urls']['voting_page'] ?? null;
+		$settings = Competition_Settings::parse( $competition->settings );
 
-		$sent = $this->email_service->send_upload_link(
-			$member->email,
-			$member->name ?? $member->email,
-			$competition->title,
-			$upload_url,
-			$competition_id,
-			$voting_page_url
+		$sent = $this->email_service->send(
+			'upload_reminder',
+			$member,
+			$competition,
+			array(
+				'{upload_link}' => $upload_url,
+				'{voting_page}' => (string) ( $settings['urls']['voting_page'] ?? '' ),
+			)
 		);
 
-		if ( ! $sent ) {
-			return new WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
+		if ( is_wp_error( $sent ) ) {
+			return $sent;
 		}
 
 		$this->token_repo->mark_sent( (int) $token_obj->id );
@@ -239,7 +239,7 @@ class Upload_Link_Service {
 		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
 		return $email_jobs->queue(
-			'upload_link',
+			'upload_reminder',
 			$competition_id,
 			$member_ids,
 			array( 'upload_page_url' => $upload_page_url )

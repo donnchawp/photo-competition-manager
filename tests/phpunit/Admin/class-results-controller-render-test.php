@@ -322,6 +322,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array_merge(
 				array(
 					'job_id'         => $job_id,
+					'type'           => 'results_detailed',
 					'competition_id' => 0,
 					'member_ids'     => array( 1 ),
 					'processed_ids'  => array(),
@@ -736,7 +737,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->seed_job(
 			'email_job_results_share_test',
 			array(
-				'type'           => 'results_share',
+				'type'           => 'results_published',
 				'competition_id' => $comp_id,
 				'status'         => 'completed',
 				'sent_count'     => 1,

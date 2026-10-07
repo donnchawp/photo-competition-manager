@@ -337,7 +337,7 @@ class Results_Controller {
 			}
 
 			$job_id = $this->email_job_manager->queue(
-				'results_share',
+				'results_published',
 				$competition_id,
 				$member_ids,
 				array( 'share_url' => $share_url )

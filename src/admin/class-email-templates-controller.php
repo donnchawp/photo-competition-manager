@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Service\Email_Kinds;
+use PhotoCompetitionManager\Service\Email_Service;
 
 /**
  * Manage email template settings.
@@ -109,16 +111,16 @@ class Email_Templates_Controller {
 
 		settings_errors( 'photo_competition_email_templates' );
 
-		$templates = $this->get_default_templates();
-		$saved     = get_option( 'photo_comp_email_templates', array() );
-
-		// Merge saved templates with defaults.
-		foreach ( $saved as $key => $saved_template ) {
-			if ( isset( $templates[ $key ] ) ) {
-				$templates[ $key ]['subject'] = $saved_template['subject'];
-				$templates[ $key ]['body']    = $saved_template['body'];
-				$templates[ $key ]['enabled'] = $saved_template['enabled'];
-			}
+		$email_service = new Email_Service();
+		$templates     = array();
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$templates[ $kind ] = array(
+				'name'         => $definition['label'],
+				'description'  => $definition['description'],
+				'notification' => $definition['notification'],
+				'enabled'      => $email_service->is_template_enabled( $kind ),
+				'merge_tags'   => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
+			) + $email_service->get_template( $kind );
 		}
 
 		echo '<div class="wrap">';
@@ -154,64 +156,6 @@ class Email_Templates_Controller {
 				'template_key' => $template_key,
 				'template'     => $template,
 			)
-		);
-	}
-
-	/**
-	 * Get default email templates.
-	 *
-	 * @return array<string, array<string, mixed>>
-	 */
-	private function get_default_templates(): array {
-		return array(
-			'upload_reminder'      => array(
-				'name'        => __( 'Upload Reminder', 'photo-competition-manager' ),
-				'description' => __( 'Sent to members with a link to upload their images.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Upload your images for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Here is your link to upload images for {competition_title}.</p>\n\n<p><a href=\"{upload_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Upload Images</a></p>\n\n<p>This link will remain active for 14 days.</p>\n\n<p>Once voting opens, you can cast your votes at: {voting_page}</p>\n\n<p>If you have any questions, please contact your club competitions officer.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{upload_link}', '{voting_page}', '{site_name}' ),
-			),
-			'voting_opened'        => array(
-				'name'        => __( 'Voting Opened', 'photo-competition-manager' ),
-				'description' => __( 'Sent when voting opens for a competition.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Voting is now open for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Voting is now open for {competition_title}!</p>\n\n<p>Visit the voting page to see all submitted images and cast your votes.</p>\n\n<p><a href=\"{voting_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Go to Voting Page</a></p>\n\n<p>Voting closes on {close_date}.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_page}', '{close_date}', '{site_name}' ),
-			),
-			'voting_link'          => array(
-				'name'        => __( 'Voting Link', 'photo-competition-manager' ),
-				'description' => __( 'Sent to a member who asks for a voting link on the voting page. When this is off, a built-in version is sent instead.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_link}', '{close_date}', '{site_name}' ),
-			),
-			'results_published'    => array(
-				'name'        => __( 'Results Published', 'photo-competition-manager' ),
-				'description' => __( 'Sent to members when competition results are available.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available!</p>\n\n<p><a href=\"{results_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">View Results</a></p>\n\n<p>Thanks to everyone who participated.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_page}', '{site_name}' ),
-			),
-			'results_detailed'     => array(
-				'name'        => __( 'Detailed Results', 'photo-competition-manager' ),
-				'description' => __( 'Sent to each member with their personal results. The {results_table} tag is replaced with the ranked scores for their images.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available. Here are your results:</p>\n\n{results_table}\n\n<p>Thank you for participating!</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_table}', '{site_name}' ),
-			),
-			'submission_confirmed' => array(
-				'name'        => __( 'Submission Confirmed', 'photo-competition-manager' ),
-				'description' => __( 'Sent when a member successfully uploads an image.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Image uploaded successfully for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Your image has been successfully uploaded for {competition_title} in the {category_name} category.</p>\n\n<p>You are entering in the {member_grade} grade.</p>\n\n<p>You have uploaded {current_count} of {quota} images for this category.</p>\n\n<p>Thank you for your submission!</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{member_grade}', '{competition_title}', '{category_name}', '{current_count}', '{quota}', '{site_name}' ),
-			),
 		);
 	}
 }

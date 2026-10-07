@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Email_Job_Controller;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Kinds;
 
 /**
  * Renders the progress of an email job. While the job is unfinished, the
@@ -61,7 +62,7 @@ trait Email_Job_Notice {
 			);
 		}
 
-		$label = $this->email_job_labels( $job );
+		$label = Email_Kinds::get( $job['type'] )['job'];
 
 		$processed = $this->email_job_progress( $job );
 
@@ -71,6 +72,7 @@ trait Email_Job_Notice {
 				'status'          => $job['status'],
 				'sending_label'   => $label['sending'],
 				'sent_label'      => $label['sent'],
+				'skipped_label'   => $label['skipped'] ?? null,
 				'processed_count' => $processed,
 				'total_count'     => $job['total_count'],
 				'percent'         => $job['total_count'] > 0 ? ( $processed / $job['total_count'] ) * 100 : 0,
@@ -96,49 +98,5 @@ trait Email_Job_Notice {
 	 */
 	private function email_job_progress( array $job ): int {
 		return $job['sent_count'] + ( $job['skipped_count'] ?? 0 ) + $job['failed_count'];
-	}
-
-	/**
-	 * Wording for a job's type.
-	 *
-	 * @param array $job Job data.
-	 * @return array{sending: string, sent: string, stopped: string} The stopped
-	 *     message takes the competition title, members emailed so far and
-	 *     members in the job.
-	 */
-	private function email_job_labels( array $job ): array {
-		switch ( $job['type'] ?? 'results' ) {
-			case 'upload_link':
-				return array(
-					'sending' => __( 'Sending upload link emails...', 'photo-competition-manager' ),
-					'sent'    => __( 'Upload link emails sent.', 'photo-competition-manager' ),
-					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-					'stopped' => __( 'Sending upload link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-				);
-
-			case 'results_share':
-				return array(
-					'sending' => __( 'Sending results link emails...', 'photo-competition-manager' ),
-					'sent'    => __( 'Results link emails sent.', 'photo-competition-manager' ),
-					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-					'stopped' => __( 'Sending results link emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-				);
-
-			case 'voting_opened':
-				return array(
-					'sending' => __( 'Sending voting opened emails...', 'photo-competition-manager' ),
-					'sent'    => __( 'Voting opened emails sent.', 'photo-competition-manager' ),
-					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-					'stopped' => __( 'Sending voting opened emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-				);
-
-			default:
-				return array(
-					'sending' => __( 'Sending results emails...', 'photo-competition-manager' ),
-					'sent'    => __( 'Email results sent successfully!', 'photo-competition-manager' ),
-					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
-					'stopped' => __( 'Sending results emails for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
-				);
-		}
 	}
 }

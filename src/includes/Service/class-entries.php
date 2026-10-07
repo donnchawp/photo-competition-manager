@@ -224,16 +224,16 @@ class Entries {
 			return $entry_id;
 		}
 
-		$email_service = new Email_Service();
-		$email_service->send_submission_confirmed_notification(
-			$member->email,
-			$member->name,
-			$competition->title,
-			$category_config['label'],
-			$counter,
-			$quota,
-			null,
-			! empty( $member->grade ) ? $member->grade : ''
+		( new Email_Service() )->send(
+			'submission_confirmed',
+			$member,
+			$competition,
+			array(
+				'{member_grade}'  => (string) ( $member->grade ?? '' ),
+				'{category_name}' => (string) $category_config['label'],
+				'{current_count}' => (string) ( $current_count + 1 ),
+				'{quota}'         => (string) $quota,
+			)
 		);
 
 		return $entry_id;

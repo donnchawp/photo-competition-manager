@@ -36,6 +36,11 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	 */
 	private $mail_count = 0;
 
+	/**
+	 * @var array<string, mixed>|null
+	 */
+	private $last_mail = null;
+
 	public function setUp(): void {
 		parent::setUp();
 		$this->service = new Upload_Link_Service();
@@ -47,6 +52,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 			'wp_mail',
 			function ( $atts ) {
 				++$this->mail_count;
+				$this->last_mail = $atts;
 				return $atts;
 			}
 		);
@@ -133,6 +139,17 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$second = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
 		$this->assertTrue( $second );
 		$this->assertSame( 1, $this->mail_count );
+	}
+
+	public function test_send_to_member_sends_the_upload_link_email_the_screen_shows() {
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+
+		$this->assertSame( 'alice@example.com', $this->last_mail['to'] );
+		$this->assertStringContainsString( 'Here is your link to upload images for Open Comp.', $this->last_mail['message'] );
+		$this->assertMatchesRegularExpression( '#href="https://example.com/upload/\?[^"]+"#', $this->last_mail['message'] );
 	}
 
 	public function test_send_to_member_send_failed() {
@@ -239,7 +256,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 		$this->assertIsString( $job_id );
 		$job = $jobs->get_job( $job_id );
-		$this->assertSame( 'upload_link', $job['type'] );
+		$this->assertSame( 'upload_reminder', $job['type'] );
 		$this->assertSame( array( $alice ), $job['member_ids'] );
 		$this->assertNotEmpty( $job['args']['upload_page_url'] );
 		$this->assertSame( 0, $this->mail_count );

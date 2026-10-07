@@ -920,7 +920,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_delete_discards_unfinished_email_jobs(): void {
 		$id     = $this->create_competition( 'To Delete', 'to-delete' );
 		$jobs   = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
-		$job_id = $jobs->create_job( 'results_share', $id, array( 1 ) );
+		$job_id = $jobs->create_job( 'results_published', $id, array( 1 ) );
 
 		$this->set_request(
 			array(

@@ -14,13 +14,15 @@ echo '<div class="card photo-comp-template-card" style="margin-bottom: 20px; pad
 echo '<h2 style="margin-top: 0;">' . esc_html( $data['template']['name'] ) . '</h2>';
 echo '<p class="description">' . esc_html( $data['template']['description'] ) . '</p>';
 
-// Enabled toggle.
-echo '<p>';
-echo '<label>';
-echo '<input type="checkbox" name="templates[' . esc_attr( $data['template_key'] ) . '][enabled]" value="1" ' . checked( $data['template']['enabled'], true, false ) . ' />';
-echo ' <strong>' . esc_html__( 'Enable this email notification', 'photo-competition-manager' ) . '</strong>';
-echo '</label>';
-echo '</p>';
+// Only a notification can be switched off.
+if ( $data['template']['notification'] ) {
+	echo '<p>';
+	echo '<label>';
+	echo '<input type="checkbox" name="templates[' . esc_attr( $data['template_key'] ) . '][enabled]" value="1" ' . checked( $data['template']['enabled'], true, false ) . ' />';
+	echo ' <strong>' . esc_html__( 'Enable this email notification', 'photo-competition-manager' ) . '</strong>';
+	echo '</label>';
+	echo '</p>';
+}
 
 // Subject field.
 echo '<table class="form-table"><tbody>';
@@ -47,15 +49,12 @@ wp_editor(
 	)
 );
 
-echo '<p class="description">' . esc_html__( 'Available merge tags:', 'photo-competition-manager' ) . ' ';
-$merge_tags_html = array_map(
-	function ( $tag ) {
-		return '<code>' . esc_html( $tag ) . '</code>';
-	},
-	$data['template']['merge_tags']
-);
-echo wp_kses_post( implode( ', ', $merge_tags_html ) );
-echo '</p>';
+echo '<p class="description">' . esc_html__( 'Available merge tags:', 'photo-competition-manager' ) . '</p>';
+echo '<ul class="description">';
+foreach ( $data['template']['merge_tags'] as $merge_tag => $tag_description ) {
+	echo '<li><code>' . esc_html( $merge_tag ) . '</code> ' . esc_html( $tag_description ) . '</li>';
+}
+echo '</ul>';
 echo '</td>';
 echo '</tr>';
 

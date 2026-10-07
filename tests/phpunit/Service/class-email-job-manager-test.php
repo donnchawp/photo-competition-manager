@@ -388,7 +388,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_inactive_member_without_email_is_skipped_not_failed(): void {
 		$member_id = $this->seed_member( 'gone@example.com' );
-		$job_id    = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$job_id    = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		global $wpdb;
 		$wpdb->update(
@@ -407,7 +407,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_job_for_a_missing_competition_records_when_it_stopped(): void {
-		$job_id = $this->manager->create_job( 'results_share', 999999, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', 999999, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 
 		$this->manager->process_batch( $job_id );
 
@@ -452,7 +452,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_queue_sends_nothing_until_a_batch_is_processed(): void {
-		$job_id = $this->manager->queue( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->queue( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 
 		$this->assertSame( 'pending', $this->manager->get_job( $job_id )['status'] );
 		$this->assertSame( array(), $this->recipients );
@@ -462,8 +462,8 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		// A second click while the first send is still running must not email everyone twice.
 		$member_id = $this->seed_member( 'a@example.com' );
 
-		$first  = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
-		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$first  = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$second = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		$this->assertSame( $first, $second );
 
@@ -474,9 +474,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_queue_starts_new_job_once_previous_one_finished(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
 
-		$first = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$first = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 		$this->manager->process_batch( $first );
-		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$second = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		$this->assertNotSame( $first, $second );
 	}
@@ -484,14 +484,20 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_queue_with_different_args_is_not_a_duplicate(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
 
-		$first  = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=a' ) );
-		$second = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=b' ) );
+		$first  = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=a' ) );
+		$second = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r?share=b' ) );
 
 		$this->assertNotSame( $first, $second );
 	}
 
+	public function test_a_kind_of_email_that_isnt_sent_in_bulk_cant_be_queued(): void {
+		$this->setExpectedIncorrectUsage( 'PhotoCompetitionManager\\Service\\Email_Job_Manager::create_job' );
+
+		$this->assertFalse( $this->manager->create_job( 'voting_link', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) ) );
+	}
+
 	public function test_queue_with_no_recipients_returns_false(): void {
-		$this->assertFalse( $this->manager->queue( 'results_share', $this->competition_id, array(), self::SHARE_ARGS ) );
+		$this->assertFalse( $this->manager->queue( 'results_published', $this->competition_id, array(), self::SHARE_ARGS ) );
 	}
 
 	public function test_process_batch_sends_one_batch_per_call(): void {
@@ -499,7 +505,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		for ( $i = 1; $i <= 12; $i++ ) {
 			$member_ids[] = $this->seed_member( "m{$i}@example.com" );
 		}
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, $member_ids, self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, $member_ids, self::SHARE_ARGS );
 
 		$job = $this->manager->process_batch( $job_id );
 
@@ -520,10 +526,10 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$bob   = $this->seed_member( 'bob@example.com' );
 		$args  = array( 'upload_page_url' => 'https://example.com/upload/' );
 
-		$first = $this->manager->create_job( 'upload_link', $this->competition_id, array( $alice, $bob ), $args );
+		$first = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $alice, $bob ), $args );
 		$this->manager->process_batch( $first );
 
-		$second = $this->manager->create_job( 'upload_link', $this->competition_id, array( $alice, $bob ), $args );
+		$second = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $alice, $bob ), $args );
 		$this->manager->process_batch( $second );
 
 		$this->assertSame( array( 'alice@example.com', 'bob@example.com' ), $this->recipients );
@@ -532,18 +538,36 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->manager->get_job( $second )['skipped_count'] );
 	}
 
-	public function test_results_share_job_sends_share_link(): void {
+	public function test_results_published_job_sends_the_results_link(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
-		$job_id    = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/results?share=abc' ) );
+		$job_id    = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/results?share=abc' ) );
 
 		$this->manager->process_batch( $job_id );
 
 		$this->assertSame( array( 'a@example.com' ), $this->recipients );
+		$this->assertStringContainsString( 'href="https://example.com/results?share=abc"', $this->bodies['a@example.com'] );
 		$this->assertSame( 1, $this->manager->get_job( $job_id )['sent_count'] );
 	}
 
+	public function test_results_published_job_fills_the_results_links_old_name_too(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'results_published' => array(
+					'subject' => 'Results',
+					'body'    => 'See {results_share_link}',
+				),
+			)
+		);
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+
+		$this->manager->process_batch( $job_id );
+
+		$this->assertStringContainsString( 'See https://example.com/results?share=abc', $this->bodies['a@example.com'] );
+	}
+
 	public function test_voting_opened_job_sends_notification(): void {
-		$this->enable_template( 'voting_opened' );
+		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
 		$member_id = $this->seed_member( 'a@example.com' );
 		$job_id    = $this->manager->create_job(
 			'voting_opened',
@@ -551,17 +575,19 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			array( $member_id ),
 			array(
 				'voting_page_url' => 'https://example.com/vote/',
-				'close_date'      => '',
+				'close_date'      => 'Friday 3 April',
 			)
 		);
 
 		$this->manager->process_batch( $job_id );
 
 		$this->assertSame( array( 'a@example.com' ), $this->recipients );
+		$this->assertStringContainsString( 'href="https://example.com/vote/"', $this->bodies['a@example.com'] );
+		$this->assertStringContainsString( 'Voting closes on Friday 3 April.', $this->bodies['a@example.com'] );
 		$this->assertSame( 1, $this->manager->get_job( $job_id )['sent_count'] );
 	}
 
-	public function test_voting_opened_job_stops_when_its_template_is_turned_off(): void {
+	public function test_voting_opened_switched_off_partway_through_skips_the_remaining_members(): void {
 		$this->enable_template( 'voting_opened' );
 		$job_id = $this->manager->create_job(
 			'voting_opened',
@@ -578,17 +604,16 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$job = $this->manager->get_job( $job_id );
 		$this->assertSame( array(), $this->recipients );
-		$this->assertSame( 'failed', $job['status'] );
+		$this->assertSame( 'completed', $job['status'] );
+		$this->assertSame( 2, $job['skipped_count'] );
 		$this->assertSame( 0, $job['failed_count'] );
-		$this->assertSame( array( 'The Voting Opened email template was turned off or has no subject or body.' ), $job['error_log'] );
-		$this->assertNotNull( $job['completed_at'], 'Cleanup counts retention from when the job stopped.' );
 	}
 
 	public function test_failed_send_is_counted_and_logged(): void {
 		remove_filter( 'pre_wp_mail', array( $this, 'capture_mail' ), 10 );
 		add_filter( 'pre_wp_mail', '__return_false' );
 		$member_id = $this->seed_member( 'a@example.com' );
-		$job_id    = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r' ) );
+		$job_id    = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ), array( 'share_url' => 'https://example.com/r' ) );
 
 		$this->manager->process_batch( $job_id );
 
@@ -599,13 +624,15 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 'completed', $job['status'] );
 	}
 
-	public function test_job_without_type_is_treated_as_results(): void {
-		// Jobs queued before job types existed have no 'type' key.
+	public function test_a_results_job_stored_under_its_old_type_completes_once_upgraded(): void {
 		$this->seed_entrant( 'active@example.com' );
-		$job_id = $this->manager->queue_results( $this->competition_id );
-		$job    = $this->manager->get_job( $job_id );
-		unset( $job['type'], $job['args'], $job['skipped_count'] );
+		$job_id      = $this->manager->queue_results( $this->competition_id );
+		$job         = $this->manager->get_job( $job_id );
+		$job['type'] = 'results';
 		update_option( 'photo_comp_email_job_' . $job_id, $job, false );
+		update_option( 'photo_comp_db_version', 4 );
+
+		Activator::maybe_upgrade();
 
 		$this->manager->process_batch( $job_id );
 
@@ -615,7 +642,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_process_batch_sends_nothing_while_another_request_holds_the_lock(): void {
 		// A second tab on the same job must not send the batch the first tab is sending.
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 		add_option( 'photo_comp_email_lock_' . $job_id, time(), '', false );
 
 		$job = $this->manager->process_batch( $job_id );
@@ -625,7 +652,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_process_batch_takes_over_an_abandoned_lock(): void {
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 		add_option( 'photo_comp_email_lock_' . $job_id, time() - Email_Job_Manager::LOCK_TIMEOUT - 1, '', false );
 
 		$job = $this->manager->process_batch( $job_id );
@@ -638,7 +665,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_process_batch_on_finished_job_sends_nothing(): void {
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 		$this->manager->process_batch( $job_id );
 
 		$job = $this->manager->process_batch( $job_id );
@@ -650,7 +677,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_request_dying_mid_batch_keeps_progress_of_members_already_sent(): void {
 		$first  = $this->seed_member( 'first@example.com' );
 		$second = $this->seed_member( 'second@example.com' );
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $first, $second ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $first, $second ), self::SHARE_ARGS );
 		add_filter(
 			'pre_wp_mail',
 			function ( $short_circuit, $atts ) {
@@ -681,9 +708,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_cleanup_old_jobs_deletes_only_old_finished_jobs(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
-		$old       = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
-		$recent    = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
-		$running   = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
+		$old       = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ) );
+		$recent    = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ) );
+		$running   = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ) );
 
 		$job                 = $this->manager->get_job( $old );
 		$job['status']       = 'completed';
@@ -718,7 +745,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_saving_a_job_records_when_it_moved(): void {
-		$job_id = $this->manager->queue( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ), $this->seed_member( 'b@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->queue( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ), $this->seed_member( 'b@example.com' ) ), self::SHARE_ARGS );
 		$this->assertNotEmpty( $this->manager->get_job( $job_id )['updated_at'] );
 
 		$this->age_job( $job_id, 600 );
@@ -730,8 +757,8 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_get_abandoned_jobs_lists_unfinished_jobs_idle_for_five_minutes(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
-		$stale     = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
-		$moving    = $this->manager->create_job( 'upload_link', $this->competition_id, array( $member_id ) );
+		$stale     = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ) );
+		$moving    = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $member_id ) );
 		$finished  = $this->manager->create_job( 'voting_opened', $this->competition_id, array( $member_id ) );
 
 		$this->age_job( $stale, 301, 'processing' );
@@ -743,7 +770,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_get_abandoned_jobs_falls_back_to_started_at(): void {
 		// Jobs saved before updated_at existed only have started_at.
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) );
 		$job    = $this->manager->get_job( $job_id );
 		unset( $job['updated_at'] );
 		$job['started_at'] = gmdate( 'Y-m-d H:i:s', time() - 600 );
@@ -754,19 +781,19 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_discard_job_fails_it_so_the_same_send_can_start_fresh(): void {
 		$member_id = $this->seed_member( 'a@example.com' );
-		$first     = $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
+		$first     = $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS );
 
 		$this->assertTrue( $this->manager->discard_job( $first, 'Discarded by admin' ) );
 
 		$job = $this->manager->get_job( $first );
 		$this->assertSame( 'failed', $job['status'] );
 		$this->assertContains( 'Discarded by admin', $job['error_log'] );
-		$this->assertNotSame( $first, $this->manager->queue( 'results_share', $this->competition_id, array( $member_id ), self::SHARE_ARGS ) );
+		$this->assertNotSame( $first, $this->manager->queue( 'results_published', $this->competition_id, array( $member_id ), self::SHARE_ARGS ) );
 	}
 
 	public function test_discard_job_refuses_while_a_batch_is_sending(): void {
 		// The sending request saves its own copy of the job after every member, which would undo the discard.
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 		add_option( 'photo_comp_email_lock_' . $job_id, time(), '', false );
 
 		$this->assertFalse( $this->manager->discard_job( $job_id, 'Discarded by admin' ) );
@@ -775,7 +802,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	}
 
 	public function test_discard_job_leaves_finished_and_unknown_jobs_alone(): void {
-		$job_id = $this->manager->create_job( 'results_share', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
+		$job_id = $this->manager->create_job( 'results_published', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ), self::SHARE_ARGS );
 		$this->manager->process_batch( $job_id );
 
 		$this->assertFalse( $this->manager->discard_job( $job_id, 'Discarded by admin' ) );
@@ -795,9 +822,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$pending   = $this->manager->create_job( 'results_share', $this->competition_id, array( $member_id ) );
-		$running   = $this->manager->create_job( 'upload_link', $this->competition_id, array( $member_id ) );
-		$elsewhere = $this->manager->create_job( 'results_share', $other, array( $member_id ) );
+		$pending   = $this->manager->create_job( 'results_published', $this->competition_id, array( $member_id ) );
+		$running   = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $member_id ) );
+		$elsewhere = $this->manager->create_job( 'results_published', $other, array( $member_id ) );
 		$finished  = $this->manager->create_job( 'voting_opened', $this->competition_id, array( $member_id ) );
 		$this->age_job( $running, 0, 'processing' );
 		$this->age_job( $finished, 0, 'completed' );

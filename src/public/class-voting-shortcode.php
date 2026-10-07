@@ -442,16 +442,17 @@ class Voting_Shortcode {
 		);
 
 		// Send email.
-		$email_sent = $this->email_service->send_voting_link(
-			$member_email,
-			$member->name,
-			$competition->title,
-			$voting_url,
-			format_site_date( $competition->close_date ),
-			(int) $competition->id
+		$email_sent = $this->email_service->send(
+			'voting_link',
+			$member,
+			$competition,
+			array(
+				'{voting_link}' => $voting_url,
+				'{close_date}'  => format_site_date( $competition->close_date ),
+			)
 		);
 
-		if ( ! $email_sent ) {
+		if ( is_wp_error( $email_sent ) ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';
 		}
 

@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Kinds;
 
 /**
  * Sends email job batches for the progress notice's script, and flags jobs
@@ -107,7 +108,7 @@ class Email_Job_Controller {
 				'admin/abandoned-email-job-notice.php',
 				array(
 					'message'      => sprintf(
-						$this->email_job_labels( $job )['stopped'],
+						Email_Kinds::get( $job['type'] )['job']['stopped'],
 						$competition ? $competition->title : '#' . $job['competition_id'],
 						$this->email_job_progress( $job ),
 						$job['total_count']
@@ -130,26 +131,14 @@ class Email_Job_Controller {
 	 * @return string URL.
 	 */
 	private function carry_on_url( string $job_id, array $job ): string {
-		switch ( $job['type'] ?? 'results' ) {
-			case 'upload_link':
-				$url = $this->dashboard_url();
-				break;
-
-			case 'voting_opened':
-				$url = admin_url( 'admin.php?page=photo-competition-manager-voting' );
-				break;
-
-			default:
-				$url = add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => (int) $job['competition_id'],
-					),
-					admin_url( 'admin.php' )
-				);
-		}
-
-		return add_query_arg( 'job_id', $job_id, $url );
+		return add_query_arg(
+			array(
+				'page'        => Email_Kinds::get( $job['type'] )['job']['page'],
+				'competition' => (int) $job['competition_id'],
+				'job_id'      => $job_id,
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	/**
