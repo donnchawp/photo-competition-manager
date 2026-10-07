@@ -591,6 +591,31 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_8_runs_again_when_a_duplicate_cant_be_deleted(): void {
+		global $wpdb;
+		$this->shadow_v7_upload_tokens_table();
+		$tokens = array( $this->insert_v7_upload_token( 1, 1 ), $this->insert_v7_upload_token( 1, 1 ) );
+		update_option( 'photo_comp_db_version', 7 );
+
+		$break_delete = function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_upload_tokens' )
+				? 'DELETE FROM photocomp_no_such_table'
+				: $query;
+		};
+		add_filter( 'query', $break_delete );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_delete );
+
+		// The ALTER would fail on the duplicate left behind.
+		$this->assertSame( array(), preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
+		$this->assertSame( $tokens, array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) ) ) );
+		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	/**
 	 * Create a competition with one scored colour entry.
 	 *
