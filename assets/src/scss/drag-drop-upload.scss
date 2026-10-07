@@ -312,6 +312,23 @@
 	}
 }
 
+// Reloads the page after a batch where some images failed.
+.photo-comp-refresh-btn {
+	margin-top: 15px;
+	padding: 10px 20px;
+	background: #2271b1;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	font-size: 16px;
+	font-weight: 600;
+	cursor: pointer;
+
+	&:hover {
+		background: #135e96;
+	}
+}
+
 // Fallback section (traditional single upload)
 .photo-comp-fallback-upload {
 	margin-top: 40px;

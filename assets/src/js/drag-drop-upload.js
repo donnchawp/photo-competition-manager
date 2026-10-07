@@ -612,6 +612,10 @@ class DragDropUpload {
 	/**
 	 * Show how each upload went.
 	 *
+	 * When every image went in, the page reloads to show the new entries. When
+	 * some failed, the failures stay listed with a button to reload, so the
+	 * member can see which images to fix first.
+	 *
 	 * @param {Object[]} results One { success, error } per image sent, or one error for a refused upload.
 	 * @param {number}   total   How many images were selected.
 	 */
@@ -640,13 +644,26 @@ class DragDropUpload {
 			this.progressSection.appendChild(errorList);
 		}
 
-		// Clear successful uploads.
-		if (successCount > 0) {
-			setTimeout(() => {
-				// Reload page to show updated submissions.
-				window.location.reload();
-			}, 2000);
+		if (successCount === 0) {
+			return;
 		}
+
+		// Everything went in: reload to show the new entries once the message has been seen.
+		if (failedCount === 0) {
+			setTimeout(() => window.location.reload(), 2000);
+			return;
+		}
+
+		// Some failed: keep the list on screen and let the member reload when they've read it.
+		// Upload All would send the images that went in again, so it goes until the reload.
+		this.uploadButton.style.display = 'none';
+
+		const refreshButton = document.createElement('button');
+		refreshButton.type = 'button';
+		refreshButton.className = 'photo-comp-refresh-btn';
+		refreshButton.textContent = 'Show my entries';
+		refreshButton.addEventListener('click', () => window.location.reload());
+		this.progressSection.appendChild(refreshButton);
 	}
 
 	showError(message) {

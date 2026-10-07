@@ -95,12 +95,83 @@ function settle() {
 	return new Promise( ( resolve ) => setTimeout( resolve, 0 ) );
 }
 
+/**
+ * Answer the last request with fake timers running, then wait well past the reload delay.
+ *
+ * @param {Function} answer Answers the last request.
+ */
+async function answerLastAndWait( answer ) {
+	jest.useFakeTimers();
+	answer();
+	await jest.advanceTimersByTimeAsync( 10000 );
+}
+
+const realLocation = window.location;
+
 describe( 'drag-and-drop upload', () => {
 	beforeEach( () => {
 		FakeXhr.requests = [];
 		window.XMLHttpRequest = FakeXhr;
+		delete window.location;
+		window.location = { reload: jest.fn() };
 		renderPage();
 		document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+	} );
+
+	afterEach( () => {
+		jest.useRealTimers();
+		window.location = realLocation;
+	} );
+
+	it( 'reloads the page to show the new entries when every image went in', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'keeps the failures on screen after a mixed batch, with a button to show the new entries', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( window.location.reload ).not.toHaveBeenCalled();
+		const progress = document.querySelector( '.photo-comp-upload-progress' );
+		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+			'two.jpg: Only JPEG images are allowed.',
+		] );
+
+		// Sending the batch again would enter one.jpg twice.
+		expect( document.querySelector( '.photo-comp-upload-all-btn' ).style.display ).toBe( 'none' );
+
+		const refresh = progress.querySelector( 'button.photo-comp-refresh-btn' );
+		expect( refresh.textContent ).toBe( 'Show my entries' );
+		refresh.click();
+		expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'keeps the failures on screen when no image went in', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 0 ].fail() );
+
+		expect( window.location.reload ).not.toHaveBeenCalled();
+		const progress = document.querySelector( '.photo-comp-upload-progress' );
+		expect( Array.from( progress.querySelectorAll( '.photo-comp-error-list li' ), ( li ) => li.textContent ) ).toEqual( [
+			'one.jpg: Network error. Please check your connection and try again.',
+		] );
+		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).toBeNull();
 	} );
 
 	it( 'sends each image in a request of its own', async () => {
