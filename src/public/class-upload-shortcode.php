@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Oversized_Post;
 
 /**
  * Upload shortcode handler.
@@ -254,6 +255,11 @@ class Upload_Shortcode {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
 			$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
 			$message      = $this->handle_token_request( $competition, $member_email );
+		}
+
+		// A file over post_max_size reaches here with an empty $_POST, so neither the form's field nor its nonce is left to check.
+		if ( $token_record && $member && Oversized_Post::detected() ) {
+			$this->redirect_with_message( 'error', 'file_too_large' );
 		}
 
 		// Handle upload with token (redirects, doesn't return).

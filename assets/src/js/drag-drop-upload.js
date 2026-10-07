@@ -488,7 +488,7 @@ class DragDropUpload {
 		return true;
 	}
 
-	uploadAll() {
+	async uploadAll() {
 		if (this.selectedFiles.length === 0) {
 			return;
 		}
@@ -507,75 +507,93 @@ class DragDropUpload {
 			</div>
 		`;
 
+		// One image per request, so no request is bigger than PHP's post_max_size allows.
+		const files = this.selectedFiles.slice();
+		const results = [];
+
+		for (const [index, fileData] of files.entries()) {
+			const result = await this.uploadOne(fileData, (sent) => {
+				this.updateProgressBar(Math.round(((index + sent) / files.length) * 100));
+			});
+
+			// The link or session was refused, so the rest would be too: say why once and stop.
+			if (result.refused) {
+				results.push({ success: false, error: result.error });
+				break;
+			}
+
+			results.push(
+				result.success ? result : { success: false, error: `${fileData.file.name}: ${result.error}` }
+			);
+
+			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
+		}
+
+		this.showResults(results, files.length);
+		this.uploadButton.disabled = false;
+		this.uploadButton.textContent = 'Upload All';
+	}
+
+	/**
+	 * Upload one image to the batch endpoint.
+	 *
+	 * A 401, 403 or 404 refuses the whole upload (a bad link, an expired
+	 * session, a missing competition), so the result says it's refused.
+	 *
+	 * @param {Object}   fileData   The selected file and its category.
+	 * @param {Function} onProgress Called with the fraction of this image sent so far, 0 to 1.
+	 * @return {Promise<Object>} Resolves to { success: true } or { success: false, error, refused }.
+	 */
+	uploadOne(fileData, onProgress) {
 		const formData = new FormData();
-		const assignments = {};
+		formData.append('file_0', fileData.file);
+		formData.append('assignments[file_0]', fileData.category);
 
-		this.selectedFiles.forEach((fileData, index) => {
-			const fileKey = `file_${index}`;
-			formData.append(fileKey, fileData.file);
-			assignments[fileKey] = fileData.category;
-		});
+		return new Promise((resolve) => {
+			const xhr = new XMLHttpRequest();
 
-		// Send assignments as individual form fields instead of JSON.
-		Object.keys(assignments).forEach((key) => {
-			formData.append(`assignments[${key}]`, assignments[key]);
-		});
-
-		// Use XMLHttpRequest for progress tracking.
-		const xhr = new XMLHttpRequest();
-
-		// Track upload progress.
-		xhr.upload.addEventListener('progress', (e) => {
-			if (e.lengthComputable) {
-				const percentComplete = Math.round((e.loaded / e.total) * 100);
-				this.updateProgressBar(percentComplete);
-			}
-		});
-
-		// Handle completion.
-		xhr.addEventListener('load', () => {
-			if (xhr.status >= 200 && xhr.status < 300) {
-				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadSuccess(data);
-				} catch (error) {
-					this.showError('Failed to parse server response.');
-					console.error('Parse error:', error);
+			xhr.upload.addEventListener('progress', (event) => {
+				if (event.lengthComputable && event.total > 0) {
+					onProgress(event.loaded / event.total);
 				}
-			} else {
+			});
+
+			xhr.addEventListener('load', () => {
+				let data = null;
 				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadError(data);
+					data = JSON.parse(xhr.responseText);
 				} catch (error) {
-					this.showError('Upload failed. Please try again.');
-					console.error('Upload error:', error);
+					// Not JSON: a web server in front of WordPress answered, such as nginx refusing a big body.
 				}
-			}
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
 
-		// Handle errors.
-		xhr.addEventListener('error', () => {
-			this.showError('Network error. Please check your connection and try again.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
+				if (xhr.status >= 200 && xhr.status < 300 && data && data.results && data.results.file_0) {
+					resolve(data.results.file_0);
+					return;
+				}
 
-		// Handle abort.
-		xhr.addEventListener('abort', () => {
-			this.showError('Upload cancelled.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
+				let error = (data && data.message) || 'Upload failed. Please try again.';
+				if (xhr.status === 413 && !(data && data.message)) {
+					error = 'That image is too big. Check the size limit under the upload form.';
+				}
 
-		// Send request.
-		xhr.open(
-			'POST',
-			`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
-		);
-		xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
-		xhr.send(formData);
+				resolve({ success: false, error, refused: [401, 403, 404].includes(xhr.status) });
+			});
+
+			xhr.addEventListener('error', () => {
+				resolve({ success: false, error: 'Network error. Please check your connection and try again.' });
+			});
+
+			xhr.addEventListener('abort', () => {
+				resolve({ success: false, error: 'Upload cancelled.' });
+			});
+
+			xhr.open(
+				'POST',
+				`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
+			);
+			xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
+			xhr.send(formData);
+		});
 	}
 
 	updateProgressBar(percent) {
@@ -591,34 +609,35 @@ class DragDropUpload {
 		}
 	}
 
-	handleUploadSuccess(data) {
-		const successCount = data.success_count || 0;
-		const errorCount = data.error_count || 0;
+	/**
+	 * Show how each upload went.
+	 *
+	 * @param {Object[]} results One { success, error } per image sent, or one error for a refused upload.
+	 * @param {number}   total   How many images were selected.
+	 */
+	showResults(results, total) {
+		const failures = results.filter((result) => !result.success);
+		const successCount = results.length - failures.length;
+		const failedCount = total - successCount;
 
 		let message = `Successfully uploaded ${successCount} image(s).`;
-		if (errorCount > 0) {
-			message += ` ${errorCount} upload(s) failed.`;
+		if (failedCount > 0) {
+			message += ` ${failedCount} upload(s) failed.`;
 		}
 
 		this.progressSection.innerHTML = `<p class="success">${message}</p>`;
 
-		// Show individual results.
-		if (data.results && errorCount > 0) {
+		if (failures.length > 0) {
 			const errorList = document.createElement('ul');
 			errorList.className = 'photo-comp-error-list';
 
-			Object.keys(data.results).forEach((fileKey) => {
-				const result = data.results[fileKey];
-				if (!result.success) {
-					const li = document.createElement('li');
-					li.textContent = result.error;
-					errorList.appendChild(li);
-				}
+			failures.forEach((result) => {
+				const li = document.createElement('li');
+				li.textContent = result.error;
+				errorList.appendChild(li);
 			});
 
-			if (errorList.children.length > 0) {
-				this.progressSection.appendChild(errorList);
-			}
+			this.progressSection.appendChild(errorList);
 		}
 
 		// Clear successful uploads.
@@ -628,11 +647,6 @@ class DragDropUpload {
 				window.location.reload();
 			}, 2000);
 		}
-	}
-
-	handleUploadError(data) {
-		const message = data.message || 'Upload failed. Please try again.';
-		this.showError(message);
 	}
 
 	showError(message) {

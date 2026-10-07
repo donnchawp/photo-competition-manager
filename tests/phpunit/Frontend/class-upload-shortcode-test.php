@@ -41,8 +41,16 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	private $competition_id;
 
+	/**
+	 * $_SERVER as it was before the test.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private $server;
+
 	public function setUp(): void {
 		parent::setUp();
+		$this->server = $_SERVER;
 
 		$this->shortcode = new Upload_Shortcode();
 		$this->members   = new Members_Repository();
@@ -69,6 +77,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 	public function tearDown(): void {
 		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+		$_SERVER  = $this->server;
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -135,7 +144,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		return array(
 			'server below the competition' => array( 2 * MB_IN_BYTES, 2 ),
 			'competition below the server' => array( 8 * MB_IN_BYTES, 5 ),
-			// PHP reads an upload_max_filesize of 0 or less as no limit.
+			// PHP reads a size limit of 0 or less as no limit.
 			'no server limit'              => array( 0, 5 ),
 		);
 	}
@@ -235,6 +244,27 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_INI_SIZE ) );
 
 		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_a_file_over_post_max_size_says_it_is_too_big(): void {
+		$_GET['token']             = $this->issue_token( true );
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = (string) ( 2 * GB_IN_BYTES );
+
+		$output = $this->follow( $this->capture_redirect() );
+
+		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_an_empty_post_under_post_max_size_just_shows_the_page(): void {
+		$_GET['token']             = $this->issue_token( true );
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = '0';
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
+		$this->assertStringNotContainsString( 'class="error"', $output );
 	}
 
 	public function test_a_file_of_the_wrong_type_says_so(): void {
@@ -464,9 +494,11 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * @return string Rendered page.
 	 */
 	private function follow( string $location ): string {
-		$_POST    = array();
-		$_REQUEST = array();
-		$_FILES   = array();
+		unset( $_SERVER['CONTENT_LENGTH'] );
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_POST                     = array();
+		$_REQUEST                  = array();
+		$_FILES                    = array();
 		wp_parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $_GET );
 
 		return $this->shortcode->render( array() );

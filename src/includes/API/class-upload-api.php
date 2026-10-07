@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Oversized_Post;
 use WP_Error;
 use WP_REST_Controller;
 use WP_REST_Request;
@@ -225,6 +226,14 @@ class Upload_API extends WP_REST_Controller {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function batch_upload( WP_REST_Request $request ) {
+		if ( Oversized_Post::detected() ) {
+			return new WP_Error(
+				'file_too_large',
+				__( 'That image is too big. Check the size limit under the upload form.', 'photo-competition-manager' ),
+				array( 'status' => 413 )
+			);
+		}
+
 		$token_record = $request->get_param( '_token_record' );
 		$member_id    = (int) $token_record->member_id;
 		$competition  = $this->competitions_repo->find( (int) $token_record->competition_id );
@@ -409,10 +418,10 @@ class Upload_API extends WP_REST_Controller {
 				'required'          => true,
 				'sanitize_callback' => 'sanitize_text_field',
 			),
+			// Not required here: batch_upload() checks it, after spotting a body PHP dropped for its size.
 			'assignments' => array(
 				'description' => __( 'Array mapping file keys to category slugs.', 'photo-competition-manager' ),
 				'type'        => 'object',
-				'required'    => true,
 			),
 		);
 	}

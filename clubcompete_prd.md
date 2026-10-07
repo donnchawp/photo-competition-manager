@@ -68,7 +68,8 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 - Upload rules per competition:
   - Max number of images per category defined by admin.
   - Only JPEG (.jpg/.jpeg) accepted.
-  - Admin defines maximum file size (e.g. 5MB) and pixel dimensions. If the server's PHP upload limit (`upload_max_filesize`) is lower, members see and meet that lower figure instead; the admin's figure is stored as entered.
+  - Admin defines maximum file size (e.g. 5MB) and pixel dimensions. If the server's PHP limits (`upload_max_filesize` or `post_max_size`) are lower, members see and meet the lowest figure instead; the admin's figure is stored as entered.
+  - The drag-and-drop uploader sends one image per request, so a batch is never bigger than a single image. If PHP still drops a request for being over `post_max_size`, both the drag-and-drop uploader and the one-at-a-time form tell the member the image is too big.
   - Optional upload password per competition; when set, members must enter it before accessing the upload form.
   - Plugin automatically resizes oversized images.
   - Filenames automatically reformatted to:

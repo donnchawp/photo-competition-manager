@@ -23,7 +23,22 @@ use WP_UnitTestCase;
  */
 class Upload_API_Test extends WP_UnitTestCase {
 
+	/**
+	 * $_SERVER as it was before the test.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private $server;
+
+	public function setUp(): void {
+		parent::setUp();
+		$this->server = $_SERVER;
+	}
+
 	public function tearDown(): void {
+		$_SERVER = $this->server;
+		$_POST   = array();
+		$_FILES  = array();
 		parent::tearDown();
 
 		// Moves create the category folders, each with an index.php, even when an entry has no
@@ -263,6 +278,59 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'category_change_failed' ) );
 		$this->assertCount( 1, $logs );
 		$this->assertStringContainsString( 'Unable to create directory', $logs[0]->metadata );
+	}
+
+	public function test_a_batch_upload_bigger_than_post_max_size_says_the_image_is_too_big(): void {
+		$this->post_over_post_max_size();
+
+		$response = rest_do_request( $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) ) );
+
+		$this->assertSame( 413, $response->get_status() );
+		$this->assertSame( 'file_too_large', $response->as_error()->get_error_code() );
+		$this->assertSame( 'That image is too big. Check the size limit under the upload form.', $response->get_data()['message'] );
+	}
+
+	public function test_a_batch_upload_with_a_body_is_checked_as_usual_whatever_its_length(): void {
+		$this->post_over_post_max_size();
+		$_POST['assignments'] = array( 'file_0' => 'colour' );
+		$request              = $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) );
+		$request->set_body_params( $_POST );
+
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'no_files', $response->as_error()->get_error_code() );
+	}
+
+	public function test_a_batch_upload_with_no_assignments_under_post_max_size_says_they_are_required(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = '0';
+
+		$response = rest_do_request( $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) ) );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'invalid_assignments', $response->as_error()->get_error_code() );
+	}
+
+	/**
+	 * Make this a POST longer than post_max_size, whose body PHP has dropped.
+	 */
+	private function post_over_post_max_size(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = (string) ( 2 * GB_IN_BYTES );
+		$_POST                     = array();
+		$_FILES                    = array();
+	}
+
+	/**
+	 * @param string $token Upload token.
+	 * @return WP_REST_Request A batch upload with no body.
+	 */
+	private function batch_request( string $token ): WP_REST_Request {
+		$request = new WP_REST_Request( 'POST', '/photo-comp/v1/upload/batch' );
+		$request->set_query_params( array( 'token' => $token ) );
+
+		return $request;
 	}
 
 	/**
