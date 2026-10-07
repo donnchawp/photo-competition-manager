@@ -184,6 +184,7 @@ Yes. Visit **Competitions → Export** to download:
   * Originals are discarded one at a time and exported at full size
   * An entry whose file is missing shows "Image unavailable", and the slideshow skips it
   * Deleting a submission works in in-app browsers
+  * The upload page's messages can be translated
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
