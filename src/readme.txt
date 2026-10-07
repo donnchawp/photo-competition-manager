@@ -160,9 +160,10 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs six database upgrades (versions 2 to 7) on the first request after it's installed.
+  * Back up the database first. The update runs seven database upgrades (versions 2 to 8) on the first request after it's installed.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
   * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
+  * On sites installed before November 2025 the upgrade rebuilds the upload links' database index so a member can have only one upload link per competition. A member who somehow has two keeps the earlier one, and the later emailed link stops working.
   * The upgrade records the results of every competition whose results are published, or that has closed or been archived, from the entries and votes as they are when it runs. Entries already deleted, and members deleted before the upgrade, stay missing from those results.
 
 * **Competitions**
