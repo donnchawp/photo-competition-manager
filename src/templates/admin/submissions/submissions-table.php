@@ -14,6 +14,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="post" id="bulk-delete-form">';
 wp_nonce_field( 'photo_competition_bulk_delete_' . $data['competition_id'], '_wpnonce' );
 echo '<input type="hidden" name="action" value="bulk_delete_submissions" />';

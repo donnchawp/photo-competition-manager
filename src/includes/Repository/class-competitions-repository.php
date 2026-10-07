@@ -257,7 +257,7 @@ class Competitions_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions only holds literal SQL and placeholders.
 		return $wpdb->get_row(
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare( 'SELECT * FROM %i WHERE ' . $conditions . ' ORDER BY created_at DESC LIMIT 1', ...$args )

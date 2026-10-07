@@ -12,6 +12,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 $is_ready = '' === $data['prereq_refusal'];
 ?>
 		<div id="focus-panel" class="postbox photo-comp-workflow-card"

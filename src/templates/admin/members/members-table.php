@@ -16,6 +16,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 if ( $data['show_count'] ) {
 	echo '<p class="description" style="margin-bottom: 10px;">' . esc_html(
 		sprintf(

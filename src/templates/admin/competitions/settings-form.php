@@ -23,6 +23,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="post" class="card" style="max-width: 720px; padding: 16px;">';
 wp_nonce_field( 'photo_competition_update_settings_' . $data['competition_id'], 'photo_competition_nonce' );
 echo '<input type="hidden" name="photo_competition_action" value="update_competition_settings" />';

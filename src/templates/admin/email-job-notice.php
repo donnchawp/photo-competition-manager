@@ -25,6 +25,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 if ( 'processing' === $data['status'] || 'pending' === $data['status'] ) {
 	printf(
 		'<div class="notice notice-info photo-comp-email-job" data-job-id="%s" data-ajax-url="%s" data-action="%s" data-nonce="%s">',

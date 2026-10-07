@@ -136,7 +136,7 @@ class Votes_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- One row of placeholders per vote; the count matches at runtime.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $rows only holds literal placeholders.
 		$inserted = $wpdb->query(
 			$wpdb->prepare(
 				'INSERT INTO %i (competition_id, category, %i, image_id, score, created_at)

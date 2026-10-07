@@ -10,6 +10,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<div class="notice notice-warning inline">';
 echo '<p>' . esc_html__( 'Some entries are listed under Ungraded and aren\'t ranked with any grade, so their members get no position in the results email.', 'photo-competition-manager' ) . '</p>';
 

@@ -9,6 +9,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 // Restore default finds the fields by these IDs, and names its card by the heading's.
 $heading_id = 'template-' . $data['template_key'] . '-heading';
 $subject_id = 'template-' . $data['template_key'] . '-subject';

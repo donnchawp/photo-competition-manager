@@ -9,6 +9,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<h3>' . esc_html( $data['type'] ) . '</h3>';
 echo '<ul>';
 foreach ( $data['pages'] as $found_page ) {
