@@ -14,7 +14,10 @@ defined( 'ABSPATH' ) || exit;
 
 $is_ready = '' === $data['prereq_refusal'];
 ?>
-		<div id="focus-panel" class="postbox photo-comp-workflow-card">
+		<div id="focus-panel" class="postbox photo-comp-workflow-card"
+			data-competition-id="<?php echo esc_attr( $data['comp_id'] ); ?>"
+			data-category="<?php echo esc_attr( $data['category_slug'] ); ?>"
+			data-category-label="<?php echo esc_attr( $data['category_label'] ); ?>">
 
 			<div class="inside <?php echo ! $is_ready ? 'photo-comp-workflow-disabled' : ''; ?>">
 				<?php if ( $data['total_categories'] < 2 ) : ?>
