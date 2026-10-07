@@ -54,9 +54,9 @@ class Voting_Token_Repository extends Abstract_Repository {
 			'created_at' => utc_time(),
 		);
 
-		// Update, then insert only if there's nothing to update. Inserting
-		// with ON DUPLICATE KEY UPDATE would add a second token on a table
-		// that doesn't have its unique key yet.
+		// Renew the member's token, and insert one only when there's none.
+		// INSERT ... ON DUPLICATE KEY UPDATE would add a second token to a
+		// table that doesn't have its unique key yet.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$token_id = (int) $wpdb->get_var(
 			$wpdb->prepare(
