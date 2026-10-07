@@ -374,6 +374,41 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The results link is built on the club's results page when the
+	 * competition has none, ahead of a page holding the results shortcode.
+	 */
+	public function test_send_results_links_the_clubs_results_page(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'results_page' => 'https://example.com/club-results/' ) ) ) );
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_results]',
+			)
+		);
+		$id = $this->create_competition( array( 'share_hash' => 'abc123hash' ) );
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( 'https://example.com/club-results/?share=abc123hash', $job['args']['share_url'] );
+	}
+
+	/**
 	 * Sending the results link to all active members succeeds under the same
 	 * preconditions (covers the send_results_all branch).
 	 */

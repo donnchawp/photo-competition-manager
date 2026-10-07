@@ -264,9 +264,8 @@ class Competitions_Controller {
 					'error'
 				);
 			} else {
-				$settings         = Competition_Settings::parse( $competition->settings );
-				$results_page_url = $settings['urls']['results_page'] ?? '';
-				if ( ! empty( $results_page_url ) ) {
+				$results_page_url = Competition_Settings::page_url( 'results_page', $competition );
+				if ( '' !== $results_page_url ) {
 					$share_url = add_query_arg( 'share', $new_hash, $results_page_url );
 					add_settings_error(
 						'photo_competition_manager',

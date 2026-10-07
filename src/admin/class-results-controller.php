@@ -309,13 +309,12 @@ class Results_Controller {
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
-			$settings         = Competition_Settings::parse( $competition->settings );
-			$results_page_url = $settings['urls']['results_page'] ?? '';
-			if ( empty( $results_page_url ) ) {
+			$results_page_url = Competition_Settings::page_url( 'results_page', $competition );
+			if ( '' === $results_page_url ) {
 				add_settings_error(
 					'photo_competition_results',
 					'no_results_page',
-					__( 'No results page URL configured. Set one in competition settings.', 'photo-competition-manager' ),
+					__( 'No results page is set. Set the results page in Settings, or publish a page with the [competition_results] shortcode.', 'photo-competition-manager' ),
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
@@ -541,7 +540,7 @@ class Results_Controller {
 
 		// Share results section.
 		$share_hash   = $competition->share_hash ?? '';
-		$results_page = $settings['urls']['results_page'] ?? '';
+		$results_page = Competition_Settings::page_url( 'results_page', $competition );
 
 		$share_url          = '';
 		$send_committee_url = '';
