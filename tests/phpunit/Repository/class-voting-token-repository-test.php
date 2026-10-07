@@ -20,6 +20,13 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	private $repository;
 
 	/**
+	 * Whether a temporary table hides the real one.
+	 *
+	 * @var bool
+	 */
+	private $shadowed = false;
+
+	/**
 	 * Set up test fixtures.
 	 *
 	 * @return void
@@ -43,6 +50,79 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Drop the table shadowing the real one, if a test made it.
+	 *
+	 * @return void
+	 */
+	public function tearDown(): void {
+		global $wpdb;
+
+		if ( $this->shadowed ) {
+			$wpdb->query( "DROP TEMPORARY TABLE {$wpdb->prefix}photocomp_voting_tokens" );
+		}
+
+		parent::tearDown();
+	}
+
+	/**
+	 * Renewing gives the member's one token a new link, and keeps its row.
+	 *
+	 * @return void
+	 */
+	public function test_renew_replaces_the_link_on_the_members_one_token(): void {
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$first      = $this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'first' ), $expires_at );
+
+		$renewed = $this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
+
+		$this->assertSame( $first, $renewed );
+		$this->assertNull( $this->repository->find_valid_token( hash( 'sha256', 'first' ) ) );
+		$this->assertSame( (string) $first, $this->repository->find_valid_token( hash( 'sha256', 'second' ) )->id );
+	}
+
+	/**
+	 * A table from before the unique key, or whose upgrade failed, still
+	 * gets one token per member, competition and category.
+	 *
+	 * @return void
+	 */
+	public function test_renew_keeps_one_token_on_a_table_without_the_unique_key(): void {
+		$this->shadow_table_without_unique_key();
+		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'first' ), $expires_at );
+
+		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'second' ), $expires_at );
+
+		$this->assertSame( '1', $this->repository->get_tracking_by_competition( 2 )[1]->token_count );
+	}
+
+	/**
+	 * Hide the voting tokens table behind a temporary one without its unique
+	 * key. Creating a temporary table doesn't end the test's transaction.
+	 *
+	 * @return void
+	 */
+	private function shadow_table_without_unique_key(): void {
+		global $wpdb;
+
+		$this->shadowed = true;
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$wpdb->prefix}photocomp_voting_tokens (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				member_id BIGINT UNSIGNED NOT NULL,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				token_hash VARCHAR(64) NOT NULL,
+				expires_at DATETIME NOT NULL,
+				first_accessed_at DATETIME NULL,
+				sent_at DATETIME NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id)
+			) {$wpdb->get_charset_collate()}"
+		);
 	}
 
 	/**

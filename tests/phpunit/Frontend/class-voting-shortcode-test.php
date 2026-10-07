@@ -370,6 +370,58 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertNull( $this->tokens->find_valid_token( hash( 'sha256', $first ) ) );
 	}
 
+	public function test_a_renewed_link_keeps_the_members_one_token(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$first = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+
+		$this->request_token( 'active@example.com' );
+
+		$renewed = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
+		$this->assertSame( $first->id, $renewed->id );
+		$this->assertSame( '1', $this->tokens->get_tracking_by_competition( (int) $this->competition->id )[ (int) $first->member_id ]->token_count );
+	}
+
+	public function test_a_member_who_voted_is_told_so_by_the_renewed_link(): void {
+		$permalink = $this->view_page();
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$_POST = array();
+		$_GET  = array();
+		$this->request_token( 'active@example.com' );
+
+		$location = $this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+
+		$this->assertSame( add_query_arg( 'ballot', 'already_cast', $permalink ), $location );
+		$this->assertSame( 1, $this->vote_count() );
+	}
+
+	public function test_a_request_within_five_minutes_of_a_renewal_sends_nothing(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$this->request_token( 'active@example.com' );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
+		$this->assertSame( 2, $this->mail_count );
+	}
+
+	public function test_a_member_whose_link_expired_gets_a_working_link(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->age_tokens( 2 * HOUR_IN_SECONDS );
+
+		$this->request_token( 'active@example.com' );
+
+		$this->assertSame( 2, $this->mail_count );
+		$this->assertNotNull( $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) ) );
+	}
+
 	/**
 	 * Age every voting token, as if it was sent that long ago.
 	 *
