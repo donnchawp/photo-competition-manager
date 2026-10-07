@@ -82,7 +82,7 @@ class Results_Shortcode {
 		$this->images_repo       = $images_repo ?? new Images_Repository();
 		$members_repo            = $members_repo ?? new Members_Repository();
 		$this->workflow          = new Competition_Workflow( $this->competitions_repo, $this->images_repo );
-		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo );
+		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo, $this->competitions_repo, $this->workflow );
 		$this->entries           = $entries ?? new Entries( $this->competitions_repo, $this->images_repo, $members_repo );
 	}
 

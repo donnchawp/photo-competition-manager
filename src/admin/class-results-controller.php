@@ -192,6 +192,14 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
+			$redirect_url = add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager-results',
+					'competition' => $competition_id,
+				),
+				admin_url( 'admin.php' )
+			);
+
 			// Members are told their positions only once they're published, so they match the record.
 			$competition = $this->competitions->find( $competition_id );
 			if ( $competition && ! $this->workflow->results_published( $competition ) ) {
@@ -202,15 +210,7 @@ class Results_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager-results',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
 			// Queue a background job for email sending.
@@ -224,27 +224,17 @@ class Results_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager-results',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
 			// Redirect to results page with job status.
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => $competition_id,
-						'job_id'      => $job_id,
-						'status'      => 'processing',
+						'job_id' => $job_id,
+						'status' => 'processing',
 					),
-					admin_url( 'admin.php' )
+					$redirect_url
 				)
 			);
 			exit;

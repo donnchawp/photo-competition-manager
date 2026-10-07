@@ -102,7 +102,7 @@ class Dependencies {
 
 		// Services.
 		$this->analytics         = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
-		$this->results_ranking   = new Results_Ranking( $this->images, $this->votes, $this->members );
+		$this->results_ranking   = new Results_Ranking( $this->images, $this->votes, $this->members, $this->competitions );
 		$this->email_service     = new Email_Service();
 		$this->email_job_manager = new Email_Job_Manager(
 			$this->competitions,
