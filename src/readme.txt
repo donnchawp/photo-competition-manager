@@ -205,6 +205,7 @@ Yes. Visit **Competitions → Export** to download:
   * Bulk member emails go out in batches, and stopped email jobs show on every admin page
   * Editors can use the Email Templates page
   * Every email sends the text the Email Templates page shows, even on a site that has never saved it
+  * The Email Templates page stores only the templates you edit, so the rest pick up improved default text in later versions. Edited templates are marked "Edited", and Restore default fills in the default text for you to read and save. Templates saved before 0.4.0 are kept as they were: use Restore default on each one to pick up the new default text
   * Only the Voting Opened and Submission Confirmed notifications can be switched off. Upload links, voting links and results emails always send
   * Names and links are escaped in emails, and the detailed results table is no longer reformatted
   * The submission confirmation counts the image just uploaded
