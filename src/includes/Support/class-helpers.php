@@ -85,3 +85,25 @@ function format_site_date( ?string $utc_datetime ): string {
 
 	return wp_date( get_option( 'date_format' ), strtotime( $utc_datetime ) );
 }
+
+/**
+ * Render a template partial under src/templates/ to a string.
+ *
+ * The partial receives a single variable, $data (array), in scope and is
+ * responsible for its own output escaping.
+ *
+ * @since 0.4.0
+ *
+ * @param string               $relative Partial path relative to src/templates/, e.g. 'email/results-table.php'.
+ * @param array<string, mixed> $data     View data available to the partial as $data.
+ * @return string Rendered HTML.
+ */
+function render_template( string $relative, array $data = array() ): string {
+	ob_start();
+	try {
+		include PHOTO_COMPETITION_MANAGER_DIR . '/templates/' . ltrim( $relative, '/' );
+	} finally {
+		$html = ob_get_clean();
+	}
+	return (string) $html;
+}
