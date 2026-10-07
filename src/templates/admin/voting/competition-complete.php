@@ -40,7 +40,6 @@ defined( 'ABSPATH' ) || exit;
 							<span class="category-slideshow-actions" style="margin-left: auto;">
 								<button type="button" class="button button-small photo-competition-manager-start-slideshow"
 									data-competition-id="<?php echo esc_attr( $data['competition']->id ); ?>"
-									data-competition-slug="<?php echo esc_attr( $data['competition']->slug ); ?>"
 									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
 									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>"
 									data-duration-input="#replay-slideshow-duration">
@@ -48,7 +47,6 @@ defined( 'ABSPATH' ) || exit;
 								</button>
 								<button type="button" class="button button-small photo-competition-manager-start-slideshow"
 									data-competition-id="<?php echo esc_attr( $data['competition']->id ); ?>"
-									data-competition-slug="<?php echo esc_attr( $data['competition']->slug ); ?>"
 									data-category="<?php echo esc_attr( $cat_data['category']['slug'] ?? '' ); ?>"
 									data-category-label="<?php echo esc_attr( $cat_data['category']['label'] ?? '' ); ?>"
 									data-duration-input="#replay-critique-duration"

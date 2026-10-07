@@ -216,6 +216,70 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Seed a one-category competition with an entry and the given workflow state.
+	 *
+	 * @param array<string,mixed> $workflow Stored workflow state.
+	 */
+	private function seed_competition_with_workflow( array $workflow ): void {
+		$comp_id   = $this->seed_competition(
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+			)
+		);
+		$this->competitions->save_workflow( $comp_id, $workflow );
+	}
+
+	/**
+	 * The active step's slideshow button carries what the admin slideshow
+	 * posts, and no competition slug, which the server never read.
+	 */
+	public function test_render_active_slideshow_button_sends_no_competition_slug(): void {
+		$this->seed_competition_with_workflow( array( 'uploads_closed' => true ) );
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'photo-competition-manager-start-slideshow', $html );
+		$this->assertStringNotContainsString( 'data-competition-slug', $html );
+	}
+
+	/**
+	 * A completed competition's Slideshow and Critique replay buttons carry no
+	 * competition slug either.
+	 */
+	public function test_render_replay_buttons_send_no_competition_slug(): void {
+		$this->seed_competition_with_workflow(
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => Competition_Workflow::STAGE_DONE ),
+			)
+		);
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'All Categories Complete', $html );
+		$this->assertStringContainsString( 'photo-competition-manager-start-slideshow', $html );
+		$this->assertStringNotContainsString( 'data-competition-slug', $html );
+	}
+
+	/**
 	 * A category reset with its votes kept is back at step 1 but still has votes, so it
 	 * offers Reset again: moving its entries needs those votes cleared.
 	 */

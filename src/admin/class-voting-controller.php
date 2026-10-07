@@ -843,7 +843,6 @@ class Voting_Controller {
 		return $this->render_template(
 			'admin/voting/workflow-steps.php',
 			array(
-				'competition'      => $competition,
 				'category_slug'    => $category_slug,
 				'category_label'   => $category_label,
 				'image_count'      => $image_count,
