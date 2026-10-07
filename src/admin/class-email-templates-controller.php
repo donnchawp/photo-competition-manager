@@ -98,9 +98,10 @@ class Email_Templates_Controller {
 	}
 
 	/**
-	 * What to store from the posted form: each notification's switch, and a
-	 * kind's subject and body only where either differs from its default, so
-	 * the rest keep following their defaults.
+	 * What to store from the posted form: a notification's switch once it has
+	 * been set away from its default, and a kind's subject and body only where
+	 * either differs from its default, so the rest keep following their
+	 * defaults. A kind missing from the post keeps what was stored.
 	 *
 	 * @since 0.4.0
 	 *
@@ -109,18 +110,33 @@ class Email_Templates_Controller {
 	 */
 	private function templates_to_store( array $raw_templates ): array {
 		$email_service = new Email_Service();
+		$saved         = (array) get_option( 'photo_comp_email_templates', array() );
 		$templates     = array();
 
 		foreach ( Email_Kinds::all() as $kind => $definition ) {
-			$posted = isset( $raw_templates[ $kind ] ) && is_array( $raw_templates[ $kind ] ) ? $raw_templates[ $kind ] : array();
+			if ( ! isset( $raw_templates[ $kind ] ) || ! is_array( $raw_templates[ $kind ] ) ) {
+				if ( ! empty( $saved[ $kind ] ) ) {
+					$templates[ $kind ] = $saved[ $kind ];
+				}
+				continue;
+			}
+
+			$posted = $raw_templates[ $kind ];
 			$stored = array();
 
 			if ( $definition['notification'] ) {
-				$stored['enabled'] = isset( $posted['enabled'] ) && '1' === $posted['enabled'];
+				$enabled = isset( $posted['enabled'] ) && '1' === $posted['enabled'];
+				// Once switched away from its default, the switch stays the admin's choice.
+				if ( $enabled !== $definition['on_by_default'] || isset( $saved[ $kind ]['enabled'] ) ) {
+					$stored['enabled'] = $enabled;
+				}
 			}
 
-			$subject = isset( $posted['subject'] ) ? sanitize_text_field( $posted['subject'] ) : $definition['subject'];
-			$body    = isset( $posted['body'] ) ? wp_kses_post( $posted['body'] ) : $definition['body'];
+			// An emptied field sends the default, so it is saved as the default.
+			$subject = isset( $posted['subject'] ) ? sanitize_text_field( $posted['subject'] ) : '';
+			$body    = isset( $posted['body'] ) ? wp_kses_post( $posted['body'] ) : '';
+			$subject = '' !== trim( $subject ) ? $subject : $definition['subject'];
+			$body    = '' !== trim( $body ) ? $body : $definition['body'];
 			if ( ! $email_service->is_default_template( $kind, $subject, $body ) ) {
 				$stored['subject'] = $subject;
 				$stored['body']    = $body;

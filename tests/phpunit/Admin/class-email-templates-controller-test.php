@@ -195,6 +195,68 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertArrayNotHasKey( 'no_such', (array) get_option( 'photo_comp_email_templates' ) );
 	}
 
+	public function test_saving_without_changes_stores_no_switch_left_at_its_default(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), get_option( 'photo_comp_email_templates' ) );
+	}
+
+	public function test_a_stored_switch_is_kept_when_set_back_to_its_default(): void {
+		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
+
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array( 'enabled' => false ), get_option( 'photo_comp_email_templates' )['voting_opened'] );
+	}
+
+	public function test_a_kind_missing_from_the_post_keeps_what_was_stored(): void {
+		$stored = array(
+			'voting_opened' => array(
+				'enabled' => true,
+				'subject' => 'Voting is open',
+				'body'    => 'Go vote.',
+			),
+		);
+		update_option( 'photo_comp_email_templates', $stored );
+
+		$form = $this->unchanged_form();
+		unset( $form['voting_opened'] );
+		$this->save_form( $form );
+
+		$this->assertSame( $stored['voting_opened'], get_option( 'photo_comp_email_templates' )['voting_opened'] );
+	}
+
+	public function test_an_emptied_subject_or_body_is_saved_as_the_default(): void {
+		$form                           = $this->unchanged_form();
+		$form['voting_link']['subject'] = '';
+		$form['results_published']['body'] = '';
+		$this->save_form( $form );
+
+		$this->assertSame( array(), $this->saved_text() );
+	}
+
+	public function test_a_button_label_with_a_quote_is_unchanged_when_posted_without_entities(): void {
+		$translate = static function ( $translation, $text ) {
+			return 'Vote now' === $text ? "Don't wait, vote" : $translation;
+		};
+		$locale = static function () {
+			return 'xx_QUOTE';
+		};
+		add_filter( 'gettext', $translate, 10, 2 );
+		// Kinds are built once per locale, so this one is built with the filter.
+		add_filter( 'determine_locale', $locale );
+
+		$form = $this->unchanged_form();
+		// The editor posts the quote as a plain character, not as the default's entity.
+		$this->assertStringContainsString( 'Don&#039;t wait, vote', $form['voting_link']['body'] );
+		$form['voting_link']['body'] = str_replace( '&#039;', "'", $form['voting_link']['body'] );
+		$this->save_form( $form );
+		remove_filter( 'gettext', $translate, 10 );
+		remove_filter( 'determine_locale', $locale );
+
+		$this->assertSame( array(), $this->saved_text() );
+	}
+
 	public function test_editor_can_render_page(): void {
 		$this->become_editor();
 
