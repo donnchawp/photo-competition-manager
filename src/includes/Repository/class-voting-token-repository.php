@@ -57,16 +57,7 @@ class Voting_Token_Repository extends Abstract_Repository {
 		// Renew the member's token, and insert one only when there's none.
 		// INSERT ... ON DUPLICATE KEY UPDATE would add a second token to a
 		// table that doesn't have its unique key yet.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$token_id = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s ORDER BY id LIMIT 1',
-				$this->table(),
-				$member_id,
-				$competition_id,
-				$category
-			)
-		);
+		$token_id = $this->member_token_id( $member_id, $competition_id, $category );
 
 		if ( $token_id > 0 ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -79,20 +70,62 @@ class Voting_Token_Repository extends Abstract_Repository {
 			return $token_id;
 		}
 
-		$payload += array(
-			'member_id'      => $member_id,
-			'competition_id' => $competition_id,
-			'category'       => $category,
-		);
-
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$inserted = $wpdb->insert( $this->table(), $payload, array( '%s', '%s', '%s', '%d', '%d', '%s' ) );
+		$inserted = $wpdb->insert(
+			$this->table(),
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+				'category'       => $category,
+			) + $payload,
+			array( '%d', '%d', '%s', '%s', '%s', '%s' )
+		);
 
 		if ( false === $inserted ) {
 			return new WP_Error( 'db_insert_failed', __( 'Could not create voting token.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * The ID of a member's one voting token for a category, or 0 if they
+	 * have none.
+	 *
+	 * A table without its unique key can hold several. Then the earliest
+	 * with votes holds the member's ballot, so it's the one. With no ballot,
+	 * it's the latest: the link the member last asked for.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $member_id      Member ID.
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int
+	 */
+	public function member_token_id( int $member_id, int $competition_id, string $category ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$token_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s ORDER BY id',
+				$this->table(),
+				$member_id,
+				$competition_id,
+				$category
+			)
+		);
+		$token_ids = array_map( 'intval', $token_ids );
+		$votes     = new Votes_Repository();
+
+		foreach ( $token_ids as $token_id ) {
+			if ( $votes->has_voted_with_token( $token_id ) ) {
+				return $token_id;
+			}
+		}
+
+		return (int) end( $token_ids );
 	}
 
 	/**

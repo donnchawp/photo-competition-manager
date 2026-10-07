@@ -301,10 +301,10 @@ class Activator {
 	 * Keep one voting token per member, competition and category, then add
 	 * the unique key that stops a second one.
 	 *
-	 * Of a member's tokens for a category, the earliest with votes holds
-	 * their ballot, so it stays. With no ballot, the latest is the link the
-	 * member last asked for. The other tokens go, and their votes with them:
-	 * those can only be a second ballot from the same member.
+	 * Of a member's tokens for a category, the one renew() would use stays
+	 * (see Voting_Token_Repository::member_token_id()). The other tokens go,
+	 * and their votes with them: those can only be a second ballot from the
+	 * same member.
 	 *
 	 * @since 0.4.0
 	 *
@@ -313,11 +313,12 @@ class Activator {
 	private static function make_voting_tokens_unique(): bool {
 		global $wpdb;
 
-		$table = ( new Voting_Token_Repository() )->table();
-		$votes = ( new Votes_Repository() )->table();
+		$tokens = new Voting_Token_Repository();
+		$table  = $tokens->table();
+		$votes  = ( new Votes_Repository() )->table();
 
 		// Only when the key is missing: DDL ends the running transaction.
-		if ( self::has_keys( $table, array( 'member_competition_category' ) ) ) {
+		if ( self::voting_tokens_are_unique( $table ) ) {
 			return true;
 		}
 
@@ -335,29 +336,21 @@ class Activator {
 
 		foreach ( $duplicates as $duplicate ) {
 			$competition_id = (int) $duplicate->competition_id;
+			$keep           = $tokens->member_token_id( (int) $duplicate->member_id, $competition_id, $duplicate->category );
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			$token_ids = $wpdb->get_col(
+			$others = $wpdb->get_col(
 				$wpdb->prepare(
-					'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s ORDER BY id',
+					'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s AND id <> %d',
 					$table,
 					$duplicate->member_id,
 					$competition_id,
-					$duplicate->category
+					$duplicate->category,
+					$keep
 				)
 			);
-			$token_ids = array_map( 'intval', $token_ids );
 
-			$keep = end( $token_ids );
-			foreach ( $token_ids as $token_id ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-				if ( $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE voting_token_id = %d LIMIT 1', $votes, $token_id ) ) ) {
-					$keep = $token_id;
-					break;
-				}
-			}
-
-			foreach ( array_diff( $token_ids, array( $keep ) ) as $token_id ) {
+			foreach ( $others as $token_id ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + (int) $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -369,7 +362,7 @@ class Activator {
 
 		self::create_tables();
 
-		return self::has_keys( $table, array( 'member_competition_category' ) );
+		return self::voting_tokens_are_unique( $table );
 	}
 
 	/**
@@ -382,6 +375,18 @@ class Activator {
 	 */
 	private static function votes_are_unique( string $table ): bool {
 		return self::has_keys( $table, array( 'image_token', 'image_voter' ) );
+	}
+
+	/**
+	 * Whether the voting tokens table has its unique key.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Voting tokens table.
+	 * @return bool
+	 */
+	private static function voting_tokens_are_unique( string $table ): bool {
+		return self::has_keys( $table, array( 'member_competition_category' ) );
 	}
 
 	/**

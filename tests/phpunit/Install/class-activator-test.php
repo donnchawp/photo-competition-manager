@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Legacy_Tables;
 use WP_UnitTestCase;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -509,37 +510,18 @@ class Activator_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Hide the voting tokens table behind a temporary one shaped as version
-	 * 5 left it on old sites, without the unique key, so duplicates can be
-	 * stored. Schema changes are swallowed, as in shadow_v3_votes_table().
+	 * Hide the voting tokens table behind one shaped as version 5 left it on
+	 * old sites, without the unique key, so duplicates can be stored.
 	 */
 	private function shadow_v5_voting_tokens_table(): void {
-		global $wpdb;
-
-		$this->shadowed = $wpdb->prefix . 'photocomp_voting_tokens';
-		$wpdb->query(
-			"CREATE TEMPORARY TABLE {$this->shadowed} (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				member_id BIGINT UNSIGNED NOT NULL,
-				competition_id BIGINT UNSIGNED NOT NULL,
-				category VARCHAR(100) NOT NULL,
-				token_hash VARCHAR(64) NOT NULL,
-				expires_at DATETIME NOT NULL,
-				first_accessed_at DATETIME NULL,
-				sent_at DATETIME NULL,
-				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				PRIMARY KEY  (id),
-				KEY token_hash (token_hash),
-				KEY expires_at (expires_at)
-			) {$wpdb->get_charset_collate()}"
-		);
-
+		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens();
 		$this->record_ddl();
 	}
 
 	/**
 	 * Record the schema queries the upgrade runs into $this->ddl, and
-	 * swallow ALTER TABLE so the test's transaction survives.
+	 * swallow ALTER TABLE: it would end the test's transaction, so nothing
+	 * the upgrade does to the schema reaches the database.
 	 */
 	private function record_ddl(): void {
 		add_filter(
@@ -569,11 +551,8 @@ class Activator_Test extends WP_UnitTestCase {
 
 	/**
 	 * Hide the votes table behind a temporary one shaped as version 3 left
-	 * it, without unique keys, so duplicates can be stored.
-	 *
-	 * Creating a temporary table doesn't end the test's transaction. ALTER
-	 * TABLE would, so it's swallowed: nothing the upgrade does to the schema
-	 * reaches the database.
+	 * it, without unique keys, so duplicates can be stored. Creating a
+	 * temporary table doesn't end the test's transaction.
 	 */
 	private function shadow_v3_votes_table(): void {
 		global $wpdb;
@@ -594,12 +573,7 @@ class Activator_Test extends WP_UnitTestCase {
 			) {$wpdb->get_charset_collate()}"
 		);
 
-		add_filter(
-			'query',
-			function ( $query ) {
-				return 0 === stripos( ltrim( $query ), 'ALTER TABLE' ) ? 'SELECT 1' : $query;
-			}
-		);
+		$this->record_ddl();
 	}
 
 	/**

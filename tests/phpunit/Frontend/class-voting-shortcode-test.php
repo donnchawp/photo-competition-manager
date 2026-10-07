@@ -356,31 +356,40 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
 	}
 
-	public function test_a_member_who_asks_again_after_five_minutes_gets_a_link_that_works_instead_of_the_first(): void {
+	/**
+	 * Asking again renews the member's one token: the new link works and the
+	 * first one doesn't.
+	 *
+	 * @dataProvider ages_of_a_first_link
+	 *
+	 * @param int $age How long ago the first link was sent.
+	 */
+	public function test_a_member_who_asks_again_gets_a_working_link_on_their_one_token( int $age ): void {
 		$this->make_member( 'active@example.com', true );
 		$this->request_token( 'active@example.com' );
-		$first = $this->link_from_last_mail();
-		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$first       = $this->link_from_last_mail();
+		$first_token = $this->tokens->find_valid_token( hash( 'sha256', $first ) );
+		$this->age_tokens( $age );
 
 		$message = $this->request_token( 'active@example.com' );
 
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 2, $this->mail_count );
-		$this->assertNotNull( $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) ) );
+		$renewed = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
+		$this->assertSame( $first_token->id, $renewed->id );
 		$this->assertNull( $this->tokens->find_valid_token( hash( 'sha256', $first ) ) );
 	}
 
-	public function test_a_renewed_link_keeps_the_members_one_token(): void {
-		$this->make_member( 'active@example.com', true );
-		$this->request_token( 'active@example.com' );
-		$first = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
-		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
-
-		$this->request_token( 'active@example.com' );
-
-		$renewed = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
-		$this->assertSame( $first->id, $renewed->id );
-		$this->assertSame( '1', $this->tokens->get_tracking_by_competition( (int) $this->competition->id )[ (int) $first->member_id ]->token_count );
+	/**
+	 * How long ago a member's first link was sent when they ask again.
+	 *
+	 * @return array<string, array<int>>
+	 */
+	public function ages_of_a_first_link(): array {
+		return array(
+			'after five minutes' => array( 6 * MINUTE_IN_SECONDS ),
+			'after it expired'   => array( 2 * HOUR_IN_SECONDS ),
+		);
 	}
 
 	public function test_a_member_who_voted_is_told_so_by_the_renewed_link(): void {
@@ -409,17 +418,6 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
 		$this->assertSame( 2, $this->mail_count );
-	}
-
-	public function test_a_member_whose_link_expired_gets_a_working_link(): void {
-		$this->make_member( 'active@example.com', true );
-		$this->request_token( 'active@example.com' );
-		$this->age_tokens( 2 * HOUR_IN_SECONDS );
-
-		$this->request_token( 'active@example.com' );
-
-		$this->assertSame( 2, $this->mail_count );
-		$this->assertNotNull( $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) ) );
 	}
 
 	/**

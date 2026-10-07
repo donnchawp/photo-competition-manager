@@ -7,7 +7,9 @@
 
 namespace PhotoCompetitionManager\Tests\Repository;
 
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Tests\Legacy_Tables;
 use WP_UnitTestCase;
 
 class Voting_Token_Repository_Test extends WP_UnitTestCase {
@@ -20,11 +22,11 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	private $repository;
 
 	/**
-	 * Whether a temporary table hides the real one.
+	 * Temporary table hiding the real one, if a test made it.
 	 *
-	 * @var bool
+	 * @var string
 	 */
-	private $shadowed = false;
+	private $shadowed = '';
 
 	/**
 	 * Set up test fixtures.
@@ -60,8 +62,8 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	public function tearDown(): void {
 		global $wpdb;
 
-		if ( $this->shadowed ) {
-			$wpdb->query( "DROP TEMPORARY TABLE {$wpdb->prefix}photocomp_voting_tokens" );
+		if ( '' !== $this->shadowed ) {
+			$wpdb->query( "DROP TEMPORARY TABLE {$this->shadowed}" );
 		}
 
 		parent::tearDown();
@@ -90,7 +92,7 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_renew_keeps_one_token_on_a_table_without_the_unique_key(): void {
-		$this->shadow_table_without_unique_key();
+		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens();
 		$expires_at = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
 		$this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'first' ), $expires_at );
 
@@ -100,29 +102,33 @@ class Voting_Token_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Hide the voting tokens table behind a temporary one without its unique
-	 * key. Creating a temporary table doesn't end the test's transaction.
+	 * Where a table without the unique key holds several tokens for a member,
+	 * the renewed link goes to the one holding their ballot, not the first.
 	 *
 	 * @return void
 	 */
-	private function shadow_table_without_unique_key(): void {
+	public function test_renew_gives_the_link_to_the_token_with_the_members_ballot(): void {
 		global $wpdb;
+		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens();
+		$expires_at     = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		foreach ( array( 'unused', 'ballot' ) as $link ) {
+			$wpdb->insert(
+				$this->shadowed,
+				array(
+					'member_id'      => 1,
+					'competition_id' => 2,
+					'category'       => 'colour',
+					'token_hash'     => hash( 'sha256', $link ),
+					'expires_at'     => $expires_at,
+				)
+			);
+		}
+		$ballot = (int) $wpdb->insert_id;
+		( new Votes_Repository() )->create_anonymous_ballot( 2, 'colour', $ballot, array( 42 => 9 ) );
 
-		$this->shadowed = true;
-		$wpdb->query(
-			"CREATE TEMPORARY TABLE {$wpdb->prefix}photocomp_voting_tokens (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				member_id BIGINT UNSIGNED NOT NULL,
-				competition_id BIGINT UNSIGNED NOT NULL,
-				category VARCHAR(100) NOT NULL,
-				token_hash VARCHAR(64) NOT NULL,
-				expires_at DATETIME NOT NULL,
-				first_accessed_at DATETIME NULL,
-				sent_at DATETIME NULL,
-				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				PRIMARY KEY  (id)
-			) {$wpdb->get_charset_collate()}"
-		);
+		$renewed = $this->repository->renew( 1, 2, 'colour', hash( 'sha256', 'renewed' ), $expires_at );
+
+		$this->assertSame( $ballot, $renewed );
 	}
 
 	/**
