@@ -17,10 +17,14 @@
  *     thumbnail_url: string,
  *     total_score: int,
  *     vote_count: int,
- *     statistics: array{count: int, average: float, median: float, min: float, max: float},
+ *     statistics: array{count: int, average: float, median: float, min: float, max: float}|null,
  *     votes: array<int, object>,
  * }> The member's entries; empty when they entered nothing. An entry with no rank is ungraded.
  * The total score and vote count are the ones in the results; the statistics come from the votes.
+ * An entry whose votes no longer add up to its recorded vote count has no statistics, and its
+ * votes aren't listed.
+ *
+ * The if and endif tags that leave them out end their lines, so the output keeps its whitespace.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -76,7 +80,8 @@ defined( 'ABSPATH' ) || exit;
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total Votes:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['vote_count'] ); ?></td>
-								</tr>
+								</tr><?php if ( null !== $image_data['statistics'] ) : ?>
+
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Average Score:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><?php echo esc_html( number_format( $image_data['statistics']['average'], 2 ) ); ?></td>
@@ -96,8 +101,10 @@ defined( 'ABSPATH' ) || exit;
 										);
 										?>
 									</td>
-								</tr>
-							</table>
+								</tr><?php endif; ?>
+
+							</table><?php if ( null !== $image_data['statistics'] ) : ?>
+
 
 							<h4 style="margin-top: 20px; margin-bottom: 10px;"><?php esc_html_e( 'Individual Votes:', 'photo-competition-manager' ); ?></h4>
 							<table style="width: 100%; border-collapse: collapse; background-color: white;">
@@ -121,7 +128,8 @@ defined( 'ABSPATH' ) || exit;
 									endforeach;
 									?>
 								</tbody>
-							</table>
+							</table><?php endif; ?>
+
 						</div>
 					<?php endforeach; ?>
 				<?php endif; ?>

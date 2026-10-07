@@ -545,7 +545,11 @@ class Email_Job_Manager {
 						continue;
 					}
 
-					$votes = $this->votes->find_by_image( (int) $image->id );
+					// The statistics come from the votes. Once those no longer
+					// match the recorded count, as after a category's votes are
+					// cleared, they'd contradict the recorded score.
+					$votes       = $this->votes->find_by_image( (int) $image->id );
+					$votes_match = count( $votes ) === $entry['vote_count'];
 
 					// An ungraded entry has no position to report.
 					$member_results['images'][] = array(
@@ -557,8 +561,8 @@ class Email_Job_Manager {
 						'thumbnail_url'  => $this->entries->urls( $competition, $image )['thumb'],
 						'total_score'    => $entry['total_score'],
 						'vote_count'     => $entry['vote_count'],
-						'statistics'     => $this->analytics->get_vote_statistics( $votes ),
-						'votes'          => $votes,
+						'statistics'     => $votes_match ? $this->analytics->get_vote_statistics( $votes ) : null,
+						'votes'          => $votes_match ? $votes : array(),
 					);
 				}
 			}
