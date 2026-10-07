@@ -116,6 +116,8 @@ class Competition_Workflow {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param Competitions_Repository|null $competitions  Competitions repository.
 	 * @param Images_Repository|null       $images        Images repository.
 	 * @param Votes_Repository|null        $votes         Votes repository.
@@ -162,6 +164,8 @@ class Competition_Workflow {
 
 	/**
 	 * Whether the competition has closed: its phase is Closed or Archived.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param object $competition Competition row.
 	 * @return bool
@@ -391,6 +395,8 @@ class Competition_Workflow {
 	/**
 	 * Whether results may be hidden: not once the competition has closed,
 	 * since publishing again then can't replace the record.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error 'competition_closed'.

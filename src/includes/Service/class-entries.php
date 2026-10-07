@@ -80,6 +80,8 @@ class Entries {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Images_Repository|null       $images_repo       Images repository.
 	 * @param Members_Repository|null      $members_repo      Members repository.

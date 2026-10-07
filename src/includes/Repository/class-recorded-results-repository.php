@@ -24,6 +24,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Table suffix.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @return string
 	 */
 	protected function table_suffix(): string {
@@ -32,6 +34,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 
 	/**
 	 * Whether a competition's results are recorded.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return bool
@@ -45,6 +49,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 
 	/**
 	 * A category's recorded rows, by position, in the order they were recorded.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
@@ -68,6 +74,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	 * Record rows in one statement, so they go in whole or not at all. A row
 	 * for an entry that's already recorded is left as it is, so two requests
 	 * recording the same competition at once leave one record.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param array<int, array{competition_id: int, category: string, entry_id: int, member_id: int|null, grade: string, total_score: int, vote_count: int, position: int}> $rows Rows to record.
 	 * @return int|WP_Error Number of rows recorded, or error.
@@ -121,6 +129,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Replace a competition's record with new rows.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param int                              $competition_id Competition ID.
 	 * @param array<int, array<string, mixed>> $rows           Rows to record, as insert() takes them.
 	 * @return int|WP_Error Number of rows recorded, or error.
@@ -136,6 +146,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Delete a competition's record.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param int $competition_id Competition ID.
 	 * @return bool
 	 */
@@ -149,6 +161,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Keep an entry's recorded rows once the entry is deleted, without its ID.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param int $entry_id Entry ID.
 	 * @return bool
 	 */
@@ -159,6 +173,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Keep a member's recorded rows once the member is deleted, without their ID.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param int $member_id Member ID.
 	 * @return bool
 	 */
@@ -168,6 +184,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 
 	/**
 	 * Set an ID column to null wherever it holds an ID.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param string $column entry_id or member_id.
 	 * @param int    $id     The ID.

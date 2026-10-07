@@ -75,6 +75,8 @@ class Results_Ranking {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param Images_Repository                $images       Images repository.
 	 * @param Votes_Repository                 $votes        Votes repository.
 	 * @param Members_Repository               $members      Members repository.
@@ -111,6 +113,8 @@ class Results_Ranking {
 	 * follows the club's grades, labelled with its slug. Each entry's
 	 * `recorded` says whether it was read from the record.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
 	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
@@ -141,6 +145,8 @@ class Results_Ranking {
 	 * The record is replaced, unless the competition has closed: then an
 	 * existing record stays, so nobody deleted since drops out of it.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */
@@ -157,6 +163,8 @@ class Results_Ranking {
 	/**
 	 * Record a competition's results if they're published, or it has closed,
 	 * and they aren't recorded yet.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error True when there's nothing to record, or it's recorded.
