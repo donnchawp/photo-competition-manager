@@ -30,7 +30,7 @@ _Avoid_: Status, state
 ### Voting
 
 **Voting stage**:
-How far one category has got on competition night: Not started, Previewed, Voting, Slideshow shown, Critique or Done. A competition has one voting stage per category. Votes are accepted at Voting and Slideshow shown, and only one category in the club can accept votes at a time.
+How far one category has got on competition night: Not started, Previewed, Voting, Slideshow shown, Critique or Done. A competition has one voting stage per category. Votes are accepted at Voting and Slideshow shown, and only one category in the club can accept votes at a time. Once a category's voting has started (any stage past Previewed), its entries are fixed: none can be added, moved in or out, or removed, and uploads can't reopen, until the category is reset.
 _Avoid_: Step
 
 **Ballot**:
@@ -45,7 +45,7 @@ Whoever casts a ballot. A link voter is a member, proved by their voting link. A
 _Avoid_: User, member (for a named voter)
 
 **Reset**:
-Returning a category's voting stage to Not started, optionally clearing its votes.
+Returning a category's voting stage to Not started, optionally clearing its votes. It lifts the rule that fixes a started category's entries (see **Voting stage**). Votes it keeps still stop entries being added to the category or moved in or out.
 
 **Self-vote**:
 A member's vote on their own entry. Members vote on their own entries like any others, and are expected to give them the top score.

@@ -311,12 +311,13 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'This competition isn&#039;t accepting uploads right now.', $output );
 	}
 
-	public function test_an_upload_to_a_category_whose_voting_ended_with_no_votes_says_voting_has_started(): void {
-		$token   = $this->issue_token( true );
-		$someone = Member_Fixtures::insert_with_grade( 'Someone Else', 'someone@example.com', 'beginner' );
-		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $someone, array() );
-		Workflow_Fixtures::set_stage( $this->competition_id, 'colour', Competition_Workflow::STAGE_CRITIQUE );
-		$this->assertTrue( ( new Competition_Workflow() )->reopen_uploads( $this->competition_id ) );
+	/**
+	 * Uploads can't reopen once a category's voting has started, but a site
+	 * that reopened them before that rule may still have uploads open.
+	 */
+	public function test_an_upload_to_a_category_whose_voting_has_started_says_so(): void {
+		$token = $this->issue_token( true );
+		( new Competitions_Repository() )->save_workflow( $this->competition_id, array( 'stages' => array( 'colour' => Competition_Workflow::STAGE_CRITIQUE ) ) );
 
 		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
 

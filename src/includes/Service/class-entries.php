@@ -153,8 +153,8 @@ class Entries {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
 		}
 
-		// Members get here too: a category whose voting closed with no votes keeps its stage when
-		// uploads reopen.
+		// Members can't get here in practice: uploads can't reopen once a category's voting has
+		// started. The rule doesn't rely on that.
 		if ( $this->workflow->has_voting_started( $competition, $category ) ) {
 			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so it can\'t take new entries. Reset the category first.', 'photo-competition-manager' ) );
 		}
