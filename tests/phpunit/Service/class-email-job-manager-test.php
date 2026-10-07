@@ -490,6 +490,12 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertNotSame( $first, $second );
 	}
 
+	public function test_a_kind_of_email_that_isnt_sent_in_bulk_cant_be_queued(): void {
+		$this->setExpectedIncorrectUsage( 'PhotoCompetitionManager\\Service\\Email_Job_Manager::create_job' );
+
+		$this->assertFalse( $this->manager->create_job( 'voting_link', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) ) );
+	}
+
 	public function test_queue_with_no_recipients_returns_false(): void {
 		$this->assertFalse( $this->manager->queue( 'results_published', $this->competition_id, array(), self::SHARE_ARGS ) );
 	}

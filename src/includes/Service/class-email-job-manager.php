@@ -246,13 +246,21 @@ class Email_Job_Manager {
 	/**
 	 * Store a new email job.
 	 *
-	 * @param string              $type           Job type.
+	 * Only a kind of email sent in bulk, one with job wording in Email_Kinds,
+	 * can be a job, so every stored job can be shown on the admin pages.
+	 *
+	 * @param string              $type           Job type: a kind of email sent in bulk.
 	 * @param int                 $competition_id Competition ID.
 	 * @param array<int, int>     $member_ids     Recipient member IDs.
 	 * @param array<string,mixed> $args           Type-specific send arguments.
-	 * @return string|false Job ID on success, false if there are no recipients.
+	 * @return string|false Job ID on success, false if there are no recipients or the kind isn't sent in bulk.
 	 */
 	public function create_job( string $type, int $competition_id, array $member_ids, array $args = array() ) {
+		if ( empty( Email_Kinds::get( $type )['job'] ) ) {
+			_doing_it_wrong( __METHOD__, esc_html( sprintf( '"%s" is not a kind of email sent in bulk.', $type ) ), '0.4.0' );
+			return false;
+		}
+
 		$member_ids = array_values( array_unique( array_map( 'intval', $member_ids ) ) );
 
 		if ( empty( $member_ids ) ) {
