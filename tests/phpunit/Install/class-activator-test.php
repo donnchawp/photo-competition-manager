@@ -393,14 +393,16 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertNull( $logs[0]->actor_id );
 	}
 
-	public function test_upgrade_to_6_adds_the_unique_key_to_voting_tokens_without_it(): void {
+	public function test_upgrade_to_6_makes_the_plain_voting_tokens_key_unique(): void {
 		$this->shadow_v5_voting_tokens_table();
 		update_option( 'photo_comp_db_version', 5 );
 
 		Activator::maybe_upgrade();
 
-		$added = preg_grep( '/^ALTER TABLE \S*photocomp_voting_tokens ADD UNIQUE KEY `?member_competition_category`?/i', $this->ddl );
-		$this->assertCount( 1, $added );
+		// The plain key has the unique key's name, so it goes in the same
+		// statement: dbDelta would try to add a second key with that name.
+		$replaced = preg_grep( '/^ALTER TABLE `?\w*photocomp_voting_tokens`? DROP INDEX `?member_competition_category`?, ADD UNIQUE KEY `?member_competition_category`? \(`?member_id`?, `?competition_id`?, `?category`?\)$/i', $this->ddl );
+		$this->assertCount( 1, $replaced, implode( "\n", $this->ddl ) );
 		// The swallowed ALTER means the key never appears, so the upgrade
 		// stops there and runs again on the next request.
 		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
@@ -462,6 +464,34 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 'system', $logs[0]->actor_type );
 	}
 
+	public function test_upgrade_to_6_keeps_a_token_and_runs_again_when_its_votes_cant_be_deleted(): void {
+		global $wpdb;
+		$this->shadow_v5_voting_tokens_table();
+		$this->insert_vote( $this->insert_v5_token( 1, 1 ), 1, 10 );
+		$second_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		$break_delete = function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_votes' )
+				? 'DELETE FROM photocomp_no_such_table'
+				: $query;
+		};
+		add_filter( 'query', $break_delete );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_delete );
+
+		// A token deleted without its votes would leave a second ballot
+		// counting in the results with nothing to find it by.
+		$this->assertSame( 2, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $this->shadowed ) ) );
+		$this->assertSame( array(), preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
+		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	/**
 	 * Insert a voting token into the version 5 voting tokens table.
 	 *
@@ -511,7 +541,8 @@ class Activator_Test extends WP_UnitTestCase {
 
 	/**
 	 * Hide the voting tokens table behind one shaped as version 5 left it on
-	 * old sites, without the unique key, so duplicates can be stored.
+	 * old sites, with a plain key where the unique one goes, so duplicates
+	 * can be stored.
 	 */
 	private function shadow_v5_voting_tokens_table(): void {
 		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens();

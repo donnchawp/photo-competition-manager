@@ -20,8 +20,9 @@ class Legacy_Tables {
 
 	/**
 	 * Hide the voting tokens table behind one shaped as version 5 left it on
-	 * old sites: without the unique key, so a member can hold several tokens
-	 * for a category.
+	 * sites installed before November 2025: member_competition_category is
+	 * a plain key, not a unique one, so a member can hold several tokens for
+	 * a category. dbDelta can't make it unique, as the name is taken.
 	 *
 	 * @return string The table name.
 	 */
@@ -43,6 +44,7 @@ class Legacy_Tables {
 				sent_at DATETIME NULL,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				PRIMARY KEY  (id),
+				KEY member_competition_category (member_id, competition_id, category),
 				KEY token_hash (token_hash),
 				KEY expires_at (expires_at)
 			) {$wpdb->get_charset_collate()}"

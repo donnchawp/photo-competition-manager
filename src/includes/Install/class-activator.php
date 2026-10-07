@@ -332,7 +332,8 @@ class Activator {
 			)
 		);
 
-		$removed = array();
+		$removed  = array();
+		$complete = true;
 
 		foreach ( $duplicates as $duplicate ) {
 			$competition_id = (int) $duplicate->competition_id;
@@ -352,7 +353,16 @@ class Activator {
 
 			foreach ( $others as $token_id ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + (int) $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
+				$deleted = $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
+
+				// Keep the token, or its votes would count with no token to
+				// find them by. The step runs again on the next request.
+				if ( false === $deleted ) {
+					$complete = false;
+					continue;
+				}
+
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + $deleted;
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 				$wpdb->delete( $table, array( 'id' => $token_id ), array( '%d' ) );
 			}
@@ -360,7 +370,14 @@ class Activator {
 
 		self::log_removed_votes( $removed, 'Upgrade removed %d vote(s) cast with a member\'s second voting link, keeping their earliest ballot in each category.' );
 
-		self::create_tables();
+		if ( ! $complete ) {
+			return false;
+		}
+
+		// Old tables have a plain key with this name, so dbDelta can't add
+		// the unique one: drop it and add it back unique in one statement.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition_category, ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
 
 		return self::voting_tokens_are_unique( $table );
 	}
@@ -374,7 +391,7 @@ class Activator {
 	 * @return bool
 	 */
 	private static function votes_are_unique( string $table ): bool {
-		return self::has_keys( $table, array( 'image_token', 'image_voter' ) );
+		return self::has_unique_keys( $table, array( 'image_token', 'image_voter' ) );
 	}
 
 	/**
@@ -386,11 +403,14 @@ class Activator {
 	 * @return bool
 	 */
 	private static function voting_tokens_are_unique( string $table ): bool {
-		return self::has_keys( $table, array( 'member_competition_category' ) );
+		return self::has_unique_keys( $table, array( 'member_competition_category' ) );
 	}
 
 	/**
-	 * Whether a table has all of the named keys.
+	 * Whether a table has all of the named keys, and each is unique.
+	 *
+	 * A name isn't enough: old voting tokens tables have a plain key named
+	 * as the unique one is now.
 	 *
 	 * @since 0.4.0
 	 *
@@ -398,11 +418,11 @@ class Activator {
 	 * @param array<string> $keys  Key names.
 	 * @return bool
 	 */
-	private static function has_keys( string $table, array $keys ): bool {
+	private static function has_unique_keys( string $table, array $keys ): bool {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i', $table ), 2 );
+		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Non_unique = 0', $table ), 2 );
 
 		return array() === array_diff( $keys, $found );
 	}
