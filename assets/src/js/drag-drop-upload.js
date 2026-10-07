@@ -35,6 +35,15 @@ class DragDropUpload {
 			return;
 		}
 
+		// A copy of the page cached before the region was added: make one, so messages still show.
+		if (!this.statusRegion) {
+			this.statusRegion = document.createElement('div');
+			this.statusRegion.className = 'photo-comp-upload-status';
+			this.statusRegion.setAttribute('role', 'status');
+			this.statusRegion.setAttribute('aria-atomic', 'false');
+			this.progressSection.before(this.statusRegion);
+		}
+
 		this.bindEvents();
 	}
 
@@ -539,7 +548,8 @@ class DragDropUpload {
 		barContainer.append(bar, barText);
 
 		this.progressSection.replaceChildren(status, barContainer);
-		this.statusRegion.replaceChildren();
+		// Only the last batch's summary goes; a message shown just before stays for its few seconds.
+		this.statusRegion.querySelector(':scope > p')?.remove();
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
@@ -706,7 +716,8 @@ class DragDropUpload {
 			summary.className = successCount > 0 ? 'notice' : 'error';
 		}
 		summary.textContent = message;
-		this.statusRegion.replaceChildren(summary);
+		// Above any message still showing, which removes itself after a few seconds.
+		this.statusRegion.prepend(summary);
 
 		// The progress box holds only the failures from here on, so it's hidden when there are none.
 		// A refused upload always adds a failure, so failures is empty exactly when failedCount is 0.
