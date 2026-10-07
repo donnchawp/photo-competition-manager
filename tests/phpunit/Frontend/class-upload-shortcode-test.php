@@ -323,6 +323,65 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * @dataProvider message_texts
+	 */
+	public function test_each_message_key_shows_its_text( string $key, string $escaped_text ): void {
+		$_GET = array(
+			'token'    => $this->issue_token( true ),
+			'msg_type' => 'success',
+			'msg_key'  => $key,
+			'msg_time' => time(),
+		);
+
+		$this->assertStringContainsString( '<p class="success">' . $escaped_text . '</p>', $this->shortcode->render( array() ) );
+	}
+
+	/**
+	 * Every message key and the text it shows, as escaped on the page.
+	 *
+	 * @return array<string, array{0: string, 1: string}>
+	 */
+	public function message_texts(): array {
+		return array(
+			'upload_success'     => array( 'upload_success', 'Image uploaded successfully!' ),
+			'delete_success'     => array( 'delete_success', 'Image deleted successfully.' ),
+			'category_missing'   => array( 'category_missing', 'Please select a category.' ),
+			'image_missing'      => array( 'image_missing', 'Please select an image to upload.' ),
+			'invalid_deletion'   => array( 'invalid_deletion', 'Invalid deletion request.' ),
+			'upload_failed'      => array( 'upload_failed', 'Upload failed. Please try again.' ),
+			'delete_failed'      => array( 'delete_failed', 'Failed to delete image. Please try again.' ),
+			'quota_exceeded'     => array( 'quota_exceeded', 'You&#039;ve already uploaded the maximum number of images for this category.' ),
+			'uploads_closed'     => array( 'uploads_closed', 'This competition isn&#039;t accepting uploads right now.' ),
+			'category_has_votes' => array( 'category_has_votes', 'This category already has votes, so it can&#039;t take new entries.' ),
+			'voting_started'     => array( 'voting_started', 'Voting has started in this category, so it can&#039;t take new entries.' ),
+			'invalid_category'   => array( 'invalid_category', 'That category isn&#039;t part of this competition.' ),
+			'file_too_large'     => array( 'file_too_large', 'That image is too big. Check the size limit under the upload form.' ),
+			'wrong_file_type'    => array( 'wrong_file_type', 'That file type isn&#039;t allowed. Check the formats listed under the upload form.' ),
+			'invalid_image'      => array( 'invalid_image', 'That file isn&#039;t a valid image.' ),
+			'deleting_closed'    => array( 'deleting_closed', 'Images can&#039;t be deleted now that uploads have closed.' ),
+			'entry_not_found'    => array( 'entry_not_found', 'That image wasn&#039;t found. It may already have been deleted.' ),
+		);
+	}
+
+	public function test_a_message_shows_its_translation(): void {
+		$translate = static function ( $translation, $text, $domain ) {
+			if ( 'photo-competition-manager' === $domain && 'Upload failed. Please try again.' === $text ) {
+				return 'Níor éirigh leis an uaslódáil.';
+			}
+			return $translation;
+		};
+		add_filter( 'gettext', $translate, 10, 3 );
+
+		try {
+			$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_PARTIAL ) );
+		} finally {
+			remove_filter( 'gettext', $translate, 10 );
+		}
+
+		$this->assertStringContainsString( '<p class="error">Níor éirigh leis an uaslódáil.</p>', $output );
+	}
+
+	/**
 	 * Post the upload page's own form, and return where it redirects.
 	 *
 	 * @param string               $token      Upload token.

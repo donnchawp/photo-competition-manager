@@ -27,33 +27,6 @@ use PhotoCompetitionManager\Support\Competition_Settings;
 class Upload_Shortcode {
 
 	/**
-	 * Allowed message keys and their corresponding text.
-	 *
-	 * The text is fixed, because only the key travels in the redirect.
-	 *
-	 * @var array<string, string>
-	 */
-	private const ALLOWED_MESSAGES = array(
-		'upload_success'     => 'Image uploaded successfully!',
-		'delete_success'     => 'Image deleted successfully.',
-		'category_missing'   => 'Please select a category.',
-		'image_missing'      => 'Please select an image to upload.',
-		'invalid_deletion'   => 'Invalid deletion request.',
-		'upload_failed'      => 'Upload failed. Please try again.',
-		'delete_failed'      => 'Failed to delete image. Please try again.',
-		'quota_exceeded'     => 'You\'ve already uploaded the maximum number of images for this category.',
-		'uploads_closed'     => 'This competition isn\'t accepting uploads right now.',
-		'category_has_votes' => 'This category already has votes, so it can\'t take new entries.',
-		'voting_started'     => 'Voting has started in this category, so it can\'t take new entries.',
-		'invalid_category'   => 'That category isn\'t part of this competition.',
-		'file_too_large'     => 'That image is too big. Check the size limit under the upload form.',
-		'wrong_file_type'    => 'That file type isn\'t allowed. Check the formats listed under the upload form.',
-		'invalid_image'      => 'That file isn\'t a valid image.',
-		'deleting_closed'    => 'Images can\'t be deleted now that uploads have closed.',
-		'entry_not_found'    => 'That image wasn\'t found. It may already have been deleted.',
-	);
-
-	/**
 	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
 	 *
 	 * @var array<string, string>
@@ -264,11 +237,11 @@ class Upload_Shortcode {
 				$msg_type = sanitize_text_field( wp_unslash( $_GET['msg_type'] ) );
 				$msg_key  = sanitize_text_field( wp_unslash( $_GET['msg_key'] ) );
 
-				// Only display message if the key is in the allowed list.
-				if ( isset( self::ALLOWED_MESSAGES[ $msg_key ] ) ) {
-					$msg_text = self::ALLOWED_MESSAGES[ $msg_key ];
-					$class    = 'success' === $msg_type ? 'success' : 'error';
-					$message  = '<p class="' . esc_attr( $class ) . '">' . esc_html( $msg_text ) . '</p>';
+				// Unknown keys show nothing.
+				$msg_text = $this->message_text( $msg_key );
+				if ( null !== $msg_text ) {
+					$class   = 'success' === $msg_type ? 'success' : 'error';
+					$message = '<p class="' . esc_attr( $class ) . '">' . esc_html( $msg_text ) . '</p>';
 				}
 			}
 		}
@@ -405,10 +378,44 @@ class Upload_Shortcode {
 	}
 
 	/**
+	 * The text shown for a message key from a redirect.
+	 *
+	 * Only the key travels in the redirect, so a request can't put its own words on the page.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $key Message key.
+	 * @return string|null Translated text, or null for an unknown key.
+	 */
+	private function message_text( string $key ): ?string {
+		$messages = array(
+			'upload_success'     => __( 'Image uploaded successfully!', 'photo-competition-manager' ),
+			'delete_success'     => __( 'Image deleted successfully.', 'photo-competition-manager' ),
+			'category_missing'   => __( 'Please select a category.', 'photo-competition-manager' ),
+			'image_missing'      => __( 'Please select an image to upload.', 'photo-competition-manager' ),
+			'invalid_deletion'   => __( 'Invalid deletion request.', 'photo-competition-manager' ),
+			'upload_failed'      => __( 'Upload failed. Please try again.', 'photo-competition-manager' ),
+			'delete_failed'      => __( 'Failed to delete image. Please try again.', 'photo-competition-manager' ),
+			'quota_exceeded'     => __( 'You\'ve already uploaded the maximum number of images for this category.', 'photo-competition-manager' ),
+			'uploads_closed'     => __( 'This competition isn\'t accepting uploads right now.', 'photo-competition-manager' ),
+			'category_has_votes' => __( 'This category already has votes, so it can\'t take new entries.', 'photo-competition-manager' ),
+			'voting_started'     => __( 'Voting has started in this category, so it can\'t take new entries.', 'photo-competition-manager' ),
+			'invalid_category'   => __( 'That category isn\'t part of this competition.', 'photo-competition-manager' ),
+			'file_too_large'     => __( 'That image is too big. Check the size limit under the upload form.', 'photo-competition-manager' ),
+			'wrong_file_type'    => __( 'That file type isn\'t allowed. Check the formats listed under the upload form.', 'photo-competition-manager' ),
+			'invalid_image'      => __( 'That file isn\'t a valid image.', 'photo-competition-manager' ),
+			'deleting_closed'    => __( 'Images can\'t be deleted now that uploads have closed.', 'photo-competition-manager' ),
+			'entry_not_found'    => __( 'That image wasn\'t found. It may already have been deleted.', 'photo-competition-manager' ),
+		);
+
+		return $messages[ $key ] ?? null;
+	}
+
+	/**
 	 * Redirect with a message using query parameters (Post/Redirect/Get pattern).
 	 *
 	 * @param string $type        Message type (success or error).
-	 * @param string $message_key Message key from ALLOWED_MESSAGES.
+	 * @param string $message_key Message key that message_text() knows.
 	 * @return void
 	 */
 	private function redirect_with_message( string $type, string $message_key ): void {
