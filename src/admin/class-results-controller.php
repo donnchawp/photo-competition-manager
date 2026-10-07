@@ -838,7 +838,8 @@ class Results_Controller {
 	/**
 	 * The member name an exported entry gets. A recorded entry whose member
 	 * was deleted is a former member's. Before results are recorded, a
-	 * missing member is a data error, and the name is left blank.
+	 * missing member is a data error, exported as "Unknown" as the Results
+	 * screen shows it.
 	 *
 	 * @since 0.4.0
 	 *
@@ -850,6 +851,6 @@ class Results_Controller {
 			return (string) $entry['member']->name;
 		}
 
-		return $entry['recorded'] ? __( 'Former member', 'photo-competition-manager' ) : '';
+		return $entry['recorded'] ? __( 'Former member', 'photo-competition-manager' ) : __( 'Unknown', 'photo-competition-manager' );
 	}
 }

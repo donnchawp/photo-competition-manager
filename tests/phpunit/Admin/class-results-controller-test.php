@@ -848,10 +848,10 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 	/**
 	 * Before results are recorded, an entry whose member is missing is an
-	 * ungraded data error, not a former member's, so it's exported with no
-	 * member name.
+	 * ungraded data error, not a former member's, so it's exported as
+	 * "Unknown", as the Results screen shows it.
 	 */
-	public function test_export_rows_give_no_name_to_a_missing_member_before_results_are_recorded(): void {
+	public function test_export_rows_call_a_missing_member_unknown_before_results_are_recorded(): void {
 		$this->competition_id = $this->create_open_competition();
 		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
 		$this->images->create(
@@ -868,7 +868,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame(
 			array(
 				'Beginner|Colour|1|Winner',
-				'Ungraded|Colour|1|',
+				'Ungraded|Colour|1|Unknown',
 			),
 			$this->summarize_export_rows( $rows )
 		);
