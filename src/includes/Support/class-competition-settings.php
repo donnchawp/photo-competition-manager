@@ -553,13 +553,13 @@ class Competition_Settings {
 	}
 
 	/**
-	 * The per-file upload limit that's really enforced: the lower of the
-	 * competition's limit and PHP's. PHP refuses a bigger file before
-	 * WordPress sees it.
+	 * The per-file upload limit that's really enforced: the lowest of the
+	 * competition's limit, upload_max_filesize and post_max_size. PHP
+	 * refuses a bigger file before WordPress sees it.
 	 *
-	 * Reads PHP's upload_max_filesize directly, not wp_max_upload_size(),
-	 * which multisite caps at the network's upload limit and the site's
-	 * space quota. The plugin applies neither.
+	 * Reads PHP's settings directly, not wp_max_upload_size(), which
+	 * multisite caps at the network's upload limit and the site's space
+	 * quota. The plugin applies neither.
 	 *
 	 * @since 0.4.0
 	 *
@@ -568,6 +568,10 @@ class Competition_Settings {
 	 */
 	public static function enforced_max_file_size( array $upload_constraints ): int {
 		$competition_limit = (int) ( $upload_constraints['max_file_size_mb'] ?? self::defaults()['upload']['max_file_size_mb'] ) * MB_IN_BYTES;
+		$php_limit         = self::lowest_limit(
+			wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) ),
+			wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) )
+		);
 
 		/**
 		 * Filters the server's per-file upload limit. Lower it when something in
@@ -577,12 +581,28 @@ class Competition_Settings {
 		 *
 		 * @since 0.4.0
 		 *
-		 * @param int $server_limit PHP's upload_max_filesize, in bytes. 0 or less is no limit.
+		 * @param int $server_limit The lower of PHP's upload_max_filesize and post_max_size, in bytes. 0 or less is no limit.
 		 */
-		$server_limit = (int) apply_filters( 'photo_competition_manager_server_upload_limit', wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) );
+		$server_limit = (int) apply_filters( 'photo_competition_manager_server_upload_limit', $php_limit );
 
-		// PHP only applies upload_max_filesize when it's above 0.
-		return $server_limit > 0 ? min( $competition_limit, $server_limit ) : $competition_limit;
+		return self::lowest_limit( $competition_limit, $server_limit );
+	}
+
+	/**
+	 * The lowest of some size limits, ignoring any of 0 or less, which PHP reads as no limit.
+	 *
+	 * @param int ...$limits Limits, in bytes.
+	 * @return int The lowest limit, or 0 when there is none.
+	 */
+	private static function lowest_limit( int ...$limits ): int {
+		$limits = array_filter(
+			$limits,
+			static function ( int $limit ): bool {
+				return $limit > 0;
+			}
+		);
+
+		return $limits ? min( $limits ) : 0;
 	}
 
 	/**

@@ -144,7 +144,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		return array(
 			'server below the competition' => array( 2 * MB_IN_BYTES, 2 ),
 			'competition below the server' => array( 8 * MB_IN_BYTES, 5 ),
-			// PHP reads an upload_max_filesize of 0 or less as no limit.
+			// PHP reads a size limit of 0 or less as no limit.
 			'no server limit'              => array( 0, 5 ),
 		);
 	}
