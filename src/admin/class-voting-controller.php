@@ -341,7 +341,8 @@ class Voting_Controller {
 	 * @param string         $success_message Human-readable success message.
 	 * @param string         $focus           Focus-panel key to preserve across the redirect.
 	 * @param callable|null  $on_success      Optional side-effect to run only on success. If it
-	 *                                        returns an email job ID, the page shows the job's progress.
+	 *                                        returns an email job ID, the page shows the job's progress;
+	 *                                        if it returns a WP_Error, the page shows it as a warning.
 	 * @return void
 	 */
 	private function finish_voting_update( $result, string $success_code, string $success_message, string $focus, ?callable $on_success = null ): void {
@@ -363,6 +364,11 @@ class Voting_Controller {
 			);
 
 			$job_id = $on_success ? $on_success() : null;
+
+			if ( is_wp_error( $job_id ) ) {
+				add_settings_error( 'photo_competition_voting', $job_id->get_error_code(), $job_id->get_error_message(), 'warning' );
+				$job_id = null;
+			}
 		}
 
 		$redirect_args = array( 'page' => 'photo-competition-manager-voting' );
@@ -425,17 +431,9 @@ class Voting_Controller {
 		$active_settings = Competition_Settings::parse( $active_competition->settings );
 		$global_settings = Competition_Settings::global_settings();
 
-		// Check that required pages are configured. A competition that doesn't
-		// override the voting page has its urls.voting_page SET to '' (not
-		// unset), so `??` would return that empty string and shadow the
-		// populated global default. Use an empty-aware fallback instead.
-		$voting_page = '';
-		if ( ! empty( $active_settings['urls']['voting_page'] ) ) {
-			$voting_page = $active_settings['urls']['voting_page'];
-		} elseif ( ! empty( $global_settings['urls']['voting_page'] ) ) {
-			$voting_page = $global_settings['urls']['voting_page'];
-		}
-		$results_page = $global_settings['urls']['results_page'] ?? '';
+		// Check that required pages are configured.
+		$voting_page  = Competition_Settings::page_url( 'voting_page', $active_competition );
+		$results_page = Competition_Settings::page_url( 'results_page', $active_competition );
 		if ( empty( $voting_page ) || empty( $results_page ) ) {
 			$missing = array();
 			if ( empty( $voting_page ) ) {
@@ -537,15 +535,6 @@ class Voting_Controller {
 
 		$current_key = $active_category_data['key'];
 
-		// Get voting page URL.
-		$voting_page_url = '';
-		$comp_urls       = $active_settings['urls'] ?? array();
-		if ( ! empty( $comp_urls['voting_page'] ) ) {
-			$voting_page_url = $comp_urls['voting_page'];
-		} elseif ( ! empty( $global_settings['urls']['voting_page'] ) ) {
-			$voting_page_url = $global_settings['urls']['voting_page'];
-		}
-
 		// Render Competition Status Bar.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_competition_status_bar( $active_competition );
@@ -574,7 +563,7 @@ class Voting_Controller {
 
 		// Render Quick Actions.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_quick_actions( $voting_page_url, $global_settings, $active_settings );
+		echo $this->render_quick_actions( $voting_page, $global_settings, $active_settings );
 
 		// Hidden meter type setting for slideshow.
 		$meter_type = $active_settings['slideshow']['progress_meter_type'] ?? 'bar';
@@ -602,19 +591,26 @@ class Voting_Controller {
 	 * Queue voting opened notifications to all active members.
 	 *
 	 * @param object $competition Competition object.
-	 * @return string|null Job ID, or null if nothing was queued.
+	 * @return string|\WP_Error|null Job ID, 'no_voting_page' when members would be
+	 *                               told but there's no voting page to link, or null
+	 *                               if nothing was queued.
 	 */
-	private function queue_voting_opened_notifications( object $competition ): ?string {
+	private function queue_voting_opened_notifications( object $competition ) {
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
 			return null;
 		}
 
-		// Get voting page URL from global settings.
-		$global_settings = Competition_Settings::global_settings();
-		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
+		$voting_page_url = Competition_Settings::page_url( 'voting_page', $competition );
 
-		if ( empty( $voting_page_url ) ) {
-			return null; // No voting page URL configured, skip sending.
+		if ( '' === $voting_page_url ) {
+			return new \WP_Error(
+				'no_voting_page',
+				sprintf(
+					/* translators: %s: URL of the plugin's Settings screen */
+					__( 'Members weren\'t emailed that voting is open, because no voting page is set. <a href="%s">Set the voting page in Settings</a>, or publish a page with the [competition_voting] shortcode.', 'photo-competition-manager' ),
+					esc_url( admin_url( 'admin.php?page=photo-competition-manager-settings' ) )
+				)
+			);
 		}
 
 		$member_ids = array();
