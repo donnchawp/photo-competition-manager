@@ -412,6 +412,20 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 5, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_6_adds_the_unique_key_to_voting_tokens_without_the_plain_one(): void {
+		$this->shadowed = Legacy_Tables::shadow_v5_voting_tokens( false );
+		$this->record_ddl();
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		// Dropping a key that isn't there would fail every time, so the
+		// upgrade would never finish.
+		$this->assertSame( array(), preg_grep( '/DROP INDEX/i', $this->ddl ), implode( "\n", $this->ddl ) );
+		$added = preg_grep( '/^ALTER TABLE `?\w*photocomp_voting_tokens`? ADD UNIQUE KEY `?member_competition_category`? \(`?member_id`?, `?competition_id`?, `?category`?\)$/i', $this->ddl );
+		$this->assertCount( 1, $added, implode( "\n", $this->ddl ) );
+	}
+
 	public function test_upgrade_to_6_leaves_voting_tokens_with_the_unique_key_alone(): void {
 		$this->record_ddl();
 		update_option( 'photo_comp_db_version', 5 );
@@ -589,6 +603,20 @@ class Activator_Test extends WP_UnitTestCase {
 		// The swallowed ALTER means the key never appears, so the upgrade
 		// stops there and runs again on the next request.
 		$this->assertSame( 7, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_8_adds_the_unique_key_to_upload_tokens_without_the_plain_one(): void {
+		$this->shadowed = Legacy_Tables::shadow_v7_upload_tokens( false );
+		$this->record_ddl();
+		update_option( 'photo_comp_db_version', 7 );
+
+		Activator::maybe_upgrade();
+
+		// Dropping a key that isn't there would fail every time, so the
+		// upgrade would never finish.
+		$this->assertSame( array(), preg_grep( '/DROP INDEX/i', $this->ddl ), implode( "\n", $this->ddl ) );
+		$added = preg_grep( '/^ALTER TABLE `?\w*photocomp_upload_tokens`? ADD UNIQUE KEY `?member_competition`? \(`?member_id`?, `?competition_id`?\)$/i', $this->ddl );
+		$this->assertCount( 1, $added, implode( "\n", $this->ddl ) );
 	}
 
 	public function test_upgrade_to_8_runs_again_when_a_duplicate_cant_be_deleted(): void {

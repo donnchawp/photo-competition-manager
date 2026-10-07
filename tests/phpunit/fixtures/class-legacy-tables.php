@@ -25,12 +25,17 @@ class Legacy_Tables {
 	 * a plain key, not a unique one, so a member can hold several tokens for
 	 * a category. dbDelta can't make it unique, as the name is taken.
 	 *
+	 * Without the plain key, the table is one where no key of that name was
+	 * ever added, or someone dropped it.
+	 *
+	 * @param bool $with_plain_key Whether to add the plain member_competition_category key.
 	 * @return string The table name.
 	 */
-	public static function shadow_v5_voting_tokens(): string {
+	public static function shadow_v5_voting_tokens( bool $with_plain_key = true ): string {
 		global $wpdb;
 
-		$table = ( new Voting_Token_Repository() )->table();
+		$table     = ( new Voting_Token_Repository() )->table();
+		$plain_key = $with_plain_key ? 'KEY member_competition_category (member_id, competition_id, category),' : '';
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
 		$wpdb->query(
@@ -45,7 +50,7 @@ class Legacy_Tables {
 				sent_at DATETIME NULL,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				PRIMARY KEY  (id),
-				KEY member_competition_category (member_id, competition_id, category),
+				{$plain_key}
 				KEY token_hash (token_hash),
 				KEY expires_at (expires_at)
 			) {$wpdb->get_charset_collate()}"
@@ -60,12 +65,17 @@ class Legacy_Tables {
 	 * key, not a unique one, so a member can hold several upload tokens for
 	 * a competition. dbDelta can't make it unique, as the name is taken.
 	 *
+	 * Without the plain key, the table is one where no key of that name was
+	 * ever added, or someone dropped it.
+	 *
+	 * @param bool $with_plain_key Whether to add the plain member_competition key.
 	 * @return string The table name.
 	 */
-	public static function shadow_v7_upload_tokens(): string {
+	public static function shadow_v7_upload_tokens( bool $with_plain_key = true ): string {
 		global $wpdb;
 
-		$table = ( new Upload_Token_Repository() )->table();
+		$table     = ( new Upload_Token_Repository() )->table();
+		$plain_key = $with_plain_key ? 'KEY member_competition (member_id, competition_id),' : '';
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
 		$wpdb->query(
@@ -79,7 +89,7 @@ class Legacy_Tables {
 				sent_at DATETIME NULL,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				PRIMARY KEY  (id),
-				KEY member_competition (member_id, competition_id),
+				{$plain_key}
 				KEY token (token),
 				KEY expires_at (expires_at)
 			) {$wpdb->get_charset_collate()}"
