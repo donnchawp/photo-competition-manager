@@ -693,6 +693,9 @@ class Upload_Shortcode {
 						<?php esc_html_e( 'Upload All', 'photo-competition-manager' ); ?>
 					</button>
 
+					<?php // Never hidden, so screen readers announce the batch's outcome and errors written into it. ?>
+					<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>
+
 					<div class="photo-comp-upload-progress"></div>
 
 					<?php

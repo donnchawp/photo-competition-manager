@@ -28,9 +28,20 @@ class DragDropUpload {
 		this.previewGrid = document.querySelector('.photo-comp-preview-grid');
 		this.uploadButton = document.querySelector('.photo-comp-upload-all-btn');
 		this.progressSection = document.querySelector('.photo-comp-upload-progress');
+		// A live region already in the page, so screen readers announce what's written into it.
+		this.statusRegion = document.querySelector('.photo-comp-upload-status');
 
 		if (!this.dropZone || !this.fileInput || !this.previewGrid) {
 			return;
+		}
+
+		// A copy of the page cached before the region was added: make one, so messages still show.
+		if (!this.statusRegion) {
+			this.statusRegion = document.createElement('div');
+			this.statusRegion.className = 'photo-comp-upload-status';
+			this.statusRegion.setAttribute('role', 'status');
+			this.statusRegion.setAttribute('aria-atomic', 'false');
+			this.progressSection.before(this.statusRegion);
 		}
 
 		this.bindEvents();
@@ -537,6 +548,8 @@ class DragDropUpload {
 		barContainer.append(bar, barText);
 
 		this.progressSection.replaceChildren(status, barContainer);
+		// Only the last batch's summary goes; a message shown just before stays for its few seconds.
+		this.statusRegion.querySelector(':scope > p')?.remove();
 
 		// One image per request, so no request is bigger than PHP's post_max_size allows.
 		const files = this.selectedFiles.slice();
@@ -665,6 +678,10 @@ class DragDropUpload {
 	/**
 	 * Show how each upload went.
 	 *
+	 * The summary is styled as a success only when every image went in, as a
+	 * notice when some did, and as an error when none did. It's announced
+	 * through the page's live region, and takes focus when anything failed.
+	 *
 	 * When every image went in, the page reloads to show the new entries. When
 	 * some failed, the failures stay listed with a button to reload, so the
 	 * member can see which images to fix first.
@@ -677,11 +694,13 @@ class DragDropUpload {
 		const successCount = results.length - failures.length;
 		const failedCount = total - successCount;
 
-		let message = sprintf(
-			/* translators: %d: number of images uploaded. */
-			_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
-			successCount
-		);
+		let message = successCount > 0
+			? sprintf(
+				/* translators: %d: number of images uploaded. */
+				_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
+				successCount
+			)
+			: __('No images were uploaded.', 'photo-competition-manager');
 		if (failedCount > 0) {
 			message += ' ' + sprintf(
 				/* translators: %d: number of images that failed to upload. */
@@ -691,11 +710,18 @@ class DragDropUpload {
 		}
 
 		const summary = document.createElement('p');
-		summary.className = 'success';
+		if (failedCount === 0) {
+			summary.className = 'success';
+		} else {
+			summary.className = successCount > 0 ? 'notice' : 'error';
+		}
 		summary.textContent = message;
-		this.progressSection.replaceChildren(summary);
+		// Above any message still showing, which removes itself after a few seconds.
+		this.statusRegion.prepend(summary);
 
-		if (failures.length > 0) {
+		// The progress box holds only the failures from here on, so it's hidden when there are none.
+		// A refused upload always adds a failure, so failures is empty exactly when failedCount is 0.
+		if (failedCount > 0) {
 			const errorList = document.createElement('ul');
 			errorList.className = 'photo-comp-error-list';
 
@@ -705,7 +731,15 @@ class DragDropUpload {
 				errorList.appendChild(li);
 			});
 
-			this.progressSection.appendChild(errorList);
+			this.progressSection.replaceChildren(errorList);
+			this.progressSection.style.display = 'block';
+
+			// Take keyboard users to the summary, so the failures listed under it come next.
+			summary.tabIndex = -1;
+			summary.focus();
+		} else {
+			this.progressSection.replaceChildren();
+			this.progressSection.style.display = 'none';
 		}
 
 		if (successCount === 0) {
@@ -732,11 +766,8 @@ class DragDropUpload {
 		errorDiv.className = 'photo-comp-error-message';
 		errorDiv.textContent = message;
 
-		// Added below whatever is there, so a batch's failure list stays on screen.
-		if (this.progressSection) {
-			this.progressSection.appendChild(errorDiv);
-			this.progressSection.style.display = 'block';
-		}
+		// Added below whatever is there, so a batch's summary stays on screen.
+		this.statusRegion.appendChild(errorDiv);
 
 		setTimeout(() => {
 			errorDiv.remove();

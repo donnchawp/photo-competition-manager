@@ -52,12 +52,19 @@ class FakeXhr {
 
 const uploaded = { results: { file_0: { success: true, image_id: 1 } }, success_count: 1, error_count: 0, total: 1 };
 
-function renderPage() {
+/**
+ * Render the upload page's uploader markup.
+ *
+ * @param {boolean} withStatus Whether the page has the live region, which a copy cached before it was added lacks.
+ */
+function renderPage( withStatus = true ) {
+	const status = withStatus ? '<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>' : '';
 	document.body.innerHTML = `
 		<div class="photo-comp-drag-drop-zone"></div>
 		<input type="file" id="batch-file-input" multiple />
 		<div class="photo-comp-preview-grid"></div>
 		<button type="button" class="photo-comp-upload-all-btn">Upload All</button>
+		${ status }
 		<div class="photo-comp-upload-progress"></div>`;
 }
 
@@ -77,13 +84,14 @@ const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
 require( '../../assets/src/js/drag-drop-upload' );
 
 /**
- * Pick JPEG files in the file input, without waiting for the uploader to read them.
+ * Pick files in the file input, without waiting for the uploader to read them.
  *
  * @param {string[]} names The file names.
+ * @param {string}   type  The files' MIME type.
  */
-function pickFiles( names ) {
+function pickFiles( names, type = 'image/jpeg' ) {
 	const input = document.querySelector( '#batch-file-input' );
-	const files = names.map( ( name ) => new File( [ 'jpeg' ], name, { type: 'image/jpeg' } ) );
+	const files = names.map( ( name ) => new File( [ 'data' ], name, { type } ) );
 	Object.defineProperty( input, 'files', { value: files, configurable: true } );
 	input.dispatchEvent( new Event( 'change' ) );
 }
@@ -124,6 +132,24 @@ async function answerLastAndWait( answer ) {
  */
 function errorLines() {
 	return Array.from( document.querySelectorAll( '.photo-comp-upload-progress .photo-comp-error-list li' ), ( li ) => li.textContent );
+}
+
+/**
+ * The line that sums up how a batch went.
+ *
+ * @return {HTMLElement|null} The summary.
+ */
+function summary() {
+	return document.querySelector( '.photo-comp-upload-status p' );
+}
+
+/**
+ * The live region the upload page renders for the uploader's messages.
+ *
+ * @return {HTMLElement|null} The live region.
+ */
+function liveRegion() {
+	return document.querySelector( '[role="status"]' );
 }
 
 /**
@@ -213,6 +239,16 @@ describe( 'drag-and-drop upload', () => {
 		expect( FakeXhr.requests[ 2 ].body.get( 'file_0' ).name ).toBe( 'two.jpg' );
 	} );
 
+	it( "takes the last batch's summary away when the next batch starts", async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await jest.advanceTimersByTimeAsync( 0 );
+
+		expect( summary() ).toBeNull();
+	} );
+
 	it( 'hides Upload All when the failed image is removed after a mixed batch', async () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
@@ -266,16 +302,14 @@ describe( 'drag-and-drop upload', () => {
 		await sendTwoWithFirstUploaded();
 		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
 
-		const input = document.querySelector( '#batch-file-input' );
-		Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
-		input.dispatchEvent( new Event( 'change' ) );
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'No valid image files selected.' );
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: Only JPEG images are allowed.',
 		] );
-		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).not.toBeNull();
+		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
 	} );
 
 	it( 'keeps the refusal on screen when the link is refused after an image went in', async () => {
@@ -302,6 +336,128 @@ describe( 'drag-and-drop upload', () => {
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
 		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).toBeNull();
+	} );
+
+	it( 'shows a batch where no image went in as an error', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].fail();
+		await settle();
+		FakeXhr.requests[ 1 ].fail();
+		await settle();
+
+		expect( summary().classList.contains( 'error' ) ).toBe( true );
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
+		expect( document.activeElement ).toBe( summary() );
+	} );
+
+	it( 'shows a batch where some images went in as a notice, with both counts', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().classList.contains( 'notice' ) ).toBe( true );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+	} );
+
+	it( 'shows a batch where every image went in as a success', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( summary().className ).toBe( 'success' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
+	it( 'announces the outcome in the live region already on the page, but not the progress', async () => {
+		const region = liveRegion();
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].sendProgress( 50, 100 );
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].sendProgress( 50, 100 );
+
+		expect( region.textContent ).toBe( '' );
+
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( region.isConnected ).toBe( true );
+		expect( region.textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
+	it( 'moves focus to the summary after a batch with a failure', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( document.activeElement ).toBe( summary() );
+	} );
+
+	it( 'leaves focus alone after a batch where every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.activeElement ).not.toBe( summary() );
+	} );
+
+	it( 'announces an error in the live region already on the page', () => {
+		const region = liveRegion();
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+		expect( region.textContent ).toBe( 'No valid image files selected.' );
+	} );
+
+	it( 'hides the emptied progress box once every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.querySelector( '.photo-comp-upload-progress' ).style.display ).toBe( 'none' );
+	} );
+
+	it( 'keeps a message shown just before Upload All on screen through the batch', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].fail();
+		await settle();
+
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( liveRegion().firstElementChild ).toBe( summary() );
+	} );
+
+	describe( 'on a copy of the page cached before it had the live region', () => {
+		beforeEach( () => {
+			renderPage( false );
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		it( 'uploads the images and announces the outcome', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+			expect( FakeXhr.requests ).toHaveLength( 2 );
+			expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+			expect( liveRegion().getAttribute( 'aria-atomic' ) ).toBe( 'false' );
+			expect( liveRegion().nextElementSibling ).toBe( document.querySelector( '.photo-comp-upload-progress' ) );
+		} );
+
+		it( 'shows an error', () => {
+			pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+			expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		} );
 	} );
 
 	it( 'sends each image in a request of its own', async () => {
@@ -336,8 +492,7 @@ describe( 'drag-and-drop upload', () => {
 		FakeXhr.requests[ 2 ].respond( 200, { results: { file_0: { success: true, image_id: 3 } }, success_count: 1, error_count: 0, total: 1 } );
 		await settle();
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'two.jpg: That image is too big. Check the size limit under the upload form.',
 		] );
@@ -371,8 +526,7 @@ describe( 'drag-and-drop upload', () => {
 		FakeXhr.requests[ 1 ].respond( 200, uploaded );
 		await settle();
 
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
 		expect( errorLines() ).toEqual( [
 			'one.jpg: Network error. Please check your connection and try again.',
 		] );
@@ -387,8 +541,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 
 		expect( FakeXhr.requests ).toHaveLength( 1 );
-		const progress = document.querySelector( '.photo-comp-upload-progress' );
-		expect( progress.querySelector( '.success' ).textContent ).toBe( 'Successfully uploaded 0 images. 2 uploads failed.' );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
 		expect( errorLines() ).toEqual( [
 			'Invalid or expired upload token.',
 		] );
@@ -411,9 +564,7 @@ describe( 'drag-and-drop upload', () => {
 		} );
 
 		it( 'shows the translated message when no file is an image', () => {
-			const input = document.querySelector( '#batch-file-input' );
-			Object.defineProperty( input, 'files', { value: [ new File( [ 'text' ], 'notes.txt', { type: 'text/plain' } ) ], configurable: true } );
-			input.dispatchEvent( new Event( 'change' ) );
+			pickFiles( [ 'notes.txt' ], 'text/plain' );
 
 			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
 		} );
@@ -422,7 +573,7 @@ describe( 'drag-and-drop upload', () => {
 			await sendTwoWithFirstUploaded();
 			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
 
-			expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Uploaded 2 pictures.' );
+			expect( summary().textContent ).toBe( 'Uploaded 2 pictures.' );
 		} );
 	} );
 
@@ -433,7 +584,7 @@ describe( 'drag-and-drop upload', () => {
 		await settle();
 		await answerLastAndWait( () => FakeXhr.requests[ 0 ].respond( 200, uploaded ) );
 
-		expect( document.querySelector( '.photo-comp-upload-progress .success' ).textContent ).toBe( 'Successfully uploaded 1 image.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image.' );
 	} );
 
 	it( 'shows a category label with HTML in it as written', async () => {
