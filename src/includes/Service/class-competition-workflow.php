@@ -170,6 +170,17 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Whether a category's voting has started: its stage is past Previewed.
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Category slug.
+	 * @return bool
+	 */
+	public function has_voting_started( object $competition, string $category_slug ): bool {
+		return ! in_array( $this->stage( $competition, $category_slug ), array( self::STAGE_NOT_STARTED, self::STAGE_PREVIEWED ), true );
+	}
+
+	/**
 	 * Whether a category is accepting votes: its stage takes votes, and the
 	 * competition is inside its dates.
 	 *

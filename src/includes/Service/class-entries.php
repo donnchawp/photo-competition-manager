@@ -143,12 +143,10 @@ class Entries {
 
 		// Members can't get here in practice: voting needs uploads closed, and uploads can't reopen
 		// once there are votes. These rules don't rely on that.
-		$stage = $this->workflow->stage( $competition, $category );
-		if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+		if ( $this->workflow->has_voting_started( $competition, $category ) ) {
 			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so it can\'t take new entries. Reset the category first.', 'photo-competition-manager' ) );
 		}
 
-		// A reset can keep a category's votes, so the stage alone doesn't rule them out.
 		$voted = $this->voted_category_error( $competition_id, $category );
 		if ( $voted ) {
 			return $voted;
@@ -546,8 +544,7 @@ class Entries {
 			);
 
 			foreach ( array_unique( $touched ) as $category ) {
-				$stage = $this->workflow->stage( $competition, $category );
-				if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+				if ( $this->workflow->has_voting_started( $competition, $category ) ) {
 					return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category and clear its votes first.', 'photo-competition-manager' ) );
 				}
 			}

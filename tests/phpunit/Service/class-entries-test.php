@@ -200,11 +200,10 @@ class Entries_Test extends WP_UnitTestCase {
 	}
 
 	public function test_an_admin_cant_add_an_entry_to_a_category_thats_voting_before_anyone_votes(): void {
-		$competition_id = $this->create_competition( 'unvoted-comp', 2 );
+		$competition_id = $this->create_competition( 'unvoted-comp' );
 		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
 		$voter_id       = $this->create_member( 'John Roe', 'john@example.com' );
 		$this->add( Actor::member( $voter_id ), $competition_id, $voter_id, 'colour', array( 0, 0, 200 ) );
-		Workflow_Fixtures::close_uploads( $competition_id );
 		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
 
 		$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, 'colour', $this->photo( array( 200, 0, 0 ) ) );
