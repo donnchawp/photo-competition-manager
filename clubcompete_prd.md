@@ -123,7 +123,7 @@ Admins can upload or replace images for any member directly from the dashboard.
   - Configurable follow-ups.
   - Upload link included.
 - Admin can:
-  - Edit templates (subject, content, timing).
+  - Edit templates (subject, content, timing). Only edited templates are stored; the rest follow their default text, so improved defaults reach them. Each template card says when it is edited and has a Restore default button that fills in the default text for the admin to save.
   - Send manual reminders.
 - Optional QR code in email linking to voting page when open.
 - Page links (voting, upload and results pages) follow one rule everywhere: the competition's own page, then the club's, then a published page holding the matching shortcode. When none is found, nothing guesses a page: an upload link isn't sent and says why, and opening voting still opens it but tells the admin that members weren't emailed.
