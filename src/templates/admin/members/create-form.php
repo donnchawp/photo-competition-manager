@@ -11,6 +11,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="post" class="card" style="max-width: 520px; margin-bottom: 24px; padding: 16px;">';
 echo '<h2>' . esc_html__( 'Add Member', 'photo-competition-manager' ) . '</h2>';
 

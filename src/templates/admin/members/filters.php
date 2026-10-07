@@ -13,6 +13,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="get" class="photo-comp-filters" style="margin-bottom: 15px;">';
 echo '<input type="hidden" name="page" value="photo-competition-manager-members" />';
 

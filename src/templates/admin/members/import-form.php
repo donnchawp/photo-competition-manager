@@ -11,6 +11,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 $sample_url = wp_nonce_url(
 	add_query_arg(
 		array(

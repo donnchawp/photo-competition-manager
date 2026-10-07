@@ -19,6 +19,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 foreach ( $data['grade_tables'] as $grade_table ) {
 	echo '<h3>' . esc_html( $grade_table['label'] ) . '</h3>';
 

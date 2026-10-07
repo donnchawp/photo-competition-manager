@@ -87,7 +87,7 @@ release: clean-release build ## Build production release zip file
 	@rm -fr $(RELEASE_DIR)/$(PLUGIN_NAME)
 
 seed-competition: ## Seed 12 members, a competition, and test images for voting
-	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/plugins/photo-competition-manager/scripts/seed-voting-data.php
+	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/pcm/scripts/seed-voting-data.php
 
 plugin-check: ## Run Plugin Check into plugin-check.csv (override: PLUGIN_CHECK_CSV=path)
 	$(WP_ENV) run cli -- wp plugin check $(PLUGIN_NAME) --format=strict-csv --fields=file,line,column,type,code,message,docs > $(PLUGIN_CHECK_CSV)

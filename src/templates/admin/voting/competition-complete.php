@@ -10,6 +10,8 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 ?>
 		<div class="postbox photo-comp-workflow-card">
 			<div class="inside">
