@@ -181,6 +181,7 @@ Yes. Visit **Competitions → Export** to download:
   * Drag-and-drop upload says an image is too big when the web server in front of WordPress refuses it, and stops after the first image if the upload link is refused
   * Moving entries between categories happens all at once or not at all
   * A category takes no new entries once voting has started in it, or once it has votes
+  * Uploads can't reopen once any category's voting has started. Reset that category first
   * An image is never saved or moved onto another entry's file
   * Deleting a competition or a member deletes their entry files too
   * Originals are discarded one at a time and exported at full size
