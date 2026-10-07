@@ -62,6 +62,22 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Settings screen URL.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string
+	 */
+	private function settings_url(): string {
+		return add_query_arg(
+			array(
+				'page' => 'photo-competition-manager-settings',
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
 	 * Competition edit screen URL.
 	 *
 	 * @since 0.3.0

@@ -127,13 +127,7 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function parse( ?string $json ): array {
-		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
-
-		if ( ! is_array( $decoded ) ) {
-			$decoded = array();
-		}
-
-		$merged = self::merge_with_defaults( $decoded );
+		$merged = self::merge_with_defaults( self::decode( $json ) );
 
 		// Auto-detect page URLs if not set.
 		$merged = self::auto_detect_page_urls( $merged );
@@ -151,9 +145,30 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function global_settings(): array {
+		return self::parse( self::stored_club_settings() );
+	}
+
+	/**
+	 * The club's settings JSON as stored in the site options.
+	 *
+	 * @return string
+	 */
+	private static function stored_club_settings(): string {
 		$saved = get_option( 'photo_comp_default_settings', '' );
 
-		return self::parse( is_string( $saved ) ? $saved : '' );
+		return is_string( $saved ) ? $saved : '';
+	}
+
+	/**
+	 * Decode settings JSON, treating empty or invalid JSON as no settings.
+	 *
+	 * @param string|null $json Settings JSON.
+	 * @return array<string, mixed>
+	 */
+	private static function decode( ?string $json ): array {
+		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
+
+		return is_array( $decoded ) ? $decoded : array();
 	}
 
 	/**
@@ -620,6 +635,61 @@ class Competition_Settings {
 		}
 
 		return $settings;
+	}
+
+	/**
+	 * The URL of a competition's voting, upload, results or top 3 page.
+	 *
+	 * Every email with a page link, the Members screen and the reminder job
+	 * use this, so a competition always gets the same link. It takes the
+	 * competition's own setting, then the club's, then a published page
+	 * containing the page's shortcode. It reads the stored settings rather
+	 * than parse(), which fills in a shortcode page before the club's
+	 * setting gets a say.
+	 *
+	 * @since 0.4.0
+	 * @param string      $page        'voting_page', 'upload_page', 'results_page' or 'top3_page'.
+	 * @param object|null $competition Competition row, or null for the club's page.
+	 * @return string The page URL, or '' when no page can be found.
+	 */
+	public static function page_url( string $page, ?object $competition = null ): string {
+		$url = $competition ? self::stored_page_url( $competition->settings ?? '', $page ) : '';
+
+		if ( '' === $url ) {
+			$url = self::stored_page_url( self::stored_club_settings(), $page );
+		}
+
+		if ( '' === $url && isset( self::PAGE_SHORTCODES[ $page ] ) ) {
+			$url = self::find_page_url_with_shortcode( self::PAGE_SHORTCODES[ $page ] );
+		}
+
+		if ( 'upload_page' === $page ) {
+			/**
+			 * Filters the upload page URL that members' upload links are built on.
+			 *
+			 * @since 0.3.0
+			 * @since 0.4.0 Runs on every upload link, and may be passed ''.
+			 *
+			 * @param string      $url         Upload page URL, or '' when none was found.
+			 * @param object|null $competition Competition row.
+			 */
+			$url = (string) apply_filters( 'photo_competition_manager_upload_page_url', $url, $competition );
+		}
+
+		return $url;
+	}
+
+	/**
+	 * A page URL as stored in settings JSON, before any shortcode page is filled in.
+	 *
+	 * @param string|null $json Settings JSON.
+	 * @param string      $page Settings URL key.
+	 * @return string The stored URL, or ''.
+	 */
+	private static function stored_page_url( ?string $json, string $page ): string {
+		$url = self::decode( $json )['urls'][ $page ] ?? '';
+
+		return is_string( $url ) ? $url : '';
 	}
 
 	/**

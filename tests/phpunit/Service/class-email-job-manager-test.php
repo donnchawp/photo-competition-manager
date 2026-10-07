@@ -524,7 +524,8 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_upload_link_job_sends_then_skips_rate_limited_members(): void {
 		$alice = $this->seed_member( 'alice@example.com' );
 		$bob   = $this->seed_member( 'bob@example.com' );
-		$args  = array( 'upload_page_url' => 'https://example.com/upload/' );
+		$args  = array();
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 
 		$first = $this->manager->create_job( 'upload_reminder', $this->competition_id, array( $alice, $bob ), $args );
 		$this->manager->process_batch( $first );
@@ -568,15 +569,13 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_voting_opened_job_sends_notification(): void {
 		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
 		$member_id = $this->seed_member( 'a@example.com' );
 		$job_id    = $this->manager->create_job(
 			'voting_opened',
 			$this->competition_id,
 			array( $member_id ),
-			array(
-				'voting_page_url' => 'https://example.com/vote/',
-				'close_date'      => 'Friday 3 April',
-			)
+			array( 'close_date' => 'Friday 3 April' )
 		);
 
 		$this->manager->process_batch( $job_id );
@@ -593,10 +592,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 			'voting_opened',
 			$this->competition_id,
 			array( $this->seed_member( 'a@example.com' ), $this->seed_member( 'b@example.com' ) ),
-			array(
-				'voting_page_url' => 'https://example.com/vote/',
-				'close_date'      => '',
-			)
+			array( 'close_date' => '' )
 		);
 
 		delete_option( 'photo_comp_email_templates' );

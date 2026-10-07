@@ -13,9 +13,10 @@
  * (string): 'buttons' or 'dropdown'. $data['score_matrix_text'] (string):
  * comma-separated score matrix values. $data['progress_meter_type']
  * (string): 'bar', 'line', 'dots', or 'radial'. $data['urls']
- * (array{upload_page: string, voting_page: string, results_page?: string}).
+ * (array{upload_page: string, voting_page: string}).
  * $data['share_hash'] (string): results share hash, or '' when not
- * generated.
+ * generated. $data['results_page_url'] (string): the competition's results
+ * page from Competition_Settings::page_url(), or '' when none is found.
  *
  * @package PhotoCompetitionManager
  */
@@ -151,9 +152,8 @@ if ( ! empty( $data['share_hash'] ) ) {
 	echo '<label>' . esc_html__( 'Results Share Hash', 'photo-competition-manager' ) . '</label><br />';
 	echo '<code>' . esc_html( $data['share_hash'] ) . '</code>';
 
-	$results_page_url = $data['urls']['results_page'] ?? '';
-	if ( ! empty( $results_page_url ) ) {
-		$share_url = add_query_arg( 'share', $data['share_hash'], $results_page_url );
+	if ( '' !== $data['results_page_url'] ) {
+		$share_url = add_query_arg( 'share', $data['share_hash'], $data['results_page_url'] );
 		echo '<br /><span class="description">' . esc_html__( 'Share link:', 'photo-competition-manager' ) . ' <a href="' . esc_url( $share_url ) . '" target="_blank">' . esc_html( $share_url ) . '</a></span>';
 	}
 	echo '</p>';

@@ -13,7 +13,6 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
@@ -183,26 +182,10 @@ class Members_Controller {
 				$this->redirect_with_settings_errors( $this->members_url() );
 			}
 
-			// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
-			$settings        = Competition_Settings::parse( $competition->settings );
-			$urls            = $settings['urls'] ?? array();
-			$upload_page_url = $urls['upload_page'] ?? '';
-
-			if ( empty( $upload_page_url ) ) {
-				$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
-			}
-
-			if ( empty( $upload_page_url ) ) {
-				$upload_page_url = home_url( '/' );
-			}
-
-			$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
-
 			$upload_link_service = new Upload_Link_Service();
 			$result              = $upload_link_service->send_to_member(
 				(int) $competition_id,
 				(int) $member_id,
-				$upload_page_url,
 				true // Send email immediately.
 			);
 
@@ -905,39 +888,16 @@ class Members_Controller {
 	/**
 	 * Generate the upload URL for a member for a specific competition.
 	 *
-	 * Retrieves the upload page URL from competition settings or auto-discovers it,
-	 * then generates a tokenized URL that can be shared with the member.
+	 * Builds it on the same upload page the member's upload link emails use.
 	 *
 	 * @param  int    $member_id   Member ID.
 	 * @param  object $competition Competition object.
 	 * @return string Upload URL with token, or empty string if URL cannot be determined.
 	 */
 	private function get_member_upload_url( int $member_id, object $competition ): string {
-		// Resolve upload page URL from competition settings or shortcode detection, fallback to home.
-		$settings        = Competition_Settings::parse( $competition->settings );
-		$urls            = $settings['urls'] ?? array();
-		$upload_page_url = $urls['upload_page'] ?? '';
+		$upload_url = ( new Upload_Link_Service() )->upload_url( $competition, $member_id );
 
-		if ( empty( $upload_page_url ) ) {
-			$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
-		}
-
-		if ( empty( $upload_page_url ) ) {
-			return '';
-		}
-
-		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
-
-		// Use the repository to generate the upload URL with a fresh token.
-		$token_repo = new Upload_Token_Repository();
-		$upload_url = $token_repo->generate_upload_url( (int) $competition->id, $member_id, $upload_page_url );
-
-		// Return empty string if there was an error.
-		if ( is_wp_error( $upload_url ) ) {
-			return '';
-		}
-
-		return $upload_url;
+		return is_wp_error( $upload_url ) ? '' : $upload_url;
 	}
 
 	/**

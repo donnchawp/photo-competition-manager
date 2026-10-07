@@ -126,6 +126,7 @@ Admins can upload or replace images for any member directly from the dashboard.
   - Edit templates (subject, content, timing).
   - Send manual reminders.
 - Optional QR code in email linking to voting page when open.
+- Page links (voting, upload and results pages) follow one rule everywhere: the competition's own page, then the club's, then a published page holding the matching shortcode. When none is found, nothing guesses a page: an upload link isn't sent and says why, and opening voting still opens it but tells the admin that members weren't emailed.
 
 ### 4.7 Results & Archiving
 - Admin dashboard displays live results (averages or totals).

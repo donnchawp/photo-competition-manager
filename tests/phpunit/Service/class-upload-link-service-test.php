@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
@@ -46,6 +47,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->service = new Upload_Link_Service();
 		$this->comps   = new Competitions_Repository();
 		$this->members = new Members_Repository();
+
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 
 		$this->mail_count = 0;
 		add_filter(
@@ -94,14 +97,14 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_send_to_member_missing_competition() {
 		$member_id = $this->make_member( 'Alice', 'alice@example.com' );
-		$result    = $this->service->send_to_member( 9999, $member_id, 'https://example.com/upload/' );
+		$result    = $this->service->send_to_member( 9999, $member_id );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_competition', $result->get_error_code() );
 	}
 
 	public function test_send_to_member_missing_member() {
 		$competition_id = $this->make_open_competition();
-		$result         = $this->service->send_to_member( $competition_id, 9999, 'https://example.com/upload/' );
+		$result         = $this->service->send_to_member( $competition_id, 9999 );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_member', $result->get_error_code() );
 	}
@@ -113,7 +116,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->update( $this->members->table(), array( 'email' => '' ), array( 'id' => $member_id ), array( '%s' ), array( '%d' ) );
 
-		$result = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$result = $this->service->send_to_member( $competition_id, $member_id );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_email', $result->get_error_code() );
 	}
@@ -122,7 +125,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com', false );
 
-		$result = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/', true );
+		$result = $this->service->send_to_member( $competition_id, $member_id, true );
 		$this->assertWPError( $result );
 		$this->assertSame( 'inactive_member', $result->get_error_code() );
 		$this->assertSame( 0, $this->mail_count );
@@ -132,11 +135,11 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 
-		$first = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$first = $this->service->send_to_member( $competition_id, $member_id );
 		$this->assertTrue( $first );
 		$this->assertSame( 1, $this->mail_count );
 
-		$second = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$second = $this->service->send_to_member( $competition_id, $member_id );
 		$this->assertTrue( $second );
 		$this->assertSame( 1, $this->mail_count );
 	}
@@ -145,11 +148,71 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 
-		$this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$this->service->send_to_member( $competition_id, $member_id );
 
 		$this->assertSame( 'alice@example.com', $this->last_mail['to'] );
 		$this->assertStringContainsString( 'Here is your link to upload images for Open Comp.', $this->last_mail['message'] );
 		$this->assertMatchesRegularExpression( '#href="https://example.com/upload/\?[^"]+"#', $this->last_mail['message'] );
+	}
+
+	public function test_send_to_member_links_the_pages_the_rule_finds() {
+		update_option(
+			'photo_comp_default_settings',
+			wp_json_encode(
+				array(
+					'urls' => array(
+						'upload_page' => 'https://example.com/club-upload/',
+						'voting_page' => 'https://example.com/club-vote/',
+					),
+				)
+			)
+		);
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_voting] [competition_upload]',
+			)
+		);
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id );
+
+		$this->assertMatchesRegularExpression( '#href="https://example.com/club-upload/\?[^"]+"#', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'you can vote at https://example.com/club-vote/', $this->last_mail['message'] );
+	}
+
+	public function test_send_to_member_refuses_when_no_upload_page_can_be_found() {
+		delete_option( 'photo_comp_default_settings' );
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$result = $this->service->send_to_member( $competition_id, $member_id, true );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_upload_page', $result->get_error_code() );
+		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_send_by_email_fails_visibly_when_no_upload_page_can_be_found() {
+		delete_option( 'photo_comp_default_settings' );
+		$competition_id = $this->make_open_competition();
+		$this->make_member( 'Bob', 'bob@example.com' );
+
+		$this->assertFalse( $this->service->send_by_email( $competition_id, 'bob@example.com' ) );
+		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_send_by_email_logs_why_it_failed_when_no_upload_page_can_be_found() {
+		delete_option( 'photo_comp_default_settings' );
+		$competition_id = $this->make_open_competition();
+
+		$this->service->send_by_email( $competition_id, 'bob@example.com' );
+
+		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'upload_link_no_upload_page' ) );
+		$this->assertCount( 1, $logs );
+		$this->assertStringNotContainsString( 'bob@example.com', wp_json_encode( $logs ) );
 	}
 
 	public function test_send_to_member_send_failed() {
@@ -157,7 +220,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 		add_filter( 'pre_wp_mail', '__return_false' );
 
-		$result = $this->service->send_to_member( $competition_id, $member_id, 'https://example.com/upload/' );
+		$result = $this->service->send_to_member( $competition_id, $member_id );
 		$this->assertWPError( $result );
 		$this->assertSame( 'send_failed', $result->get_error_code() );
 	}
@@ -166,7 +229,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_send_by_email_unknown_email_is_success() {
 		$competition_id = $this->make_open_competition();
-		$result         = $this->service->send_by_email( $competition_id, 'nobody@example.com', 'https://example.com/upload/' );
+		$result         = $this->service->send_by_email( $competition_id, 'nobody@example.com' );
 		$this->assertTrue( $result );
 	}
 
@@ -175,7 +238,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->make_member( 'Bob', 'bob@example.com' );
 		add_filter( 'pre_wp_mail', '__return_false' );
 
-		$result = $this->service->send_by_email( $competition_id, 'bob@example.com', 'https://example.com/upload/' );
+		$result = $this->service->send_by_email( $competition_id, 'bob@example.com' );
 		$this->assertFalse( $result );
 	}
 
@@ -183,14 +246,14 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$this->make_member( 'Dave', 'dave@example.com', false );
 
-		$result = $this->service->send_by_email( $competition_id, 'dave@example.com', 'https://example.com/upload/' );
+		$result = $this->service->send_by_email( $competition_id, 'dave@example.com' );
 		$this->assertTrue( $result );
 		$this->assertSame( 0, $this->mail_count );
 	}
 
 	public function test_send_by_email_non_send_error_is_success() {
 		$this->make_member( 'Carol', 'carol@example.com' );
-		$result = $this->service->send_by_email( 9999, 'carol@example.com', 'https://example.com/upload/' );
+		$result = $this->service->send_by_email( 9999, 'carol@example.com' );
 		$this->assertTrue( $result );
 	}
 
@@ -200,8 +263,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 
-		$this->assertSame( 'sent', $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' ) );
-		$this->assertSame( 'skipped', $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' ) );
+		$this->assertSame( 'sent', $this->service->send_reminder( $competition_id, $member_id ) );
+		$this->assertSame( 'skipped', $this->service->send_reminder( $competition_id, $member_id ) );
 		$this->assertSame( 1, $this->mail_count );
 	}
 
@@ -209,7 +272,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com', false );
 
-		$result = $this->service->send_reminder( $competition_id, $member_id, 'https://example.com/upload/' );
+		$result = $this->service->send_reminder( $competition_id, $member_id );
 		$this->assertWPError( $result );
 		$this->assertSame( 'inactive_member', $result->get_error_code() );
 	}
@@ -258,8 +321,18 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$job = $jobs->get_job( $job_id );
 		$this->assertSame( 'upload_reminder', $job['type'] );
 		$this->assertSame( array( $alice ), $job['member_ids'] );
-		$this->assertNotEmpty( $job['args']['upload_page_url'] );
 		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_reminders_refuse_when_no_upload_page_can_be_found() {
+		delete_option( 'photo_comp_default_settings' );
+		$competition_id = $this->make_open_competition();
+		$this->make_member( 'Alice', 'alice@example.com' );
+
+		$result = $this->service->queue_reminders( $competition_id, $this->jobs() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_upload_page', $result->get_error_code() );
 	}
 
 	public function test_reminders_only_inactive_members_is_no_members() {

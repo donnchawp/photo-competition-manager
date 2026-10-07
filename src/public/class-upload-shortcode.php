@@ -329,11 +329,7 @@ class Upload_Shortcode {
 		$generic_success = '<p class="success">' . esc_html__( 'If this email is registered, you will receive an upload link shortly. Please check your inbox.', 'photo-competition-manager' ) . '</p>';
 
 		// Delegate creation + email to the upload link service.
-		$ok = $this->upload_link_service->send_by_email(
-			(int) $competition->id,
-			$member_email,
-			get_permalink()
-		);
+		$ok = $this->upload_link_service->send_by_email( (int) $competition->id, $member_email );
 
 		if ( ! $ok ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';

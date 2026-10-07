@@ -1052,6 +1052,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 * and redirects to the dashboard, which shows its progress.
 	 */
 	public function test_send_emails_success(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 		// Open competition: null open/close dates make is_open() true.
 		$id = $this->create_competition( 'Open Comp', 'open-comp' );
 		( new Members_Repository() )->create(

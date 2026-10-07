@@ -229,14 +229,7 @@ class Settings_Controller {
 			);
 		}
 
-		$this->redirect_with_settings_errors(
-			add_query_arg(
-				array(
-					'page' => 'photo-competition-manager-settings',
-				),
-				admin_url( 'admin.php' )
-			)
-		);
+		$this->redirect_with_settings_errors( $this->settings_url() );
 	}
 
 	/**

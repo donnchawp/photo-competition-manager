@@ -425,17 +425,10 @@ class Voting_Controller {
 		$active_settings = Competition_Settings::parse( $active_competition->settings );
 		$global_settings = Competition_Settings::global_settings();
 
-		// Check that required pages are configured. A competition that doesn't
-		// override the voting page has its urls.voting_page SET to '' (not
-		// unset), so `??` would return that empty string and shadow the
-		// populated global default. Use an empty-aware fallback instead.
-		$voting_page = '';
-		if ( ! empty( $active_settings['urls']['voting_page'] ) ) {
-			$voting_page = $active_settings['urls']['voting_page'];
-		} elseif ( ! empty( $global_settings['urls']['voting_page'] ) ) {
-			$voting_page = $global_settings['urls']['voting_page'];
-		}
-		$results_page = $global_settings['urls']['results_page'] ?? '';
+		// Check that required pages are configured.
+		$voting_page  = Competition_Settings::page_url( 'voting_page', $active_competition );
+		$results_page = Competition_Settings::page_url( 'results_page', $active_competition );
+		$top3_page    = Competition_Settings::page_url( 'top3_page', $active_competition );
 		if ( empty( $voting_page ) || empty( $results_page ) ) {
 			$missing = array();
 			if ( empty( $voting_page ) ) {
@@ -537,15 +530,6 @@ class Voting_Controller {
 
 		$current_key = $active_category_data['key'];
 
-		// Get voting page URL.
-		$voting_page_url = '';
-		$comp_urls       = $active_settings['urls'] ?? array();
-		if ( ! empty( $comp_urls['voting_page'] ) ) {
-			$voting_page_url = $comp_urls['voting_page'];
-		} elseif ( ! empty( $global_settings['urls']['voting_page'] ) ) {
-			$voting_page_url = $global_settings['urls']['voting_page'];
-		}
-
 		// Render Competition Status Bar.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_competition_status_bar( $active_competition );
@@ -566,7 +550,7 @@ class Voting_Controller {
 
 		if ( $all_complete && ! $voting_open_globally ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings );
+			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings, $results_page, $top3_page );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
@@ -574,7 +558,7 @@ class Voting_Controller {
 
 		// Render Quick Actions.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_quick_actions( $voting_page_url, $global_settings, $active_settings );
+		echo $this->render_quick_actions( $voting_page, $results_page, $top3_page, $active_settings );
 
 		// Hidden meter type setting for slideshow.
 		$meter_type = $active_settings['slideshow']['progress_meter_type'] ?? 'bar';
@@ -601,6 +585,9 @@ class Voting_Controller {
 	/**
 	 * Queue voting opened notifications to all active members.
 	 *
+	 * When members would be told but there's no voting page to link, nothing
+	 * is queued and the page warns that they weren't emailed.
+	 *
 	 * @param object $competition Competition object.
 	 * @return string|null Job ID, or null if nothing was queued.
 	 */
@@ -609,12 +596,18 @@ class Voting_Controller {
 			return null;
 		}
 
-		// Get voting page URL from global settings.
-		$global_settings = Competition_Settings::global_settings();
-		$voting_page_url = $global_settings['urls']['voting_page'] ?? '';
-
-		if ( empty( $voting_page_url ) ) {
-			return null; // No voting page URL configured, skip sending.
+		if ( '' === Competition_Settings::page_url( 'voting_page', $competition ) ) {
+			add_settings_error(
+				'photo_competition_voting',
+				'no_voting_page',
+				sprintf(
+					/* translators: %s: URL of the plugin's Settings screen */
+					__( 'Members weren\'t emailed that voting is open, because no voting page is set. <a href="%s">Set the voting page in Settings</a>, or publish a page with the [competition_voting] shortcode.', 'photo-competition-manager' ),
+					esc_url( $this->settings_url() )
+				),
+				'warning'
+			);
+			return null;
 		}
 
 		$member_ids = array();
@@ -628,10 +621,7 @@ class Voting_Controller {
 			'voting_opened',
 			(int) $competition->id,
 			$member_ids,
-			array(
-				'voting_page_url' => $voting_page_url,
-				'close_date'      => format_site_date( $competition->close_date ),
-			)
+			array( 'close_date' => format_site_date( $competition->close_date ) )
 		);
 
 		return $job_id ? $job_id : null;
@@ -878,15 +868,13 @@ class Voting_Controller {
 	/**
 	 * Render collapsible quick actions bar.
 	 *
-	 * @param string $voting_page_url    The voting page URL for QR code.
-	 * @param array  $settings           Global settings.
+	 * @param string $voting_page_url      The voting page URL for QR code.
+	 * @param string $results_url          The results page URL.
+	 * @param string $top3_url             The top 3 page URL.
 	 * @param array  $competition_settings Active competition settings.
 	 * @return string
 	 */
-	private function render_quick_actions( string $voting_page_url, array $settings, array $competition_settings = array() ): string {
-		$results_url = $settings['urls']['results_page'] ?? '';
-		$top3_url    = $settings['urls']['top3_page'] ?? '';
-
+	private function render_quick_actions( string $voting_page_url, string $results_url, string $top3_url, array $competition_settings ): string {
 		// Get voting password if it's stored as plaintext (not a legacy hash).
 		$voting_password = '';
 		$raw_password    = $competition_settings['voting']['password'] ?? '';
@@ -912,12 +900,12 @@ class Voting_Controller {
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
 	 * @param array  $global_settings   Global settings.
+	 * @param string $results_url       The results page URL.
+	 * @param string $top3_url          The top 3 page URL.
 	 * @return string
 	 */
-	private function render_competition_complete( object $competition, array $all_categories, array $global_settings ): string {
+	private function render_competition_complete( object $competition, array $all_categories, array $global_settings, string $results_url, string $top3_url ): string {
 		$results_visible = $this->workflow->results_published( $competition );
-		$results_url     = $global_settings['urls']['results_page'] ?? '';
-		$top3_url        = $global_settings['urls']['top3_page'] ?? '';
 
 		// Duration defaults for replay.
 		$slideshow_replay_duration = $global_settings['slideshow']['voting_duration'] ?? 15;

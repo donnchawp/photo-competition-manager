@@ -14,8 +14,10 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Members_Controller;
+use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
@@ -220,6 +222,39 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$carol = Member_Fixtures::insert_with_grade( 'Carol Diaz', 'carol@example.com', 'unknown-grade' );
 
 		$this->assert_matches_snapshot( 'list-uploads-open', array( $comp_id ), array( $ada, $bob, $carol ) );
+	}
+
+	public function test_upload_link_matches_the_one_the_reminder_job_sends(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/club-upload/' ) ) ) );
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_upload]',
+			)
+		);
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$bodies = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$bodies ) {
+				$bodies[] = $atts['message'];
+				return true;
+			},
+			10,
+			2
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+		$jobs = ( new Dependencies() )->email_job_manager;
+		$jobs->process_batch( ( new Upload_Link_Service() )->queue_reminders( $comp_id, $jobs ) );
+
+		$this->assertMatchesRegularExpression( '#<a href="https://example.com/club-upload/\?[^"]+" target="_blank"#', $html );
+		$this->assertCount( 1, $bodies );
+		$this->assertMatchesRegularExpression( '#href="https://example.com/club-upload/\?[^"]+"#', $bodies[0] );
 	}
 
 	public function test_render_list_uploads_closed(): void {

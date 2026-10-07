@@ -479,7 +479,7 @@ class Email_Job_Manager {
 				return $this->email_service->send( 'results_detailed', $member, $competition, array( '{results_table}' => $this->results_table( $competition, $member ) ) );
 
 			case 'upload_reminder':
-				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id, (string) $args['upload_page_url'] );
+				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id );
 
 			case 'voting_opened':
 				return $this->email_service->send(
@@ -487,7 +487,7 @@ class Email_Job_Manager {
 					$member,
 					$competition,
 					array(
-						'{voting_page}' => (string) $args['voting_page_url'],
+						'{voting_page}' => Competition_Settings::page_url( 'voting_page', $competition ),
 						'{close_date}'  => (string) $args['close_date'],
 					)
 				);
