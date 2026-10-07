@@ -256,11 +256,13 @@ class Competition_Workflow {
 	 * Whether uploads may reopen.
 	 *
 	 * Not while results are published, since uploads stay shut then. Not
-	 * while a category is accepting votes, or once any votes are cast: a
-	 * new image would leave the ballots already cast incomplete.
+	 * while a category is accepting votes, or once any category's voting
+	 * has started: its entries are fixed until it's reset. Not once any
+	 * votes are cast either: a new image would leave the ballots already
+	 * cast incomplete.
 	 *
 	 * @param object $competition Competition row.
-	 * @return true|WP_Error 'results_published', 'voting_open' or 'votes_exist'.
+	 * @return true|WP_Error 'results_published', 'voting_open', 'voting_started' or 'votes_exist'.
 	 */
 	public function can_reopen_uploads( object $competition ) {
 		if ( $this->results_published( $competition ) ) {
@@ -269,6 +271,29 @@ class Competition_Workflow {
 
 		if ( ! empty( $this->categories_accepting_votes( $competition ) ) ) {
 			return new WP_Error( 'voting_open', __( 'Close voting before reopening uploads.', 'photo-competition-manager' ) );
+		}
+
+		$started = array();
+		foreach ( Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ?? '' ) ) as $category ) {
+			if ( $this->has_voting_started( $competition, (string) $category['slug'] ) ) {
+				$started[] = (string) ( $category['label'] ?? $category['slug'] );
+			}
+		}
+
+		if ( ! empty( $started ) ) {
+			return new WP_Error(
+				'voting_started',
+				sprintf(
+					/* translators: %s: category names, e.g. "Open and Monochrome". */
+					_n(
+						'Voting has started in %s. Reset that category before reopening uploads.',
+						'Voting has started in %s. Reset those categories before reopening uploads.',
+						count( $started ),
+						'photo-competition-manager'
+					),
+					wp_sprintf( '%l', $started )
+				)
+			);
 		}
 
 		if ( $this->votes->has_votes( (int) $competition->id ) ) {

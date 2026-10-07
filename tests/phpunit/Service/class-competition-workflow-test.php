@@ -275,6 +275,18 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
 	}
 
+	public function test_reopening_uploads_once_a_category_has_started_voting_is_refused(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour. Reset that category before reopening uploads.', $result->get_error_message() );
+		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
+	}
+
 	public function test_reopening_uploads_while_results_are_published_is_refused(): void {
 		$id = $this->create_competition();
 		Workflow_Fixtures::publish_results( $id );
