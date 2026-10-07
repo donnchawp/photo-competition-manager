@@ -118,10 +118,20 @@ class Results_Ranking {
 		$competition = $this->competitions->find( $competition_id, true );
 
 		if ( $competition && $this->keeps_record( $competition ) && true === $this->record_if_missing( $competition ) ) {
-			return $this->rank_recorded( $competition_id, $category );
+			$groups = $this->rank_recorded( $competition_id, $category );
+		} else {
+			$groups = $this->rank_live( $competition_id, $category );
 		}
 
-		return $this->rank_live( $competition_id, $category );
+		// Labelled here, not in empty_groups(): the upgrade records results
+		// before translations can load.
+		foreach ( $groups as $index => $group ) {
+			if ( $group['ungraded'] ) {
+				$groups[ $index ]['label'] = __( 'Ungraded', 'photo-competition-manager' );
+			}
+		}
+
+		return $groups;
 	}
 
 	/**
@@ -275,7 +285,8 @@ class Results_Ranking {
 
 	/**
 	 * Empty groups for the club's grades, in order, then the ungraded group
-	 * keyed ''. Each grade is keyed 'grade:<slug>', so a numeric slug keeps its key.
+	 * keyed '', unlabelled. Each grade is keyed 'grade:<slug>', so a numeric
+	 * slug keeps its key.
 	 *
 	 * @return array<string, array{slug: string, label: string, ungraded: bool, entries: array}>
 	 */
@@ -292,7 +303,7 @@ class Results_Ranking {
 
 		$groups[''] = array(
 			'slug'     => '',
-			'label'    => __( 'Ungraded', 'photo-competition-manager' ),
+			'label'    => '',
 			'ungraded' => true,
 			'entries'  => array(),
 		);
