@@ -260,10 +260,28 @@ class Activator {
 			}
 		}
 
-		// Totals come from the votes, so say which competitions' results changed.
-		// The upgrade runs on whichever request comes first, so the system is
-		// the actor, not the current user. It runs before translations can
-		// load, so the description is in English.
+		self::log_removed_votes( $removed, 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.' );
+
+		self::create_tables();
+
+		return self::votes_are_unique( $table );
+	}
+
+	/**
+	 * Log, per competition, the votes an upgrade deleted.
+	 *
+	 * Totals come from the votes, so say which competitions' results changed.
+	 * The upgrade runs on whichever request comes first, so the system is
+	 * the actor, not the current user. It runs before translations can
+	 * load, so the description is in English.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<int, int> $removed     Votes deleted, by competition ID.
+	 * @param string          $description Description, with %d for the count.
+	 * @return void
+	 */
+	private static function log_removed_votes( array $removed, string $description ): void {
 		foreach ( array_filter( $removed ) as $competition_id => $count ) {
 			( new Logs_Repository() )->create(
 				array(
@@ -272,32 +290,82 @@ class Activator {
 					'event_category' => 'voting',
 					'actor_type'     => 'system',
 					'actor_name'     => 'System',
-					'description'    => sprintf( 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.', $count ),
+					'description'    => sprintf( $description, $count ),
 					'metadata'       => array( 'removed' => $count ),
 				)
 			);
 		}
-
-		self::create_tables();
-
-		return self::votes_are_unique( $table );
 	}
 
 	/**
-	 * Add the unique key that gives a member one voting token per
-	 * competition and category.
+	 * Keep one voting token per member, competition and category, then add
+	 * the unique key that stops a second one.
+	 *
+	 * Of a member's tokens for a category, the earliest with votes holds
+	 * their ballot, so it stays. With no ballot, the latest is the link the
+	 * member last asked for. The other tokens go, and their votes with them:
+	 * those can only be a second ballot from the same member.
 	 *
 	 * @since 0.4.0
 	 *
 	 * @return bool False if the key couldn't be added.
 	 */
 	private static function make_voting_tokens_unique(): bool {
+		global $wpdb;
+
 		$table = ( new Voting_Token_Repository() )->table();
+		$votes = ( new Votes_Repository() )->table();
 
 		// Only when the key is missing: DDL ends the running transaction.
 		if ( self::has_keys( $table, array( 'member_competition_category' ) ) ) {
 			return true;
 		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$duplicates = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT member_id, competition_id, category FROM %i
+				GROUP BY member_id, competition_id, category
+				HAVING COUNT(*) > 1',
+				$table
+			)
+		);
+
+		$removed = array();
+
+		foreach ( $duplicates as $duplicate ) {
+			$competition_id = (int) $duplicate->competition_id;
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$token_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s ORDER BY id',
+					$table,
+					$duplicate->member_id,
+					$competition_id,
+					$duplicate->category
+				)
+			);
+			$token_ids = array_map( 'intval', $token_ids );
+
+			$keep = end( $token_ids );
+			foreach ( $token_ids as $token_id ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				if ( $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE voting_token_id = %d LIMIT 1', $votes, $token_id ) ) ) {
+					$keep = $token_id;
+					break;
+				}
+			}
+
+			foreach ( array_diff( $token_ids, array( $keep ) ) as $token_id ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + (int) $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->delete( $table, array( 'id' => $token_id ), array( '%d' ) );
+			}
+		}
+
+		self::log_removed_votes( $removed, 'Upgrade removed %d vote(s) cast with a member\'s second voting link, keeping their earliest ballot in each category.' );
 
 		self::create_tables();
 

@@ -415,6 +415,99 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_6_keeps_each_members_ballot_and_deletes_their_other_tokens(): void {
+		global $wpdb;
+		$this->shadow_v5_voting_tokens_table();
+		// The first link went unused and the ballot is on a later one.
+		$this->insert_v5_token( 1, 1 );
+		$later_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $later_ballot, 1, 10 );
+		// Two ballots from one member: the second shouldn't exist.
+		$first_ballot  = $this->insert_v5_token( 2, 1 );
+		$second_ballot = $this->insert_v5_token( 2, 1 );
+		$this->insert_vote( $first_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 11 );
+		// No ballot: the latest link is the one the member has.
+		$this->insert_v5_token( 3, 2 );
+		$latest = $this->insert_v5_token( 3, 2 );
+		$alone  = $this->insert_v5_token( 4, 3 );
+		$this->insert_vote( $alone, 3, 30 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$tokens = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id', $this->shadowed ) );
+		$this->assertSame( array( $later_ballot, $first_ballot, $latest, $alone ), array_map( 'intval', $tokens ) );
+		$voters = $wpdb->get_col( $wpdb->prepare( 'SELECT voting_token_id FROM %i ORDER BY id', $wpdb->prefix . 'photocomp_votes' ) );
+		$this->assertSame( array( $later_ballot, $first_ballot, $alone ), array_map( 'intval', $voters ) );
+	}
+
+	public function test_upgrade_to_6_logs_the_votes_it_removes_with_duplicate_tokens(): void {
+		$this->shadow_v5_voting_tokens_table();
+		$this->insert_vote( $this->insert_v5_token( 1, 1 ), 1, 10 );
+		$second_ballot = $this->insert_v5_token( 1, 1 );
+		$this->insert_vote( $second_ballot, 1, 10 );
+		$this->insert_vote( $second_ballot, 1, 11 );
+		$this->insert_v5_token( 2, 2 );
+		$this->insert_v5_token( 2, 2 );
+		$this->insert_vote( $this->insert_v5_token( 3, 3 ), 3, 30 );
+		update_option( 'photo_comp_db_version', 5 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array( 2, 0, 0 ), array_map( array( $this, 'removed_votes_logged' ), array( 1, 2, 3 ) ) );
+		$logs = ( new Logs_Repository() )->find_by_competition( 1, 50, 0, array( 'event_type' => 'duplicate_votes_removed' ) );
+		$this->assertSame( 'system', $logs[0]->actor_type );
+	}
+
+	/**
+	 * Insert a voting token into the version 5 voting tokens table.
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return int Token ID.
+	 */
+	private function insert_v5_token( int $member_id, int $competition_id ): int {
+		global $wpdb;
+
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+				'category'       => 'colour',
+				'token_hash'     => wp_generate_password( 64, false ),
+				'expires_at'     => utc_time( HOUR_IN_SECONDS ),
+			)
+		);
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Insert a vote cast with a voting token.
+	 *
+	 * @param int $voting_token_id Token.
+	 * @param int $competition_id  Competition ID.
+	 * @param int $image_id        Image ID.
+	 * @return void
+	 */
+	private function insert_vote( int $voting_token_id, int $competition_id, int $image_id ): void {
+		global $wpdb;
+
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_votes',
+			array(
+				'competition_id'  => $competition_id,
+				'category'        => 'colour',
+				'voting_token_id' => $voting_token_id,
+				'image_id'        => $image_id,
+				'score'           => 5,
+			)
+		);
+	}
+
 	/**
 	 * Hide the voting tokens table behind a temporary one shaped as version
 	 * 5 left it on old sites, without the unique key, so duplicates can be
