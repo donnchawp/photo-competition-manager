@@ -209,10 +209,10 @@ class Top3_Shortcode {
 										?>
 										<?php foreach ( $grade_results as $result ) : ?>
 											<?php
-											$image          = $result['image'];
-											$member         = $result['member'];
-											$total_score    = $result['total_score'];
-											$position_num   = $result['position'];
+											$image        = $result['image'];
+											$member       = $result['member'];
+											$total_score  = $result['total_score'];
+											$position_num = $result['position'];
 											// A recorded entry deleted since has no image.
 											$image_urls     = $image ? $this->entries->urls( $competition, $image ) : array(
 												'full'  => '',

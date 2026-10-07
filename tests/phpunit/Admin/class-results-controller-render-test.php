@@ -25,7 +25,6 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -67,7 +66,6 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->votes        = new Votes_Repository();
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
-		$calculator  = new Score_Calculator( $this->images, $this->votes );
 		$ranking     = new Results_Ranking( $this->images, $this->votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
@@ -86,7 +84,6 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$this->votes,
 			$analytics,
-			$calculator,
 			$ranking,
 			$job_manager
 		);

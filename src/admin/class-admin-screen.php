@@ -116,7 +116,6 @@ class Admin_Screen {
 			$deps->members,
 			$deps->votes,
 			$deps->analytics,
-			$deps->score_calculator,
 			$deps->results_ranking,
 			$deps->email_job_manager
 		);

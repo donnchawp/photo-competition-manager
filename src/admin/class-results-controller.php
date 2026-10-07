@@ -21,7 +21,6 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
@@ -72,13 +71,6 @@ class Results_Controller {
 	private $analytics;
 
 	/**
-	 * Score calculator service.
-	 *
-	 * @var Score_Calculator
-	 */
-	private $calculator;
-
-	/**
 	 * Results ranking service.
 	 *
 	 * @var Results_Ranking
@@ -114,7 +106,6 @@ class Results_Controller {
 	 * @param Members_Repository      $members           Members repository.
 	 * @param Votes_Repository        $votes             Votes repository.
 	 * @param Results_Analytics       $analytics         Results analytics service.
-	 * @param Score_Calculator        $calculator        Score calculator service.
 	 * @param Results_Ranking         $ranking           Results ranking service.
 	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 * @param Entries|null            $entries           Entries module.
@@ -125,7 +116,6 @@ class Results_Controller {
 		Members_Repository $members,
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
-		Score_Calculator $calculator,
 		Results_Ranking $ranking,
 		Email_Job_Manager $email_job_manager,
 		?Entries $entries = null
@@ -135,7 +125,6 @@ class Results_Controller {
 		$this->members           = $members;
 		$this->votes             = $votes;
 		$this->analytics         = $analytics;
-		$this->calculator        = $calculator;
 		$this->ranking           = $ranking;
 		$this->email_job_manager = $email_job_manager;
 		$this->entries           = $entries ?? new Entries( $competitions, $images, $members );
@@ -196,48 +185,6 @@ class Results_Controller {
 
 		if ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
-		}
-
-		if ( 'recalculate_scores' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_recalculate_scores_' . $competition_id );
-
-			$redirect_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'competition' => $competition_id,
-				),
-				admin_url( 'admin.php' )
-			);
-
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_results',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $redirect_url );
-			}
-
-			// Score_Calculator::calculate_scores() always returns an array{updated, errors};
-			// it has no whole-run failure mode, so there is no WP_Error path to handle here.
-			$result = $this->calculator->calculate_scores( $competition_id );
-
-			add_settings_error(
-				'photo_competition_results',
-				'scores_recalculated',
-				sprintf(
-					/* translators: %d: number of images updated */
-					__( 'Scores recalculated successfully. %d images updated.', 'photo-competition-manager' ),
-					$result['updated']
-				),
-				'updated'
-			);
-
-			$this->redirect_with_settings_errors( $redirect_url );
 		}
 
 		if ( 'email_results' === $action ) {
@@ -543,18 +490,6 @@ class Results_Controller {
 		}
 
 		// Action buttons.
-		$recalculate_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'action'      => 'recalculate_scores',
-					'competition' => (int) $competition->id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_recalculate_scores_' . (int) $competition->id
-		);
-
 		$export_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -625,7 +560,6 @@ class Results_Controller {
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
-				'recalculate_url'      => $recalculate_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
 				'share_hash'           => $share_hash,

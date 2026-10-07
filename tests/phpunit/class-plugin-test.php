@@ -33,7 +33,7 @@ class Plugin_Test extends WP_UnitTestCase {
 	public function test_activation_schema_contains_expected_tables(): void {
 		$schema = Activator::get_schema( $GLOBALS['wpdb'] );
 
-		$this->assertCount( 7, $schema );
+		$this->assertCount( 8, $schema );
 		$this->assertStringContainsString( 'photocomp_members', $schema[0] );
 		$this->assertStringContainsString( 'photocomp_competitions', $schema[1] );
 		$this->assertStringContainsString( 'photocomp_images', $schema[2] );
@@ -41,5 +41,6 @@ class Plugin_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'photocomp_upload_tokens', $schema[4] );
 		$this->assertStringContainsString( 'photocomp_voting_tokens', $schema[5] );
 		$this->assertStringContainsString( 'photocomp_logs', $schema[6] );
+		$this->assertStringContainsString( 'photocomp_recorded_results', $schema[7] );
 	}
 }

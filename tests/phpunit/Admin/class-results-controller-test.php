@@ -2,7 +2,7 @@
 /**
  * Characterization tests for Results_Controller.
  *
- * Pins current behavior of the results action router (recalculate / email /
+ * Pins current behavior of the results action router (email /
  * send-results / export) ahead of a later refactor. Asserts observable
  * settings-error codes and redirect targets, not internals.
  *
@@ -22,7 +22,6 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -91,7 +90,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$votes              = new Votes_Repository();
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $votes );
-		$calculator  = new Score_Calculator( $this->images, $votes );
 		$ranking     = new Results_Ranking( $this->images, $votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
@@ -110,7 +108,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$votes,
 			$analytics,
-			$calculator,
 			$ranking,
 			$job_manager
 		);
@@ -185,85 +182,16 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->set_request(
 			array(
-				'action'      => 'recalculate_scores',
+				'action'      => 'email_results',
 				'competition' => $this->competition_id,
 			)
 		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $this->competition_id );
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
 
 		// Should simply return without redirecting or recording an error.
 		$this->controller->handle_actions();
 
 		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
-	}
-
-	/*
-	 * -------------------------------------------------------------------------
-	 * recalculate_scores.
-	 * -------------------------------------------------------------------------
-	 */
-
-	/**
-	 * Recalculating scores reports success and redirects back to the competition.
-	 */
-	public function test_recalculate_scores_success(): void {
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $this->competition_id,
-			)
-		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $this->competition_id );
-
-		$location = $this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$this->assertStringContainsString( 'page=photo-competition-manager-results', $location );
-		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
-		$this->assertContains( 'scores_recalculated', $this->settings_error_codes( 'photo_competition_results' ) );
-	}
-
-	/**
-	 * A missing/invalid nonce aborts recalculation via wp_die().
-	 */
-	public function test_recalculate_scores_bad_nonce_dies(): void {
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $this->competition_id,
-			)
-		);
-
-		$this->expectException( \WPDieException::class );
-		$this->controller->handle_actions();
-	}
-
-	/**
-	 * Recalculating a missing competition yields a not-found error, not success.
-	 */
-	public function test_recalculate_scores_competition_not_found(): void {
-		$missing = 999999;
-
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $missing,
-			)
-		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $missing );
-
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$codes = $this->settings_error_codes( 'photo_competition_results' );
-		$this->assertContains( 'competition_not_found', $codes );
-		$this->assertNotContains( 'scores_recalculated', $codes );
 	}
 
 	/*

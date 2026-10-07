@@ -119,15 +119,14 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertSame( array( false, false, false ), array_column( $groups, 'ungraded' ) );
 	}
 
-	public function test_entry_without_votes_scores_zero_even_with_a_cached_score(): void {
-		$image_id = $this->seed_entry( 'Cached', 'beginner', array() );
-		$this->images->update_score( $image_id, 40 );
+	public function test_entry_without_votes_scores_zero(): void {
+		$this->seed_entry( 'Unvoted', 'beginner', array() );
 		$this->seed_entry( 'Voted', 'beginner', array( 6 ) );
 
 		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
 
 		$this->assertSame(
-			array( 'beginner' => array( 'Voted:1:6', 'Cached:2:0' ) ),
+			array( 'beginner' => array( 'Voted:1:6', 'Unvoted:2:0' ) ),
 			$this->summarize( $groups )
 		);
 		$this->assertSame( 0, $groups[0]['entries'][1]['vote_count'] );

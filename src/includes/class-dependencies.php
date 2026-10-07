@@ -18,7 +18,6 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 
 /**
  * Creates and provides the shared dependency graph used across the plugin.
@@ -70,13 +69,6 @@ class Dependencies {
 	public Results_Analytics $analytics;
 
 	/**
-	 * Score calculator service.
-	 *
-	 * @var Score_Calculator
-	 */
-	public Score_Calculator $score_calculator;
-
-	/**
 	 * Results ranking service.
 	 *
 	 * @var Results_Ranking
@@ -110,7 +102,6 @@ class Dependencies {
 
 		// Services.
 		$this->analytics         = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
-		$this->score_calculator  = new Score_Calculator( $this->images, $this->votes );
 		$this->results_ranking   = new Results_Ranking( $this->images, $this->votes, $this->members );
 		$this->email_service     = new Email_Service();
 		$this->email_job_manager = new Email_Job_Manager(

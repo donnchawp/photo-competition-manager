@@ -121,8 +121,8 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	/**
 	 * Replace a competition's record with new rows.
 	 *
-	 * @param int                     $competition_id Competition ID.
-	 * @param array<int, array{competition_id: int, category: string, entry_id: int, member_id: int|null, grade: string, total_score: int, vote_count: int, position: int}> $rows Rows to record.
+	 * @param int                              $competition_id Competition ID.
+	 * @param array<int, array<string, mixed>> $rows           Rows to record, as insert() takes them.
 	 * @return int|WP_Error Number of rows recorded, or error.
 	 */
 	public function replace( int $competition_id, array $rows ) {
