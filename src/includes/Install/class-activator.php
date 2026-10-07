@@ -559,7 +559,8 @@ class Activator {
 
 	/**
 	 * Record the results of every competition whose results are published,
-	 * or that has closed or been archived, unless they're recorded already.
+	 * or that has closed or been archived, unless they have a trusted record
+	 * (see Results_Ranking::record_if_missing()).
 	 *
 	 * @since 0.4.0
 	 *

@@ -484,6 +484,48 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertSame( Competition_Workflow::PHASE_ARCHIVED, $this->workflow->phase( $this->row( $id ) ) );
 	}
 
+	/**
+	 * Competitions open, closed and archived, with when each became Closed
+	 * or Archived.
+	 *
+	 * @return array<string, array{int|null, int|null, string|null}>
+	 */
+	public function closing_times(): array {
+		return array(
+			'open'                           => array( DAY_IN_SECONDS, null, null ),
+			'closed'                         => array( -HOUR_IN_SECONDS, null, 'close' ),
+			'archived before its close date' => array( DAY_IN_SECONDS, -HOUR_IN_SECONDS, 'archive' ),
+			'archived after it closed'       => array( -2 * HOUR_IN_SECONDS, -HOUR_IN_SECONDS, 'close' ),
+			'archived without a close date'  => array( null, -HOUR_IN_SECONDS, 'archive' ),
+		);
+	}
+
+	/**
+	 * A competition became Closed or Archived at the earlier of its passed
+	 * close date and its archive time.
+	 *
+	 * @dataProvider closing_times
+	 *
+	 * @param int|null    $close    Close date, in seconds from now.
+	 * @param int|null    $archive  Archive time, in seconds from now.
+	 * @param string|null $expected Which time closed_at() gives, or null.
+	 */
+	public function test_closed_at_is_when_it_became_closed_or_archived( ?int $close, ?int $archive, ?string $expected ): void {
+		$now         = time();
+		$competition = (object) array(
+			'open_date'  => gmdate( 'Y-m-d H:i:s', $now - 2 * DAY_IN_SECONDS ),
+			'close_date' => null === $close ? null : gmdate( 'Y-m-d H:i:s', $now + $close ),
+			'deleted_at' => null === $archive ? null : gmdate( 'Y-m-d H:i:s', $now + $archive ),
+			'settings'   => '',
+		);
+		$times       = array(
+			'close'   => $competition->close_date,
+			'archive' => $competition->deleted_at,
+		);
+
+		$this->assertSame( null === $expected ? null : $times[ $expected ], $this->workflow->closed_at( $competition ) );
+	}
+
 	public function test_a_competition_without_dates_is_open(): void {
 		$competition = $this->row( $this->create_competition( array( 'open_date' => null, 'close_date' => null ) ) );
 

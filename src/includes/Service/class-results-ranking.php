@@ -178,6 +178,10 @@ class Results_Ranking {
 	/**
 	 * Record a competition's results as they are now, replacing any record.
 	 *
+	 * The first read after close can replace a record too, not only the
+	 * admin's Show Results. Replacing deletes then inserts, so a read made
+	 * between the two by another request finds no rows.
+	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error
 	 */

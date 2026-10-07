@@ -421,14 +421,30 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertNull( $groups[0]['entries'][1]['image'] );
 	}
 
+	public function test_a_record_made_before_close_is_replaced_before_a_members_entries_are_removed(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->publish_then_hide_an_hour_ago();
+		$this->late_vote( $bob, 9 );
+		$this->close_competition();
+
+		$this->delete_member_of( $ann );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', '(missing):2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
 	/**
-	 * Records made just either side of the close date.
+	 * Records made at the close date and just either side of it.
 	 *
 	 * @return array<string, array{int, string[]}>
 	 */
 	public function records_around_the_close_date(): array {
 		return array(
 			'a second before is replaced' => array( -1, array( 'Bob:1:14', 'Ann:2:9' ) ),
+			'the same second is kept'     => array( 0, array( 'Ann:1:9', 'Bob:2:5' ) ),
 			'a second after is kept'      => array( 1, array( 'Ann:1:9', 'Bob:2:5' ) ),
 		);
 	}
