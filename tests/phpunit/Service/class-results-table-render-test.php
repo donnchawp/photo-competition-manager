@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -151,6 +152,17 @@ class Results_Table_Render_Test extends WP_UnitTestCase {
 		$this->vote( 'mono', $mono, 'Judge B', 4, '2026-01-01 10:07:00' );
 
 		$this->assert_matches_snapshot( 'entries-in-several-categories', $this->results_table_for( $member ) );
+	}
+
+	public function test_results_table_for_an_ungraded_member_leaves_out_the_rank(): void {
+		// A grade the club no longer lists puts the entry in the ungraded group.
+		$member = Member_Fixtures::insert_with_grade( 'Ada', 'ada@example.com', 'retired' );
+
+		$colour = $this->seed_image( $member, 'colour', 'ada-colour.jpg', 3 );
+		$this->vote( 'colour', $colour, 'Judge A', 9, '2026-01-01 10:00:00' );
+		$this->vote( 'colour', $colour, 'Judge B', 6, '2026-01-01 10:01:00' );
+
+		$this->assert_matches_snapshot( 'ungraded-entry', $this->results_table_for( $member ) );
 	}
 
 	public function test_results_table_for_a_member_with_no_entries(): void {

@@ -21,8 +21,6 @@
  */
 
 defined( 'ABSPATH' ) || exit;
-
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a function, so these are its locals.
 ?>
 				<?php if ( empty( $data['images'] ) ) : ?>
 					<p><em><?php esc_html_e( 'You did not submit any images for this competition.', 'photo-competition-manager' ); ?></em></p>
