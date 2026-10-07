@@ -213,7 +213,11 @@ class Top3_Shortcode {
 											$member         = $result['member'];
 											$total_score    = $result['total_score'];
 											$position_num   = $result['position'];
-											$image_urls     = $this->entries->urls( $competition, $image );
+											// A recorded entry deleted since has no image.
+											$image_urls     = $image ? $this->entries->urls( $competition, $image ) : array(
+												'full'  => '',
+												'thumb' => '',
+											);
 											$thumb_url      = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 											$position_class = $position_classes[ $position_num ] ?? 'third';
 											$position_label = $position_labels[ $position_num ] ?? __( '3rd Place', 'photo-competition-manager' );
@@ -231,10 +235,12 @@ class Top3_Shortcode {
 															<?php esc_html_e( 'Image unavailable', 'photo-competition-manager' ); ?>
 														</div>
 													<?php endif; ?>
-													<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+													<?php if ( $image ) : ?>
+														<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+													<?php endif; ?>
 												</div>
 												<div class="member-info">
-													<div class="member-name"><?php echo esc_html( $member->name ); ?></div>
+													<div class="member-name"><?php echo esc_html( $member ? $member->name : __( 'Former member', 'photo-competition-manager' ) ); ?></div>
 													<div class="score-info">
 														<span class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></span>
 													</div>
