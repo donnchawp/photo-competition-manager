@@ -144,8 +144,7 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 			$saved[ $kind ] = array(
 				'enabled' => true,
 				'subject' => $definition['subject'],
-				// As the editor sent it: paragraphs as blank lines.
-				'body'    => str_replace( array( '<p>', '</p>', "\n" ), array( '', '', "\r\n" ), $definition['body'] ),
+				'body'    => $this->editor_posted_body( $definition['body'] ),
 			);
 		}
 		$saved['results_published']['subject'] = 'Results are in for {competition_title}';

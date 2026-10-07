@@ -149,16 +149,17 @@ class Email_Templates_Controller {
 		$email_service = new Email_Service();
 		$templates     = array();
 		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$template           = $email_service->get_template( $kind );
 			$templates[ $kind ] = array(
 				'name'            => $definition['label'],
 				'description'     => $definition['description'],
 				'notification'    => $definition['notification'],
 				'enabled'         => $email_service->is_template_enabled( $kind ),
-				'edited'          => $email_service->is_template_edited( $kind ),
+				'edited'          => ! $email_service->is_default_template( $kind, $template['subject'], $template['body'] ),
 				'default_subject' => $definition['subject'],
 				'default_body'    => $definition['body'],
 				'merge_tags'      => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
-			) + $email_service->get_template( $kind );
+			) + $template;
 		}
 
 		echo '<div class="wrap">';

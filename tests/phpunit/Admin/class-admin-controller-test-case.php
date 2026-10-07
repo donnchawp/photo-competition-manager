@@ -164,6 +164,17 @@ abstract class Admin_Controller_Test_Case extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A body as the editor posts it: paragraphs as blank lines, with the
+	 * browser's line endings.
+	 *
+	 * @param string $body Body as stored, with paragraph tags.
+	 * @return string
+	 */
+	protected function editor_posted_body( string $body ): string {
+		return str_replace( array( '<p>', '</p>', "\n" ), array( '', '', "\r\n" ), $body );
+	}
+
+	/**
 	 * Insert a competition without the repository's overlap check.
 	 *
 	 * Competitions saved before only one could be open at a time (#66) can

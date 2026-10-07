@@ -82,7 +82,7 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 		foreach ( Email_Kinds::all() as $kind => $definition ) {
 			$form[ $kind ] = array(
 				'subject' => $definition['subject'],
-				'body'    => str_replace( array( '<p>', '</p>', "\n" ), array( '', '', "\r\n" ), $definition['body'] ),
+				'body'    => $this->editor_posted_body( $definition['body'] ),
 			);
 			if ( $definition['notification'] && $definition['on_by_default'] ) {
 				$form[ $kind ]['enabled'] = '1';

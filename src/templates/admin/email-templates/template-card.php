@@ -9,6 +9,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// Restore default finds the fields by these IDs.
+$subject_id = 'template-' . $data['template_key'] . '-subject';
+$body_id    = 'template_' . $data['template_key'] . '_body';
+
 echo '<div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;">';
 
 echo '<h2 style="margin-top: 0;">' . esc_html( $data['template']['name'] );
@@ -31,9 +35,9 @@ if ( $data['template']['notification'] ) {
 // Subject field.
 echo '<table class="form-table"><tbody>';
 echo '<tr>';
-echo '<th scope="row"><label for="template-' . esc_attr( $data['template_key'] ) . '-subject">' . esc_html__( 'Subject Line', 'photo-competition-manager' ) . '</label></th>';
+echo '<th scope="row"><label for="' . esc_attr( $subject_id ) . '">' . esc_html__( 'Subject Line', 'photo-competition-manager' ) . '</label></th>';
 echo '<td>';
-echo '<input type="text" id="template-' . esc_attr( $data['template_key'] ) . '-subject" name="templates[' . esc_attr( $data['template_key'] ) . '][subject]" value="' . esc_attr( $data['template']['subject'] ) . '" class="large-text" />';
+echo '<input type="text" id="' . esc_attr( $subject_id ) . '" name="templates[' . esc_attr( $data['template_key'] ) . '][subject]" value="' . esc_attr( $data['template']['subject'] ) . '" class="large-text" />';
 echo '</td>';
 echo '</tr>';
 
@@ -44,7 +48,7 @@ echo '<td>';
 
 wp_editor(
 	$data['template']['body'],
-	'template_' . $data['template_key'] . '_body',
+	$body_id,
 	array(
 		'textarea_name' => 'templates[' . $data['template_key'] . '][body]',
 		'textarea_rows' => 12,
@@ -67,8 +71,8 @@ echo '</tbody></table>';
 // Fills the fields in the browser; nothing is saved until the form is.
 echo '<p>';
 echo '<button type="button" class="button photo-comp-restore-default"'
-	. ' data-subject-field="template-' . esc_attr( $data['template_key'] ) . '-subject"'
-	. ' data-body-field="template_' . esc_attr( $data['template_key'] ) . '_body"'
+	. ' data-subject-field="' . esc_attr( $subject_id ) . '"'
+	. ' data-body-field="' . esc_attr( $body_id ) . '"'
 	. ' data-default-subject="' . esc_attr( $data['template']['default_subject'] ) . '"'
 	. ' data-default-body="' . esc_attr( $data['template']['default_body'] ) . '">'
 	. esc_html__( 'Restore default', 'photo-competition-manager' ) . '</button>';

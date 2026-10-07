@@ -78,7 +78,7 @@ class Email_Service {
 		// Tags are filled in after wpautop(), so an HTML value isn't reformatted.
 		// An HTML tag on its own line comes out of wpautop() as a paragraph,
 		// which it would be invalid inside, so that paragraph is unwrapped.
-		$body = wpautop( wp_kses_post( $template['body'] ) );
+		$body = $this->sendable_body( $template['body'] );
 		foreach ( $html_tags as $tag ) {
 			$body = preg_replace( '#<p[^>]*>\s*' . preg_quote( $tag, '#' ) . '\s*</p>#', $tag, $body );
 		}
@@ -169,36 +169,19 @@ class Email_Service {
 	 */
 	public function is_default_template( string $kind, string $subject, string $body ): bool {
 		$definition = Email_Kinds::get( $kind );
-		if ( ! $definition ) {
-			return false;
-		}
 
 		return sanitize_text_field( $subject ) === sanitize_text_field( $definition['subject'] )
-			&& $this->comparable_body( $body ) === $this->comparable_body( $definition['body'] );
+			&& trim( $this->sendable_body( $body ) ) === trim( $this->sendable_body( $definition['body'] ) );
 	}
 
 	/**
-	 * Whether an admin's edit has replaced a kind's default subject or body.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param string $kind Kind key, from Email_Kinds.
-	 * @return bool
-	 */
-	public function is_template_edited( string $kind ): bool {
-		$template = $this->get_template( $kind );
-
-		return ! $this->is_default_template( $kind, $template['subject'], $template['body'] );
-	}
-
-	/**
-	 * A body in the form it is sent.
+	 * A body in the form it is sent, before its tags are filled in.
 	 *
 	 * @param string $body Body.
 	 * @return string
 	 */
-	private function comparable_body( string $body ): string {
-		return trim( wpautop( wp_kses_post( $body ) ) );
+	private function sendable_body( string $body ): string {
+		return wpautop( wp_kses_post( $body ) );
 	}
 
 	/**
