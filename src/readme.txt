@@ -190,6 +190,7 @@ Yes. Visit **Competitions → Export** to download:
   * An entry whose file is missing shows "Image unavailable", and the slideshow skips it
   * Deleting a submission works in in-app browsers
   * The upload page's messages can be translated
+  * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
