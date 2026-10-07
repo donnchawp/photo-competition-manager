@@ -278,6 +278,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_email_results_success_redirects_with_job(): void {
 		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		Workflow_Fixtures::publish_results( $this->competition_id );
 
 		$this->set_request(
 			array(
@@ -305,6 +306,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * and the user is redirected back to the competition.
 	 */
 	public function test_email_results_no_members_records_error(): void {
+		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->set_request(
 			array(
 				'action'      => 'email_results',
@@ -321,6 +323,30 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'email_job_failed', $this->settings_error_codes( 'photo_competition_results' ) );
 		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
+	}
+
+	/**
+	 * Detailed results wait for Show Results, so the position each entrant
+	 * is told is the recorded one.
+	 */
+	public function test_email_results_before_results_are_published_is_refused(): void {
+		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
 	}
 
 	/**
@@ -391,6 +417,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$id = $this->create_competition( array( 'share_hash' => 'abc123hash' ) );
 		$this->seed_member_with_image( $id, 'colour' );
+		Workflow_Fixtures::publish_results( $id );
 
 		$this->set_request(
 			array(
@@ -423,6 +450,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$this->seed_member_with_image( $id, 'colour' );
+		Workflow_Fixtures::publish_results( $id );
 
 		$this->set_request(
 			array(
@@ -439,6 +467,36 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'job_id=email_job_', $location );
+	}
+
+	/**
+	 * The results link goes to every member only once results are published.
+	 */
+	public function test_send_results_all_before_results_are_published_is_refused(): void {
+		$id = $this->create_competition(
+			array(
+				'share_hash' => 'jkl012hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
 	}
 
 	/**
