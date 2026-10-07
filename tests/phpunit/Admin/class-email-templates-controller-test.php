@@ -11,6 +11,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Email_Templates_Controller;
 use PhotoCompetitionManager\Service\Email_Kinds;
+use PhotoCompetitionManager\Service\Email_Service;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Email_Templates_Controller
@@ -127,6 +128,71 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 		$this->save_form( $this->unchanged_form() );
 
 		$this->assertSame( array(), $this->saved_text() );
+	}
+
+	public function test_editing_one_body_stores_only_that_kinds_text(): void {
+		$form                            = $this->unchanged_form();
+		$form['voting_link']['body']     = 'Dear {member_name}, vote at {voting_link}';
+		$this->save_form( $form );
+
+		$this->assertSame(
+			array(
+				'voting_link' => array(
+					'subject' => Email_Kinds::get( 'voting_link' )['subject'],
+					'body'    => 'Dear {member_name}, vote at {voting_link}',
+				),
+			),
+			$this->saved_text()
+		);
+		$service = new Email_Service();
+		$this->assertSame( Email_Kinds::get( 'upload_reminder' )['body'], $service->get_template( 'upload_reminder' )['body'] );
+	}
+
+	public function test_switching_a_notification_off_stores_only_the_switch(): void {
+		$form = $this->unchanged_form();
+		$form['voting_opened']['enabled'] = '1';
+		$this->save_form( $form );
+		$this->assertTrue( ( new Email_Service() )->is_template_enabled( 'voting_opened' ) );
+
+		unset( $form['voting_opened']['enabled'] );
+		$this->save_form( $form );
+
+		$this->assertSame( array( 'enabled' => false ), get_option( 'photo_comp_email_templates' )['voting_opened'] );
+		$this->assertFalse( ( new Email_Service() )->is_template_enabled( 'voting_opened' ) );
+	}
+
+	public function test_a_requested_email_stores_no_switch(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertArrayNotHasKey( 'upload_reminder', get_option( 'photo_comp_email_templates' ) );
+	}
+
+	public function test_saving_a_template_identical_to_its_default_removes_its_stored_copy(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'upload_reminder' => array(
+					'subject' => 'Old subject',
+					'body'    => 'Old body',
+				),
+			)
+		);
+
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), $this->saved_text() );
+		$this->assertSame( Email_Kinds::get( 'upload_reminder' )['subject'], ( new Email_Service() )->get_template( 'upload_reminder' )['subject'] );
+	}
+
+	public function test_a_kind_the_plugin_doesnt_have_is_not_stored(): void {
+		$form              = $this->unchanged_form();
+		$form['no_such']   = array(
+			'subject' => 'Hello',
+			'body'    => 'World',
+		);
+		$this->save_form( $form );
+
+		$this->assertArrayNotHasKey( 'no_such', (array) get_option( 'photo_comp_email_templates' ) );
 	}
 
 	public function test_editor_can_render_page(): void {
