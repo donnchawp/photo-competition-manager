@@ -77,6 +77,25 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->record->has_record( $this->competition_id ) );
 	}
 
+	public function test_recording_the_same_entries_twice_leaves_one_record(): void {
+		$row = array(
+			'competition_id' => $this->competition_id,
+			'category'       => 'colour',
+			'entry_id'       => 41,
+			'member_id'      => 7,
+			'grade'          => 'beginner',
+			'total_score'    => 9,
+			'vote_count'     => 1,
+			'position'       => 1,
+		);
+
+		// Two first reads at once both find no record and both record it.
+		$this->assertSame( 1, $this->record->insert( array( $row ) ) );
+		$this->assertSame( 0, $this->record->insert( array( $row ) ) );
+
+		$this->assertSame( array( '41:7' ), $this->ids( $this->record->find_by_category( $this->competition_id, 'colour' ) ) );
+	}
+
 	/**
 	 * Each row's "entry ID:member ID", blank where null.
 	 *

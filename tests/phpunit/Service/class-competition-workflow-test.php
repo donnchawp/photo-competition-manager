@@ -301,6 +301,19 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->workflow->results_published( $this->row( $id ) ) );
 	}
 
+	public function test_hiding_results_once_the_competition_has_closed_is_refused(): void {
+		$id = $this->create_competition();
+		Workflow_Fixtures::publish_results( $id );
+		$this->assertTrue( $this->workflow->close_competition( $id ) );
+
+		$result = $this->workflow->unpublish_results( $id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'competition_closed', $result->get_error_code() );
+		$this->assertStringContainsString( 'move the close date into the future', $result->get_error_message() );
+		$this->assertTrue( $this->workflow->results_published( $this->row( $id ) ) );
+	}
+
 	public function test_publishing_results_while_uploads_are_open_is_refused(): void {
 		$id = $this->create_competition();
 

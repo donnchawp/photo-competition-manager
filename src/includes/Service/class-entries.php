@@ -70,6 +70,14 @@ class Entries {
 	private $workflow;
 
 	/**
+	 * Results ranking, which records a closed competition's results before
+	 * its entries go.
+	 *
+	 * @var Results_Ranking
+	 */
+	private $ranking;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
@@ -78,6 +86,7 @@ class Entries {
 	 * @param Image_Processor|null         $image_processor   Image processor.
 	 * @param Competition_Workflow|null    $workflow          Competition workflow.
 	 * @param Votes_Repository|null        $votes_repo        Votes repository.
+	 * @param Results_Ranking|null         $ranking           Results ranking.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
@@ -85,7 +94,8 @@ class Entries {
 		?Members_Repository $members_repo = null,
 		?Image_Processor $image_processor = null,
 		?Competition_Workflow $workflow = null,
-		?Votes_Repository $votes_repo = null
+		?Votes_Repository $votes_repo = null,
+		?Results_Ranking $ranking = null
 	) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->images_repo       = $images_repo ?? new Images_Repository();
@@ -93,6 +103,7 @@ class Entries {
 		$this->image_processor   = $image_processor ?? new Image_Processor();
 		$this->workflow          = $workflow ?? new Competition_Workflow( $this->competitions_repo );
 		$this->votes_repo        = $votes_repo ?? new Votes_Repository();
+		$this->ranking           = $ranking ?? new Results_Ranking( $this->images_repo, $this->votes_repo, $this->members_repo, $this->competitions_repo, $this->workflow );
 	}
 
 	/**
@@ -245,6 +256,7 @@ class Entries {
 	 * A member may remove only their own entries, and only while the competition accepts uploads.
 	 * An admin may remove any entry at any time. If the row won't delete, its votes, files and
 	 * original are left alone. A file that won't delete is logged and doesn't fail the removal.
+	 * A competition whose results are due a record gets one first, so the removal moves nobody.
 	 *
 	 * @param Actor $actor          Who is removing the entry.
 	 * @param int   $competition_id Competition the entry must belong to.
@@ -274,6 +286,11 @@ class Entries {
 			if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
 				return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'photo-competition-manager' ) );
 			}
+		}
+
+		$recorded = $this->ranking->record_if_missing( $competition );
+		if ( is_wp_error( $recorded ) ) {
+			return $recorded;
 		}
 
 		return $this->remove_entry( $competition, $entry );
@@ -318,7 +335,8 @@ class Entries {
 	 * Remove every entry a member has, in every competition.
 	 *
 	 * Only an admin may do this, at any phase. It stops at the first row that won't delete,
-	 * leaving that entry and the ones after it in place.
+	 * leaving that entry and the ones after it in place. Every competition whose results are
+	 * due a record gets one first, so the removal moves nobody.
 	 *
 	 * @since 0.4.0
 	 *
@@ -331,8 +349,24 @@ class Entries {
 			return new WP_Error( 'not_authorized', __( 'Only an admin can remove a member\'s entries.', 'photo-competition-manager' ) );
 		}
 
-		foreach ( $this->images_repo->find_by_member( $member_id ) as $entry ) {
-			$removed = $this->remove_entry( $this->competitions_repo->find( (int) $entry->competition_id, true ), $entry );
+		$entries      = $this->images_repo->find_by_member( $member_id );
+		$competitions = array();
+		foreach ( $entries as $entry ) {
+			$competition_id = (int) $entry->competition_id;
+			if ( ! array_key_exists( $competition_id, $competitions ) ) {
+				$competitions[ $competition_id ] = $this->competitions_repo->find( $competition_id, true );
+			}
+		}
+
+		foreach ( array_filter( $competitions ) as $competition ) {
+			$recorded = $this->ranking->record_if_missing( $competition );
+			if ( is_wp_error( $recorded ) ) {
+				return $recorded;
+			}
+		}
+
+		foreach ( $entries as $entry ) {
+			$removed = $this->remove_entry( $competitions[ (int) $entry->competition_id ], $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
 			}

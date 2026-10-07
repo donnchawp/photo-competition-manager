@@ -14,10 +14,13 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
+
+use function PhotoCompetitionManager\Support\utc_time;
 
 class Results_Ranking_Test extends WP_UnitTestCase {
 
@@ -191,6 +194,139 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 			array( 'beginner' => array( '(missing):1:18', 'Bob:2:14', 'Cat:3:10' ) ),
 			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
 		);
+	}
+
+	public function test_publishing_again_replaces_the_record(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
+
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_hidden_results_are_worked_out_from_the_votes(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
+
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_closed_competition_is_recorded_the_first_time_it_is_ranked(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->delete_member_of( $ann );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_closed_competition_is_recorded_before_a_member_is_deleted(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+
+		$this->delete_member_of( $ann );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_a_closed_competition_is_recorded_before_an_entry_is_removed(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+
+		$this->assertTrue( ( new Entries() )->remove( Actor::admin(), $this->competition_id, $ann ) );
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->assertSame( array( 'beginner' => array( 'Ann:1:9', 'Bob:2:5' ) ), $this->summarize( $groups ) );
+		$this->assertNull( $groups[0]['entries'][0]['image'] );
+	}
+
+	public function test_publishing_a_closed_competition_keeps_its_record(): void {
+		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		$this->close_competition();
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		$this->delete_member_of( $ann );
+
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->assertSame(
+			array( 'beginner' => array( '(missing):1:9', 'Bob:2:5' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_moving_the_close_date_into_the_future_lets_results_be_published_again(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->seed_entry( 'Bob', 'beginner', array( 5 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$this->close_competition();
+		$workflow = new Competition_Workflow();
+		$this->assertWPError( $workflow->unpublish_results( $this->competition_id ) );
+
+		( new Competitions_Repository() )->update( $this->competition_id, array( 'close_date' => utc_time( DAY_IN_SECONDS ) ) );
+		$this->assertTrue( $workflow->unpublish_results( $this->competition_id ) );
+		( new Votes_Repository() )->create( $this->competition_id, 'colour', 'Late Voter', $bob, 9 );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:14', 'Ann:2:9' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	public function test_recorded_entries_keep_a_grade_no_longer_on_the_club_list(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				)
+			)
+		);
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( array( 'beginner' => array( 'Ann:1:9' ) ), $this->summarize( $groups ) );
+		$this->assertSame( 'beginner', $groups[0]['label'] );
+		$this->assertFalse( $groups[0]['ungraded'] );
+	}
+
+	/**
+	 * Close the competition now, as the Competitions screen does.
+	 */
+	private function close_competition(): void {
+		$this->assertTrue( ( new Competition_Workflow() )->close_competition( $this->competition_id ) );
 	}
 
 	/**
