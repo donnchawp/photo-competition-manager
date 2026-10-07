@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Email_Templates_Controller;
+use PhotoCompetitionManager\Service\Email_Kinds;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Email_Templates_Controller
@@ -66,6 +67,66 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 
 		$saved = get_option( 'photo_comp_email_templates' );
 		$this->assertSame( 'Voting is open', $saved['voting_opened']['subject'] );
+	}
+
+	/**
+	 * The form as the browser posts it when nothing has been changed: every
+	 * kind's default, with the editor's paragraphs turned back into blank lines
+	 * and the browser's line endings, and each notification's switch as it stands.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private function unchanged_form(): array {
+		$form = array();
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$form[ $kind ] = array(
+				'subject' => $definition['subject'],
+				'body'    => str_replace( array( '<p>', '</p>', "\n" ), array( '', '', "\r\n" ), $definition['body'] ),
+			);
+			if ( $definition['notification'] && $definition['on_by_default'] ) {
+				$form[ $kind ]['enabled'] = '1';
+			}
+		}
+		return $form;
+	}
+
+	/**
+	 * Post the Email Templates form.
+	 *
+	 * @param array<string, array<string, string>> $form Posted templates.
+	 */
+	private function save_form( array $form ): void {
+		$this->become_editor();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'save_email_templates',
+				'templates'                => $form,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_templates' );
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+	}
+
+	/**
+	 * Saved template text, by kind.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function saved_text(): array {
+		$text = array();
+		foreach ( (array) get_option( 'photo_comp_email_templates', array() ) as $kind => $saved ) {
+			$saved = array_intersect_key( $saved, array_flip( array( 'subject', 'body' ) ) );
+			if ( $saved ) {
+				$text[ $kind ] = $saved;
+			}
+		}
+		return $text;
+	}
+
+	public function test_saving_without_changes_stores_no_template_text(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), $this->saved_text() );
 	}
 
 	public function test_editor_can_render_page(): void {

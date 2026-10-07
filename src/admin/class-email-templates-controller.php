@@ -71,22 +71,10 @@ class Email_Templates_Controller {
 		if ( 'save_email_templates' === $action ) {
 			check_admin_referer( 'photo_competition_email_templates' );
 
-			$templates = array();
-
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized below per field.
 			$raw_templates = isset( $_POST['templates'] ) && is_array( $_POST['templates'] ) ? wp_unslash( $_POST['templates'] ) : array();
 
-			foreach ( $raw_templates as $template_key => $template_data ) {
-				$key = sanitize_key( $template_key );
-
-				$templates[ $key ] = array(
-					'enabled' => isset( $template_data['enabled'] ) && '1' === $template_data['enabled'],
-					'subject' => isset( $template_data['subject'] ) ? sanitize_text_field( $template_data['subject'] ) : '',
-					'body'    => isset( $template_data['body'] ) ? wp_kses_post( $template_data['body'] ) : '',
-				);
-			}
-
-			update_option( 'photo_comp_email_templates', $templates );
+			update_option( 'photo_comp_email_templates', $this->templates_to_store( $raw_templates ) );
 
 			add_settings_error(
 				'photo_competition_email_templates',
@@ -97,6 +85,43 @@ class Email_Templates_Controller {
 
 			$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-email-templates' ) );
 		}
+	}
+
+	/**
+	 * What to store from the posted form: each notification's switch, and a
+	 * kind's subject and body only where either differs from its default, so
+	 * the rest keep following their defaults.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $raw_templates Posted templates, unslashed.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function templates_to_store( array $raw_templates ): array {
+		$email_service = new Email_Service();
+		$templates     = array();
+
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$posted = isset( $raw_templates[ $kind ] ) && is_array( $raw_templates[ $kind ] ) ? $raw_templates[ $kind ] : array();
+			$stored = array();
+
+			if ( $definition['notification'] ) {
+				$stored['enabled'] = isset( $posted['enabled'] ) && '1' === $posted['enabled'];
+			}
+
+			$subject = isset( $posted['subject'] ) ? sanitize_text_field( $posted['subject'] ) : $definition['subject'];
+			$body    = isset( $posted['body'] ) ? wp_kses_post( $posted['body'] ) : $definition['body'];
+			if ( ! $email_service->is_default_template( $kind, $subject, $body ) ) {
+				$stored['subject'] = $subject;
+				$stored['body']    = $body;
+			}
+
+			if ( $stored ) {
+				$templates[ $kind ] = $stored;
+			}
+		}
+
+		return $templates;
 	}
 
 	/**

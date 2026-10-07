@@ -155,6 +155,39 @@ class Email_Service {
 	}
 
 	/**
+	 * Whether a subject and body are the kind's default.
+	 *
+	 * The body is compared as it would be sent, so the editor's paragraph and
+	 * whitespace reformatting doesn't count as an edit.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $kind    Kind key, from Email_Kinds.
+	 * @param string $subject Subject.
+	 * @param string $body    Body.
+	 * @return bool
+	 */
+	public function is_default_template( string $kind, string $subject, string $body ): bool {
+		$definition = Email_Kinds::get( $kind );
+		if ( ! $definition ) {
+			return false;
+		}
+
+		return sanitize_text_field( $subject ) === sanitize_text_field( $definition['subject'] )
+			&& $this->comparable_body( $body ) === $this->comparable_body( $definition['body'] );
+	}
+
+	/**
+	 * A body in the form it is sent.
+	 *
+	 * @param string $body Body.
+	 * @return string
+	 */
+	private function comparable_body( string $body ): string {
+		return trim( wpautop( wp_kses_post( $body ) ) );
+	}
+
+	/**
 	 * What an admin saved for a kind on the Email Templates screen.
 	 *
 	 * @param string $kind Kind key.
