@@ -280,6 +280,24 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Uploads can't reopen once a category's voting has started, so Reopen is
+	 * disabled with the reason.
+	 */
+	public function test_render_disables_reopen_once_a_category_has_started_voting(): void {
+		$this->seed_competition_with_workflow(
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => 'critique' ),
+			)
+		);
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( '<button type="button" class="button button-small" disabled title="Voting has started in Colour. Reset that category before reopening uploads.">Reopen</button>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
+	/**
 	 * A category reset with its votes kept is back at step 1 but still has votes, so it
 	 * offers Reset again: moving its entries needs those votes cleared.
 	 */

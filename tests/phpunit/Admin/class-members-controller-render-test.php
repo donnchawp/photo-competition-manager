@@ -281,6 +281,36 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
 	}
 
+	public function test_render_greys_out_open_uploads_once_a_category_has_started_voting(): void {
+		$comp_id = $this->seed_competition(
+			'Winter Salon',
+			'winter-salon',
+			array(
+				'categories' => array(
+					array(
+						'slug'  => 'colour',
+						'label' => 'Colour',
+					),
+				),
+			)
+		);
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => 'critique' ),
+			)
+		);
+		$this->seed_member( 'Dave Evans', 'dave@example.com' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<button type="button" class="button" disabled title="Voting has started in Colour. Reset that category before reopening uploads.">Open Uploads</button>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
 	public function test_render_filtered_no_match(): void {
 		// Search filter that matches nothing: "No members found matching the
 		// selected filters." message plus the "Clear Filters" link.

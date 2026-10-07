@@ -275,6 +275,61 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
 	}
 
+	public function test_reopening_uploads_once_a_category_has_started_voting_is_refused(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour. Reset that category before reopening uploads.', $result->get_error_message() );
+		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
+	}
+
+	public function test_reopening_uploads_names_every_category_whose_voting_has_started(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+		$this->workflow->advance( $id, 'mono', Competition_Workflow::STAGE_PREVIEWED );
+		$this->workflow->open_voting( $id, 'mono' );
+		$this->workflow->close_voting( $id, 'mono' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour and Mono. Reset those categories before reopening uploads.', $result->get_error_message() );
+	}
+
+	public function test_reopening_uploads_with_a_category_only_previewed_is_allowed(): void {
+		$id = $this->ready_to_open( 'colour' );
+
+		$this->assertTrue( $this->workflow->reopen_uploads( $id ) );
+		$this->assertTrue( $this->workflow->is_accepting_uploads( $this->row( $id ) ) );
+	}
+
+	public function test_reopening_uploads_is_allowed_once_the_started_category_is_reset(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$this->workflow->reset_category( $id, 'colour', false );
+
+		$this->assertTrue( $this->workflow->reopen_uploads( $id ) );
+	}
+
+	public function test_reopening_uploads_with_votes_and_a_started_category_names_the_category(): void {
+		$id = $this->ready_to_open( 'colour' );
+		Entry_Fixtures::insert_entry( $id, 'colour', 3, array( 9 ) );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour. Reset that category before reopening uploads.', $result->get_error_message() );
+	}
+
 	public function test_reopening_uploads_while_results_are_published_is_refused(): void {
 		$id = $this->create_competition();
 		Workflow_Fixtures::publish_results( $id );
