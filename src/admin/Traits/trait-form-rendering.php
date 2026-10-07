@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use function PhotoCompetitionManager\Support\render_template;
+
 /**
  * Provides form input helper methods for admin controllers.
  *
@@ -158,21 +160,7 @@ trait Form_Rendering {
 	}
 
 	/**
-	 * Resolve a template partial path under src/templates/.
-	 *
-	 * @since 0.3.0
-	 * @param string $relative Relative path, e.g. 'admin/voting/category-tabs.php'.
-	 * @return string Absolute filesystem path.
-	 */
-	protected function template_path( string $relative ): string {
-		return PHOTO_COMPETITION_MANAGER_DIR . '/templates/' . ltrim( $relative, '/' );
-	}
-
-	/**
-	 * Render a template partial to a string.
-	 *
-	 * The partial receives a single variable, $data (array), in scope and is
-	 * responsible for its own output escaping.
+	 * Render a template partial to a string through Support\render_template().
 	 *
 	 * @since 0.3.0
 	 * @param string $relative Relative partial path under src/templates/.
@@ -180,12 +168,6 @@ trait Form_Rendering {
 	 * @return string Rendered HTML.
 	 */
 	protected function render_template( string $relative, array $data = array() ): string {
-		ob_start();
-		try {
-			include $this->template_path( $relative );
-		} finally {
-			$html = ob_get_clean();
-		}
-		return (string) $html;
+		return render_template( $relative, $data );
 	}
 }
