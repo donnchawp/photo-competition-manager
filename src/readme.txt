@@ -160,8 +160,9 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs four database upgrades (versions 2 to 5) on the first request after it's installed.
+  * Back up the database first. The update runs five database upgrades (versions 2 to 6) on the first request after it's installed.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
+  * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
 
 * **Competitions**
   * Only one competition can be open at a time, with a new Close Competition action
@@ -190,6 +191,7 @@ Yes. Visit **Competitions → Export** to download:
   * The voter's name and the voting password are remembered on classic themes too
   * An unanswered score is no longer counted as 0, and a score that isn't in the list is refused with a message
   * A ballot sent with an expired voting link says so, instead of being ignored
+  * Asking for a voting link again sends a link that works. It replaces the earlier one, and a member who has already voted is told so
 
 * **Results**
   * Tied entries share a position in the results email
