@@ -226,6 +226,18 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_entries_say_whether_they_come_from_the_record(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$this->seed_entry( 'Orphan', 'retired', array( 5 ) );
+
+		$live = $this->ranking->rank_category( $this->competition_id, 'colour' );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+		$recorded = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( array( false, false ), array_column( array_merge( ...array_column( $live, 'entries' ) ), 'recorded' ) );
+		$this->assertSame( array( true, true ), array_column( array_merge( ...array_column( $recorded, 'entries' ) ), 'recorded' ) );
+	}
+
 	public function test_a_closed_competition_is_recorded_the_first_time_it_is_ranked(): void {
 		$ann = $this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		$this->seed_entry( 'Bob', 'beginner', array( 5 ) );

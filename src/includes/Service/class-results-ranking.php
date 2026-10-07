@@ -108,11 +108,12 @@ class Results_Ranking {
 	 * In recorded results, an entry keeps the grade it was entered in, and
 	 * an entry whose member or entry has since been deleted keeps its place
 	 * with a null `member` or `image`. A grade no longer on the club's list
-	 * follows the club's grades, labelled with its slug.
+	 * follows the club's grades, labelled with its slug. Each entry's
+	 * `recorded` says whether it was read from the record.
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	public function rank_category( int $competition_id, string $category ): array {
 		$competition = $this->competitions->find( $competition_id, true );
@@ -221,7 +222,7 @@ class Results_Ranking {
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object|null, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	private function rank_recorded( int $competition_id, string $category ): array {
 		$rows = $this->record->find_by_category( $competition_id, $category );
@@ -257,6 +258,7 @@ class Results_Ranking {
 				'member'      => $members[ (int) $row->member_id ] ?? null,
 				'total_score' => (int) $row->total_score,
 				'vote_count'  => (int) $row->vote_count,
+				'recorded'    => true,
 			);
 		}
 
@@ -312,7 +314,7 @@ class Results_Ranking {
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object, member: object|null, total_score: int, vote_count: int}>}>
+	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	private function rank_live( int $competition_id, string $category ): array {
 		$images = $this->images->find_by_competition( $competition_id, $category );
@@ -334,6 +336,7 @@ class Results_Ranking {
 				'member'      => $member,
 				'total_score' => $votes[ (int) $image->id ]['total_score'] ?? 0,
 				'vote_count'  => $votes[ (int) $image->id ]['vote_count'] ?? 0,
+				'recorded'    => false,
 			);
 		}
 

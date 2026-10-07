@@ -846,6 +846,34 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array( '', '', '' ), array( $rows[1][4], $rows[1][6], $rows[1][9] ) );
 	}
 
+	/**
+	 * Before results are recorded, an entry whose member is missing is an
+	 * ungraded data error, not a former member's, so it's exported with no
+	 * member name.
+	 */
+	public function test_export_rows_give_no_name_to_a_missing_member_before_results_are_recorded(): void {
+		$this->competition_id = $this->create_open_competition();
+		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
+		$this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => 999999,
+				'category'       => 'colour',
+				'filename'       => 'orphan.jpg',
+			)
+		);
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Colour|1|Winner',
+				'Ungraded|Colour|1|',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+	}
+
 	/*
 	 * -------------------------------------------------------------------------
 	 * Default competition (no ?competition= in the URL).

@@ -667,6 +667,7 @@ class Results_Controller {
 					'total_score' => $entry['total_score'],
 					'vote_count'  => $entry['vote_count'],
 					'detail_url'  => $detail_url,
+					'recorded'    => $entry['recorded'],
 				);
 			}
 
@@ -817,7 +818,7 @@ class Results_Controller {
 						$category_label,
 						$entry['position'],
 						$image ? $image->random_number : '',
-						$member ? $member->name : __( 'Former member', 'photo-competition-manager' ),
+						$this->export_member_name( $entry ),
 						$member ? $member->email : '',
 						number_format( $entry['total_score'], 0 ),
 						$entry['vote_count'],
@@ -832,5 +833,23 @@ class Results_Controller {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * The member name an exported entry gets. A recorded entry whose member
+	 * was deleted is a former member's. Before results are recorded, a
+	 * missing member is a data error, and the name is left blank.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array{member: object|null, recorded: bool} $entry A Results_Ranking::rank_category() entry.
+	 * @return string
+	 */
+	private function export_member_name( array $entry ): string {
+		if ( $entry['member'] ) {
+			return (string) $entry['member']->name;
+		}
+
+		return $entry['recorded'] ? __( 'Former member', 'photo-competition-manager' ) : '';
 	}
 }

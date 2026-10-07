@@ -545,6 +545,10 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( '<h3>Ungraded</h3>', $html );
 		$this->assertMatchesRegularExpression( '#<div class="notice notice-warning inline">.*<li>Old Grade Member \(old@example.com\)</li>.*<li>Image \#3 \(Colour\)</li>.*</div>#s', $html );
 		$this->assertStringNotContainsString( 'Ada Lovelace (', $html );
+		// Results aren't recorded yet, so a missing member is a data error,
+		// not a former member.
+		$this->assertStringContainsString( '<td><em>Unknown</em></td>', $html );
+		$this->assertStringNotContainsString( 'Former member', $html );
 	}
 
 	public function test_render_warns_about_ungraded_entries_in_another_category(): void {
