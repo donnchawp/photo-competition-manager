@@ -178,6 +178,20 @@ class Email_Service {
 	}
 
 	/**
+	 * Whether an admin's edit has replaced a kind's default subject or body.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $kind Kind key, from Email_Kinds.
+	 * @return bool
+	 */
+	public function is_template_edited( string $kind ): bool {
+		$template = $this->get_template( $kind );
+
+		return ! $this->is_default_template( $kind, $template['subject'], $template['body'] );
+	}
+
+	/**
 	 * A body in the form it is sent.
 	 *
 	 * @param string $body Body.

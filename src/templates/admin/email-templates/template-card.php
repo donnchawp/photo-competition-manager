@@ -11,7 +11,11 @@ defined( 'ABSPATH' ) || exit;
 
 echo '<div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;">';
 
-echo '<h2 style="margin-top: 0;">' . esc_html( $data['template']['name'] ) . '</h2>';
+echo '<h2 style="margin-top: 0;">' . esc_html( $data['template']['name'] );
+if ( $data['template']['edited'] ) {
+	echo ' <span class="photo-comp-template-edited">' . esc_html__( 'Edited', 'photo-competition-manager' ) . '</span>';
+}
+echo '</h2>';
 echo '<p class="description">' . esc_html( $data['template']['description'] ) . '</p>';
 
 // Only a notification can be switched off.
@@ -59,5 +63,16 @@ echo '</td>';
 echo '</tr>';
 
 echo '</tbody></table>';
+
+// Fills the fields in the browser; nothing is saved until the form is.
+echo '<p>';
+echo '<button type="button" class="button photo-comp-restore-default"'
+	. ' data-subject-field="template-' . esc_attr( $data['template_key'] ) . '-subject"'
+	. ' data-body-field="template_' . esc_attr( $data['template_key'] ) . '_body"'
+	. ' data-default-subject="' . esc_attr( $data['template']['default_subject'] ) . '"'
+	. ' data-default-body="' . esc_attr( $data['template']['default_body'] ) . '">'
+	. esc_html__( 'Restore default', 'photo-competition-manager' ) . '</button>';
+echo ' <span class="description">' . esc_html__( 'Fills in the default subject and body. Save the email templates to keep them.', 'photo-competition-manager' ) . '</span>';
+echo '</p>';
 
 echo '</div>';

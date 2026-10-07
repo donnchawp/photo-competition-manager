@@ -15,6 +15,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Email_Templates_Controller;
+use PhotoCompetitionManager\Service\Email_Kinds;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Email_Templates_Controller
@@ -102,6 +103,81 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 
 		$this->assertStringContainsString( '<code>{upload_link}</code> The member&#039;s own upload link.', $html );
 		$this->assertStringContainsString( '<code>{member_name}</code> The member&#039;s name.', $html );
+	}
+
+	/**
+	 * One kind's card from the rendered page.
+	 *
+	 * @param string $html Rendered page.
+	 * @param string $kind Kind key.
+	 * @return string
+	 */
+	private function card( string $html, string $kind ): string {
+		foreach ( explode( '<div class="card photo-comp-template-card"', $html ) as $card ) {
+			if ( false !== strpos( $card, 'name="templates[' . $kind . '][subject]"' ) ) {
+				return $card;
+			}
+		}
+		self::fail( "No card for {$kind}." );
+	}
+
+	public function test_only_an_edited_template_says_edited(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_link' => array(
+					'subject' => 'Your voting link',
+					'body'    => 'Vote at {voting_link}',
+				),
+			)
+		);
+
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( 'Edited', $this->card( $html, 'voting_link' ) );
+		$this->assertStringNotContainsString( 'Edited', $this->card( $html, 'upload_reminder' ) );
+	}
+
+	public function test_full_copies_saved_by_an_earlier_version_say_edited_only_where_they_differ(): void {
+		$saved = array();
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$saved[ $kind ] = array(
+				'enabled' => true,
+				'subject' => $definition['subject'],
+				// As the editor sent it: paragraphs as blank lines.
+				'body'    => str_replace( array( '<p>', '</p>', "\n" ), array( '', '', "\r\n" ), $definition['body'] ),
+			);
+		}
+		$saved['results_published']['subject'] = 'Results are in for {competition_title}';
+		update_option( 'photo_comp_email_templates', $saved );
+
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( 'Edited', $this->card( $html, 'results_published' ) );
+		$this->assertStringContainsString( 'value="Results are in for {competition_title}"', $this->card( $html, 'results_published' ) );
+		$this->assertStringNotContainsString( 'Edited', $this->card( $html, 'upload_reminder' ) );
+	}
+
+	public function test_each_card_can_restore_its_default_text(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_link' => array(
+					'subject' => 'Your voting link',
+					'body'    => 'Vote at {voting_link}',
+				),
+			)
+		);
+
+		$card = $this->card( $this->render_normalized(), 'voting_link' );
+
+		$this->assertStringContainsString( '>Restore default</button>', $card );
+		$this->assertStringContainsString( 'data-subject-field="template-voting_link-subject"', $card );
+		$this->assertStringContainsString( 'data-body-field="template_voting_link_body"', $card );
+		$this->assertStringContainsString( 'data-default-subject="Vote in {competition_title}"', $card );
+		$this->assertStringContainsString( 'data-default-body="&lt;p&gt;Hi {member_name},&lt;/p&gt;', $card );
+		// The fields still hold the edit until the admin restores the default.
+		$this->assertStringContainsString( 'value="Your voting link"', $card );
 	}
 
 	public function test_render_default_templates(): void {

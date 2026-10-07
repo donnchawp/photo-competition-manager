@@ -33,7 +33,9 @@ class Email_Templates_Controller {
 	}
 
 	/**
-	 * Enqueue inline styles for email templates page.
+	 * Enqueue the email templates page's styles and Restore default script.
+	 *
+	 * @since 0.4.0 Enqueues the Restore default script.
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
@@ -47,8 +49,16 @@ class Email_Templates_Controller {
 		wp_register_style( 'photo-comp-email-templates-style', '', array(), PHOTO_COMPETITION_MANAGER_VERSION );
 		wp_enqueue_style( 'photo-comp-email-templates-style' );
 
-		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;}';
+		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;} .photo-comp-template-edited{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:2px;background:#dcdcde;color:#1d2327;font-size:12px;font-weight:400;vertical-align:middle;}';
 		wp_add_inline_style( 'photo-comp-email-templates-style', $inline_css );
+
+		wp_enqueue_script(
+			'photo-comp-admin-email-templates',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-email-templates.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -140,11 +150,14 @@ class Email_Templates_Controller {
 		$templates     = array();
 		foreach ( Email_Kinds::all() as $kind => $definition ) {
 			$templates[ $kind ] = array(
-				'name'         => $definition['label'],
-				'description'  => $definition['description'],
-				'notification' => $definition['notification'],
-				'enabled'      => $email_service->is_template_enabled( $kind ),
-				'merge_tags'   => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
+				'name'            => $definition['label'],
+				'description'     => $definition['description'],
+				'notification'    => $definition['notification'],
+				'enabled'         => $email_service->is_template_enabled( $kind ),
+				'edited'          => $email_service->is_template_edited( $kind ),
+				'default_subject' => $definition['subject'],
+				'default_body'    => $definition['body'],
+				'merge_tags'      => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
 			) + $email_service->get_template( $kind );
 		}
 
