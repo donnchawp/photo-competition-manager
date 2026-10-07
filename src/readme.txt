@@ -191,6 +191,7 @@ Yes. Visit **Competitions → Export** to download:
   * Deleting a submission works in in-app browsers
   * The upload page's messages can be translated
   * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
+  * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
