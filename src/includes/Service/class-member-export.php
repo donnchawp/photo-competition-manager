@@ -54,6 +54,20 @@ class Member_Export {
 	private $competition_cache = array();
 
 	/**
+	 * Competition and category fields already built, by competition ID and category.
+	 *
+	 * @var array<string, array<string, string>>
+	 */
+	private $competition_fields_cache = array();
+
+	/**
+	 * The club's grades as slug => label, once looked up.
+	 *
+	 * @var array<string, string>|null
+	 */
+	private $grade_labels;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Members_Repository|null $members Members repository.
@@ -136,35 +150,42 @@ class Member_Export {
 	 * @return array<int, array<string, mixed>>
 	 */
 	private function entry_items( array $members ): array {
-		$images  = new Images_Repository();
-		$entries = new Entries( null, null, $this->members );
-		$items   = array();
+		$images      = new Images_Repository();
+		$entries     = new Entries( null, null, $this->members );
+		$member_rows = array();
+		$items       = array();
 
 		foreach ( $members as $member ) {
-			foreach ( $images->find_by_member( (int) $member->id ) as $entry ) {
-				$competition = $this->competition( (int) $entry->competition_id );
-				$fields      = $this->competition_fields( $competition, (string) $entry->category ) + array(
-					__( 'Entry ID', 'photo-competition-manager' ) => $entry->id,
-					__( 'Uploaded', 'photo-competition-manager' ) => $entry->created_at,
-				);
+			$member_rows[] = $images->find_by_member( (int) $member->id );
+		}
+		$rows = array_merge( ...$member_rows );
 
-				$image = $competition ? $entries->urls( $competition, $entry )['full'] : '';
-				if ( '' !== $image ) {
-					$fields[ __( 'Image', 'photo-competition-manager' ) ] = $image;
-				}
+		// Load every original's post and meta in two queries, not two per entry.
+		_prime_post_caches( array_filter( array_map( 'intval', wp_list_pluck( $rows, 'original_attachment_id' ) ) ), false, true );
 
-				$original = $entry->original_attachment_id ? wp_get_attachment_url( (int) $entry->original_attachment_id ) : false;
-				if ( $original ) {
-					$fields[ __( 'Original', 'photo-competition-manager' ) ] = $original;
-				}
+		foreach ( $rows as $entry ) {
+			$competition = $this->competition( (int) $entry->competition_id );
+			$fields      = $this->competition_fields( $competition, (string) $entry->category ) + array(
+				__( 'Entry ID', 'photo-competition-manager' ) => $entry->id,
+				__( 'Uploaded', 'photo-competition-manager' ) => $entry->created_at,
+			);
 
-				$items[] = $this->item(
-					'photo-competition-entries',
-					__( 'Competition entries', 'photo-competition-manager' ),
-					'photo-competition-entry-' . $entry->id,
-					$fields
-				);
+			$image = $competition ? $entries->urls( $competition, $entry )['full'] : '';
+			if ( '' !== $image ) {
+				$fields[ __( 'Image', 'photo-competition-manager' ) ] = $image;
 			}
+
+			$original = $entry->original_attachment_id ? wp_get_attachment_url( (int) $entry->original_attachment_id ) : false;
+			if ( $original ) {
+				$fields[ __( 'Original', 'photo-competition-manager' ) ] = $original;
+			}
+
+			$items[] = $this->item(
+				'photo-competition-entries',
+				__( 'Competition entries', 'photo-competition-manager' ),
+				'photo-competition-entry-' . $entry->id,
+				$fields
+			);
 		}
 
 		return $items;
@@ -210,25 +231,30 @@ class Member_Export {
 	 * @return array<int, array<string, mixed>>
 	 */
 	private function vote_items( array $members ): array {
-		$votes = new Votes_Repository();
+		$votes = ( new Votes_Repository() )->find_cast_by_members(
+			wp_list_pluck( $members, 'id' ),
+			array_map(
+				static function ( $member ) {
+					return ( new Named_Voter( $member->name ) )->name();
+				},
+				$members
+			)
+		);
 		$items = array();
 
-		foreach ( $members as $member ) {
-			foreach ( $votes->find_cast_by_member( (int) $member->id, ( new Named_Voter( $member->name ) )->name() ) as $vote ) {
-				// Two records sharing a name find the same password votes; each is exported once.
-				$items[ (int) $vote->id ] = $this->item(
-					'photo-competition-votes',
-					__( 'Votes cast', 'photo-competition-manager' ),
-					'photo-competition-vote-' . $vote->id,
-					$this->competition_fields( $this->competition( (int) $vote->competition_id ), (string) $vote->category ) + array(
-						__( 'Entry ID', 'photo-competition-manager' ) => $vote->image_id,
-						__( 'Score', 'photo-competition-manager' )    => $vote->score,
-					)
-				);
-			}
+		foreach ( $votes as $vote ) {
+			$items[] = $this->item(
+				'photo-competition-votes',
+				__( 'Votes cast', 'photo-competition-manager' ),
+				'photo-competition-vote-' . $vote->id,
+				$this->competition_fields( $this->competition( (int) $vote->competition_id ), (string) $vote->category ) + array(
+					__( 'Entry ID', 'photo-competition-manager' ) => $vote->image_id,
+					__( 'Score', 'photo-competition-manager' )    => $vote->score,
+				)
+			);
 		}
 
-		return array_values( $items );
+		return $items;
 	}
 
 	/**
@@ -239,27 +265,27 @@ class Member_Export {
 	 * @return array<int, array<string, mixed>>
 	 */
 	private function log_items( array $members ): array {
-		$logs  = new Logs_Repository();
-		$items = array();
-
+		$emails = array();
 		foreach ( $members as $member ) {
-			foreach ( $logs->find_about_member( (int) $member->id, Members_Repository::email_forms( $member->email ) ) as $row ) {
-				$kind = 'email' === $row->event_category ? Email_Kinds::get( (string) $row->event_type ) : null;
-
-				// Two records holding one address find the same rows; each is exported once.
-				$items[ (int) $row->id ] = $this->item(
-					'photo-competition-emails',
-					__( 'Emails sent', 'photo-competition-manager' ),
-					'photo-competition-log-' . $row->id,
-					array(
-						__( 'Date', 'photo-competition-manager' ) => $row->created_at,
-						__( 'Kind', 'photo-competition-manager' ) => $kind ? $kind['label'] : $row->event_type,
-					)
-				);
-			}
+			$emails = array_merge( $emails, Members_Repository::email_forms( $member->email ) );
 		}
 
-		return array_values( $items );
+		$items = array();
+		foreach ( ( new Logs_Repository() )->find_about_members( wp_list_pluck( $members, 'id' ), $emails ) as $row ) {
+			$kind = 'email' === $row->event_category ? Email_Kinds::get( (string) $row->event_type ) : null;
+
+			$items[] = $this->item(
+				'photo-competition-emails',
+				__( 'Emails sent', 'photo-competition-manager' ),
+				'photo-competition-log-' . $row->id,
+				array(
+					__( 'Date', 'photo-competition-manager' ) => $row->created_at,
+					__( 'Kind', 'photo-competition-manager' ) => $kind ? $kind['label'] : $row->event_type,
+				)
+			);
+		}
+
+		return $items;
 	}
 
 	/**
@@ -269,7 +295,9 @@ class Member_Export {
 	 * @return string
 	 */
 	private function grade_label( string $grade ): string {
-		return array_column( Competition_Settings::club_grades(), 'label', 'slug' )[ $grade ] ?? $grade;
+		$this->grade_labels = $this->grade_labels ?? Competition_Settings::grade_labels();
+
+		return $this->grade_labels[ $grade ] ?? $grade;
 	}
 
 	/**
@@ -294,17 +322,24 @@ class Member_Export {
 	 * @return array<string, string>
 	 */
 	private function competition_fields( $competition, string $category ): array {
-		$label = $category;
-		if ( $competition ) {
-			$settings = Competition_Settings::parse( $competition->settings );
-			$labels   = array_column( Competition_Settings::get_categories( $settings ), 'label', 'slug' );
-			$label    = $labels[ $category ] ?? $category;
+		if ( ! $competition ) {
+			return array(
+				__( 'Competition', 'photo-competition-manager' ) => '',
+				__( 'Category', 'photo-competition-manager' ) => $category,
+			);
 		}
 
-		return array(
-			__( 'Competition', 'photo-competition-manager' ) => $competition ? $competition->title : '',
-			__( 'Category', 'photo-competition-manager' ) => $label,
-		);
+		$key = $competition->id . ' ' . $category;
+		if ( ! isset( $this->competition_fields_cache[ $key ] ) ) {
+			$found = Competition_Settings::find_category( Competition_Settings::parse( $competition->settings ), $category );
+
+			$this->competition_fields_cache[ $key ] = array(
+				__( 'Competition', 'photo-competition-manager' ) => $competition->title,
+				__( 'Category', 'photo-competition-manager' ) => $found['label'] ?? $category,
+			);
+		}
+
+		return $this->competition_fields_cache[ $key ];
 	}
 
 	/**

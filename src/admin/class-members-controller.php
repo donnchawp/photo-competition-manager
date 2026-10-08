@@ -641,7 +641,7 @@ class Members_Controller {
 		$active_competition = $this->competitions->find_current_active();
 
 		// Get grade options for label lookups.
-		$grade_options = $this->get_grade_options();
+		$grade_options = Competition_Settings::grade_labels();
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Members', 'photo-competition-manager' ) . '</h1>';
@@ -844,7 +844,7 @@ class Members_Controller {
 	private function render_member_create_form(): string {
 		return $this->render_template(
 			'admin/members/create-form.php',
-			array( 'grade_options' => $this->get_grade_options() )
+			array( 'grade_options' => Competition_Settings::grade_labels() )
 		);
 	}
 
@@ -866,19 +866,10 @@ class Members_Controller {
 			'admin/members/edit-form.php',
 			array(
 				'member'        => $member,
-				'grade_options' => $this->get_grade_options(),
+				'grade_options' => Competition_Settings::grade_labels(),
 				'members_url'   => $this->members_url(),
 			)
 		);
-	}
-
-	/**
-	 * The club's grades as slug => label options.
-	 *
-	 * @return array<string, string>
-	 */
-	private function get_grade_options(): array {
-		return array_column( Competition_Settings::club_grades(), 'label', 'slug' );
 	}
 
 	/**

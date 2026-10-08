@@ -227,26 +227,26 @@ class Logs_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Every log row about a member: rows whose metadata holds one of their email
-	 * addresses, or their member ID. Oldest first.
+	 * Every log row about some members: rows whose metadata holds one of their
+	 * email addresses, or one of their member IDs. Oldest first.
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int      $member_id Member ID.
-	 * @param string[] $emails    The member's email addresses.
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     The members' email addresses.
 	 * @return array<int, object>
 	 */
-	public function find_about_member( int $member_id, array $emails ): array {
+	public function find_about_members( array $member_ids, array $emails ): array {
 		global $wpdb;
 
-		list( $conditions, $patterns ) = $this->about_member( $member_id, $emails );
+		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
 		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE {$conditions} ORDER BY created_at, id", $this->table(), ...$patterns ) );
 	}
 
 	/**
-	 * Delete every log row about a member, as find_about_member() finds them.
+	 * Delete every log row about a member, as find_about_members() finds them.
 	 *
 	 * @since 0.4.0
 	 *
@@ -257,30 +257,31 @@ class Logs_Repository extends Abstract_Repository {
 	public function delete_about_member( int $member_id, array $emails ) {
 		global $wpdb;
 
-		list( $conditions, $patterns ) = $this->about_member( $member_id, $emails );
+		list( $conditions, $patterns ) = $this->about_members( array( $member_id ), $emails );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
 		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
 	}
 
 	/**
-	 * The condition that finds the log rows about a member, and its values.
+	 * The condition that finds the log rows about some members, and its values.
 	 *
-	 * @param int      $member_id Member ID.
-	 * @param string[] $emails    The member's email addresses.
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     The members' email addresses.
 	 * @return array{0: string, 1: string[]} Conditions of placeholders only, and a LIKE pattern for each.
 	 */
-	private function about_member( int $member_id, array $emails ): array {
+	private function about_members( array $member_ids, array $emails ): array {
 		global $wpdb;
 
 		// Metadata is JSON, so a value is matched with its quotes, or the
 		// punctuation after it, and never as part of a longer one.
-		$patterns = array(
-			'%"member_id":' . $member_id . ',%',
-			'%"member_id":' . $member_id . '}%',
-			'%"member_id":"' . $member_id . '"%',
-		);
-		foreach ( $emails as $email ) {
+		$patterns = array();
+		foreach ( array_unique( array_map( 'intval', $member_ids ) ) as $member_id ) {
+			$patterns[] = '%"member_id":' . $member_id . ',%';
+			$patterns[] = '%"member_id":' . $member_id . '}%';
+			$patterns[] = '%"member_id":"' . $member_id . '"%';
+		}
+		foreach ( array_unique( $emails ) as $email ) {
 			$patterns[] = '%' . $wpdb->esc_like( (string) wp_json_encode( $email ) ) . '%';
 		}
 

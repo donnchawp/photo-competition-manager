@@ -449,6 +449,16 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The club's grades as slug => label.
+	 *
+	 * @since 0.4.0
+	 * @return array<string, string>
+	 */
+	public static function grade_labels(): array {
+		return array_column( self::club_grades(), 'label', 'slug' );
+	}
+
+	/**
 	 * Whether a slug is one of the club's grades.
 	 *
 	 * @since 0.4.0
