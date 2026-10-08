@@ -242,6 +242,7 @@ Yes. Visit **Competitions → Export** to download:
   * Category change refusals return 400, 403 or 404 instead of 500
   * Database errors and server paths are no longer shown to members; category change failures are logged as `category_change_failed`
   * Originals that couldn't be deleted are logged as `original_not_deleted`
+  * Clubs can choose how long logs are kept, in a new Logs section of Settings, and older log entries are deleted once a day. By default logs are kept forever, as before, so upgrading deletes nothing. The Logs screen says how long they're kept
   * Uninstalling removes email jobs, transients and cron events
 
 * **Compatibility**
