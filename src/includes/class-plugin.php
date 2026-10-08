@@ -11,6 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;
+use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 
 /**
  * Class Plugin
@@ -56,7 +58,9 @@ class Plugin {
 		$this->admin->register();
 		$this->frontend->register();
 
-		$this->register_email_job_hooks( ( new Dependencies() )->email_job_manager );
+		$deps = new Dependencies();
+		$this->register_email_job_hooks( $deps->email_job_manager );
+		$this->register_log_trim( $deps->logs );
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
@@ -92,6 +96,23 @@ class Plugin {
 		// Schedule daily cleanup if not already scheduled.
 		if ( ! wp_next_scheduled( 'photo_comp_cleanup_email_jobs' ) ) {
 			wp_schedule_event( time(), 'daily', 'photo_comp_cleanup_email_jobs' );
+		}
+	}
+
+	/**
+	 * Register the daily trim of old log rows.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Logs_Repository $logs Logs repository.
+	 * @return void
+	 */
+	private function register_log_trim( Logs_Repository $logs ): void {
+		$retention = new Log_Retention( $logs );
+		add_action( Log_Retention::HOOK, array( $retention, 'trim' ), 10, 0 );
+
+		if ( ! wp_next_scheduled( Log_Retention::HOOK ) ) {
+			wp_schedule_event( time(), 'daily', Log_Retention::HOOK );
 		}
 	}
 }
