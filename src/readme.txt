@@ -193,6 +193,7 @@ Yes. Visit **Competitions → Export** to download:
   * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
   * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
   * A drag-and-drop batch's summary is green only when every image went in. A batch where nothing went in says "No images were uploaded." as an error, a mixed batch shows as a notice, and screen readers announce the outcome and any upload error
+  * Success and error messages on the upload, voting and results pages use darker text, so they're easier to read
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
