@@ -361,6 +361,21 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete all of a member's upload tokens.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return bool
+	 */
+	public function delete_by_member( int $member_id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->delete( $this->table(), array( 'member_id' => $member_id ), array( '%d' ) );
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	protected function table_suffix(): string {

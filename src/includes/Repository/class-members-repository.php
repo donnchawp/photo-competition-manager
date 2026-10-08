@@ -46,6 +46,21 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Both forms an email address is stored in: as given, and marked as
+	 * deactivated. A lookup by address matches either.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $email Email address, marked or not.
+	 * @return array{0: string, 1: string} The unmarked and marked address.
+	 */
+	public static function email_forms( string $email ): array {
+		$email = self::unmark_deactivated_email( $email );
+
+		return array( $email, self::mark_deactivated_email( $email ) );
+	}
+
+	/**
 	 * Remove the deactivated marker from an email address.
 	 *
 	 * The marker matches in any case, as it does in MySQL's case-insensitive comparisons.
@@ -122,32 +137,43 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Locate a member by email address.
 	 *
-	 * Matches a deactivated member by their original address too.
+	 * Matches a deactivated member by their original address too, preferring an
+	 * active record.
 	 *
 	 * @param string $email Member email.
 	 * @return object|null
 	 */
 	public function find_by_email( string $email ) {
-		global $wpdb;
-
 		if ( ! is_email( $email ) ) {
 			return null;
 		}
 
-		$email = self::unmark_deactivated_email( $email );
+		return $this->find_all_by_email( $email )[0] ?? null;
+	}
 
-		// phpcs:disable WordPress.DB.PreparedSQL
+	/**
+	 * Fetch every member record holding an email address, whether or not it's
+	 * marked as deactivated. Active records come first, then the oldest.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $email Email address, marked or not.
+	 * @return array<int, object>
+	 */
+	public function find_all_by_email( string $email ): array {
+		global $wpdb;
+
+		list( $unmarked, $marked ) = self::email_forms( $email );
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return $wpdb->get_row(
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT * FROM %i WHERE email IN (%s, %s) ORDER BY active DESC, id ASC LIMIT 1',
+				'SELECT * FROM %i WHERE email IN (%s, %s) ORDER BY active DESC, id ASC',
 				$this->table(),
-				$email,
-				self::mark_deactivated_email( $email )
+				$unmarked,
+				$marked
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL
 	}
 
 	/**
@@ -480,7 +506,7 @@ class Members_Repository extends Abstract_Repository {
 	private function email_exists( string $email, ?int $exclude_id = null ): bool {
 		global $wpdb;
 
-		$params     = array( $email, self::mark_deactivated_email( $email ) );
+		$params     = self::email_forms( $email );
 		$conditions = '';
 
 		if ( $exclude_id ) {
