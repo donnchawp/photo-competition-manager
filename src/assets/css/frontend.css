@@ -87,7 +87,7 @@
 	padding: 1em;
 	background: #fef7f8;
 	border-left: 4px solid #d63638;
-	color: #d63638;
+	color: #b32d2e;
 	margin-bottom: 1.5em;
 }
 
@@ -95,7 +95,7 @@
 	padding: 1em;
 	background: #edfaef;
 	border-left: 4px solid #00a32a;
-	color: #00a32a;
+	color: #007017;
 	margin-bottom: 1.5em;
 }
 
@@ -216,13 +216,13 @@
 .photo-comp-voting .error {
 	background: #fef7f8;
 	border-left: 4px solid #d63638;
-	color: #d63638;
+	color: #b32d2e;
 }
 
 .photo-comp-voting .success {
 	background: #edfaef;
 	border-left: 4px solid #00a32a;
-	color: #00a32a;
+	color: #007017;
 }
 
 .photo-comp-voting .notice {
@@ -813,14 +813,14 @@
 .photo-comp-top3 .error {
 	background: #fef7f8;
 	border-left: 4px solid #d63638;
-	color: #d63638;
+	color: #b32d2e;
 }
 
 .photo-comp-results .success,
 .photo-comp-top3 .success {
 	background: #edfaef;
 	border-left: 4px solid #00a32a;
-	color: #00a32a;
+	color: #007017;
 }
 
 .photo-comp-results .notice,
