@@ -249,6 +249,35 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The votes a member cast: with their voting links, or under a name, matched
+	 * as named voting matches it. Only each vote's ID, competition, category,
+	 * entry and score: never the voter's name or token.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $member_id  Member ID.
+	 * @param string $voter_name The member's name, as a named voter gives it.
+	 * @return array<int, object>
+	 */
+	public function find_cast_by_member( int $member_id, string $voter_name ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT v.id, v.competition_id, v.category, v.image_id, v.score FROM %i AS v
+				LEFT JOIN %i AS t ON t.id = v.voting_token_id
+				WHERE t.member_id = %d OR v.voter_name = %s
+				ORDER BY v.competition_id, v.category, v.id',
+				$this->table(),
+				( new Voting_Token_Repository() )->table(),
+				$member_id,
+				$voter_name
+			)
+		);
+	}
+
+	/**
 	 * Count the votes cast under a name, matched as named voting matches it.
 	 *
 	 * @since 0.4.0

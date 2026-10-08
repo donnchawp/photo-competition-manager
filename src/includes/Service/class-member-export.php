@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -28,7 +29,7 @@ class Member_Export {
 	 * What each page exports, in order: one kind of data for every record
 	 * holding the address, so no page grows with more than one kind.
 	 */
-	const PAGES = array( 'member_items', 'entry_items', 'result_items' );
+	const PAGES = array( 'member_items', 'entry_items', 'result_items', 'vote_items' );
 
 	/**
 	 * Members repository.
@@ -197,6 +198,36 @@ class Member_Export {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * The votes the members cast, with their voting links or under their name
+	 * as Member_Deletion matches it. Not whose entry each was for: that's
+	 * another member's data.
+	 *
+	 * @param array<int, object> $members Member records.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function vote_items( array $members ): array {
+		$votes = new Votes_Repository();
+		$items = array();
+
+		foreach ( $members as $member ) {
+			foreach ( $votes->find_cast_by_member( (int) $member->id, ( new Named_Voter( $member->name ) )->name() ) as $vote ) {
+				// Two records sharing a name find the same password votes; each is exported once.
+				$items[ (int) $vote->id ] = $this->item(
+					'photo-competition-votes',
+					__( 'Votes cast', 'photo-competition-manager' ),
+					'photo-competition-vote-' . $vote->id,
+					$this->competition_fields( $this->competition( (int) $vote->competition_id ), (string) $vote->category ) + array(
+						__( 'Entry ID', 'photo-competition-manager' ) => $vote->image_id,
+						__( 'Score', 'photo-competition-manager' )    => $vote->score,
+					)
+				);
+			}
+		}
+
+		return array_values( $items );
 	}
 
 	/**

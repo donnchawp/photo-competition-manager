@@ -10,6 +10,10 @@ namespace PhotoCompetitionManager\Tests\Service;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
@@ -139,6 +143,50 @@ class Member_Export_Test extends WP_UnitTestCase {
 			),
 			$this->only( $this->export( 'jane@example.com' ), 'photo-competition-results' )
 		);
+	}
+
+	public function test_exporting_a_member_gives_the_votes_they_cast_without_tokens_or_other_members(): void {
+		$competition_id = $this->create_competition( 'export-votes', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$mary_id        = $this->create_member( 'Mary Byrne', 'mary@example.com' );
+		$johns_colour   = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$johns_mono     = Entry_Fixtures::insert_entry( $competition_id, 'mono', $john_id, array() );
+		$votes          = new Votes_Repository();
+		$token_hash     = wp_hash( 'janes-voting-link' );
+		$token_id       = (int) ( new Voting_Token_Repository() )->renew( $jane_id, $competition_id, 'colour', $token_hash, '2099-01-01 00:00:00' );
+		$votes->create_anonymous_ballot( $competition_id, 'colour', $token_id, array( $johns_colour => 4 ) );
+		// The name she typed differs in case, accents and spaces, as named voting allows.
+		$votes->create_ballot( $competition_id, 'mono', ( new Named_Voter( ' JANE DOÉ ' ) )->name(), array( $johns_mono => 2 ) );
+		$marys_token = (int) ( new Voting_Token_Repository() )->renew( $mary_id, $competition_id, 'colour', wp_hash( 'marys-voting-link' ), '2099-01-01 00:00:00' );
+		$votes->create_anonymous_ballot( $competition_id, 'colour', $marys_token, array( $johns_colour => 1 ) );
+		$votes->create_ballot( $competition_id, 'mono', 'Bob Smith', array( $johns_mono => 3 ) );
+		$upload_token = ( new Upload_Token_Repository() )->find_or_create( $jane_id, $competition_id );
+
+		$items = $this->export( 'jane@example.com' );
+
+		$this->assertEqualSets(
+			array(
+				array(
+					'Competition' => 'Spring Open',
+					'Category'    => 'Colour',
+					'Entry ID'    => (string) $johns_colour,
+					'Score'       => '4',
+				),
+				array(
+					'Competition' => 'Spring Open',
+					'Category'    => 'Mono',
+					'Entry ID'    => (string) $johns_mono,
+					'Score'       => '2',
+				),
+			),
+			$this->only( $items, 'photo-competition-votes' )
+		);
+		$everything = (string) wp_json_encode( $items );
+		$this->assertStringNotContainsString( $token_hash, $everything );
+		$this->assertStringNotContainsString( $upload_token->token, $everything );
+		$this->assertStringNotContainsString( 'John Murphy', $everything );
+		$this->assertStringNotContainsString( 'Mary Byrne', $everything );
 	}
 
 	public function test_exporting_an_address_that_isnt_a_members_gives_nothing(): void {
