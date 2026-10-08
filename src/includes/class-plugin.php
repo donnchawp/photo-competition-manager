@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;
-use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Log_Retention;
 
 /**
@@ -59,8 +59,8 @@ class Plugin {
 		$this->frontend->register();
 
 		$deps = new Dependencies();
-		$this->register_email_job_hooks( $deps->email_job_manager );
-		$this->register_log_trim( $deps->logs );
+		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
+		$this->schedule_daily( Log_Retention::HOOK, array( new Log_Retention( $deps->logs ), 'trim' ), 0 );
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
@@ -84,35 +84,20 @@ class Plugin {
 	}
 
 	/**
-	 * Register email job cleanup hooks.
-	 *
-	 * @param \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager Email job queue.
-	 * @return void
-	 */
-	private function register_email_job_hooks( \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager ): void {
-		// Register daily cleanup hook.
-		add_action( 'photo_comp_cleanup_email_jobs', array( $job_manager, 'cleanup_old_jobs' ) );
-
-		// Schedule daily cleanup if not already scheduled.
-		if ( ! wp_next_scheduled( 'photo_comp_cleanup_email_jobs' ) ) {
-			wp_schedule_event( time(), 'daily', 'photo_comp_cleanup_email_jobs' );
-		}
-	}
-
-	/**
-	 * Register the daily trim of old log rows.
+	 * Hook a callback to a daily cron event, scheduling the event if needed.
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param Logs_Repository $logs Logs repository.
+	 * @param string   $hook          Cron event name.
+	 * @param callable $callback      Runs when the event fires.
+	 * @param int      $accepted_args Arguments the callback takes.
 	 * @return void
 	 */
-	private function register_log_trim( Logs_Repository $logs ): void {
-		$retention = new Log_Retention( $logs );
-		add_action( Log_Retention::HOOK, array( $retention, 'trim' ), 10, 0 );
+	private function schedule_daily( string $hook, callable $callback, int $accepted_args = 1 ): void {
+		add_action( $hook, $callback, 10, $accepted_args );
 
-		if ( ! wp_next_scheduled( Log_Retention::HOOK ) ) {
-			wp_schedule_event( time(), 'daily', Log_Retention::HOOK );
+		if ( ! wp_next_scheduled( $hook ) ) {
+			wp_schedule_event( time(), 'daily', $hook );
 		}
 	}
 }

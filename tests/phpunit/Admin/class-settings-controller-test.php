@@ -128,12 +128,13 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Post the settings form with a choice of how long logs are kept.
 	 *
-	 * @param string $choice 'forever' or 'months'.
-	 * @param string $months Number of months as posted.
+	 * @param string     $choice 'forever' or 'months'.
+	 * @param string     $months Number of months as posted.
+	 * @param array|null $rows   Grade rows to post, or null for the defaults.
 	 */
-	private function save_log_retention( string $choice, string $months ): void {
+	private function save_log_retention( string $choice, string $months, ?array $rows = null ): void {
 		$this->save_grades(
-			$this->default_grade_rows(),
+			$rows ?? $this->default_grade_rows(),
 			array(
 				'log_retention'        => $choice,
 				'log_retention_months' => $months,
@@ -437,13 +438,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 
 		$rows             = $this->default_grade_rows();
 		$rows[0]['label'] = 'Starter';
-		$this->save_grades(
-			$rows,
-			array(
-				'log_retention'        => 'months',
-				'log_retention_months' => $months,
-			)
-		);
+		$this->save_log_retention( 'months', $months, $rows );
 
 		$this->assertSame( 6, Log_Retention::months() );
 		$this->assertSame( 'Beginner', $this->saved_grades()[0]['label'] );
