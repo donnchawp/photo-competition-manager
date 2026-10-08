@@ -58,13 +58,6 @@ class Members_Controller {
 	private $entries;
 
 	/**
-	 * Deletes members.
-	 *
-	 * @var Member_Deletion
-	 */
-	private $deletion;
-
-	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
@@ -82,7 +75,6 @@ class Members_Controller {
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->members      = $members;
 		$this->entries      = $entries ?? new Entries( $this->competitions, null, $this->members );
-		$this->deletion     = new Member_Deletion( $this->entries, $this->members );
 	}
 
 	/**
@@ -344,7 +336,7 @@ class Members_Controller {
 				$this->redirect_with_settings_errors( $this->members_url() );
 			}
 
-			$result = $this->deletion->delete( $member_id );
+			$result = ( new Member_Deletion( $this->entries, $this->members ) )->delete( $member );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(

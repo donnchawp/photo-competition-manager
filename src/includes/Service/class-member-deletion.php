@@ -86,14 +86,11 @@ class Member_Deletion {
 	 * Delete a member: their entries, tokens, log rows and record. The votes they
 	 * cast are kept.
 	 *
-	 * @param int $member_id Member ID.
+	 * @param object $member Member record, as Members_Repository finds it.
 	 * @return int|WP_Error Number of the member's votes kept, or the error that stopped it.
 	 */
-	public function delete( int $member_id ) {
-		$member = $this->members->find( $member_id );
-		if ( ! $member ) {
-			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
-		}
+	public function delete( object $member ) {
+		$member_id = (int) $member->id;
 
 		// The entries go first, so their files and originals go with them.
 		$removed = $this->entries->remove_member_entries( Actor::admin(), $member_id );
@@ -110,13 +107,11 @@ class Member_Deletion {
 
 		$kept = $renamed + $this->votes->count_by_member_tokens( $member_id );
 
-		$email = Members_Repository::unmark_deactivated_email( $member->email );
-
 		// The record goes last, so a deletion that stops part way can be run again.
 		if (
 			! $this->voting_tokens->delete_by_member( $member_id )
 			|| ! $this->upload_tokens->delete_by_member( $member_id )
-			|| false === $this->logs->delete_about_member( $member_id, array( $email, Members_Repository::mark_deactivated_email( $email ) ) )
+			|| false === $this->logs->delete_about_member( $member_id, Members_Repository::email_forms( $member->email ) )
 		) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete everything that names the member. Try again.', 'photo-competition-manager' ) );
 		}
@@ -168,7 +163,7 @@ class Member_Deletion {
 			return $response;
 		}
 
-		$kept = $this->delete( (int) $members[0]->id );
+		$kept = $this->delete( $members[0] );
 		if ( is_wp_error( $kept ) ) {
 			// Done, so the request stops with the reason instead of retrying forever.
 			$response['messages'][] = $kept->get_error_message();

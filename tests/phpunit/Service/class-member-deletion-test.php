@@ -63,7 +63,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->votes->create_anonymous_ballot( $competition_id, 'colour', $token_id, array( $johns_entry => 5 ) );
 		$before = $this->votes->calculate_averages( $competition_id );
 
-		$this->assertSame( 1, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 1, $this->delete( $jane_id ) );
 
 		$this->assertNull( $this->members->find( $jane_id ) );
 		$this->assertSame( 0, ( new Voting_Token_Repository() )->member_token_id( $jane_id, $competition_id, 'colour' ) );
@@ -80,7 +80,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$uploads->find_or_create( $john_id, $competition_id );
 		$this->voting_token( $john_id, $competition_id );
 
-		$this->assertSame( 0, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 0, $this->delete( $jane_id ) );
 
 		$this->assertSame( array( $john_id ), array_keys( $uploads->get_tracking_by_competition( $competition_id ) ) );
 		$this->assertSame( array( $john_id ), array_keys( ( new Voting_Token_Repository() )->get_tracking_by_competition( $competition_id ) ) );
@@ -98,7 +98,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->votes->create_ballot( $competition_id, 'colour', 'Bob Smith', array( $johns_entry => 1 ) );
 		$before = $this->votes->calculate_averages( $competition_id );
 
-		$this->assertSame( 2, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 2, $this->delete( $jane_id ) );
 
 		$former = 'Former member #' . $jane_id;
 		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', $former ) );
@@ -117,8 +117,8 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
 		$this->votes->create_ballot( $competition_id, 'colour', 'Mary Byrne', array( $johns_entry => 2 ) );
 
-		$this->assertSame( 1, $this->deletion->delete( $jane_id ) );
-		$this->assertSame( 1, $this->deletion->delete( $mary_id ) );
+		$this->assertSame( 1, $this->delete( $jane_id ) );
+		$this->assertSame( 1, $this->delete( $mary_id ) );
 
 		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $jane_id ) );
 		$this->assertSame( array( $johns_entry => 2.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $mary_id ) );
@@ -134,7 +134,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
 		$before = $this->votes->calculate_averages( $competition_id );
 
-		$this->assertSame( 1, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 1, $this->delete( $jane_id ) );
 
 		$this->assertNotNull( $this->members->find( $other_jane_id ) );
 		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $jane_id ) );
@@ -156,7 +156,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => (int) ( $jane_id . '5' ) ) );
 		$logger->log( $competition_id, 'voting_opened', 'voting', 'Voting opened.' );
 
-		$this->deletion->delete( $jane_id );
+		$this->delete( $jane_id );
 
 		$left = array_map(
 			static function ( $row ) {
@@ -184,7 +184,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$recorded = new Recorded_Results_Repository();
 		$before   = $this->scores( $recorded->find_by_category( $competition_id, 'colour' ) );
 
-		$this->assertSame( 2, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 2, $this->delete( $jane_id ) );
 
 		$this->assertNull( ( new Images_Repository() )->find( $janes_entry ) );
 		$this->assertSame( $before, $this->scores( $recorded->find_by_category( $competition_id, 'colour' ) ) );
@@ -208,7 +208,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
 		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
 
-		$this->assertSame( 0, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 0, $this->delete( $jane_id ) );
 
 		$this->assertNull( ( new Images_Repository() )->find( (int) $janes_entry ) );
 		$this->assertNull( get_post( $attachment_id ) );
@@ -291,6 +291,16 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 			$response
 		);
 		$this->assertNotNull( $this->members->find( $jane_id ) );
+	}
+
+	/**
+	 * Delete a member the way the Members screen does, from their record.
+	 *
+	 * @param int $member_id Member ID.
+	 * @return int|\WP_Error
+	 */
+	private function delete( int $member_id ) {
+		return $this->deletion->delete( $this->members->find( $member_id ) );
 	}
 
 	/**
