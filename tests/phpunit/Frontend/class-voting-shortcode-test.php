@@ -84,6 +84,9 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 			}
 		);
 		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-competition-manager-voting-validation', 'voting-validation.js', array(), '1', true );
 	}
 
 	/**
@@ -456,6 +459,15 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'id="voting-form"', $output );
 		$this->assertStringNotContainsString( 'token-request-section', $output );
+	}
+
+	public function test_the_voting_page_loads_the_validation_script_translations(): void {
+		$this->make_image();
+		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+
+		$this->shortcode->render();
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-competition-manager-voting-validation']->textdomain );
 	}
 
 	public function test_an_entry_whose_image_is_missing_shows_as_unavailable_on_the_ballot(): void {

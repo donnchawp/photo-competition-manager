@@ -571,6 +571,7 @@ class Upload_Shortcode {
 
 				// Localize for submission category updates.
 				wp_localize_script( 'photo-comp-submission-category', 'photoCompCategoryUpdate', $category_update_data );
+				wp_set_script_translations( 'photo-comp-submission-category', 'photo-competition-manager' );
 				?>
 
 				<p class="member-info">
