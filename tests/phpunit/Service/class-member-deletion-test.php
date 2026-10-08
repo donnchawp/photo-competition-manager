@@ -141,6 +141,36 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertSame( $before, $this->votes->calculate_averages( $competition_id ) );
 	}
 
+	public function test_running_a_stopped_deletion_again_counts_the_votes_it_already_renamed(): void {
+		$competition_id = $this->create_competition( 'rerun' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$johns_mono     = Entry_Fixtures::insert_entry( $competition_id, 'mono', $john_id, array() );
+		// An earlier run renamed this vote, then stopped before deleting the record.
+		$this->votes->create_ballot( $competition_id, 'colour', 'Former member #' . $jane_id, array( $johns_entry => 4 ) );
+		$this->votes->create_ballot( $competition_id, 'mono', 'Jane Doe', array( $johns_mono => 2 ) );
+
+		$this->assertSame( 2, $this->delete( $jane_id ) );
+	}
+
+	public function test_deleting_a_member_whose_record_has_already_gone_changes_nothing(): void {
+		$competition_id = $this->create_competition( 'stale' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$jane           = $this->members->find( $jane_id );
+		$this->assertSame( 0, $this->deletion->delete( $jane ) );
+		// Another Jane Doe votes after the first one was deleted.
+		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
+
+		$result = $this->deletion->delete( $jane );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'missing_member', $result->get_error_code() );
+		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Jane Doe' ) );
+	}
+
 	public function test_log_rows_about_a_deleted_member_go_and_others_stay(): void {
 		$competition_id = $this->create_competition( 'logs' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -276,6 +306,27 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertNull( $this->members->find( $old_jane_id ) );
 	}
 
+	public function test_erasing_a_member_whose_deletion_fails_returns_the_error_and_keeps_them(): void {
+		global $wpdb;
+
+		$competition_id = $this->create_competition( 'erase-fails' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		// Renaming Jane's vote would give the entry two votes from one voter.
+		$this->votes->create_ballot( $competition_id, 'colour', 'Former member #' . $jane_id, array( $johns_entry => 3 ) );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
+
+		$suppress = $wpdb->suppress_errors( true );
+		$response = $this->erase( 'jane@example.com' );
+		$wpdb->suppress_errors( $suppress );
+
+		// WordPress shows a WP_Error and leaves the request open; an array would mark it completed.
+		$this->assertWPError( $response );
+		$this->assertNotNull( $this->members->find( $jane_id ) );
+		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Jane Doe' ) );
+	}
+
 	public function test_erasing_an_address_that_isnt_a_members_removes_nothing(): void {
 		$jane_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
 
@@ -308,9 +359,9 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 	 *
 	 * @param string $email Email address.
 	 * @param int    $page  Page.
-	 * @return array<string, mixed>
+	 * @return array<string, mixed>|\WP_Error
 	 */
-	private function erase( string $email, int $page = 1 ): array {
+	private function erase( string $email, int $page = 1 ) {
 		$erasers = apply_filters( 'wp_privacy_personal_data_erasers', array() );
 
 		$this->assertArrayHasKey( 'photo-competition-manager', $erasers );

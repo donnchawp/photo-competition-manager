@@ -249,6 +249,27 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Count the votes cast under a name, matched as named voting matches it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $voter_name Voter name.
+	 * @return int
+	 */
+	public function count_by_voter( string $voter_name ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE voter_name = %s',
+				$this->table(),
+				$voter_name
+			)
+		);
+	}
+
+	/**
 	 * Move every vote cast under a name to another name. Names match as named
 	 * voting matches them: the voter_name column's collation ignores case,
 	 * accents and trailing spaces.

@@ -86,11 +86,19 @@ class Member_Deletion {
 	 * Delete a member: their entries, tokens, log rows and record. The votes they
 	 * cast are kept.
 	 *
+	 * The count of kept votes includes password votes an earlier, stopped run
+	 * already renamed, but not votes cast with voting links it already deleted.
+	 *
 	 * @param object $member Member record, as Members_Repository finds it.
 	 * @return int|WP_Error Number of the member's votes kept, or the error that stopped it.
 	 */
 	public function delete( object $member ) {
 		$member_id = (int) $member->id;
+
+		// The record may have gone since it was loaded, e.g. Delete clicked in two tabs.
+		if ( ! $this->members->find( $member_id ) ) {
+			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
 
 		// The entries go first, so their files and originals go with them.
 		$removed = $this->entries->remove_member_entries( Actor::admin(), $member_id );
@@ -100,12 +108,13 @@ class Member_Deletion {
 
 		// Matched the way named voting matches a name, and renamed per member so
 		// two deleted voters' votes for one entry stay distinct.
-		$renamed = $this->votes->rename_voter( ( new Named_Voter( $member->name ) )->name(), 'Former member #' . $member_id );
+		$former_name = 'Former member #' . $member_id;
+		$renamed     = $this->votes->rename_voter( ( new Named_Voter( $member->name ) )->name(), $former_name );
 		if ( is_wp_error( $renamed ) ) {
 			return $renamed;
 		}
 
-		$kept = $renamed + $this->votes->count_by_member_tokens( $member_id );
+		$kept = $this->votes->count_by_voter( $former_name ) + $this->votes->count_by_member_tokens( $member_id );
 
 		// The record goes last, so a deletion that stops part way can be run again.
 		if (
@@ -148,9 +157,10 @@ class Member_Deletion {
 	 *
 	 * @param string $email Email address.
 	 * @param int    $page  Page, from 1; each page deletes the first record left.
-	 * @return array{items_removed: bool, items_retained: bool, messages: string[], done: bool}
+	 * @return array{items_removed: bool, items_retained: bool, messages: string[], done: bool}|WP_Error
+	 *         The error when a deletion stops, so WordPress shows it and leaves the request open.
 	 */
-	public function erase( string $email, int $page = 1 ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WordPress passes the page; the records left say where to carry on.
+	public function erase( string $email, int $page = 1 ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WordPress passes the page; the records left say where to carry on.
 		$response = array(
 			'items_removed'  => false,
 			'items_retained' => false,
@@ -165,9 +175,8 @@ class Member_Deletion {
 
 		$kept = $this->delete( $members[0] );
 		if ( is_wp_error( $kept ) ) {
-			// Done, so the request stops with the reason instead of retrying forever.
-			$response['messages'][] = $kept->get_error_message();
-			return $response;
+			// An array would mark the request completed and tell the person their data was erased.
+			return $kept;
 		}
 
 		$response['items_removed'] = true;
