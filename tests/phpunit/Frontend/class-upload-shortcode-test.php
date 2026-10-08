@@ -76,6 +76,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		// The page only registers the script when the JS has been built, which CI doesn't do.
 		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
+		wp_register_script( 'photo-comp-submission-category', 'submission-category.js', array(), '1', true );
 	}
 
 	public function tearDown(): void {
@@ -150,6 +151,22 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->shortcode->render( array() );
 
 		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_the_upload_page_loads_the_category_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-comp-submission-category']->textdomain );
+	}
+
+	public function test_a_deactivated_members_page_loads_no_category_script_translations(): void {
+		$_GET['token'] = $this->issue_token( false );
+
+		$this->shortcode->render( array() );
+
+		$this->assertNull( wp_scripts()->registered['photo-comp-submission-category']->textdomain );
 	}
 
 	public function test_a_member_with_every_category_full_loads_no_upload_script_translations(): void {

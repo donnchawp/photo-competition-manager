@@ -237,6 +237,9 @@ class Voting_Shortcode {
 			);
 		}
 
+		// The script's messages come from the plugin's language pack, like the rest of the page.
+		wp_set_script_translations( 'photo-competition-manager-voting-validation', 'photo-competition-manager' );
+
 		// Enqueue redirect button handler.
 		wp_register_script( 'photo-comp-voting-redirect', '', array(), PHOTO_COMPETITION_MANAGER_VERSION, true );
 		wp_enqueue_script( 'photo-comp-voting-redirect' );
