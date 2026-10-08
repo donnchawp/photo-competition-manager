@@ -209,6 +209,7 @@ Yes. Visit **Competitions → Export** to download:
 * **Results**
   * Tied entries share a position in the results email
   * The results CSV is ranked within each grade and category
+  * The votes CSV gives each voter who voted with a link their own row, labelled by their link ("Token #5"). Before, they all shared one blank row and some of their votes were lost
   * The results and Top 3 pages show the latest published results, without vote counts
   * The results table stacks into cards on mobile
   * The detailed results email uses the email template system
