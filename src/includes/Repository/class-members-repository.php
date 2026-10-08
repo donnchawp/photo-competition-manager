@@ -163,12 +163,15 @@ class Members_Repository extends Abstract_Repository {
 	public function find_all_by_email( string $email ): array {
 		global $wpdb;
 
+		list( $unmarked, $marked ) = self::email_forms( $email );
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				'SELECT * FROM %i WHERE email IN (%s, %s) ORDER BY active DESC, id ASC',
 				$this->table(),
-				...self::email_forms( $email )
+				$unmarked,
+				$marked
 			)
 		);
 	}
