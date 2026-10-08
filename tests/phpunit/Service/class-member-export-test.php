@@ -11,6 +11,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -114,6 +115,30 @@ class Member_Export_Test extends WP_UnitTestCase {
 		// The mono file and its original are gone, so neither is offered.
 		$this->assertArrayNotHasKey( 'Image', $by_id[ (string) $mono ] );
 		$this->assertArrayNotHasKey( 'Original', $by_id[ (string) $mono ] );
+	}
+
+	public function test_exporting_a_member_gives_their_recorded_results(): void {
+		$competition_id = $this->create_competition( 'export-results', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$janes_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $jane_id, array( 5, 5 ) );
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array( 3 ) );
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$this->assertSame(
+			array(
+				array(
+					'Competition' => 'Spring Open',
+					'Category'    => 'Colour',
+					'Entry ID'    => (string) $janes_entry,
+					'Total score' => '10',
+					'Votes'       => '2',
+					'Grade'       => 'Beginner',
+					'Position'    => '1',
+				),
+			),
+			$this->only( $this->export( 'jane@example.com' ), 'photo-competition-results' )
+		);
 	}
 
 	public function test_exporting_an_address_that_isnt_a_members_gives_nothing(): void {

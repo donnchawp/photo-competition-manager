@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -27,7 +28,7 @@ class Member_Export {
 	 * What each page exports, in order: one kind of data for every record
 	 * holding the address, so no page grows with more than one kind.
 	 */
-	const PAGES = array( 'member_items', 'entry_items' );
+	const PAGES = array( 'member_items', 'entry_items', 'result_items' );
 
 	/**
 	 * Members repository.
@@ -107,8 +108,7 @@ class Member_Export {
 	 * @return array<int, array<string, mixed>>
 	 */
 	private function member_items( array $members ): array {
-		$grades = array_column( Competition_Settings::club_grades(), 'label', 'slug' );
-		$items  = array();
+		$items = array();
 
 		foreach ( $members as $member ) {
 			$items[] = $this->item(
@@ -118,7 +118,7 @@ class Member_Export {
 				array(
 					__( 'Name', 'photo-competition-manager' )   => $member->name,
 					__( 'Email', 'photo-competition-manager' )  => Members_Repository::unmark_deactivated_email( $member->email ),
-					__( 'Grade', 'photo-competition-manager' )  => $grades[ $member->grade ] ?? $member->grade,
+					__( 'Grade', 'photo-competition-manager' )  => $this->grade_label( (string) $member->grade ),
 					__( 'Active', 'photo-competition-manager' ) => $member->active ? __( 'Yes', 'photo-competition-manager' ) : __( 'No', 'photo-competition-manager' ),
 				)
 			);
@@ -166,6 +166,47 @@ class Member_Export {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * The members' recorded results: each entry's total score, vote count,
+	 * grade and position.
+	 *
+	 * @param array<int, object> $members Member records.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function result_items( array $members ): array {
+		$recorded = new Recorded_Results_Repository();
+		$items    = array();
+
+		foreach ( $members as $member ) {
+			foreach ( $recorded->find_by_member( (int) $member->id ) as $row ) {
+				$items[] = $this->item(
+					'photo-competition-results',
+					__( 'Competition results', 'photo-competition-manager' ),
+					'photo-competition-result-' . $row->id,
+					$this->competition_fields( $this->competition( (int) $row->competition_id ), (string) $row->category ) + array(
+						__( 'Entry ID', 'photo-competition-manager' )    => (string) $row->entry_id,
+						__( 'Total score', 'photo-competition-manager' ) => $row->total_score,
+						__( 'Votes', 'photo-competition-manager' )       => $row->vote_count,
+						__( 'Grade', 'photo-competition-manager' )       => $this->grade_label( (string) $row->grade ),
+						__( 'Position', 'photo-competition-manager' )    => $row->position,
+					)
+				);
+			}
+		}
+
+		return $items;
+	}
+
+	/**
+	 * A grade's label from the club's list, or its slug if the club no longer has it.
+	 *
+	 * @param string $grade Grade slug.
+	 * @return string
+	 */
+	private function grade_label( string $grade ): string {
+		return array_column( Competition_Settings::club_grades(), 'label', 'slug' )[ $grade ] ?? $grade;
 	}
 
 	/**
