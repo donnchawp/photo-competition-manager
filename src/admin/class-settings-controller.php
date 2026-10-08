@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -206,6 +207,15 @@ class Settings_Controller {
 		);
 		$validation = Competition_Settings::validate( $settings );
 
+		$log_retention_months = Log_Retention::parse(
+			sanitize_key( $this->get_post_string( 'log_retention', 'forever' ) ),
+			sanitize_text_field( $this->get_post_string( 'log_retention_months' ) )
+		);
+
+		if ( true === $validation && is_wp_error( $log_retention_months ) ) {
+			$validation = $log_retention_months;
+		}
+
 		if ( true === $validation ) {
 			$validation = $this->check_removed_grades_unheld( Competition_Settings::club_grades(), $sanitized_grades );
 		}
@@ -220,6 +230,7 @@ class Settings_Controller {
 		} else {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
+			update_option( Log_Retention::OPTION, $log_retention_months );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -280,6 +291,7 @@ class Settings_Controller {
 		echo $this->render_slideshow_section( $progress_meter_type, $preview_duration, $voting_duration, $critique_duration ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_email_section( $email_config ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_urls_section( $urls ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/settings/logs-section.php', array( 'months' => Log_Retention::months() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		submit_button( __( 'Save Default Settings', 'photo-competition-manager' ) );
 

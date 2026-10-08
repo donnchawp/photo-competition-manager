@@ -12,6 +12,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 use PhotoCompetitionManager\Admin\Settings_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 
@@ -50,6 +51,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	public function tear_down(): void {
 		delete_option( 'photo_comp_default_settings' );
 		delete_option( 'photo_comp_voting_ui_type' );
+		delete_option( Log_Retention::OPTION );
 		parent::tear_down();
 	}
 
@@ -101,10 +103,11 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	 * the browser.
 	 *
 	 * @param array<int, array<string, string>> $grades Grade rows as posted.
+	 * @param array<string, string>             $fields Other fields as posted.
 	 */
-	private function save_grades( array $grades ): void {
+	private function save_grades( array $grades, array $fields = array() ): void {
 		$this->set_request(
-			array(
+			$fields + array(
 				'photo_competition_action' => 'update_global_settings',
 				'categories'               => array(
 					array(
@@ -120,6 +123,23 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
 
 		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+	}
+
+	/**
+	 * Post the settings form with a choice of how long logs are kept.
+	 *
+	 * @param string     $choice 'forever' or 'months'.
+	 * @param string     $months Number of months as posted.
+	 * @param array|null $rows   Grade rows to post, or null for the defaults.
+	 */
+	private function save_log_retention( string $choice, string $months, ?array $rows = null ): void {
+		$this->save_grades(
+			$rows ?? $this->default_grade_rows(),
+			array(
+				'log_retention'        => $choice,
+				'log_retention_months' => $months,
+			)
+		);
 	}
 
 	/**
@@ -391,5 +411,52 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertSame( 'Beginner', $this->saved_grades()[0]['label'] );
 		$this->assertSame( array( 'duplicate_grade' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+	}
+
+	public function test_logs_can_be_kept_for_a_number_of_months(): void {
+		$this->save_log_retention( 'months', '12' );
+
+		$this->assertSame( 12, Log_Retention::months() );
+		$this->assertSame( array( 'settings_saved' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+	}
+
+	public function test_logs_can_be_kept_forever(): void {
+		update_option( Log_Retention::OPTION, 12 );
+
+		$this->save_log_retention( 'forever', '12' );
+
+		$this->assertSame( 0, Log_Retention::months() );
+	}
+
+	/**
+	 * @dataProvider invalid_months
+	 *
+	 * @param string $months Number of months as posted.
+	 */
+	public function test_a_period_that_isnt_a_positive_whole_number_saves_nothing( string $months ): void {
+		update_option( Log_Retention::OPTION, 6 );
+
+		$rows             = $this->default_grade_rows();
+		$rows[0]['label'] = 'Starter';
+		$this->save_log_retention( 'months', $months, $rows );
+
+		$this->assertSame( 6, Log_Retention::months() );
+		$this->assertSame( 'Beginner', $this->saved_grades()[0]['label'] );
+		$this->assertSame( array( 'invalid_log_retention' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+	}
+
+	/**
+	 * Numbers of months that aren't positive whole numbers.
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public function invalid_months(): array {
+		return array(
+			'zero'     => array( '0' ),
+			'negative' => array( '-3' ),
+			'fraction' => array( '1.5' ),
+			'word'     => array( 'twelve' ),
+			'empty'    => array( '' ),
+		);
 	}
 }

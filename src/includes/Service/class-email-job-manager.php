@@ -50,6 +50,11 @@ class Email_Job_Manager {
 	const OPTION_PREFIX = 'photo_comp_email_job_';
 
 	/**
+	 * Daily cron event that deletes finished jobs.
+	 */
+	const CLEANUP_HOOK = 'photo_comp_cleanup_email_jobs';
+
+	/**
 	 * Get batch size for email sending.
 	 *
 	 * @return int

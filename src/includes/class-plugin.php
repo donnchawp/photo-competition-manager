@@ -11,6 +11,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Log_Retention;
 
 /**
  * Class Plugin
@@ -56,7 +58,9 @@ class Plugin {
 		$this->admin->register();
 		$this->frontend->register();
 
-		$this->register_email_job_hooks( ( new Dependencies() )->email_job_manager );
+		$deps = new Dependencies();
+		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
+		$this->schedule_daily( Log_Retention::HOOK, array( new Log_Retention( $deps->logs ), 'trim' ), 0 );
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
@@ -80,18 +84,20 @@ class Plugin {
 	}
 
 	/**
-	 * Register email job cleanup hooks.
+	 * Hook a callback to a daily cron event, scheduling the event if needed.
 	 *
-	 * @param \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager Email job queue.
+	 * @since 0.4.0
+	 *
+	 * @param string   $hook          Cron event name.
+	 * @param callable $callback      Runs when the event fires.
+	 * @param int      $accepted_args Arguments the callback takes.
 	 * @return void
 	 */
-	private function register_email_job_hooks( \PhotoCompetitionManager\Service\Email_Job_Manager $job_manager ): void {
-		// Register daily cleanup hook.
-		add_action( 'photo_comp_cleanup_email_jobs', array( $job_manager, 'cleanup_old_jobs' ) );
+	private function schedule_daily( string $hook, callable $callback, int $accepted_args = 1 ): void {
+		add_action( $hook, $callback, 10, $accepted_args );
 
-		// Schedule daily cleanup if not already scheduled.
-		if ( ! wp_next_scheduled( 'photo_comp_cleanup_email_jobs' ) ) {
-			wp_schedule_event( time(), 'daily', 'photo_comp_cleanup_email_jobs' );
+		if ( ! wp_next_scheduled( $hook ) ) {
+			wp_schedule_event( time(), 'daily', $hook );
 		}
 	}
 }
