@@ -227,6 +227,28 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Count the votes cast with a member's voting links.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return int
+	 */
+	public function count_by_member_tokens( int $member_id ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i AS v INNER JOIN %i AS t ON t.id = v.voting_token_id WHERE t.member_id = %d',
+				$this->table(),
+				( new Voting_Token_Repository() )->table(),
+				$member_id
+			)
+		);
+	}
+
+	/**
 	 * Whether any votes have been cast in a competition.
 	 *
 	 * @since 0.4.0
