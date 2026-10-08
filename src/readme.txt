@@ -2,7 +2,7 @@
 Contributors: donncha
 Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.5
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 0.3.0
 License: GPLv2 or later
@@ -158,6 +158,97 @@ Yes. Visit **Competitions → Export** to download:
 
 == Changelog ==
 
+= 0.4.0 (unreleased) =
+* **Before you upgrade**
+  * Back up the database first. The update runs eight database upgrades (versions 1 to 8) on the first request after it's installed.
+  * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
+  * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
+  * On sites installed before November 2025 the upgrade rebuilds the upload links' database index so a member can have only one upload link per competition. A member who somehow has two keeps the earlier one, and the later emailed link stops working.
+  * The upgrade records the results of every competition whose results are published, or that has closed or been archived, from the entries and votes as they are when it runs. Entries already deleted, and members deleted before the upgrade, stay missing from those results.
+
+* **Competitions**
+  * Only one competition can be open at a time, with a new Close Competition action
+  * Competitions close at their close date, and overlapping dates are refused
+  * Setting an open competition's close date to today in the edit form closes it when you save, and saving the form without changing the day keeps the time it closed
+  * Competitions use the club's grade list, and the club's categories when they have none of their own
+  * Voting Controls, Results and Submissions act on the current competition
+
+* **Uploads and entries**
+  * The upload page says why an upload or delete was refused, instead of "Upload failed. Please try again."
+  * A file over the server's upload limit is reported as too big, on the upload form and in batch upload
+  * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
+  * The upload limit takes the server's `post_max_size` into account too, and an upload over it is reported as too big instead of "Category assignments are required." or no message at all
+  * Drag-and-drop upload sends one image at a time, so a large selection no longer fails as a whole
+  * Drag-and-drop upload says an image is too big when the web server in front of WordPress refuses it, and stops after the first image if the upload link is refused
+  * When some images in a drag-and-drop batch fail, the page no longer reloads and hides the failures. The list stays on screen with a "Show my entries" button, and the images that went in leave the selection
+  * Moving entries between categories happens all at once or not at all
+  * A category takes no new entries once voting has started in it, or once it has votes
+  * Uploads can't reopen once any category's voting has started. Reset that category first
+  * An image is never saved or moved onto another entry's file
+  * Deleting a competition or a member deletes their entry files too
+  * Originals are discarded one at a time and exported at full size
+  * An entry whose file is missing shows "Image unavailable", and the slideshow skips it
+  * Deleting a submission works in in-app browsers
+  * The upload page's messages can be translated
+  * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
+  * The voting page's vote counter and missing-votes messages, and the upload page's category-change messages, can be translated too, and say "1 image" or "2 images" instead of "image(s)"
+  * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
+  * A drag-and-drop batch's summary is green only when every image went in. A batch where nothing went in says "No images were uploaded." as an error, a mixed batch shows as a notice, and screen readers announce the outcome and any upload error
+  * Success and error messages on the upload, voting and results pages use darker text, so they're easier to read
+
+* **Voting**
+  * A ballot counts only the category's images, and each voter gets one ballot
+  * A ballot is stored whole or not at all: if it can't be saved, the voter is asked to try again instead of being thanked with votes missing
+  * The voting link a member asks for has its own Voting Link email template, with every merge tag filled in
+  * The "Check If Voting Is Open" button keeps the voting token
+  * The page redirects after a ballot is cast, so reloading it doesn't send the ballot again, and a second ballot shows one notice instead of two
+  * The voter's name and the voting password are remembered on classic themes too
+  * An unanswered score is no longer counted as 0, and a score that isn't in the list is refused with a message
+  * A ballot sent with an expired voting link says so, instead of being ignored
+  * Asking for a voting link again sends a link that works. It replaces the earlier one, and a member who has already voted is told so
+
+* **Results**
+  * Tied entries share a position in the results email
+  * The results CSV is ranked within each grade and category
+  * The votes CSV gives each voter who voted with a link their own row, labelled by their link ("Token #5"). Before, they all shared one blank row and some of their votes were lost
+  * The results and Top 3 pages show the latest published results, without vote counts
+  * The results table stacks into cards on mobile
+  * The detailed results email uses the email template system
+  * Results are recorded when they're published, or the first time they're needed after the competition closes. Deleting a member, removing an entry or changing a member's grade afterwards moves nobody, and a deleted member's entries show as "Former member" in their place, without an image
+  * Results can't be hidden once the competition has closed. To correct them, move the close date into the future, then hide and publish them again
+  * Results hidden when the competition closes or is archived are recorded afresh the next time they're needed, so votes cast and fixes made while they were hidden count
+  * Email Results and the results link to all members wait until results are shown or the competition has closed, so everyone is told the recorded positions. The committee's link can still go first
+  * The Recalculate Scores button is gone: nothing used the score it saved
+
+* **Members and email**
+  * Upload and voting links are no longer sent to deactivated members, whose email addresses are now marked
+  * Bulk member emails go out in batches, and stopped email jobs show on every admin page
+  * Editors can use the Email Templates page
+  * Every email sends the text the Email Templates page shows, even on a site that has never saved it
+  * The Email Templates page stores only the templates you edit, so the rest pick up improved default text in later versions. Edited templates are marked "Edited", and Restore default fills in the default text for you to read and save. Templates saved before 0.4.0 are kept as they were: use Restore default on each one to pick up the new default text
+  * Only the Voting Opened and Submission Confirmed notifications can be switched off. Upload links, voting links and results emails always send
+  * Names and links are escaped in emails, and the detailed results table is no longer reformatted
+  * A site name with an ampersand or quotes appears as typed in email subjects, not as `&amp;`
+  * The submission confirmation counts the image just uploaded
+  * Each sent email is logged under its kind of email and against its competition
+  * Saving the club settings no longer reassigns member grades, and every way of saving a member requires a club grade
+  * Every email, the Members and Submissions screens and the upload reminder link the voting, upload and results pages by one rule: the competition's page, then the club's, then a published page holding the plugin's shortcode. Upload links are no longer built on the home page or a guessed address when no upload page is found; sending one says why instead
+  * Opening voting with the Voting Opened notification on but no voting page still opens voting, and tells the admin that members weren't emailed
+  * The Voting Opened email links the competition's own voting page ahead of the one in Settings. Competitions keep a copy of the page links from when they were created, so to change an existing competition's link, edit the competition
+  * Deleting a member also deletes their upload and voting links and every log entry about them. The votes they cast still count, without their name. Tools > Erase Personal Data deletes a member the same way, found by their email address
+  * Tools > Export Personal Data includes what the plugin holds about a member: their record, entries, recorded results, the votes they cast and the emails sent to them. Settings > Privacy > Policy Guide suggests text saying what the club holds and why
+
+* **Errors and logging**
+  * Category change refusals return 400, 403 or 404 instead of 500
+  * Database errors and server paths are no longer shown to members; category change failures are logged as `category_change_failed`
+  * Originals that couldn't be deleted are logged as `original_not_deleted`
+  * Clubs can choose how long logs are kept, in a new Logs section of Settings, and older log entries are deleted once a day. By default logs are kept forever, as before, so upgrading deletes nothing. The Logs screen says how long they're kept
+  * Uninstalling removes email jobs, transients and cron events
+
+* **Compatibility**
+  * Requires WordPress 6.5
+  * Tested up to WordPress 7.1
+
 = 0.3.0 =
 * Fix fatal error on activation due to missing Admin_Dependencies class in release package
 * **Results Sharing** — Share competition results via a secret link before making them public
@@ -234,6 +325,9 @@ Yes. Visit **Competitions → Export** to download:
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.4.0 =
+Back up your database first. This update upgrades the database on the first request, and rolling back to 0.3.0 afterwards loses the competition workflow state.
 
 = 0.3.0 =
 Fixes a fatal error on plugin activation. Share competition results with committee members or all members via a secret link before making results public.
