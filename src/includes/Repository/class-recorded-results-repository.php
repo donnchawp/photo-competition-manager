@@ -72,6 +72,27 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * A member's recorded rows, oldest competition first.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return array<int, object>
+	 */
+	public function find_by_member( int $member_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE member_id = %d ORDER BY competition_id, category, id',
+				$this->table(),
+				$member_id
+			)
+		);
+	}
+
+	/**
 	 * Record rows in one statement, so they go in whole or not at all. A row
 	 * for an entry that's already recorded is left as it is, so two requests
 	 * recording the same competition at once leave one record.

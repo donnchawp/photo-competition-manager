@@ -155,7 +155,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 | **Responsiveness** | Upload and voting pages optimized for mobile. |
 | **Accessibility** | Compliant with WCAG 2.1 AA where feasible. |
 | **Localization** | Strings translatable via `.pot` file. |
-| **Data Privacy** | Store only name and email for members; no external data sharing. |
+| **Data Privacy** | Store only name, email and grade for members; no external data sharing. WordPress's Export and Erase Personal Data tools cover members, and the plugin suggests privacy-policy text in the Policy Guide. |
 
 ---
 

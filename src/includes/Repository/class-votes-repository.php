@@ -249,6 +249,48 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The votes some members cast: with their voting links, or under their
+	 * names, matched as named voting matches them. Each vote once, with only
+	 * its ID, competition, category, entry and score: never the voter's name
+	 * or token.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int[]    $member_ids  Member IDs.
+	 * @param string[] $voter_names The members' names, as a named voter gives them.
+	 * @return array<int, object>
+	 */
+	public function find_cast_by_members( array $member_ids, array $voter_names ): array {
+		global $wpdb;
+
+		$member_ids  = array_values( array_unique( array_map( 'intval', $member_ids ) ) );
+		$voter_names = array_values( array_unique( $voter_names ) );
+		$ids         = $member_ids ? implode( ',', array_fill( 0, count( $member_ids ), '%d' ) ) : 'NULL';
+		$names       = $voter_names ? implode( ',', array_fill( 0, count( $voter_names ), '%s' ) ) : 'NULL';
+
+		// Two indexed lookups rather than one OR across the join, which scans
+		// every vote. UNION drops a vote both find.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $ids and $names hold only placeholders, one per value.
+		$votes = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT v.id, v.competition_id, v.category, v.image_id, v.score FROM %i AS v
+				JOIN %i AS t ON t.id = v.voting_token_id
+				WHERE t.member_id IN ({$ids})
+				UNION
+				SELECT id, competition_id, category, image_id, score FROM %i
+				WHERE voter_name IN ({$names})
+				ORDER BY competition_id, category, id",
+				$this->table(),
+				( new Voting_Token_Repository() )->table(),
+				...array_merge( $member_ids, array( $this->table() ), $voter_names )
+			)
+		);
+		// phpcs:enable
+
+		return $votes;
+	}
+
+	/**
 	 * Count the votes cast under a name, matched as named voting matches it.
 	 *
 	 * @since 0.4.0

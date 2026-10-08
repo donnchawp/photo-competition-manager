@@ -60,6 +60,8 @@ class Plugin {
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
+		add_filter( 'wp_privacy_personal_data_exporters', array( \PhotoCompetitionManager\Service\Member_Export::class, 'register_exporter' ) );
+		add_action( 'admin_init', array( \PhotoCompetitionManager\Support\Privacy_Policy::class, 'suggest' ) );
 	}
 
 	/**
