@@ -60,6 +60,7 @@ class Plugin {
 
 		$deps = new Dependencies();
 		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
+		// 0 args: a bare do_action() passes '', which trim( ?int $now ) would reject with a TypeError.
 		$this->schedule_daily( Log_Retention::HOOK, array( new Log_Retention( $deps->logs ), 'trim' ), 0 );
 		$this->register_rest_api();
 
