@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -223,6 +224,33 @@ class Member_Export_Test extends WP_UnitTestCase {
 			),
 			$exported
 		);
+	}
+
+	public function test_exporting_a_member_with_everything_gives_all_five_groups(): void {
+		$competition_id = $this->create_competition( 'export-all', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $jane_id, array( 5 ) );
+		$johns_entry = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array( 3 ) );
+		( new Votes_Repository() )->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
+		( new Event_Logger() )->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'jane@example.com' ) );
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$groups = array_unique( array_column( $this->export( 'jane@example.com' ), 'group_id' ) );
+
+		$this->assertEqualSets(
+			array( 'photo-competition-member', 'photo-competition-entries', 'photo-competition-results', 'photo-competition-votes', 'photo-competition-emails' ),
+			$groups
+		);
+	}
+
+	public function test_exporting_an_address_held_by_two_records_gives_both(): void {
+		$this->create_member( 'Jane Doe', 'jane@example.com' );
+		Member_Fixtures::insert_with_grade( 'Jane Byrne', 'jane@example.com', 'beginner', false );
+
+		$names = array_column( $this->only( $this->export( 'jane@example.com' ), 'photo-competition-member' ), 'Name' );
+
+		$this->assertEqualSets( array( 'Jane Doe', 'Jane Byrne' ), $names );
 	}
 
 	public function test_exporting_an_address_that_isnt_a_members_gives_nothing(): void {
