@@ -198,4 +198,12 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$this->assert_matches_snapshot( 'with-settings-error' );
 	}
+
+	public function test_one_month_reads_in_the_singular(): void {
+		update_option( Log_Retention::OPTION, 1 );
+
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( 'Delete log entries older than <input type="number" id="log_retention_months" name="log_retention_months" value="1" min="1" step="1" class="small-text" aria-label="Number of months" /> month</label>', $html );
+	}
 }

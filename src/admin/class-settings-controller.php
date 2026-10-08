@@ -277,7 +277,7 @@ class Settings_Controller {
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Default Competition Settings', 'photo-competition-manager' ) . '</h1>';
-		echo '<p class="description">' . esc_html__( 'These settings will be used as defaults when creating new competitions. Individual competitions can override these settings.', 'photo-competition-manager' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Categories, upload constraints, voting, slideshow and URLs are the defaults for new competitions, and each competition can change them. Grades, email and logs apply to the whole club.', 'photo-competition-manager' ) . '</p>';
 
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 720px; padding: 16px; margin-top: 20px;">';
 		wp_nonce_field( 'photo_competition_global_settings', 'photo_competition_nonce' );
