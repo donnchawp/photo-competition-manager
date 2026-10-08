@@ -45,6 +45,56 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		parent::tear_down();
 	}
 
+	/**
+	 * A vote row as the votes repository returns it.
+	 *
+	 * @param int         $image_id Entry ID.
+	 * @param int         $score    Score.
+	 * @param string|null $name     Voter name, for a password vote.
+	 * @param int|null    $token_id Voting token ID, for a voting-link vote.
+	 * @return object
+	 */
+	private function vote( int $image_id, int $score, ?string $name, ?int $token_id = null ): object {
+		return (object) array(
+			'image_id'        => $image_id,
+			'category'        => 'colour',
+			'voter_name'      => $name,
+			'voting_token_id' => $token_id,
+			'score'           => $score,
+		);
+	}
+
+	public function test_each_voter_gets_their_own_row_in_the_votes_csv(): void {
+		$images = array();
+		foreach ( array( 11 => 1, 12 => 2 ) as $id => $random_number ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => $random_number,
+				'category'      => 'colour',
+			);
+		}
+		$votes = array(
+			$this->vote( 11, 3, 'Ann' ),
+			$this->vote( 12, 5, 'Ann' ),
+			$this->vote( 11, 4, null, 5 ),
+			$this->vote( 12, 2, null, 5 ),
+			$this->vote( 11, 1, null, 9 ),
+			$this->vote( 12, 6, null, 9 ),
+		);
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #1', 'Image #2' ),
+				array( 'Ann', 3, 5 ),
+				array( 'Token #5', 4, 2 ),
+				array( 'Token #9', 1, 6 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( $votes, $images )
+		);
+	}
+
 	public function test_exporting_a_large_original_puts_the_full_size_file_in_the_zip(): void {
 		$this->competition_id = $this->create_competition();
 		$entries              = new Entries();

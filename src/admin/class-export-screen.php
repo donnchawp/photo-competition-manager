@@ -235,9 +235,7 @@ class Export_Screen {
 	/**
 	 * Export votes for a competition to a CSV file, separated by category.
 	 *
-	 * Columns are aligned across all categories using the member's random_number.
-	 * If a member didn't upload to a category, their column shows 0 for all voters.
-	 * This ensures consistent column positions for spreadsheet calculations.
+	 * The rows come from votes_csv_rows().
 	 *
 	 * @return void
 	 */
@@ -253,9 +251,38 @@ class Export_Screen {
 			return;
 		}
 
-		// Get all images for this competition.
-		$images = $this->images_repository->find_by_competition( $competition_id );
+		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_by_competition( $competition_id ) );
 
+		$competition = $this->competitions_repository->find( $competition_id );
+		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
+
+		header( 'Content-Type: text/csv' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+
+		$output = fopen( 'php://output', 'w' );
+		foreach ( $rows as $row ) {
+			fputcsv( $output, sanitize_csv_row( $row ) );
+		}
+
+		// phpcs:ignore
+		fclose( $output );
+		exit;
+	}
+
+	/**
+	 * The votes CSV's rows, one section per category.
+	 *
+	 * Columns are aligned across all categories using the member's random_number.
+	 * If a member didn't upload to a category, their column shows 0 for all voters.
+	 * Votes for entries that no longer exist are left out.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object[] $votes  The competition's votes.
+	 * @param object[] $images The competition's entries.
+	 * @return array<int, array<int, int|string>> Rows, not yet made safe for a spreadsheet.
+	 */
+	public function votes_csv_rows( array $votes, array $images ): array {
 		// Build mappings for alignment across categories.
 		$image_map              = array(); // image_id => random_number.
 		$all_random_numbers     = array(); // All unique random_numbers in competition.
@@ -283,14 +310,6 @@ class Export_Screen {
 		// Sort random numbers for consistent column order.
 		sort( $all_random_numbers, SORT_NUMERIC );
 
-		$competition = $this->competitions_repository->find( $competition_id );
-		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
-
-		header( 'Content-Type: text/csv' );
-		header( 'Content-Disposition: attachment; filename=' . $filename );
-
-		$output = fopen( 'php://output', 'w' );
-
 		// Group votes by category, then by voter, then by image_id.
 		// Skip votes for images that no longer exist.
 		$votes_by_category = array();
@@ -303,31 +322,34 @@ class Export_Screen {
 			}
 
 			$category = $vote->category;
+			// A voting-link vote has no name, so it's labelled by its token, as on the Results screen.
+			$voter = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
 
 			if ( ! isset( $votes_by_category[ $category ] ) ) {
 				$votes_by_category[ $category ] = array();
 			}
-			if ( ! isset( $votes_by_category[ $category ][ $vote->voter_name ] ) ) {
-				$votes_by_category[ $category ][ $vote->voter_name ] = array();
+			if ( ! isset( $votes_by_category[ $category ][ $voter ] ) ) {
+				$votes_by_category[ $category ][ $voter ] = array();
 			}
 
 			// Store vote keyed by image_id.
-			$votes_by_category[ $category ][ $vote->voter_name ][ $image_id ] = $vote->score;
+			$votes_by_category[ $category ][ $voter ][ $image_id ] = $vote->score;
 		}
 
-		// Write each category as a separate section.
+		// Each category is a separate section.
+		$rows = array();
 		foreach ( $votes_by_category as $category => $votes_by_voter ) {
-			// Write category header.
-			fputcsv( $output, sanitize_csv_row( array( 'Category: ' . $category ) ) );
+			// Category header.
+			$rows[] = array( 'Category: ' . $category );
 
-			// Write column header with ALL random numbers (aligned across categories).
+			// Column header with ALL random numbers (aligned across categories).
 			$header = array( 'Voter' );
 			foreach ( $all_random_numbers as $random_number ) {
 				$header[] = 'Image #' . $random_number;
 			}
-			fputcsv( $output, sanitize_csv_row( $header ) );
+			$rows[] = $header;
 
-			// Write rows for this category, with votes in random_number order.
+			// Rows for this category, with votes in random_number order.
 			ksort( $votes_by_voter ); // Sort voters alphabetically.
 			foreach ( $votes_by_voter as $voter => $voter_votes ) {
 				$row = array( $voter );
@@ -346,16 +368,14 @@ class Export_Screen {
 						$row[] = '';
 					}
 				}
-				fputcsv( $output, sanitize_csv_row( $row ) );
+				$rows[] = $row;
 			}
 
-			// Add blank line between categories.
-			fputcsv( $output, array( '' ) );
+			// Blank line between categories.
+			$rows[] = array( '' );
 		}
 
-		// phpcs:ignore
-		fclose( $output );
-		exit;
+		return $rows;
 	}
 
 	/**
