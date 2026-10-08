@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use WP_Error;
@@ -52,6 +53,13 @@ class Member_Deletion {
 	private $voting_tokens;
 
 	/**
+	 * Upload token repository.
+	 *
+	 * @var Upload_Token_Repository
+	 */
+	private $upload_tokens;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Entries|null            $entries Entries module.
@@ -62,6 +70,7 @@ class Member_Deletion {
 		$this->entries       = $entries ?? new Entries( null, null, $this->members );
 		$this->votes         = new Votes_Repository();
 		$this->voting_tokens = new Voting_Token_Repository();
+		$this->upload_tokens = new Upload_Token_Repository();
 	}
 
 	/**
@@ -81,6 +90,7 @@ class Member_Deletion {
 		$kept = $this->votes->count_by_member_tokens( $member_id );
 
 		$this->voting_tokens->delete_by_member( $member_id );
+		$this->upload_tokens->delete_by_member( $member_id );
 
 		$deleted = $this->members->delete( $member_id );
 		if ( is_wp_error( $deleted ) ) {

@@ -64,6 +64,21 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertSame( $before, $this->votes->calculate_averages( $competition_id ) );
 	}
 
+	public function test_a_deleted_members_upload_links_go_and_other_members_stay(): void {
+		$competition_id = $this->create_competition( 'upload-links' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$uploads        = new Upload_Token_Repository();
+		$uploads->find_or_create( $jane_id, $competition_id );
+		$uploads->find_or_create( $john_id, $competition_id );
+		$this->voting_token( $john_id, $competition_id );
+
+		$this->assertSame( 0, $this->deletion->delete( $jane_id ) );
+
+		$this->assertSame( array( $john_id ), array_keys( $uploads->get_tracking_by_competition( $competition_id ) ) );
+		$this->assertSame( array( $john_id ), array_keys( ( new Voting_Token_Repository() )->get_tracking_by_competition( $competition_id ) ) );
+	}
+
 	/**
 	 * Create a competition with Colour and Mono categories.
 	 *
