@@ -233,6 +233,7 @@ Yes. Visit **Competitions → Export** to download:
   * Every email, the Members and Submissions screens and the upload reminder link the voting, upload and results pages by one rule: the competition's page, then the club's, then a published page holding the plugin's shortcode. Upload links are no longer built on the home page or a guessed address when no upload page is found; sending one says why instead
   * Opening voting with the Voting Opened notification on but no voting page still opens voting, and tells the admin that members weren't emailed
   * The Voting Opened email links the competition's own voting page ahead of the one in Settings. Competitions keep a copy of the page links from when they were created, so to change an existing competition's link, edit the competition
+  * Deleting a member also deletes their upload and voting links and every log entry about them. The votes they cast still count, without their name. Tools > Erase Personal Data deletes a member the same way, found by their email address
 
 * **Errors and logging**
   * Category change refusals return 400, 403 or 404 instead of 500
