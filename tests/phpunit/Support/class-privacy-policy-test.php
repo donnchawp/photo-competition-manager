@@ -39,7 +39,7 @@ class Privacy_Policy_Test extends WP_UnitTestCase {
 
 		$this->assertCount( 1, $suggested );
 		$text = $suggested[0]['policy_text'];
-		foreach ( array( 'name, email address and grade', 'original', 'votes they cast', 'log of the emails', 'publish', 'without their name' ) as $phrase ) {
+		foreach ( array( 'name, email address and grade', 'original file of each until we discard it', 'votes they cast', 'log of the emails', 'publish', 'without their name' ) as $phrase ) {
 			$this->assertStringContainsString( $phrase, $text );
 		}
 	}
