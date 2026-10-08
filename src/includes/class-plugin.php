@@ -58,6 +58,8 @@ class Plugin {
 
 		$this->register_email_job_hooks( ( new Dependencies() )->email_job_manager );
 		$this->register_rest_api();
+
+		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
 	}
 
 	/**

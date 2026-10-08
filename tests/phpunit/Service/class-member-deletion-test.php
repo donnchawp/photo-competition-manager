@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -212,6 +213,99 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertNull( ( new Images_Repository() )->find( (int) $janes_entry ) );
 		$this->assertNull( get_post( $attachment_id ) );
 		$this->assertNull( $this->members->find( $jane_id ) );
+	}
+
+	public function test_erasing_a_members_email_deletes_them_and_reports_their_votes_kept(): void {
+		$competition_id = $this->create_competition( 'erase' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$janes_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $jane_id, array( 4 ) );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$this->votes->create_anonymous_ballot( $competition_id, 'colour', $this->voting_token( $jane_id, $competition_id ), array( $johns_entry => 4 ) );
+		( new Upload_Token_Repository() )->find_or_create( $jane_id, $competition_id );
+		( new Event_Logger() )->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'jane@example.com' ) );
+
+		$response = $this->erase( 'jane@example.com' );
+
+		$this->assertTrue( $response['items_removed'] );
+		$this->assertTrue( $response['items_retained'] );
+		$this->assertCount( 1, $response['messages'] );
+		$this->assertTrue( $response['done'] );
+		$this->assertNull( $this->members->find( $jane_id ) );
+		$this->assertNull( ( new Images_Repository() )->find( $janes_entry ) );
+		$this->assertSame( array(), ( new Upload_Token_Repository() )->get_tracking_by_competition( $competition_id ) );
+		$this->assertSame( 0, ( new Logs_Repository() )->count( array( 'competition_id' => $competition_id ) ) );
+		$this->assertSame( 1, $this->votes->calculate_averages( $competition_id )[ $johns_entry ]['vote_count'] );
+	}
+
+	public function test_erasing_a_member_who_cast_no_votes_reports_nothing_kept(): void {
+		$jane_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$response = $this->erase( 'jane@example.com' );
+
+		$this->assertTrue( $response['items_removed'] );
+		$this->assertFalse( $response['items_retained'] );
+		$this->assertSame( array(), $response['messages'] );
+		$this->assertNull( $this->members->find( $jane_id ) );
+	}
+
+	public function test_erasing_a_deactivated_members_real_address_finds_them(): void {
+		$jane_id = $this->create_member( 'Jane Doe', 'jane@example.com', 0 );
+
+		$response = $this->erase( 'jane@example.com' );
+
+		$this->assertTrue( $response['items_removed'] );
+		$this->assertTrue( $response['done'] );
+		$this->assertNull( $this->members->find( $jane_id ) );
+	}
+
+	public function test_erasing_an_address_held_by_two_records_pages_through_both(): void {
+		$jane_id     = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$old_jane_id = Member_Fixtures::insert_with_grade( 'Jane Doe', 'jane@example.com', 'beginner', false );
+
+		$first = $this->erase( 'jane@example.com', 1 );
+
+		$this->assertTrue( $first['items_removed'] );
+		$this->assertFalse( $first['done'] );
+
+		$second = $this->erase( 'jane@example.com', 2 );
+
+		$this->assertTrue( $second['items_removed'] );
+		$this->assertTrue( $second['done'] );
+		$this->assertNull( $this->members->find( $jane_id ) );
+		$this->assertNull( $this->members->find( $old_jane_id ) );
+	}
+
+	public function test_erasing_an_address_that_isnt_a_members_removes_nothing(): void {
+		$jane_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$response = $this->erase( 'nobody@example.com' );
+
+		$this->assertSame(
+			array(
+				'items_removed'  => false,
+				'items_retained' => false,
+				'messages'       => array(),
+				'done'           => true,
+			),
+			$response
+		);
+		$this->assertNotNull( $this->members->find( $jane_id ) );
+	}
+
+	/**
+	 * Run the plugin's personal data eraser, as Tools > Erase Personal Data does.
+	 *
+	 * @param string $email Email address.
+	 * @param int    $page  Page.
+	 * @return array<string, mixed>
+	 */
+	private function erase( string $email, int $page = 1 ): array {
+		$erasers = apply_filters( 'wp_privacy_personal_data_erasers', array() );
+
+		$this->assertArrayHasKey( 'photo-competition-manager', $erasers );
+
+		return call_user_func( $erasers['photo-competition-manager']['callback'], $email, $page );
 	}
 
 	/**

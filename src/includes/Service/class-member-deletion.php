@@ -128,4 +128,61 @@ class Member_Deletion {
 
 		return $kept;
 	}
+
+	/**
+	 * Add the plugin's eraser to WordPress's personal data erasers.
+	 *
+	 * @param array<string, array> $erasers Registered erasers.
+	 * @return array<string, array>
+	 */
+	public static function register_eraser( array $erasers ): array {
+		$erasers['photo-competition-manager'] = array(
+			'eraser_friendly_name' => __( 'Photo Competition Manager', 'photo-competition-manager' ),
+			'callback'             => array( new self(), 'erase' ),
+		);
+
+		return $erasers;
+	}
+
+	/**
+	 * WordPress's personal data eraser: delete the members holding an email address.
+	 *
+	 * Each page deletes one member record, so a member with many entries can't
+	 * run a request out of time. Every record holding the address goes, whether
+	 * or not it's marked as deactivated.
+	 *
+	 * @param string $email Email address.
+	 * @param int    $page  Page, from 1; each page deletes the first record left.
+	 * @return array{items_removed: bool, items_retained: bool, messages: string[], done: bool}
+	 */
+	public function erase( string $email, int $page = 1 ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WordPress passes the page; the records left say where to carry on.
+		$response = array(
+			'items_removed'  => false,
+			'items_retained' => false,
+			'messages'       => array(),
+			'done'           => true,
+		);
+
+		$members = $this->members->find_all_by_email( $email );
+		if ( ! $members ) {
+			return $response;
+		}
+
+		$kept = $this->delete( (int) $members[0]->id );
+		if ( is_wp_error( $kept ) ) {
+			// Done, so the request stops with the reason instead of retrying forever.
+			$response['messages'][] = $kept->get_error_message();
+			return $response;
+		}
+
+		$response['items_removed'] = true;
+		$response['done']          = count( $members ) <= 1;
+
+		if ( $kept > 0 ) {
+			$response['items_retained'] = true;
+			$response['messages'][]     = __( 'The votes this member cast are kept without their name, so the results of past competitions don\'t change.', 'photo-competition-manager' );
+		}
+
+		return $response;
+	}
 }

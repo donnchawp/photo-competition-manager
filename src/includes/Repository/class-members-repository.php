@@ -151,6 +151,31 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Fetch every member record holding an email address, whether or not it's
+	 * marked as deactivated.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $email Email address, marked or not.
+	 * @return array<int, object>
+	 */
+	public function find_all_by_email( string $email ): array {
+		global $wpdb;
+
+		$email = self::unmark_deactivated_email( $email );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE email IN (%s, %s) ORDER BY id ASC',
+				$this->table(),
+				$email,
+				self::mark_deactivated_email( $email )
+			)
+		);
+	}
+
+	/**
 	 * Find multiple members.
 	 *
 	 * @param array<int> $ids Member IDs.
