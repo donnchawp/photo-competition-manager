@@ -11,13 +11,16 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -164,6 +167,70 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$expected = array( '[]', '{"email":"jane15@example.com"}', '{"member_id":' . $jane_15_id . '}', '{"member_id":' . $jane_id . '5}' );
 		sort( $expected );
 		$this->assertSame( $expected, $left );
+	}
+
+	public function test_recorded_results_dont_change_when_a_member_who_entered_and_voted_is_deleted(): void {
+		$competition_id = $this->create_competition( 'recorded' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$mary_id        = $this->create_member( 'Mary Byrne', 'mary@example.com' );
+		$janes_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $jane_id, array( 5, 5 ) );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array( 3 ) );
+		$marys_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $mary_id, array( 2 ) );
+		$this->votes->create_anonymous_ballot( $competition_id, 'colour', $this->voting_token( $jane_id, $competition_id ), array( $johns_entry => 4 ) );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $marys_entry => 1 ) );
+		Workflow_Fixtures::publish_results( $competition_id );
+		$recorded = new Recorded_Results_Repository();
+		$before   = $this->scores( $recorded->find_by_category( $competition_id, 'colour' ) );
+
+		$this->assertSame( 2, $this->deletion->delete( $jane_id ) );
+
+		$this->assertNull( ( new Images_Repository() )->find( $janes_entry ) );
+		$this->assertSame( $before, $this->scores( $recorded->find_by_category( $competition_id, 'colour' ) ) );
+		$this->assertSame( array( 1, 2, 3 ), array_values( array_map( 'intval', array_column( $before, 'position' ) ) ) );
+	}
+
+	public function test_a_member_is_deleted_while_their_category_is_being_voted_on(): void {
+		$competition_id = $this->create_competition( 'voting-now' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$attachment_id  = self::factory()->attachment->create();
+		$janes_entry    = ( new Images_Repository() )->create(
+			array(
+				'competition_id'         => $competition_id,
+				'member_id'              => $jane_id,
+				'category'               => 'colour',
+				'filename'               => 'jane-doe-colour.jpg',
+				'original_attachment_id' => $attachment_id,
+			)
+		);
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->assertSame( 0, $this->deletion->delete( $jane_id ) );
+
+		$this->assertNull( ( new Images_Repository() )->find( (int) $janes_entry ) );
+		$this->assertNull( get_post( $attachment_id ) );
+		$this->assertNull( $this->members->find( $jane_id ) );
+	}
+
+	/**
+	 * Each recorded row's total score, vote count and position.
+	 *
+	 * @param array<int, object> $rows Recorded rows.
+	 * @return array<int, array<string, string>>
+	 */
+	private function scores( array $rows ): array {
+		$scores = array();
+		foreach ( $rows as $row ) {
+			$scores[ (int) $row->id ] = array(
+				'total_score' => (string) $row->total_score,
+				'vote_count'  => (string) $row->vote_count,
+				'position'    => (string) $row->position,
+			);
+		}
+
+		return $scores;
 	}
 
 	/**
