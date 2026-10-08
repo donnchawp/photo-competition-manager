@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Admin\Members_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -422,6 +423,37 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'member_deleted', $this->settings_error_codes( self::GROUP ) );
 		$this->assertNull( $this->members->find( $id ) );
 		$this->assertNull( ( new Images_Repository() )->find( $entry_id ) );
+	}
+
+	/**
+	 * Deleting a member removes everything that names them, keeps their votes, and says so.
+	 */
+	public function test_delete_member_removes_their_links_and_says_their_votes_are_kept(): void {
+		$id             = $this->create_member();
+		$competition_id = $this->create_open_competition();
+		$uploads        = new Upload_Token_Repository();
+		$uploads->find_or_create( $id, $competition_id );
+
+		$this->set_request(
+			array(
+				'action' => 'delete_member',
+				'member' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_member_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array(), $uploads->get_tracking_by_competition( $competition_id ) );
+		$messages = wp_list_pluck( get_settings_errors( self::GROUP ), 'message' );
+		$this->assertSame(
+			array( 'Member "Ada Lovelace" and their entries have been deleted, with everything that names them. The votes they cast are kept without their name.' ),
+			$messages
+		);
 	}
 
 	/**

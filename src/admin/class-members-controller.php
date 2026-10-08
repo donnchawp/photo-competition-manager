@@ -13,9 +13,9 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -58,6 +58,13 @@ class Members_Controller {
 	private $entries;
 
 	/**
+	 * Deletes members.
+	 *
+	 * @var Member_Deletion
+	 */
+	private $deletion;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
@@ -75,6 +82,7 @@ class Members_Controller {
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->members      = $members;
 		$this->entries      = $entries ?? new Entries( $this->competitions, null, $this->members );
+		$this->deletion     = new Member_Deletion( $this->entries, $this->members );
 	}
 
 	/**
@@ -113,7 +121,7 @@ class Members_Controller {
 				'selectBulkAction' => __( 'Please select a bulk action.', 'photo-competition-manager' ),
 				'selectOneMember'  => __( 'Please select at least one member.', 'photo-competition-manager' ),
 				'selectGrade'      => __( 'Please select a grade.', 'photo-competition-manager' ),
-				'confirmDelete'    => __( 'Are you sure you want to delete this member and all their photos and votes?', 'photo-competition-manager' ),
+				'confirmDelete'    => __( 'Delete this member, their entries and everything that names them? The votes they cast are kept without their name.', 'photo-competition-manager' ),
 				'memberLabel'      => __( 'Member:', 'photo-competition-manager' ),
 				'cannotUndo'       => __( 'This action cannot be undone.', 'photo-competition-manager' ),
 			)
@@ -336,11 +344,7 @@ class Members_Controller {
 				$this->redirect_with_settings_errors( $this->members_url() );
 			}
 
-			// The entries go first, so their files and originals go with them.
-			$result = $this->entries->remove_member_entries( Actor::admin(), $member_id );
-			if ( ! is_wp_error( $result ) ) {
-				$result = $this->members->delete( $member_id );
-			}
+			$result = $this->deletion->delete( $member_id );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -355,7 +359,7 @@ class Members_Controller {
 					'member_deleted',
 					sprintf(
 						/* translators: %s: member name */
-						__( 'Member "%s" and all their photos and votes have been deleted successfully.', 'photo-competition-manager' ),
+						__( 'Member "%s" and their entries have been deleted, with everything that names them. The votes they cast are kept without their name.', 'photo-competition-manager' ),
 						esc_html( $member->name )
 					),
 					'updated'
