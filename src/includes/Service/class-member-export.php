@@ -33,6 +33,15 @@ class Member_Export {
 	const PAGES = array( 'member_items', 'entry_items', 'result_items', 'vote_items', 'log_items' );
 
 	/**
+	 * Email kinds 0.3.0 logged under another name, mapped to the kind they are now.
+	 */
+	const OLD_EMAIL_KINDS = array(
+		'results_email'              => 'results_detailed',
+		'voting_opened_notification' => 'voting_opened',
+		'results_share_link'         => 'results_published',
+	);
+
+	/**
 	 * Members repository.
 	 *
 	 * @var Members_Repository
@@ -273,7 +282,8 @@ class Member_Export {
 
 		$items = array();
 		foreach ( ( new Logs_Repository() )->find_about_members( wp_list_pluck( $members, 'id' ), $emails ) as $row ) {
-			$kind = 'email' === $row->event_category ? Email_Kinds::get( (string) $row->event_type ) : null;
+			$type = (string) $row->event_type;
+			$kind = 'email' === $row->event_category ? Email_Kinds::get( self::OLD_EMAIL_KINDS[ $type ] ?? $type ) : null;
 
 			$items[] = $this->item(
 				'photo-competition-emails',
@@ -281,7 +291,7 @@ class Member_Export {
 				'photo-competition-log-' . $row->id,
 				array(
 					__( 'Date', 'photo-competition-manager' ) => $row->created_at,
-					__( 'Kind', 'photo-competition-manager' ) => $kind ? $kind['label'] : $row->event_type,
+					__( 'Kind', 'photo-competition-manager' ) => $kind ? $kind['label'] : ucfirst( str_replace( '_', ' ', $type ) ),
 				)
 			);
 		}

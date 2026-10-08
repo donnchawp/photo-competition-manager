@@ -237,6 +237,10 @@ class Member_Export_Test extends WP_UnitTestCase {
 		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'jane@example.com' ) );
 		$logger->log_email_sent( $competition_id, 'upload_reminder', 'Jane Doe', array( 'email' => Members_Repository::mark_deactivated_email( 'jane@example.com' ) ) );
 		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $jane_id ) );
+		// Kinds 0.3.0 logged that 0.4.0 renamed or dropped.
+		$logger->log( $competition_id, 'results_email', 'email', 'Sent results email to Jane Doe', array( 'email' => 'jane@example.com' ) );
+		$logger->log( $competition_id, 'voting_opened_notification', 'email', 'Sent voting opened notification to Jane Doe', array( 'email' => 'jane@example.com' ) );
+		$logger->log( $competition_id, 'competition_closed', 'email', 'Sent competition closed notification to Jane Doe', array( 'email' => 'jane@example.com' ) );
 		$logger->log_email_sent( $competition_id, 'voting_link', 'John Murphy', array( 'email' => 'john@example.com' ) );
 		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $john_id ) );
 		$logger->log( $competition_id, 'voting_opened', 'voting', 'Voting opened.' );
@@ -256,7 +260,19 @@ class Member_Export_Test extends WP_UnitTestCase {
 				),
 				array(
 					'Date' => $logged_at,
-					'Kind' => 'category_change_failed',
+					'Kind' => 'Category change failed',
+				),
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'Detailed results',
+				),
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'Voting opened',
+				),
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'Competition closed',
 				),
 			),
 			$exported
