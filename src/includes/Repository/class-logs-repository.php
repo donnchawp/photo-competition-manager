@@ -227,8 +227,26 @@ class Logs_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Delete every log row about a member: rows whose metadata holds one of
-	 * their email addresses, or their member ID.
+	 * Every log row about a member: rows whose metadata holds one of their email
+	 * addresses, or their member ID. Oldest first.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int      $member_id Member ID.
+	 * @param string[] $emails    The member's email addresses.
+	 * @return array<int, object>
+	 */
+	public function find_about_member( int $member_id, array $emails ): array {
+		global $wpdb;
+
+		list( $conditions, $patterns ) = $this->about_member( $member_id, $emails );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE {$conditions} ORDER BY created_at, id", $this->table(), ...$patterns ) );
+	}
+
+	/**
+	 * Delete every log row about a member, as find_about_member() finds them.
 	 *
 	 * @since 0.4.0
 	 *
@@ -237,6 +255,22 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int|false The number of rows deleted, or false on error.
 	 */
 	public function delete_about_member( int $member_id, array $emails ) {
+		global $wpdb;
+
+		list( $conditions, $patterns ) = $this->about_member( $member_id, $emails );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
+	}
+
+	/**
+	 * The condition that finds the log rows about a member, and its values.
+	 *
+	 * @param int      $member_id Member ID.
+	 * @param string[] $emails    The member's email addresses.
+	 * @return array{0: string, 1: string[]} Conditions of placeholders only, and a LIKE pattern for each.
+	 */
+	private function about_member( int $member_id, array $emails ): array {
 		global $wpdb;
 
 		// Metadata is JSON, so a value is matched with its quotes, or the
@@ -250,10 +284,7 @@ class Logs_Repository extends Abstract_Repository {
 			$patterns[] = '%' . $wpdb->esc_like( (string) wp_json_encode( $email ) ) . '%';
 		}
 
-		$conditions = implode( ' OR ', array_fill( 0, count( $patterns ), 'metadata LIKE %s' ) );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
-		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
+		return array( implode( ' OR ', array_fill( 0, count( $patterns ), 'metadata LIKE %s' ) ), $patterns );
 	}
 
 	/**

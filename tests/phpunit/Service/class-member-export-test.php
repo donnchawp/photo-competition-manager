@@ -9,10 +9,12 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -187,6 +189,40 @@ class Member_Export_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( $upload_token->token, $everything );
 		$this->assertStringNotContainsString( 'John Murphy', $everything );
 		$this->assertStringNotContainsString( 'Mary Byrne', $everything );
+	}
+
+	public function test_exporting_a_member_gives_the_date_and_kind_of_each_log_row_about_them(): void {
+		$competition_id = $this->create_competition( 'export-logs', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$logger         = new Event_Logger();
+		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'jane@example.com' ) );
+		$logger->log_email_sent( $competition_id, 'upload_reminder', 'Jane Doe', array( 'email' => Members_Repository::mark_deactivated_email( 'jane@example.com' ) ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $jane_id ) );
+		$logger->log_email_sent( $competition_id, 'voting_link', 'John Murphy', array( 'email' => 'john@example.com' ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $john_id ) );
+		$logger->log( $competition_id, 'voting_opened', 'voting', 'Voting opened.' );
+		$logged_at = ( new Logs_Repository() )->paginate( 1, 0, array( 'competition_id' => $competition_id ) )[0]->created_at;
+
+		$exported = $this->only( $this->export( 'jane@example.com' ), 'photo-competition-emails' );
+
+		$this->assertEqualSets(
+			array(
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'Voting link',
+				),
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'Upload link',
+				),
+				array(
+					'Date' => $logged_at,
+					'Kind' => 'category_change_failed',
+				),
+			),
+			$exported
+		);
 	}
 
 	public function test_exporting_an_address_that_isnt_a_members_gives_nothing(): void {

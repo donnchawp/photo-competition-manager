@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
@@ -29,7 +30,7 @@ class Member_Export {
 	 * What each page exports, in order: one kind of data for every record
 	 * holding the address, so no page grows with more than one kind.
 	 */
-	const PAGES = array( 'member_items', 'entry_items', 'result_items', 'vote_items' );
+	const PAGES = array( 'member_items', 'entry_items', 'result_items', 'vote_items', 'log_items' );
 
 	/**
 	 * Members repository.
@@ -222,6 +223,37 @@ class Member_Export {
 					$this->competition_fields( $this->competition( (int) $vote->competition_id ), (string) $vote->category ) + array(
 						__( 'Entry ID', 'photo-competition-manager' ) => $vote->image_id,
 						__( 'Score', 'photo-competition-manager' )    => $vote->score,
+					)
+				);
+			}
+		}
+
+		return array_values( $items );
+	}
+
+	/**
+	 * The date and kind of each log row about the members: the rows
+	 * Member_Deletion deletes. The rest of each row's metadata stays out.
+	 *
+	 * @param array<int, object> $members Member records.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function log_items( array $members ): array {
+		$logs  = new Logs_Repository();
+		$items = array();
+
+		foreach ( $members as $member ) {
+			foreach ( $logs->find_about_member( (int) $member->id, Members_Repository::email_forms( $member->email ) ) as $row ) {
+				$kind = 'email' === $row->event_category ? Email_Kinds::get( (string) $row->event_type ) : null;
+
+				// Two records holding one address find the same rows; each is exported once.
+				$items[ (int) $row->id ] = $this->item(
+					'photo-competition-emails',
+					__( 'Emails sent', 'photo-competition-manager' ),
+					'photo-competition-log-' . $row->id,
+					array(
+						__( 'Date', 'photo-competition-manager' ) => $row->created_at,
+						__( 'Kind', 'photo-competition-manager' ) => $kind ? $kind['label'] : $row->event_type,
 					)
 				);
 			}
