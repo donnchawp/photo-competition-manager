@@ -9,10 +9,12 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -100,6 +102,68 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Jane Doe' ) );
 		$this->assertSame( array( $johns_entry => 1.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Bob Smith' ) );
 		$this->assertSame( $before, $this->votes->calculate_averages( $competition_id ) );
+	}
+
+	public function test_two_deleted_members_who_voted_for_one_entry_stay_two_voters(): void {
+		$competition_id = $this->create_competition( 'two-voters' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$mary_id        = $this->create_member( 'Mary Byrne', 'mary@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Mary Byrne', array( $johns_entry => 2 ) );
+
+		$this->assertSame( 1, $this->deletion->delete( $jane_id ) );
+		$this->assertSame( 1, $this->deletion->delete( $mary_id ) );
+
+		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $jane_id ) );
+		$this->assertSame( array( $johns_entry => 2.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $mary_id ) );
+		$this->assertSame( 2, $this->votes->calculate_averages( $competition_id )[ $johns_entry ]['vote_count'] );
+	}
+
+	public function test_deleting_one_of_two_members_who_share_a_name_renames_the_names_votes(): void {
+		$competition_id = $this->create_competition( 'shared-name' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$other_jane_id  = $this->create_member( 'Jane Doe', 'jane.doe@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Jane Doe', array( $johns_entry => 4 ) );
+		$before = $this->votes->calculate_averages( $competition_id );
+
+		$this->assertSame( 1, $this->deletion->delete( $jane_id ) );
+
+		$this->assertNotNull( $this->members->find( $other_jane_id ) );
+		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Former member #' . $jane_id ) );
+		$this->assertSame( $before, $this->votes->calculate_averages( $competition_id ) );
+	}
+
+	public function test_log_rows_about_a_deleted_member_go_and_others_stay(): void {
+		$competition_id = $this->create_competition( 'logs' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$jane_15_id     = $this->create_member( 'Jane Murphy', 'jane15@example.com' );
+		$logger         = new Event_Logger();
+		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'jane@example.com' ) );
+		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => 'JANE@example.com' ) );
+		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Doe', array( 'email' => Members_Repository::mark_deactivated_email( 'jane@example.com' ) ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $jane_id ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => (string) $jane_id ) );
+		$logger->log_email_sent( $competition_id, 'voting_link', 'Jane Murphy', array( 'email' => 'jane15@example.com' ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => $jane_15_id ) );
+		$logger->log( $competition_id, 'category_change_failed', 'upload', 'A category change failed.', array( 'member_id' => (int) ( $jane_id . '5' ) ) );
+		$logger->log( $competition_id, 'voting_opened', 'voting', 'Voting opened.' );
+
+		$this->deletion->delete( $jane_id );
+
+		$left = array_map(
+			static function ( $row ) {
+				return $row->metadata;
+			},
+			( new Logs_Repository() )->paginate( 50, 0, array( 'competition_id' => $competition_id ) )
+		);
+		sort( $left );
+		$expected = array( '[]', '{"email":"jane15@example.com"}', '{"member_id":' . $jane_15_id . '}', '{"member_id":' . $jane_id . '5}' );
+		sort( $expected );
+		$this->assertSame( $expected, $left );
 	}
 
 	/**

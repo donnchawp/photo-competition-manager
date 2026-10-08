@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
@@ -60,6 +61,13 @@ class Member_Deletion {
 	private $upload_tokens;
 
 	/**
+	 * Logs repository.
+	 *
+	 * @var Logs_Repository
+	 */
+	private $logs;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Entries|null            $entries Entries module.
@@ -71,6 +79,7 @@ class Member_Deletion {
 		$this->votes         = new Votes_Repository();
 		$this->voting_tokens = new Voting_Token_Repository();
 		$this->upload_tokens = new Upload_Token_Repository();
+		$this->logs          = new Logs_Repository();
 	}
 
 	/**
@@ -101,8 +110,16 @@ class Member_Deletion {
 
 		$kept = $renamed + $this->votes->count_by_member_tokens( $member_id );
 
-		$this->voting_tokens->delete_by_member( $member_id );
-		$this->upload_tokens->delete_by_member( $member_id );
+		$email = Members_Repository::unmark_deactivated_email( $member->email );
+
+		// The record goes last, so a deletion that stops part way can be run again.
+		if (
+			! $this->voting_tokens->delete_by_member( $member_id )
+			|| ! $this->upload_tokens->delete_by_member( $member_id )
+			|| false === $this->logs->delete_about_member( $member_id, array( $email, Members_Repository::mark_deactivated_email( $email ) ) )
+		) {
+			return new WP_Error( 'db_delete_failed', __( 'Could not delete everything that names the member. Try again.', 'photo-competition-manager' ) );
+		}
 
 		$deleted = $this->members->delete( $member_id );
 		if ( is_wp_error( $deleted ) ) {
