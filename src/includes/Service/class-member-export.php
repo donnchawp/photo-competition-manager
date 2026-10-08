@@ -175,7 +175,8 @@ class Member_Export {
 				$fields[ __( 'Image', 'photo-competition-manager' ) ] = $image;
 			}
 
-			$original = $entry->original_attachment_id ? wp_get_attachment_url( (int) $entry->original_attachment_id ) : false;
+			// WordPress keeps a 2560px -scaled copy of a larger upload as the attached file.
+			$original = $entry->original_attachment_id ? wp_get_original_image_url( (int) $entry->original_attachment_id ) : false;
 			if ( $original ) {
 				$fields[ __( 'Original', 'photo-competition-manager' ) ] = $original;
 			}

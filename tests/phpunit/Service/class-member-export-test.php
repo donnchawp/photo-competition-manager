@@ -87,7 +87,12 @@ class Member_Export_Test extends WP_UnitTestCase {
 		$competition_id = $this->create_competition( 'export-entries', 'Spring Open' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
 		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
-		$attachment_id  = self::factory()->attachment->create_object( array( 'file' => 'jane-original.jpg' ) );
+		$attachment_id  = self::factory()->attachment->create_object(
+			array(
+				'file'           => 'jane-original.jpg',
+				'post_mime_type' => 'image/jpeg',
+			)
+		);
 		$entries        = new Images_Repository();
 		$colour         = (int) $entries->create(
 			array(
@@ -122,6 +127,38 @@ class Member_Export_Test extends WP_UnitTestCase {
 		// The mono file and its original are gone, so neither is offered.
 		$this->assertArrayNotHasKey( 'Image', $by_id[ (string) $mono ] );
 		$this->assertArrayNotHasKey( 'Original', $by_id[ (string) $mono ] );
+	}
+
+	public function test_exporting_a_large_original_gives_the_full_size_file_not_the_scaled_copy(): void {
+		$competition_id = $this->create_competition( 'export-scaled', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		// WordPress keeps a 2560px -scaled copy of a larger upload as the attached file.
+		$attachment_id = self::factory()->attachment->create_object(
+			array(
+				'file'           => 'jane-original-scaled.jpg',
+				'post_mime_type' => 'image/jpeg',
+			)
+		);
+		wp_update_attachment_metadata(
+			$attachment_id,
+			array(
+				'file'           => 'jane-original-scaled.jpg',
+				'original_image' => 'jane-original.jpg',
+			)
+		);
+		( new Images_Repository() )->create(
+			array(
+				'competition_id'         => $competition_id,
+				'member_id'              => $jane_id,
+				'category'               => 'colour',
+				'filename'               => 'jane-doe-colour.jpg',
+				'original_attachment_id' => $attachment_id,
+			)
+		);
+
+		$exported = $this->only( $this->export( 'jane@example.com' ), 'photo-competition-entries' );
+
+		$this->assertStringEndsWith( '/jane-original.jpg', $exported[0]['Original'] );
 	}
 
 	public function test_exporting_a_member_gives_their_recorded_results(): void {
