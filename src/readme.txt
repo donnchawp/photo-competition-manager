@@ -234,6 +234,7 @@ Yes. Visit **Competitions → Export** to download:
   * Opening voting with the Voting Opened notification on but no voting page still opens voting, and tells the admin that members weren't emailed
   * The Voting Opened email links the competition's own voting page ahead of the one in Settings. Competitions keep a copy of the page links from when they were created, so to change an existing competition's link, edit the competition
   * Deleting a member also deletes their upload and voting links and every log entry about them. The votes they cast still count, without their name. Tools > Erase Personal Data deletes a member the same way, found by their email address
+  * Tools > Export Personal Data includes what the plugin holds about a member: their record, entries, recorded results, the votes they cast and the emails sent to them. Settings > Privacy > Policy Guide suggests text saying what the club holds and why
 
 * **Errors and logging**
   * Category change refusals return 400, 403 or 404 instead of 500
