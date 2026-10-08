@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -25,7 +27,7 @@ class Member_Export {
 	 * What each page exports, in order: one kind of data for every record
 	 * holding the address, so no page grows with more than one kind.
 	 */
-	const PAGES = array( 'member_items' );
+	const PAGES = array( 'member_items', 'entry_items' );
 
 	/**
 	 * Members repository.
@@ -35,12 +37,27 @@ class Member_Export {
 	private $members;
 
 	/**
+	 * Competitions repository.
+	 *
+	 * @var Competitions_Repository
+	 */
+	private $competitions;
+
+	/**
+	 * Competitions already loaded, by ID; null for one that's gone.
+	 *
+	 * @var array<int, object|null>
+	 */
+	private $competition_cache = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Members_Repository|null $members Members repository.
 	 */
 	public function __construct( ?Members_Repository $members = null ) {
-		$this->members = $members ?? new Members_Repository();
+		$this->members      = $members ?? new Members_Repository();
+		$this->competitions = new Competitions_Repository();
 	}
 
 	/**
@@ -108,6 +125,82 @@ class Member_Export {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * The members' entries, with their image and, while it's kept, their original.
+	 *
+	 * @param array<int, object> $members Member records.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function entry_items( array $members ): array {
+		$images  = new Images_Repository();
+		$entries = new Entries( null, null, $this->members );
+		$items   = array();
+
+		foreach ( $members as $member ) {
+			foreach ( $images->find_by_member( (int) $member->id ) as $entry ) {
+				$competition = $this->competition( (int) $entry->competition_id );
+				$fields      = $this->competition_fields( $competition, (string) $entry->category ) + array(
+					__( 'Entry ID', 'photo-competition-manager' ) => $entry->id,
+					__( 'Uploaded', 'photo-competition-manager' ) => $entry->created_at,
+				);
+
+				$image = $competition ? $entries->urls( $competition, $entry )['full'] : '';
+				if ( '' !== $image ) {
+					$fields[ __( 'Image', 'photo-competition-manager' ) ] = $image;
+				}
+
+				$original = $entry->original_attachment_id ? wp_get_attachment_url( (int) $entry->original_attachment_id ) : false;
+				if ( $original ) {
+					$fields[ __( 'Original', 'photo-competition-manager' ) ] = $original;
+				}
+
+				$items[] = $this->item(
+					'photo-competition-entries',
+					__( 'Competition entries', 'photo-competition-manager' ),
+					'photo-competition-entry-' . $entry->id,
+					$fields
+				);
+			}
+		}
+
+		return $items;
+	}
+
+	/**
+	 * A competition, archived or not, loaded once per export page.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return object|null
+	 */
+	private function competition( int $competition_id ) {
+		if ( ! array_key_exists( $competition_id, $this->competition_cache ) ) {
+			$this->competition_cache[ $competition_id ] = $this->competitions->find( $competition_id, true );
+		}
+
+		return $this->competition_cache[ $competition_id ];
+	}
+
+	/**
+	 * The competition's title and the category's label, for an item about one.
+	 *
+	 * @param object|null $competition Competition record, or null if it's gone.
+	 * @param string      $category    Category slug.
+	 * @return array<string, string>
+	 */
+	private function competition_fields( $competition, string $category ): array {
+		$label = $category;
+		if ( $competition ) {
+			$settings = Competition_Settings::parse( $competition->settings );
+			$labels   = array_column( Competition_Settings::get_categories( $settings ), 'label', 'slug' );
+			$label    = $labels[ $category ] ?? $category;
+		}
+
+		return array(
+			__( 'Competition', 'photo-competition-manager' ) => $competition ? $competition->title : '',
+			__( 'Category', 'photo-competition-manager' )    => $label,
+		);
 	}
 
 	/**

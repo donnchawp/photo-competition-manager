@@ -8,7 +8,9 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
 /**
@@ -23,10 +25,27 @@ class Member_Export_Test extends WP_UnitTestCase {
 	 */
 	private $members;
 
+	/**
+	 * Entry files a test wrote, to remove afterwards.
+	 *
+	 * @var string[]
+	 */
+	private $files = array();
+
 	public function setUp(): void {
 		parent::setUp();
 
 		$this->members = new Members_Repository();
+	}
+
+	public function tearDown(): void {
+		foreach ( $this->files as $file ) {
+			wp_delete_file( $file );
+			rmdir( dirname( $file ) );
+			rmdir( dirname( $file, 2 ) );
+		}
+
+		parent::tearDown();
 	}
 
 	public function test_exporting_a_member_gives_their_record(): void {
@@ -43,6 +62,58 @@ class Member_Export_Test extends WP_UnitTestCase {
 			),
 			$this->only( $items, 'photo-competition-member' )[0]
 		);
+	}
+
+	public function test_exporting_a_deactivated_members_real_address_finds_their_marked_record(): void {
+		$this->create_member( 'Jane Doe', 'jane@example.com', 0 );
+
+		$items = $this->export( 'jane@example.com' );
+
+		$member = $this->only( $items, 'photo-competition-member' );
+		$this->assertCount( 1, $member );
+		$this->assertSame( 'jane@example.com', $member[0]['Email'] );
+		$this->assertSame( 'No', $member[0]['Active'] );
+	}
+
+	public function test_exporting_a_member_gives_their_entries_with_the_original_while_its_kept(): void {
+		$competition_id = $this->create_competition( 'export-entries', 'Spring Open' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$attachment_id  = self::factory()->attachment->create_object( array( 'file' => 'jane-original.jpg' ) );
+		$entries        = new Images_Repository();
+		$colour         = (int) $entries->create(
+			array(
+				'competition_id'         => $competition_id,
+				'member_id'              => $jane_id,
+				'category'               => 'colour',
+				'filename'               => 'jane-doe-colour.jpg',
+				'original_attachment_id' => $attachment_id,
+			)
+		);
+		$mono           = (int) $entries->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $jane_id,
+				'category'       => 'mono',
+				'filename'       => 'jane-doe-mono.jpg',
+			)
+		);
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array() );
+		$this->put_entry_file( 'export-entries', 'colour', 'jane-doe-colour.jpg' );
+
+		$exported = $this->only( $this->export( 'jane@example.com' ), 'photo-competition-entries' );
+
+		$this->assertCount( 2, $exported );
+		$by_id = array_column( $exported, null, 'Entry ID' );
+		$this->assertSame( 'Spring Open', $by_id[ (string) $colour ]['Competition'] );
+		$this->assertSame( 'Colour', $by_id[ (string) $colour ]['Category'] );
+		$this->assertSame( $entries->find( $colour )->created_at, $by_id[ (string) $colour ]['Uploaded'] );
+		$this->assertStringContainsString( '/export-entries/colour/jane-doe-colour.jpg', $by_id[ (string) $colour ]['Image'] );
+		$this->assertStringEndsWith( '/jane-original.jpg', $by_id[ (string) $colour ]['Original'] );
+		$this->assertSame( 'Mono', $by_id[ (string) $mono ]['Category'] );
+		// The mono file and its original are gone, so neither is offered.
+		$this->assertArrayNotHasKey( 'Image', $by_id[ (string) $mono ] );
+		$this->assertArrayNotHasKey( 'Original', $by_id[ (string) $mono ] );
 	}
 
 	public function test_exporting_an_address_that_isnt_a_members_gives_nothing(): void {
@@ -110,6 +181,53 @@ class Member_Export_Test extends WP_UnitTestCase {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * Write an entry's image where the plugin keeps it.
+	 *
+	 * @param string $competition_slug Competition slug.
+	 * @param string $category         Category slug.
+	 * @param string $filename         File name.
+	 * @return void
+	 */
+	private function put_entry_file( string $competition_slug, string $category, string $filename ): void {
+		$directory = wp_upload_dir()['basedir'] . '/competitions/' . $competition_slug . '/' . $category;
+		wp_mkdir_p( $directory );
+		file_put_contents( $directory . '/' . $filename, 'jpeg' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$this->files[] = $directory . '/' . $filename;
+	}
+
+	/**
+	 * Create a competition with Colour and Mono categories.
+	 *
+	 * @param string $slug  Slug.
+	 * @param string $title Title.
+	 * @return int Competition ID.
+	 */
+	private function create_competition( string $slug, string $title ): int {
+		return (int) ( new Competitions_Repository() )->create(
+			array(
+				'title'      => $title,
+				'slug'       => $slug,
+				'open_date'  => '2020-01-01 00:00:00',
+				'close_date' => null,
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 2,
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Mono',
+							'quota' => 2,
+						),
+					),
+				),
+			)
+		);
 	}
 
 	/**
