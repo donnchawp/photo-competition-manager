@@ -15,6 +15,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Settings_Controller;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -33,6 +34,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function tear_down(): void {
 		delete_option( 'photo_comp_default_settings' );
 		delete_option( 'photo_comp_voting_ui_type' );
+		delete_option( Log_Retention::OPTION );
 		parent::tear_down();
 	}
 
@@ -178,6 +180,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $settings ) );
 		update_option( 'photo_comp_voting_ui_type', 'dropdown' );
+		update_option( Log_Retention::OPTION, 6 );
 
 		$this->assert_matches_snapshot( 'configured-settings' );
 	}

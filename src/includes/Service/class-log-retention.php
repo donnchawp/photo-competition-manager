@@ -54,6 +54,29 @@ class Log_Retention {
 	}
 
 	/**
+	 * The number of months to keep logs for, from the settings form.
+	 *
+	 * @param string $choice 'months' to keep them for a number of months; anything else keeps them forever.
+	 * @param string $months Number of months, as posted.
+	 * @return int|\WP_Error Months, 0 to keep logs forever, or an error when the number isn't a positive whole number.
+	 */
+	public static function parse( string $choice, string $months ) {
+		if ( 'months' !== $choice ) {
+			return 0;
+		}
+
+		$months = trim( $months );
+		if ( ! ctype_digit( $months ) || 0 === (int) $months ) {
+			return new \WP_Error(
+				'invalid_log_retention',
+				__( 'Settings not saved. Keep logs for a whole number of months, 1 or more, or choose to keep them forever.', 'photo-competition-manager' )
+			);
+		}
+
+		return (int) $months;
+	}
+
+	/**
 	 * Delete log rows written before the retention period.
 	 *
 	 * Rows' created_at is UTC, so the cut-off is too.
