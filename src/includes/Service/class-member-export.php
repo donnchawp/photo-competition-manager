@@ -303,7 +303,7 @@ class Member_Export {
 
 		return array(
 			__( 'Competition', 'photo-competition-manager' ) => $competition ? $competition->title : '',
-			__( 'Category', 'photo-competition-manager' )    => $label,
+			__( 'Category', 'photo-competition-manager' ) => $label,
 		);
 	}
 
