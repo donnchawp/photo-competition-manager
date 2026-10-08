@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
 /**
@@ -212,6 +213,15 @@ class Logs_Controller {
 	): void {
 		echo '<div class="wrap photo-competition-manager-logs">';
 		echo '<h1>' . esc_html__( 'Competition Logs', 'photo-competition-manager' ) . '</h1>';
+
+		$retention = $this->render_template(
+			'admin/logs/retention.php',
+			array(
+				'months'       => Log_Retention::months(),
+				'settings_url' => $this->settings_url() . '#log-retention',
+			)
+		);
+		echo $retention; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		// Filters form.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
