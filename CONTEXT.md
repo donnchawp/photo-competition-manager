@@ -10,6 +10,14 @@ Runs a photography club's monthly competitions: members upload images, members v
 A member's skill level, such as Beginner, Intermediate or Advanced. Members compete only against others in the same grade. The club defines one list of grades, and every competition uses it. Every member has exactly one grade from that list, and a member without one is a data error. Renaming a grade keeps its members in it, and a grade can't be removed while any member holds it.
 _Avoid_: Level, class, division
 
+**Deactivated member**:
+A member who has left but whose record and history stay. They get no upload or voting links and can't upload or vote, and an admin can make them active again.
+_Avoid_: Archived member, former member (that's a deleted one)
+
+**Deleting a member**:
+Removing everything the club holds about a member, whether an admin does it from the Members screen or for an erasure request. Their entries, with their images and originals, go, and so does anything else that names them. The votes they cast stay without anything that identifies them, so the scores of every competition they voted in don't change. A member can be deleted while voting is open; their entries leave that category's ballot, as a disqualified entry would.
+_Avoid_: Erasing (except for WordPress's own tool), removing a member
+
 ### Competitions
 
 **Category**:
@@ -69,7 +77,7 @@ Each entry's total score, vote count, grade and position, kept when results are 
 _Avoid_: Snapshot, frozen results
 
 **Former member**:
-How recorded results show an entry whose member has since been deleted, for whatever reason. No name is kept, the image went with the entry, and the entry keeps its position.
+How recorded results show an entry whose member has since been deleted, for whatever reason. No name is kept, the image went with the entry, and the entry keeps its position. The votes a deleted member cast are a former member's too: they still count, and a ballot cast under their name shows as "Former member #" and the number their record had, so each deleted voter stays distinct.
 
 ### Email
 
