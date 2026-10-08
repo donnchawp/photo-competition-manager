@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Member_Deletion;
+use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 
@@ -77,6 +78,28 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( $john_id ), array_keys( $uploads->get_tracking_by_competition( $competition_id ) ) );
 		$this->assertSame( array( $john_id ), array_keys( ( new Voting_Token_Repository() )->get_tracking_by_competition( $competition_id ) ) );
+	}
+
+	public function test_a_deleted_members_password_votes_are_cast_by_a_former_member(): void {
+		$competition_id = $this->create_competition( 'password-votes' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$johns_entry    = Entry_Fixtures::insert_entry( $competition_id, 'colour', $john_id, array( 3 ) );
+		$johns_mono     = Entry_Fixtures::insert_entry( $competition_id, 'mono', $john_id, array() );
+		// The name she typed differs in case, accents and spaces, as named voting allows.
+		$this->votes->create_ballot( $competition_id, 'colour', ( new Named_Voter( ' JANE DOÉ ' ) )->name(), array( $johns_entry => 4 ) );
+		$this->votes->create_ballot( $competition_id, 'mono', 'Jane Doe', array( $johns_mono => 2 ) );
+		$this->votes->create_ballot( $competition_id, 'colour', 'Bob Smith', array( $johns_entry => 1 ) );
+		$before = $this->votes->calculate_averages( $competition_id );
+
+		$this->assertSame( 2, $this->deletion->delete( $jane_id ) );
+
+		$former = 'Former member #' . $jane_id;
+		$this->assertSame( array( $johns_entry => 4.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', $former ) );
+		$this->assertSame( array( $johns_mono => 2.0 ), $this->votes->get_votes_by_voter( $competition_id, 'mono', $former ) );
+		$this->assertSame( array(), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Jane Doe' ) );
+		$this->assertSame( array( $johns_entry => 1.0 ), $this->votes->get_votes_by_voter( $competition_id, 'colour', 'Bob Smith' ) );
+		$this->assertSame( $before, $this->votes->calculate_averages( $competition_id ) );
 	}
 
 	/**

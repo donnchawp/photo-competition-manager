@@ -249,6 +249,37 @@ class Votes_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Move every vote cast under a name to another name. Names match as named
+	 * voting matches them: the voter_name column's collation ignores case,
+	 * accents and trailing spaces.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $voter_name The name the votes were cast under.
+	 * @param string $new_name   The name to give them.
+	 * @return int|WP_Error Number of votes renamed, or error.
+	 */
+	public function rename_voter( string $voter_name, string $new_name ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$renamed = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET voter_name = %s WHERE voter_name = %s',
+				$this->table(),
+				$new_name,
+				$voter_name
+			)
+		);
+
+		if ( false === $renamed ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not remove the member\'s name from the votes they cast.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return (int) $renamed;
+	}
+
+	/**
 	 * Whether any votes have been cast in a competition.
 	 *
 	 * @since 0.4.0

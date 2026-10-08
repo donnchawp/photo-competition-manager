@@ -81,13 +81,25 @@ class Member_Deletion {
 	 * @return int|WP_Error Number of the member's votes kept, or the error that stopped it.
 	 */
 	public function delete( int $member_id ) {
+		$member = $this->members->find( $member_id );
+		if ( ! $member ) {
+			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
 		// The entries go first, so their files and originals go with them.
 		$removed = $this->entries->remove_member_entries( Actor::admin(), $member_id );
 		if ( is_wp_error( $removed ) ) {
 			return $removed;
 		}
 
-		$kept = $this->votes->count_by_member_tokens( $member_id );
+		// Matched the way named voting matches a name, and renamed per member so
+		// two deleted voters' votes for one entry stay distinct.
+		$renamed = $this->votes->rename_voter( ( new Named_Voter( $member->name ) )->name(), 'Former member #' . $member_id );
+		if ( is_wp_error( $renamed ) ) {
+			return $renamed;
+		}
+
+		$kept = $renamed + $this->votes->count_by_member_tokens( $member_id );
 
 		$this->voting_tokens->delete_by_member( $member_id );
 		$this->upload_tokens->delete_by_member( $member_id );
