@@ -160,7 +160,7 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs eight database upgrades (versions 1 to 8) on the first request after it's installed.
+  * Back up the database first. The update runs nine database upgrades (versions 1 to 9) on the first request after it's installed.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
   * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
   * On sites installed before November 2025 the upgrade rebuilds the upload links' database index so a member can have only one upload link per competition. A member who somehow has two keeps the earlier one, and the later emailed link stops working.
@@ -206,6 +206,18 @@ Yes. Visit **Competitions → Export** to download:
   * An unanswered score is no longer counted as 0, and a score that isn't in the list is refused with a message
   * A ballot sent with an expired voting link says so, instead of being ignored
   * Asking for a voting link again sends a link that works. It replaces the earlier one, and a member who has already voted is told so
+  * The voting page and the slideshow load images from an address made from the entry's number, so a member's name in the file name never reaches the browser
+  * Resized entry images and thumbnails lose the photographer's name from their EXIF, IPTC and XMP data when they're uploaded, and are turned upright first. The original keeps its data
+
+* **External judging**
+  * A competition can be scored by judges instead of members: set "Who scores" to Judges on the competition's Settings tab
+  * A new Judges screen keeps each judge's name and email. Judges aren't members and get none of the member emails
+  * Pick a competition's judges on its Settings tab. Each judge gets a private link, which you can email to them with the new Judge link email or copy and open on the night. It works only while the judge is picked and a category is open
+  * Judges score every image in the open category from the competition's score list, and an image's total is the sum of their scores
+  * Members can't vote in a judged competition. They don't get the Voting Opened email, and the upload email leaves out the voting page
+  * The detailed results email shows only an image's total and position in a judged competition. Admins can still see each judge's score on the Results screen and in the votes CSV, where each judge is named
+  * Voting Controls shows which judges have scored the open category
+  * Deleting a judge, or erasing them with Tools > Erase Personal Data, removes their name and email and every log entry about them. Their scores still count
 
 * **Results**
   * Tied entries share a position in the results email
