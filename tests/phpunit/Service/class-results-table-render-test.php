@@ -165,6 +165,38 @@ class Results_Table_Render_Test extends WP_UnitTestCase {
 		$this->assert_matches_snapshot( 'ungraded-entry', $this->results_table_for( $member ) );
 	}
 
+	public function test_detailed_results_in_judged_competition_show_total_only(): void {
+		( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'voting'     => array(
+						'auth_mode'    => 'judges',
+						'score_matrix' => array( 5, 4, 3 ),
+					),
+				),
+			)
+		);
+		$member = $this->seed_member( 'Ada', 'ada@example.com' );
+		$colour = $this->seed_image( $member, 'colour', 'ada-colour.jpg', 3 );
+		$this->vote( 'colour', $colour, 'Judge A', 5, '2026-01-01 10:00:00' );
+		$this->vote( 'colour', $colour, 'Judge B', 4, '2026-01-01 10:01:00' );
+
+		$html = $this->results_table_for( $member );
+
+		$this->assertStringContainsString( 'Final Score:', $html );
+		$this->assertStringContainsString( '<strong>9</strong>', $html );
+		$this->assertStringNotContainsString( 'Vote #', $html );
+		$this->assertStringNotContainsString( 'Median', $html );
+		$this->assertStringNotContainsString( 'Total Votes', $html );
+	}
+
 	public function test_results_table_for_a_member_with_no_entries(): void {
 		$member = $this->seed_member( 'Ada', 'ada@example.com' );
 

@@ -164,13 +164,22 @@ class Upload_Link_Service {
 			return $token_obj;
 		}
 
+		// Judges score a judged competition, so members aren't pointed at a voting page.
+		$voting_page = Competition_Settings::page_url( 'voting_page', $competition );
+		$voting_info = '';
+		if ( '' !== $voting_page && ! Ballots::is_judged( $competition ) ) {
+			/* translators: %s: URL of the voting page */
+			$voting_info = sprintf( __( 'Once voting opens, you can vote at %s', 'photo-competition-manager' ), $voting_page );
+		}
+
 		$sent = $this->email_service->send(
 			'upload_reminder',
 			$member,
 			$competition,
 			array(
 				'{upload_link}' => $upload_url,
-				'{voting_page}' => Competition_Settings::page_url( 'voting_page', $competition ),
+				'{voting_page}' => $voting_page,
+				'{voting_info}' => $voting_info,
 			)
 		);
 

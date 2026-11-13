@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
@@ -592,6 +593,11 @@ class Voting_Controller {
 	 * @return string|null Job ID, or null if nothing was queued.
 	 */
 	private function queue_voting_opened_notifications( object $competition ): ?string {
+		// Judges score a judged competition; members aren't invited to vote.
+		if ( Ballots::is_judged( $competition ) ) {
+			return null;
+		}
+
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
 			return null;
 		}

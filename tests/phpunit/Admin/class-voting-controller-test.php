@@ -402,6 +402,44 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Judges score a judged competition, so members aren't told voting is open
+	 * and no warning about a missing voting page is shown.
+	 */
+	public function test_open_voting_in_judged_competition_queues_no_member_email(): void {
+		global $wpdb;
+
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->competitions->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'voting' => array(
+						'auth_mode'    => 'judges',
+						'score_matrix' => array( 5, 4, 3 ),
+					),
+				),
+			)
+		);
+		$this->voting_opened_email_on();
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		$location = $this->open_colour_voting();
+
+		$this->assertSame( Competition_Workflow::STAGE_VOTING, $this->colour_stage() );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertSame(
+			'0',
+			$wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE option_name LIKE %s',
+					$wpdb->options,
+					$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
+				)
+			)
+		);
+	}
+
+	/**
 	 * With the voting-opened email turned off, opening voting queues no job.
 	 */
 	public function test_open_category_voting_queues_nothing_when_the_email_is_off(): void {

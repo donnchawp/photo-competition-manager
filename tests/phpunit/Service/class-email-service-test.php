@@ -86,6 +86,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			array(
 				'{upload_link}' => 'https://example.org/upload/?t=abc',
 				'{voting_page}' => 'https://example.org/vote/',
+				'{voting_info}' => 'Once voting opens, you can vote at https://example.org/vote/',
 			)
 		);
 
@@ -110,6 +111,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			array(
 				'{upload_link}' => 'https://example.org/upload/?t=abc',
 				'{voting_page}' => 'https://example.org/vote/',
+				'{voting_info}' => '',
 			)
 		);
 	}
@@ -261,6 +263,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			array(
 				'{upload_link}' => 'https://example.org/upload/?a=1&b="><script>',
 				'{voting_page}' => 'javascript:alert(1)',
+				'{voting_info}' => '',
 			)
 		);
 
@@ -324,6 +327,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			array(
 				'{upload_link}' => 'https://example.org/upload/?t=abc',
 				'{voting_page}' => '',
+				'{voting_info}' => '',
 			)
 		);
 

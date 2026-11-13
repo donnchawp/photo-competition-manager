@@ -529,7 +529,11 @@ class Email_Job_Manager {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
+		// Judges' scores aren't shown per vote, only the total.
+		$judged = Ballots::is_judged( $competition );
+
 		$member_results = array(
+			'judged' => $judged,
 			'images' => array(),
 		);
 
@@ -566,8 +570,8 @@ class Email_Job_Manager {
 						'thumbnail_url'  => $this->entries->urls( $competition, $image )['thumb'],
 						'total_score'    => $entry['total_score'],
 						'vote_count'     => $entry['vote_count'],
-						'statistics'     => $votes_match ? $this->analytics->get_vote_statistics( $votes ) : null,
-						'votes'          => $votes_match ? $votes : array(),
+						'statistics'     => $votes_match && ! $judged ? $this->analytics->get_vote_statistics( $votes ) : null,
+						'votes'          => $votes_match && ! $judged ? $votes : array(),
 					);
 				}
 			}
