@@ -120,7 +120,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - An admin chooses the judges for a competition and emails them their links. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
 - A judge scores every entry in the open category from the competition's score list, one ballot per judge per category. An entry's total is the sum of the judges' scores.
 - In a judged competition members get no voting links and the password doesn't work. They aren't sent "voting opened", and upload emails don't mention voting.
-- The detailed results email shows members only their total and position, and per-judge scores aren't shown in results.
+- Public results pages and the results email show only the total and position. Admins can still see individual scores on the Results screen and in the export, where each judge is named, or shown as "Former judge #<id>" once deleted.
 - The Voting Controls screen shows which judges have scored the open category.
 
 ### 4.5 Slideshow Display
@@ -192,7 +192,6 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_photocomp_voting_tokens`
   - id, member_id, competition_id, category, token_hash, expires_at, first_accessed_at, sent_at, created_at
   - A member has one token per competition and category: a unique key on (member_id, competition_id, category). Asking for a voting link again renews it with a new hash and expiry, so the old link stops working and the member's ballot stays with the token.
-
 - `wp_photocomp_judges`
   - id, name, email, created_at, updated_at
 - `wp_photocomp_competition_judges`

@@ -54,11 +54,11 @@ Asking for a voting link replaces the member's earlier one. That's an accepted t
 _Avoid_: User, member (for a named voter)
 
 **Judge**:
-Someone outside the club who scores a judged competition. The club keeps one list of judges, a name and an email, apart from its members. An admin chooses which judges score each competition, and each gets a private link that works only while they are chosen for it and one of its categories is open for voting. A judge scores every entry in the open category once, and the link can't reach any other competition. Deleting a judge keeps their scores without anything that identifies them, so totals don't change, and a privacy erasure request covers judges.
+Someone outside the club who scores a judged competition. The club keeps one list of judges, a name and an email, apart from its members. An admin chooses the judges for each competition, and each gets a private link that works only while they are chosen for it and a category is open. A judge scores every entry in the open category once. Deleting a judge keeps their scores without anything that identifies them, and a privacy erasure request covers judges.
 _Avoid_: Adjudicator, voter (for a judge)
 
 **Judged competition**:
-A competition whose "Who scores" setting is Judges rather than the voting password or members' voting links. Only its judges score it. Members get no voting links, the club's password doesn't work, they aren't sent "voting opened", and upload emails don't mention voting. Total score is the sum of the judges' scores. The detailed results email shows each member only their total and position, and results never show who gave which score. The Voting Controls screen shows which judges have scored the open category.
+A competition whose "Who scores" setting is Judges rather than the voting password or members' voting links. Only its judges score it: members get no voting links, the password doesn't work, they aren't sent "voting opened", and upload emails don't mention voting. Total score is the sum of the judges' scores. Public results pages and the results email show only the total and position; admins can still see individual scores.
 
 **Reset**:
 Returning a category's voting stage to Not started, optionally clearing its votes. It lifts the rule that fixes a started category's entries (see **Voting stage**). Votes it keeps still stop entries being added to the category or moved in or out.
