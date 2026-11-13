@@ -645,17 +645,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager',
-							'action'      => 'edit',
-							'competition' => $competition_id,
-							'tab'         => 'settings',
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
 			$result = $this->competitions->update(
@@ -681,17 +671,7 @@ class Competitions_Controller {
 				);
 			}
 
-			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager',
-						'action'      => 'edit',
-						'competition' => $competition_id,
-						'tab'         => 'settings',
-					),
-					admin_url( 'admin.php' )
-				)
-			);
+			$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 		}
 	}
 
@@ -829,15 +809,7 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function settings_tab_url( int $competition_id ): string {
-		return add_query_arg(
-			array(
-				'page'        => 'photo-competition-manager',
-				'action'      => 'edit',
-				'competition' => $competition_id,
-				'tab'         => 'settings',
-			),
-			admin_url( 'admin.php' )
-		);
+		return add_query_arg( 'tab', 'settings', $this->edit_url( $competition_id ) );
 	}
 
 	/**
