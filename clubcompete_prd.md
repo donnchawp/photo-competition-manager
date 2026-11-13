@@ -58,7 +58,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 ### 4.1 Competition Setup
 - Admin can create competitions with:
   - Type (chosen at creation; not asked when the club has one type)
-  - Name (e.g., *2024-10*). A `{grade}` in the name becomes each entrant's own grade name on their upload page and in their emails, and the names of all grades with entries, joined " / ", elsewhere.
+  - Name (e.g., *2024-10*). A `{grade}` in the name becomes each entrant's own grade name on their upload page and in their emails, and the names of every grade that has entries, joined " / ", elsewhere (every grade's name while none has entries).
   - Categories (e.g., Colour, Black & White)
   - Grades (e.g., Beginner, Intermediate, Advanced)
   - Upload start/end dates
@@ -79,9 +79,10 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 ### 4.1b Entrants
 - Members carry type tags. With one type every member is tagged automatically. Otherwise the Members screen has type checkboxes, a type filter and bulk add/remove, and the CSV import accepts a `types` column naming several types. Active members with no tag are flagged when there are several types.
 - A competition's entry setting is **open to everyone in the type** or **selected entrants only**.
-- Entrants can be added until voting starts; if uploads are open the new entrant is sent their upload link. An entrant can be removed unless they have entries, which revokes their link. An admin can create a member and enter them in one step.
+- In a selected-entrants competition entrants can be added and removed, and both stop once voting starts. If uploads are open a new entrant is sent their upload link. An entrant can be removed only if they have no entries, which revokes their link. An admin can create a member and enter them in one step.
 - Only those who may enter receive upload links and reminders, and only they can upload, through the upload page or the API.
-- In a selected-entrants competition only entrants receive voting links. The "voting opened" email goes to the members of the competition's type.
+- In a competition open to everyone only active members of the type can ask for a voting link; in a selected-entrants one only entrants can. The "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter when voting links are emailed. Emailing the results link to all members goes to the type's active members.
+- Changing a competition's type before it has entries replaces its categories and type settings with the new type's, keeping its page links. A competition always keeps at least one category.
 
 ### 4.2 Member & Image Upload
 - Members are managed internally (custom table).
