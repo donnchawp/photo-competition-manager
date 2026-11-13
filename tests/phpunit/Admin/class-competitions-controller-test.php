@@ -313,6 +313,21 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array( $open ), $stored['categories'] );
 		$this->assertSame( array( 3, 2, 1 ), $stored['voting']['score_matrix'] );
 		$this->assertArrayNotHasKey( 'grades', $stored );
+
+		// A copy, not a reference: editing the type afterwards leaves the competition alone.
+		$type_id = (int) $this->competitions->find_by_slug( 'typed-show' )->type_id;
+		( new Competition_Types_Repository() )->update(
+			$type_id,
+			'Individual',
+			array(
+				'categories' => array( array( 'label' => 'Changed', 'slug' => 'changed', 'quota' => 9 ) ),
+				'voting'     => array( 'score_matrix' => array( 9, 9 ) ),
+			),
+			array()
+		);
+		$after = $this->stored_settings( (int) $this->competitions->find_by_slug( 'typed-show' )->id );
+		$this->assertSame( $stored['categories'], $after['categories'] );
+		$this->assertSame( array( 3, 2, 1 ), $after['voting']['score_matrix'] );
 	}
 
 	/**

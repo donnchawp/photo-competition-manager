@@ -100,7 +100,13 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		}
 
 		// Type IDs are auto-increment too.
-		$html = preg_replace( '/(<option value=")\d+(")/', '$1TYPE$2', $html );
+		$html = preg_replace_callback(
+			'/<select id="competition_type".*?<\/select>/s',
+			static function ( $m ) {
+				return preg_replace( '/(<option value=")\d+(")/', '$1TYPE$2', $m[0] );
+			},
+			$html
+		);
 
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
