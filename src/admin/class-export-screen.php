@@ -88,6 +88,7 @@ class Export_Screen {
 	 * @return void
 	 */
 	public function render(): void {
+		$labels = new Competition_Labels();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Export Data', 'photo-competition-manager' ); ?></h1>
@@ -111,7 +112,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -142,7 +143,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -173,7 +174,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>

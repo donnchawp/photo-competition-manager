@@ -1472,7 +1472,8 @@ class Competitions_Controller {
 			);
 		}
 
-		$rows = array();
+		$rows   = array();
+		$labels = new Competition_Labels();
 		foreach ( $competitions as $competition ) {
 			$is_archived = ! empty( $competition->deleted_at );
 			$comp_id     = (int) $competition->id;
@@ -1596,7 +1597,7 @@ class Competitions_Controller {
 			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
 			$rows[] = array(
-				'title'              => ( new Competition_Labels() )->title_for_everyone( $competition ),
+				'title'              => $labels->title_for_everyone( $competition ),
 				'opens'              => $this->format_datetime( $competition->open_date ),
 				'closes'             => $this->format_datetime( $competition->close_date ),
 				'last_updated'       => $this->format_datetime( $last_updated_raw ),

@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Service\Competition_Labels;
 use WP_Error;
 
 use function PhotoCompetitionManager\Support\format_slug;
@@ -287,7 +288,7 @@ class Competitions_Repository extends Abstract_Repository {
 			sprintf(
 				/* translators: %s: title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
-				$other->title
+				( new Competition_Labels() )->title_for_everyone( $other )
 			),
 			array( 'competition' => $other )
 		);

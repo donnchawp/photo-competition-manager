@@ -2172,4 +2172,22 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
 	}
+
+	public function test_multiple_open_notice_shows_grade_titles_without_the_placeholder(): void {
+		$controller = $this->controller;
+		$method     = new \ReflectionMethod( $controller, 'render_multiple_open_notice' );
+		$method->setAccessible( true );
+
+		$html = $method->invoke(
+			$controller,
+			array(
+				(object) array( 'id' => 0, 'title' => '{grade} 2026' ),
+				(object) array( 'id' => 0, 'title' => 'Plain' ),
+			),
+			false
+		);
+
+		$this->assertStringNotContainsString( '{grade}', $html );
+		$this->assertStringContainsString( 'Plain', $html );
+	}
 }

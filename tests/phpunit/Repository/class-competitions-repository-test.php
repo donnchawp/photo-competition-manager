@@ -637,6 +637,30 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $repository->find_by_slug( 'clashing' ) );
 	}
 
+	public function test_overlap_message_names_a_grade_title_without_the_placeholder(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		$repository->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => '{grade} Current',
+				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $repository->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Clashing',
+				'open_date'  => utc_time( 10 * DAY_IN_SECONDS ),
+				'close_date' => utc_time( 40 * DAY_IN_SECONDS ),
+			)
+		);
+
+		$this->assertStringNotContainsString( '{grade}', $result->get_error_message() );
+	}
+
 	public function test_create_accepts_competition_opening_when_another_closes(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 		$hand_over  = utc_time( 20 * DAY_IN_SECONDS );

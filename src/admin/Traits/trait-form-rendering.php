@@ -159,7 +159,7 @@ trait Form_Rendering {
 		return $this->render_template(
 			'admin/notice-multiple-open-competitions.php',
 			array(
-				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
+				'titles'    => array_map( array( new \PhotoCompetitionManager\Service\Competition_Labels(), 'title_for_everyone' ), $open_competitions ),
 				'show_link' => $show_link,
 			)
 		);
