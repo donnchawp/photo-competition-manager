@@ -37,6 +37,13 @@ class Competition_Labels {
 	private $names = array();
 
 	/**
+	 * The "everyone" form of each competition's title, by competition ID, once built.
+	 *
+	 * @var array<int, string>
+	 */
+	private $everyone_titles = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.5.0
@@ -95,6 +102,77 @@ class Competition_Labels {
 
 		/* translators: 1: the grade name the competition type shows, 2: the club's name for the grade */
 		return sprintf( __( '%1$s (%2$s)', 'photo-competition-manager' ), $custom, $club );
+	}
+
+	/**
+	 * A competition's title as one recipient sees it.
+	 *
+	 * A {grade} in the title becomes the recipient's grade name, or, for no recipient or
+	 * one without a grade the competition uses, the names of the grades that hold entries.
+	 *
+	 * @since 0.5.0
+	 * @param object      $competition Competition row.
+	 * @param object|null $recipient   Member (or judge) the title is shown to.
+	 * @return string
+	 */
+	public function title_for( object $competition, ?object $recipient = null ): string {
+		$title = (string) $competition->title;
+
+		if ( false === strpos( $title, '{grade}' ) ) {
+			return $title;
+		}
+
+		$grade  = (string) ( $recipient->grade ?? '' );
+		$labels = $this->grade_labels( $competition );
+
+		if ( '' !== $grade && isset( $labels[ $grade ] ) ) {
+			return str_replace( '{grade}', $labels[ $grade ], $title );
+		}
+
+		return str_replace( '{grade}', $this->everyone_grades( $competition, $labels ), $title );
+	}
+
+	/**
+	 * A competition's title for display to everyone.
+	 *
+	 * @since 0.5.0
+	 * @param object $competition Competition row.
+	 * @return string
+	 */
+	public function title_for_everyone( object $competition ): string {
+		return $this->title_for( $competition, null );
+	}
+
+	/**
+	 * The names of the grades that hold entries, joined; every grade's name when none do.
+	 *
+	 * @param object               $competition Competition row.
+	 * @param array<string,string> $labels      Grade names by slug.
+	 * @return string
+	 */
+	private function everyone_grades( object $competition, array $labels ): string {
+		$id = (int) ( $competition->id ?? 0 );
+
+		if ( ! isset( $this->everyone_titles[ $id ] ) ) {
+			global $wpdb;
+
+			// The per-instance cache stands in for the object cache.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$used = $id ? $wpdb->get_col(
+				$wpdb->prepare(
+					'SELECT DISTINCT m.grade FROM %i i INNER JOIN %i m ON m.id = i.member_id WHERE i.competition_id = %d',
+					$wpdb->prefix . 'photocomp_images',
+					$wpdb->prefix . 'photocomp_members',
+					$id
+				)
+			) : array();
+
+			$names = array_values( array_intersect_key( $labels, array_flip( (array) $used ) ) );
+
+			$this->everyone_titles[ $id ] = implode( ' / ', $names ? $names : array_values( $labels ) );
+		}
+
+		return $this->everyone_titles[ $id ];
 	}
 
 	/**

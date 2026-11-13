@@ -69,7 +69,7 @@ class Email_Service {
 		$member_name = '' !== (string) ( $member->name ?? '' ) ? (string) $member->name : (string) $member->email;
 		$values      = array(
 			'{member_name}'       => $member_name,
-			'{competition_title}' => $competition ? (string) $competition->title : '',
+			'{competition_title}' => $competition ? ( new Competition_Labels() )->title_for( $competition, $member ) : '',
 			'{site_name}'         => $this->site_name(),
 		) + $tags;
 		$types       = wp_list_pluck( Email_Kinds::tags( $kind ), 'type' );

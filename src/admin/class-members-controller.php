@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
@@ -218,7 +219,7 @@ class Members_Controller {
 					/* translators: 1: member name, 2: competition title */
 						__( 'Upload email sent to %1$s for "%2$s".', 'photo-competition-manager' ),
 						esc_html( $member->name ),
-						esc_html( $competition->title )
+						esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
 					),
 					'updated'
 				);
@@ -811,7 +812,7 @@ class Members_Controller {
 			'admin/members/uploads-status-notice.php',
 			array(
 				'notice_class'   => $notice_class,
-				'title'          => $competition->title,
+				'title'          => ( new Competition_Labels() )->title_for_everyone( $competition ),
 				'status_text'    => $status_text,
 				'toggle_url'     => $toggle_url,
 				'button_text'    => $button_text,

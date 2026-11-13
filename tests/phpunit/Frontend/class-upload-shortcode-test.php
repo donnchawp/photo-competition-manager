@@ -107,6 +107,16 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		return ( new Upload_Token_Repository() )->find_or_create( $member_id, $this->competition_id )->token;
 	}
 
+	public function test_upload_page_shows_entrants_grade_title(): void {
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'title' => '{grade} Upload' ), array( 'id' => $this->competition_id ) );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( '<h2>Beginner Upload</h2>', $output );
+	}
+
 	public function test_active_member_token_opens_upload_page(): void {
 		$_GET['token'] = $this->issue_token( true );
 

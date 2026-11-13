@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -156,7 +157,7 @@ class Slideshow_Shortcode {
 
 			<!-- Control Panel -->
 			<div class="slideshow-controls">
-				<h2><?php echo esc_html( $competition->title ); ?> - <?php echo esc_html( $category_label ); ?></h2>
+				<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php echo esc_html( $category_label ); ?></h2>
 
 				<div class="control-buttons">
 					<button type="button" class="button button-primary slideshow-start">

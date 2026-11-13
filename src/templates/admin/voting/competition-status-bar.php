@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 		<div class="postbox photo-comp-status-bar">
 			<div class="inside" style="margin: 0; padding: 10px 14px;">
 				<div class="status-bar-layout">
-					<strong class="status-bar-title"><?php echo esc_html( $data['competition']->title ); ?></strong>
+					<strong class="status-bar-title"><?php echo esc_html( ( new \PhotoCompetitionManager\Service\Competition_Labels() )->title_for_everyone( $data['competition'] ) ); ?></strong>
 					<div class="status-bar-controls">
 						<div class="status-control">
 							<span class="status-control-label"><?php esc_html_e( 'Uploads', 'photo-competition-manager' ); ?></span>

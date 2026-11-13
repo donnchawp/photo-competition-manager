@@ -20,7 +20,7 @@ echo '<input type="hidden" name="page" value="photo-competition-manager-submissi
 echo '<label for="competition_id" class="screen-reader-text">' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</label>';
 echo '<select name="competition_id" id="competition_id">';
 foreach ( $data['competitions'] as $competition ) {
-	$label = $competition->title;
+	$label = ( new \PhotoCompetitionManager\Service\Competition_Labels() )->title_for_everyone( $competition );
 	if ( ! empty( $competition->deleted_at ) ) {
 		$label .= ' ' . esc_html__( '(Archived)', 'photo-competition-manager' );
 	}

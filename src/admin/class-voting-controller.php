@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
@@ -464,7 +465,7 @@ class Voting_Controller {
 
 			if ( $open_competition_id !== (int) $active_competition->id ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-				echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $open['competition']->title ) );
+				echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => ( new Competition_Labels() )->title_for_everyone( $open['competition'] ) ) );
 			}
 		}
 

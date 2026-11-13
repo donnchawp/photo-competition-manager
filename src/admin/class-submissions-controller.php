@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Entries;
@@ -540,7 +541,7 @@ class Submissions_Controller {
 		if ( $selected_competition ) {
 			printf(
 				'<h2>%s</h2>',
-				esc_html( $selected_competition->title )
+				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
 			);
 
 			// Add regenerate numbers button.

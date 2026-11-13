@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Entry;
@@ -1047,7 +1048,7 @@ class Competitions_Controller {
 			sprintf(
 				/* translators: %s: linked title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
-				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
+				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( ( new Competition_Labels() )->title_for_everyone( $other ) ) . '</a>'
 			),
 			$data
 		);
@@ -1595,7 +1596,7 @@ class Competitions_Controller {
 			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
 			$rows[] = array(
-				'title'              => $competition->title,
+				'title'              => ( new Competition_Labels() )->title_for_everyone( $competition ),
 				'opens'              => $this->format_datetime( $competition->open_date ),
 				'closes'             => $this->format_datetime( $competition->close_date ),
 				'last_updated'       => $this->format_datetime( $last_updated_raw ),

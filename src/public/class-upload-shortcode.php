@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
@@ -517,7 +518,7 @@ class Upload_Shortcode {
 		}
 		?>
 		<div class="photo-comp-upload">
-			<h2><?php echo esc_html( $competition->title ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for( $competition, $member && $token_record ? $member : null ) ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>

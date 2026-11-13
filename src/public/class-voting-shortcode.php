@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -351,7 +352,7 @@ class Voting_Shortcode {
 		}
 
 		return '<div class="photo-comp-voting">'
-			. '<h2>' . esc_html( $competition->title ) . ' - ' . ( 'judges' === $auth_mode ? esc_html__( 'Judging', 'photo-competition-manager' ) : esc_html__( 'Voting', 'photo-competition-manager' ) ) . '</h2>'
+			. '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . ( 'judges' === $auth_mode ? esc_html__( 'Judging', 'photo-competition-manager' ) : esc_html__( 'Voting', 'photo-competition-manager' ) ) . '</h2>'
 			. wp_kses_post( $message )
 			. '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $page_url ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>'
 			. '</div>';
@@ -377,7 +378,7 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_judged_voting( object $competition, array $settings ): string {
-		$heading = '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Judging', 'photo-competition-manager' ) . '</h2>';
+		$heading = '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . esc_html__( 'Judging', 'photo-competition-manager' ) . '</h2>';
 		$token   = $this->judge_token_from_url();
 		$voter   = $this->ballots->judge_voter( $competition, $token );
 
@@ -576,7 +577,7 @@ class Voting_Shortcode {
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php $is_judge ? esc_html_e( 'Judging', 'photo-competition-manager' ) : esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php $is_judge ? esc_html_e( 'Judging', 'photo-competition-manager' ) : esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>
@@ -880,7 +881,7 @@ class Voting_Shortcode {
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>

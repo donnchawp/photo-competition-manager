@@ -438,7 +438,7 @@ class Results_Controller {
 			$competition_options[] = array(
 				'url'      => $url,
 				'selected' => ( (int) $comp->id === (int) $competition->id ),
-				'title'    => $comp->title,
+				'title'    => ( new Competition_Labels() )->title_for_everyone( $comp ),
 			);
 		}
 
@@ -820,7 +820,7 @@ class Results_Controller {
 					$member = $entry['member'];
 
 					$rows_by_grade[ $group['slug'] ][] = array(
-						$competition->title,
+						( new Competition_Labels() )->title_for_everyone( $competition ),
 						$group['label'],
 						$category_label,
 						$entry['position'],

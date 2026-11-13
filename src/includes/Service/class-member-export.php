@@ -364,7 +364,7 @@ class Member_Export {
 			$found = Competition_Settings::find_category( Competition_Settings::parse( $competition->settings ), $category );
 
 			$this->competition_fields_cache[ $key ] = array(
-				__( 'Competition', 'photo-competition-manager' ) => $competition->title,
+				__( 'Competition', 'photo-competition-manager' ) => $this->labels->title_for_everyone( $competition ),
 				__( 'Category', 'photo-competition-manager' ) => $found['label'] ?? $category,
 			);
 		}

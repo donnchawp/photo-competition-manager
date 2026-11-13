@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use WP_Error;
@@ -110,7 +111,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -141,7 +142,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -172,7 +173,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) )
 										);
 									}
 									?>

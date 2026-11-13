@@ -24,6 +24,7 @@ echo '<input type="hidden" name="competition_id" value="' . esc_attr( $data['com
 echo '<p>';
 echo '<label for="competition_title">' . esc_html__( 'Title', 'photo-competition-manager' ) . '</label><br />';
 echo '<input type="text" id="competition_title" name="competition_title" class="regular-text" required value="' . esc_attr( $data['title'] ) . '" />';
+echo '<br /><span class="description">' . esc_html__( 'Add {grade} to show each entrant their own grade\'s name, for example "{grade} 2026".', 'photo-competition-manager' ) . '</span>';
 echo '</p>';
 
 echo '<p>';
