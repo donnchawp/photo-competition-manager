@@ -6,8 +6,10 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
@@ -1069,6 +1071,19 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertNull( $repository->find( $id ) );
 		$this->assertNull( $repository->find( $id, true ) );
+	}
+
+	public function test_delete_removes_the_competitions_judge_assignments(): void {
+		$repository  = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$assignments = new Competition_Judges_Repository();
+
+		$id       = $repository->create( array( 'title' => 'Judged' ) );
+		$judge_id = ( new Judges_Repository() )->create( 'Jane Judge', 'jane@example.com' );
+		$token    = $assignments->assign( $id, $judge_id );
+
+		$this->assertTrue( $repository->delete( $id ) );
+
+		$this->assertNull( $assignments->find_by_token( $token ) );
 	}
 
 	public function test_delete_refuses_while_the_competition_has_entries(): void {
