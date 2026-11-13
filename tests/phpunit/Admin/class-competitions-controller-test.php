@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -25,6 +26,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -1923,6 +1925,209 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'photo_competition_action' => 'send_all_judge_links',
 				'competition_id'           => $id,
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -----------------------------------------------------------------
+	 * Entrants panel.
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Create a competition open for uploads, with an upload page.
+	 *
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @return int Competition ID.
+	 */
+	private function create_entry_competition( string $entry_mode = 'selected' ): int {
+		$id = $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Entry Show',
+				'slug'       => 'entry-show',
+				'entry_mode' => $entry_mode,
+				'settings'   => array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ),
+			)
+		);
+		$this->assertIsInt( $id );
+		return $id;
+	}
+
+	/**
+	 * Create a member.
+	 *
+	 * @param string $name Name; the email is made from it.
+	 * @return int Member ID.
+	 */
+	private function create_member( string $name ): int {
+		$id = ( new Members_Repository() )->create(
+			array(
+				'name'  => $name,
+				'email' => sanitize_title( $name ) . '@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->assertIsInt( $id );
+		return $id;
+	}
+
+	/**
+	 * Post one of the entrants panel's actions.
+	 *
+	 * @param int                  $id     Competition ID.
+	 * @param string               $action Action.
+	 * @param array<string, mixed> $extra  Extra request variables.
+	 * @return string Redirect location.
+	 */
+	private function post_entrants_action( int $id, string $action, array $extra = array() ): string {
+		$this->set_request( array_merge( array( 'photo_competition_action' => $action, 'competition_id' => $id ), $extra ) );
+		$this->set_nonce( 'photo_competition_entrants_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_set_entry_mode_to_selected(): void {
+		$id = $this->create_entry_competition( 'all' );
+
+		$location = $this->post_entrants_action( $id, 'set_entry_mode', array( 'entry_mode' => 'selected' ) );
+
+		$this->assertStringContainsString( 'tab=entrants', $location );
+		$this->assertSame( 'selected', $this->competitions->find( $id )->entry_mode );
+		$this->assertContains( 'entry_mode_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_add_entrants_from_the_picker(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		$bob = $this->create_member( 'Bob' );
+		$this->create_member( 'Cat' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann, (string) $bob ) ) );
+
+		$this->assertSame( array( $ann, $bob ), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertCount( 2, tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_add_entrants_while_open_to_all_shows_the_error(): void {
+		$id  = $this->create_entry_competition( 'all' );
+		$ann = $this->create_member( 'Ann' );
+
+		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann ) ) );
+
+		$this->assertContains( 'not_selected_mode', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_remove_entrant_with_entries_shows_the_error(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		Entry_Fixtures::insert_entry( $id, 'colour', $ann, array() );
+
+		$this->post_entrants_action( $id, 'remove_entrant', array( 'member_id' => (string) $ann ) );
+
+		$this->assertContains( 'entrant_has_entries', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_remove_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+
+		$this->post_entrants_action( $id, 'remove_entrant', array( 'member_id' => (string) $ann ) );
+
+		$this->assertContains( 'entrant_removed', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_create_member_and_enter_them(): void {
+		$id = $this->create_entry_competition();
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$members = new Members_Repository();
+		$dan     = $members->find_by_email( 'dan@example.com' );
+		$this->assertNotNull( $dan );
+		$this->assertSame( 'Dan Guest', $dan->name );
+		$this->assertSame( array( (int) $dan->id ), ( new Entrants_Repository() )->member_ids( $id ) );
+		// Tagged by the one-type rule.
+		$this->assertSame( array( Type_Fixtures::id() ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( 'dan@example.com', tests_retrieve_phpmailer_instance()->mock_sent[0]['to'][0][0] );
+		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_with_a_bad_email_shows_the_error(): void {
+		$id = $this->create_entry_competition();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'not-an-email',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertContains( 'invalid_email', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_resend_upload_link_to_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		( new Upload_Link_Service() )->send_to_member( $id, $ann );
+		reset_phpmailer_instance();
+
+		// Sent again although one went out moments ago.
+		$this->post_entrants_action( $id, 'send_entrant_upload_link', array( 'member_id' => (string) $ann ) );
+
+		$mailer = tests_retrieve_phpmailer_instance();
+		$this->assertCount( 1, $mailer->mock_sent );
+		$this->assertSame( 'ann@example.com', $mailer->mock_sent[0]['to'][0][0] );
+		$this->assertContains( 'upload_link_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_upload_link_is_only_sent_to_an_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action( $id, 'send_entrant_upload_link', array( 'member_id' => (string) $ann ) );
+
+		$this->assertSame( array(), tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertContains( 'not_an_entrant', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_entrants_actions_bad_nonce_dies(): void {
+		$id = $this->create_entry_competition();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'set_entry_mode',
+				'competition_id'           => $id,
+				'entry_mode'               => 'all',
 			)
 		);
 

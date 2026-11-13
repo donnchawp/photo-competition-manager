@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
@@ -83,7 +84,7 @@ class Member_Deletion {
 	}
 
 	/**
-	 * Delete a member: their entries, tokens, log rows, type tags and record. The votes they
+	 * Delete a member: their entries, tokens, log rows, type tags, entrant rows and record. The votes they
 	 * cast are kept.
 	 *
 	 * The count of kept votes includes password votes an earlier, stopped run
@@ -124,6 +125,8 @@ class Member_Deletion {
 		) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete everything that names the member. Try again.', 'photo-competition-manager' ) );
 		}
+
+		( new Entrants_Repository() )->delete_by_member( $member_id );
 
 		$deleted = $this->members->delete( $member_id );
 		if ( is_wp_error( $deleted ) ) {

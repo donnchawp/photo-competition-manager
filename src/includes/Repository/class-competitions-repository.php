@@ -626,6 +626,7 @@ class Competitions_Repository extends Abstract_Repository {
 		$upload_token_repo->delete_by_competition( $id );
 		$voting_token_repo->delete_by_competition( $id );
 		( new Competition_Judges_Repository() )->delete_by_competition( $id );
+		( new Entrants_Repository() )->delete_by_competition( $id );
 		( new Recorded_Results_Repository() )->delete_by_competition( $id );
 
 		// Finally, delete the competition itself.

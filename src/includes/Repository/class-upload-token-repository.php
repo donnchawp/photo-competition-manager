@@ -361,6 +361,29 @@ class Upload_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete a member's upload token for one competition, revoking their link.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return bool
+	 */
+	public function delete_for( int $member_id, int $competition_id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->delete(
+			$this->table(),
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+			),
+			array( '%d', '%d' )
+		);
+	}
+
+	/**
 	 * Delete all of a member's upload tokens.
 	 *
 	 * @since 0.4.0

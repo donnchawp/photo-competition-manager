@@ -104,6 +104,19 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $john_id ), array_keys( ( new Voting_Token_Repository() )->get_tracking_by_competition( $competition_id ) ) );
 	}
 
+	public function test_a_deleted_member_is_no_longer_an_entrant(): void {
+		$competition_id = $this->create_competition( 'entrants' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entrants       = new \PhotoCompetitionManager\Repository\Entrants_Repository();
+		$entrants->add( $competition_id, $jane_id );
+		$entrants->add( $competition_id, $john_id );
+
+		$this->assertSame( 0, $this->delete( $jane_id ) );
+
+		$this->assertSame( array( $john_id ), $entrants->member_ids( $competition_id ) );
+	}
+
 	public function test_a_deleted_members_password_votes_are_cast_by_a_former_member(): void {
 		$competition_id = $this->create_competition( 'password-votes' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );

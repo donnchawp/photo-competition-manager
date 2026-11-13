@@ -98,6 +98,16 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->workflow->is_accepting_votes( $competition, 'colour' ) );
 	}
 
+	public function test_any_voting_started_once_one_category_is_past_previewed(): void {
+		$id = $this->ready_to_open( 'mono' );
+
+		$this->assertFalse( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
+
+		$this->workflow->open_voting( $id, 'mono' );
+
+		$this->assertTrue( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
+	}
+
 	public function test_closing_uploads_is_saved(): void {
 		$id = $this->create_competition();
 

@@ -27,6 +27,8 @@ use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
@@ -82,6 +84,16 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = preg_replace( '/(name="judge_ids\[\]" value=")\d+(")/', '$1JUDGE$2', $html );
 		$html = preg_replace( '/(name="judge_id" value=")\d+(")/', '$1JUDGE$2', $html );
 		$html = preg_replace( '/judge=[A-Za-z0-9%_-]+/', 'judge=TOKEN', $html );
+
+		// Member IDs in the entrants panel are not stable across runs either.
+		$html = preg_replace( '/(name="member_id" value=")\d+(")/', '$1MEMBER$2', $html );
+		$html = preg_replace_callback(
+			'/<select[^>]*name="member_ids\[\]".*?<\/select>/s',
+			static function ( $m ) {
+				return preg_replace( '/(<option value=")\d+(")/', '$1MEMBER$2', $m[0] );
+			},
+			$html
+		);
 
 		// Normalize the referer hidden field wp_nonce_field() emits by default;
 		// its value is the current REQUEST_URI, which is test-runner dependent.
@@ -785,6 +797,95 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringNotContainsString( '<h3>Judges</h3>', $html );
+	}
+
+	public function test_render_edit_entrants_tab_open_to_all(): void {
+		// One type: the entry setting offers "Open to all members", chosen,
+		// and there is no entrant list.
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-entrants-tab-open-to-all', array( $comp_id ) );
+	}
+
+	public function test_render_edit_entrants_tab_selected(): void {
+		// Selected entrants while uploads are open: Ann has an entry, so she
+		// can't be removed; Bob can. Both can be sent their upload link. The
+		// picker lists the other active members, and the new member form
+		// follows.
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'entry_mode' => 'selected',
+				'settings'   => array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ),
+			)
+		);
+		$members  = new Members_Repository();
+		$entrants = new Entrants_Repository();
+		$ann      = $members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
+		$bob      = $members->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner' ) );
+		$members->create( array( 'name' => 'Cat', 'email' => 'cat@example.com', 'grade' => 'advanced' ) );
+		$members->create( array( 'name' => 'Dan', 'email' => 'dan@example.com', 'grade' => 'advanced', 'active' => false ) );
+		$entrants->add( $comp_id, $ann );
+		$entrants->add( $comp_id, $bob );
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-entrants-tab-selected', array( $comp_id ) );
+	}
+
+	public function test_render_entrants_tab_with_two_types_names_the_type_and_lists_its_members_first(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
+		$members = new Members_Repository();
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
+		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Open to everyone in Team', $html );
+		$this->assertMatchesRegularExpression( '/<optgroup label="Team">\s*<option value="MEMBER">Zoe.*<optgroup label="Other members">\s*<option value="MEMBER">Ann/s', $html );
+	}
+
+	public function test_render_entrants_tab_once_voting_has_started_changes_nothing(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
+		$ann     = ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
+		( new Entrants_Repository() )->add( $comp_id, $ann );
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', \PhotoCompetitionManager\Service\Competition_Workflow::STAGE_VOTING );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Ann', $html );
+		$this->assertStringNotContainsString( 'name="photo_competition_action"', $html );
 	}
 
 	public function test_render_edit_settings_tab_legacy_password(): void {

@@ -1144,6 +1144,21 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $assignments->find_by_token( $token ) );
 	}
 
+	public function test_delete_removes_the_competitions_entrants(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$entrants   = new \PhotoCompetitionManager\Repository\Entrants_Repository();
+
+		$id    = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Selected', 'entry_mode' => 'selected' ) );
+		$other = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Other', 'open_date' => '2020-01-01', 'close_date' => '2020-01-02' ) );
+		$entrants->add( $id, 11 );
+		$entrants->add( $other, 11 );
+
+		$this->assertTrue( $repository->delete( $id ) );
+
+		$this->assertSame( array(), $entrants->member_ids( $id ) );
+		$this->assertSame( array( 11 ), $entrants->member_ids( $other ) );
+	}
+
 	public function test_delete_refuses_while_the_competition_has_entries(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 

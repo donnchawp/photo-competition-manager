@@ -470,6 +470,17 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $tracking_20 );
 	}
 
+	public function test_delete_for_removes_one_members_token_for_one_competition(): void {
+		$this->repo->find_or_create( 1, 10 );
+		$this->repo->find_or_create( 2, 10 );
+		$this->repo->find_or_create( 1, 20 );
+
+		$this->assertTrue( $this->repo->delete_for( 1, 10 ) );
+
+		$this->assertSame( array( 2 ), array_keys( $this->repo->get_tracking_by_competition( 10 ) ) );
+		$this->assertSame( array( 1 ), array_keys( $this->repo->get_tracking_by_competition( 20 ) ) );
+	}
+
 	public function test_delete_by_competition_returns_false_for_invalid_id(): void {
 		$this->assertFalse( $this->repo->delete_by_competition( 0 ) );
 	}
