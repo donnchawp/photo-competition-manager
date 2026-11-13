@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
  * Render the competition-default sections and read them back from a post.
@@ -51,7 +52,7 @@ class Type_Settings_Form {
 		}
 
 		$auth_mode = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-		if ( ! in_array( $auth_mode, array( 'password', 'token', 'judges' ), true ) ) {
+		if ( ! in_array( $auth_mode, Competition_Settings::AUTH_MODES, true ) ) {
 			$auth_mode = 'password';
 		}
 

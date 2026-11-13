@@ -175,19 +175,6 @@ class Judges_Controller {
 	}
 
 	/**
-	 * Judges page URL.
-	 *
-	 * @param array<string, string|int> $args Extra query arguments.
-	 * @return string
-	 */
-	private function judges_url( array $args = array() ): string {
-		return add_query_arg(
-			array_merge( array( 'page' => 'photo-competition-manager-judges' ), $args ),
-			admin_url( 'admin.php' )
-		);
-	}
-
-	/**
 	 * Queue the outcome as a notice and redirect.
 	 *
 	 * @param mixed  $result  Repository result; a WP_Error is an error.

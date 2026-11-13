@@ -214,8 +214,6 @@ final class Ballots {
 	 * @return true|WP_Error
 	 */
 	public function cast( object $competition, string $category, Voter $voter, array $scores ) {
-		$is_judge = $voter instanceof Judge_Voter;
-
 		if ( ! $voter->may_vote_in( $category ) ) {
 			return new WP_Error( 'not_your_category', __( 'Your voting link is for another category.', 'photo-competition-manager' ) );
 		}
@@ -230,40 +228,13 @@ final class Ballots {
 			fn( $score ) => ! is_scalar( $score ) || '' !== trim( (string) $score )
 		);
 		if ( empty( $scores ) ) {
-			return new WP_Error(
-				'empty_ballot',
-				$is_judge
-					? __( 'Please score at least one image.', 'photo-competition-manager' )
-					: __( 'Please select at least one image to vote for.', 'photo-competition-manager' )
-			);
+			return new WP_Error( 'empty_ballot', $voter::empty_ballot_message() );
 		}
 
 		if ( count( $scores ) < count( $entries ) ) {
 			return new WP_Error(
 				'incomplete_ballot',
-				$is_judge
-					? sprintf(
-						/* translators: %1$d: number of images scored, %2$d: total number of images */
-						_n(
-							'You must score every image. You have scored %1$d of %2$d image.',
-							'You must score every image. You have scored %1$d of %2$d images.',
-							count( $entries ),
-							'photo-competition-manager'
-						),
-						count( $scores ),
-						count( $entries )
-					)
-					: sprintf(
-						/* translators: %1$d: number of images voted for, %2$d: total number of images */
-						_n(
-							'You must vote for all images. You have voted for %1$d of %2$d image.',
-							'You must vote for all images. You have voted for %1$d of %2$d images.',
-							count( $entries ),
-							'photo-competition-manager'
-						),
-						count( $scores ),
-						count( $entries )
-					),
+				$voter::incomplete_ballot_message( count( $scores ), count( $entries ) ),
 				array(
 					'voted' => count( $scores ),
 					'total' => count( $entries ),
@@ -285,12 +256,7 @@ final class Ballots {
 
 		// A category with votes takes no new entries, so a second ballot is always a full duplicate.
 		if ( is_wp_error( $result ) && 'duplicate_vote' === $result->get_error_code() ) {
-			return new WP_Error(
-				'already_cast',
-				$is_judge
-					? __( 'Thank you! Your scores for this category have already been recorded.', 'photo-competition-manager' )
-					: __( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' )
-			);
+			return new WP_Error( 'already_cast', $voter::already_cast_message() );
 		}
 
 		if ( is_wp_error( $result ) ) {

@@ -12,7 +12,6 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
-use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
@@ -317,8 +316,8 @@ class Export_Screen {
 		// Skip votes for images that no longer exist.
 		$votes_by_category = array();
 		$voter_labels      = array();
-		$judges            = new Judges_Repository();
-		foreach ( $votes as $vote ) {
+		$labels            = $this->votes_repository->voter_labels( $votes );
+		foreach ( $votes as $key => $vote ) {
 			$image_id = (int) $vote->image_id;
 
 			// Skip votes for deleted/non-existent images.
@@ -327,14 +326,9 @@ class Export_Screen {
 			}
 
 			$category = $vote->category;
-			// A voting-link vote has no name, so it's labelled by its token, as on the Results screen.
 			// A judge's vote is keyed by judge ID, so judges never share a column.
-			if ( ! empty( $vote->judge_id ) ) {
-				$voter                  = 'judge:' . (int) $vote->judge_id;
-				$voter_labels[ $voter ] = $judges->vote_label( (int) $vote->judge_id );
-			} else {
-				$voter = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
-			}
+			$voter                  = empty( $vote->judge_id ) ? $labels[ $key ] : 'judge:' . (int) $vote->judge_id;
+			$voter_labels[ $voter ] = $labels[ $key ];
 
 			if ( ! isset( $votes_by_category[ $category ] ) ) {
 				$votes_by_category[ $category ] = array();

@@ -20,6 +20,33 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Votes_Repository extends Abstract_Repository {
 
 	/**
+	 * How admin screens and exports name each vote's voter: the judge's label, else
+	 * the voter's name, else the voting link's token, as a voting-link vote has no name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object[] $votes Vote rows.
+	 * @return string[] A label per vote, with the votes' keys.
+	 */
+	public function voter_labels( array $votes ): array {
+		$judges       = new Judges_Repository();
+		$judge_labels = array();
+
+		return array_map(
+			function ( object $vote ) use ( $judges, &$judge_labels ): string {
+				if ( empty( $vote->judge_id ) ) {
+					return $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+				}
+
+				$judge_id = (int) $vote->judge_id;
+
+				return $judge_labels[ $judge_id ] ??= $judges->vote_label( $judge_id );
+			},
+			$votes
+		);
+	}
+
+	/**
 	 * Table suffix.
 	 *
 	 * @return string
@@ -132,7 +159,18 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_judge_voted( int $competition_id, string $category, int $judge_id ): bool {
-		return in_array( $judge_id, $this->judges_with_ballot( $competition_id, $category ), true );
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s AND judge_id = %d LIMIT 1',
+				$this->table(),
+				$competition_id,
+				$category,
+				$judge_id
+			)
+		);
 	}
 
 	/**

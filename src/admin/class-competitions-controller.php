@@ -600,7 +600,7 @@ class Competitions_Controller {
 			}
 
 			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-			if ( ! in_array( $auth_mode_input, array( 'password', 'token', 'judges' ), true ) ) {
+			if ( ! in_array( $auth_mode_input, Competition_Settings::AUTH_MODES, true ) ) {
 				$auth_mode_input = 'password';
 			}
 
@@ -695,17 +695,7 @@ class Competitions_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager',
-							'action'      => 'edit',
-							'competition' => $competition_id,
-							'tab'         => 'settings',
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
 			$result = $this->competitions->update(
@@ -731,17 +721,7 @@ class Competitions_Controller {
 				);
 			}
 
-			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager',
-						'action'      => 'edit',
-						'competition' => $competition_id,
-						'tab'         => 'settings',
-					),
-					admin_url( 'admin.php' )
-				)
-			);
+			$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 		}
 	}
 
@@ -1008,15 +988,7 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function tab_url( int $competition_id, string $tab ): string {
-		return add_query_arg(
-			array(
-				'page'        => 'photo-competition-manager',
-				'action'      => 'edit',
-				'competition' => $competition_id,
-				'tab'         => $tab,
-			),
-			admin_url( 'admin.php' )
-		);
+		return add_query_arg( 'tab', $tab, $this->edit_url( $competition_id ) );
 	}
 
 	/**
@@ -1315,7 +1287,7 @@ class Competitions_Controller {
 				'competition_id' => (int) $competition->id,
 				'judges'         => $judges,
 				'assigned'       => array_values( $assigned ),
-				'judges_url'     => add_query_arg( array( 'page' => 'photo-competition-manager-judges' ), admin_url( 'admin.php' ) ),
+				'judges_url'     => $this->judges_url(),
 			)
 		);
 	}

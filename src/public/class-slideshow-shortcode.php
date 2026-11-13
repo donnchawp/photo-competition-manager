@@ -118,7 +118,7 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
-		$image_data = $this->slides( $images );
+		$image_data = $this->slides( $competition, $images );
 		if ( empty( $image_data ) ) {
 			return '<p class="notice">' . esc_html__( 'No images submitted in this category yet.', 'photo-competition-manager' ) . '</p>';
 		}
@@ -239,7 +239,7 @@ class Slideshow_Shortcode {
 		$images = $this->images_repo->find_by_competition( $competition_id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
-		$image_data = $this->slides( $images );
+		$image_data = $this->slides( $competition, $images );
 		if ( empty( $image_data ) ) {
 			wp_send_json_error( array( 'message' => __( 'No images found for this category.', 'photo-competition-manager' ) ) );
 		}
@@ -250,13 +250,14 @@ class Slideshow_Shortcode {
 	/**
 	 * The slides for a category's entries, leaving out any whose image is missing.
 	 *
-	 * @param array<object> $images Entry records, in slideshow order.
+	 * @param object        $competition Competition record.
+	 * @param array<object> $images      Entry records, in slideshow order.
 	 * @return array<int, array{id: int, url: string, random_number: int}>
 	 */
-	private function slides( array $images ): array {
+	private function slides( object $competition, array $images ): array {
 		$slides = array();
 		foreach ( $images as $image ) {
-			$url = $this->entries->public_urls( $image )['full'];
+			$url = $this->entries->public_urls( $competition, $image )['full'];
 			if ( '' !== $url ) {
 				$slides[] = array(
 					'id'            => $image->id,
