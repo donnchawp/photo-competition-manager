@@ -264,6 +264,28 @@ class Logs_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Delete every log row whose metadata holds one of some email addresses, for people
+	 * who aren't members, such as judges.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string[] $emails Email addresses; at least one.
+	 * @return int|false The number of rows deleted, or false on error.
+	 */
+	public function delete_about_emails( array $emails ) {
+		global $wpdb;
+
+		if ( ! $emails ) {
+			return 0;
+		}
+
+		list( $conditions, $patterns ) = $this->about_members( array(), $emails );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
+	}
+
+	/**
 	 * The condition that finds the log rows about some members, and its values.
 	 *
 	 * @param int[]    $member_ids Member IDs.

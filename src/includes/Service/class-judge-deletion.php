@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use WP_Error;
 
 /**
@@ -29,26 +31,41 @@ class Judge_Deletion {
 	private $judges;
 
 	/**
+	 * Logs repository.
+	 *
+	 * @var Logs_Repository
+	 */
+	private $logs;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Judges_Repository|null $judges Judges repository.
+	 * @param Logs_Repository|null   $logs   Logs repository.
 	 */
-	public function __construct( ?Judges_Repository $judges = null ) {
+	public function __construct( ?Judges_Repository $judges = null, ?Logs_Repository $logs = null ) {
 		$this->judges = $judges ?? new Judges_Repository();
+		$this->logs   = $logs ?? new Logs_Repository();
 	}
 
 	/**
-	 * Delete a judge and their assignments. Their votes are kept.
+	 * Delete a judge, their assignments and the log rows about their emails. Their votes are kept.
 	 *
 	 * @param int $judge_id Judge ID.
 	 * @return true|WP_Error
 	 */
 	public function delete( int $judge_id ) {
-		if ( ! $this->judges->find( $judge_id ) ) {
+		$judge = $this->judges->find( $judge_id );
+		if ( ! $judge ) {
 			return new WP_Error( 'missing_judge', __( 'Judge not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( ! $this->judges->delete( $judge_id ) ) {
+		// The judge link emails are logged with the address. The record goes last, so a
+		// deletion that stops part way can be run again.
+		if (
+			false === $this->logs->delete_about_emails( Members_Repository::email_forms( (string) $judge->email ) )
+			|| ! $this->judges->delete( $judge_id )
+		) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete the judge. Try again.', 'photo-competition-manager' ) );
 		}
 
