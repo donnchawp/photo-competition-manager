@@ -63,7 +63,7 @@ erDiagram
 6. **Entrants can be added** at any time until voting has started in any category. An entrant added while uploads are open gets their upload link straight away. My call: it's sent automatically, as a requested email, and the admin can also resend it.
 7. **Only entrants get upload links** and upload reminders, and only entrants can upload. An upload link held by someone who isn't (or is no longer) an entrant is refused. Requesting an upload link from the upload page only works for entrants.
 8. **Payment isn't handled.** Adding someone as an entrant is how the admin records that they paid.
-9. **Upgrade.** Existing sites get one type, named after the club's current settings (for example "Club competition"). It takes the club's current categories and settings. Every member is tagged with it, and every competition belongs to it and is open to all. Behaviour is identical until a second type is added.
+9. **Upgrade.** Existing sites get one type named "Individual" (decided). New installs get the same type. It takes the club's current categories and settings. Every member is tagged with it, and every competition, archived ones included, is set to it and open to all. Behaviour is identical until a second type is added.
 
 ## Non-goals
 

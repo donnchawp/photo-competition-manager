@@ -52,7 +52,7 @@
   - `{prefix}photocomp_entrants`: `competition_id` BIGINT NOT NULL, `member_id` BIGINT NOT NULL, `created_at`, PRIMARY KEY (`competition_id`, `member_id`), KEY `member_id`.
   - `photocomp_competitions` gains `type_id` BIGINT UNSIGNED NULL, KEY `type_id`, and `entry_mode` VARCHAR(20) NOT NULL DEFAULT `'all'`.
 - **Produces `Activator::create_default_type(): int|false`,** used only by the upgrade. Behaviour:
-  - Inserts one type named `__( 'Club competition', 'photo-competition-manager' )` whose `settings` are the club option's `categories`, `upload`, `voting`, `slideshow` and `email_reminders`, and whose `grade_names` is `{}`.
+  - Inserts one type named `__( 'Individual', 'photo-competition-manager' )` (decided by the product owner). A fresh install gets it too, because activation runs the same upgrade steps whose `settings` are the club option's `categories`, `upload`, `voting`, `slideshow` and `email_reminders`, and whose `grade_names` is `{}`.
   - Tags every member, active or not, with the new type.
   - Sets every competition, including soft-deleted ones, to `type_id` = that type and `entry_mode` = `'all'`.
   - Gives every competition whose settings have no `categories` the club's current category list.
@@ -60,7 +60,7 @@
 
 - [ ] **Step 1: Write the failing tests:**
   - `test_upgrade_to_10_adds_type_tables_and_columns`: use shadow tables for a v9 competitions table without the new columns.
-  - `test_upgrade_creates_one_type_from_club_settings`: assert the type's `settings['categories']`, `settings['voting']['score_matrix']` and `settings['upload']` equal the club option's.
+  - `test_upgrade_creates_one_type_from_club_settings`: assert the type is named "Individual", and the type's `settings['categories']`, `settings['voting']['score_matrix']` and `settings['upload']` equal the club option's.
   - `test_upgrade_tags_every_member_and_sets_every_competition`: assert all members are tagged, and every competition has `type_id` set and `entry_mode` = `'all'`.
   - `test_upgrade_gives_competitions_without_categories_the_club_list`
   - `test_upgrade_to_10_is_idempotent`: run it twice and assert there's still one type and no duplicate tags.
