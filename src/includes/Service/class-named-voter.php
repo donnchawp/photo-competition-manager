@@ -25,6 +25,8 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
  */
 final class Named_Voter implements Voter {
 
+	use Member_Ballot_Messages;
+
 	/**
 	 * The cookie that remembers a named voter's name and the voting password.
 	 */

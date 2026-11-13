@@ -48,4 +48,28 @@ interface Voter {
 	 * @return bool
 	 */
 	public function has_ballot( Votes_Repository $votes, int $competition_id, string $category ): bool;
+
+	/**
+	 * Why a ballot with no scores was refused, in this voter's words.
+	 *
+	 * @return string
+	 */
+	public static function empty_ballot_message(): string;
+
+	/**
+	 * Why a ballot that left entries unscored was refused, in this voter's words.
+	 *
+	 * @param int $voted Entries scored.
+	 * @param int $total Entries in the category.
+	 * @return string
+	 */
+	public static function incomplete_ballot_message( int $voted, int $total ): string;
+
+	/**
+	 * That this voter's ballot for the category is already saved, in their words.
+	 * Static, so the page after a redirect can say it without a voter.
+	 *
+	 * @return string
+	 */
+	public static function already_cast_message(): string;
 }

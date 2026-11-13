@@ -203,7 +203,7 @@ class Voting_Shortcode {
 			}
 
 			$redirect = add_query_arg( 'ballot', true === $result ? 'cast' : 'already_cast', get_permalink() );
-			wp_safe_redirect( $voter instanceof Judge_Voter ? add_query_arg( 'judge', rawurlencode( $judge_token ), $redirect ) : $redirect );
+			wp_safe_redirect( $this->judge_page_url( $judge_token, $redirect ) );
 			exit;
 		}
 
@@ -224,6 +224,19 @@ class Voting_Shortcode {
 	private function judge_token_from_url(): string {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reads the link's token; Ballots checks it against the judge's assignment.
 		return isset( $_GET['judge'] ) ? sanitize_text_field( wp_unslash( $_GET['judge'] ) ) : '';
+	}
+
+	/**
+	 * A voting page URL carrying a judge's token, so the judge stays signed in.
+	 *
+	 * @param string      $token    The judge's token; '' leaves the URL as it is.
+	 * @param string|null $page_url The URL to add it to; the voting page by default.
+	 * @return string
+	 */
+	private function judge_page_url( string $token, ?string $page_url = null ): string {
+		$page_url = $page_url ?? (string) get_permalink();
+
+		return '' === $token ? $page_url : add_query_arg( 'judge', rawurlencode( $token ), $page_url );
 	}
 
 	/**
@@ -333,14 +346,10 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_outcome( object $competition, string $outcome, string $auth_mode ): string {
-		$page_url = get_permalink();
-		if ( 'judges' === $auth_mode ) {
-			$judge_token = $this->judge_token_from_url();
-			$page_url    = '' === $judge_token ? $page_url : add_query_arg( 'judge', rawurlencode( $judge_token ), $page_url );
-		}
+		$page_url = $this->judge_page_url( 'judges' === $auth_mode ? $this->judge_token_from_url() : '' );
 
 		if ( 'already_cast' === $outcome ) {
-			$message = $this->already_voted_notice( 'judges' === $auth_mode );
+			$message = $this->already_voted_notice( 'judges' === $auth_mode ? Judge_Voter::already_cast_message() : Link_Voter::already_cast_message() );
 		} elseif ( 'judges' === $auth_mode ) {
 			$message = '<p class="success">' . esc_html__( 'Thank you, your scores have been recorded.', 'photo-competition-manager' ) . '</p>';
 		} elseif ( 'token' === $auth_mode ) {
@@ -384,13 +393,13 @@ class Voting_Shortcode {
 			return '<div class="photo-comp-voting">' . $heading . '<p class="notice">' . esc_html__( 'Judges are scoring this competition.', 'photo-competition-manager' ) . '</p></div>';
 		}
 
-		$page_url = add_query_arg( 'judge', rawurlencode( $token ), get_permalink() );
-		$check    = '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $page_url ) . '">' . esc_html__( 'Check again', 'photo-competition-manager' ) . '</button></p>';
+		$check = '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $this->judge_page_url( $token ) ) . '">' . esc_html__( 'Check again', 'photo-competition-manager' ) . '</button></p>';
 
 		// A refused ballot's category stays on screen with the scores as they were entered.
-		$category = $this->refused['category'] ?? '';
+		$open_categories = $this->workflow->categories_accepting_votes( $competition );
+		$category        = $this->refused['category'] ?? '';
 		if ( '' === $category ) {
-			foreach ( $this->workflow->categories_accepting_votes( $competition ) as $open ) {
+			foreach ( $open_categories as $open ) {
 				if ( ! $this->ballots->has_cast( $competition, $open, $voter ) ) {
 					$category = $open;
 					break;
@@ -399,13 +408,27 @@ class Voting_Shortcode {
 		}
 
 		if ( '' === $category ) {
-			$open_any = $this->workflow->categories_accepting_votes( $competition );
-			$notice   = $open_any ? $this->already_voted_notice( true ) : '<p class="notice">' . esc_html__( 'Scoring isn\'t open yet.', 'photo-competition-manager' ) . '</p>';
+			$notice = $open_categories ? $this->already_voted_notice( $voter::already_cast_message() ) : '<p class="notice">' . esc_html__( 'Scoring isn\'t open yet.', 'photo-competition-manager' ) . '</p>';
 			return '<div class="photo-comp-voting">' . $heading . wp_kses_post( $notice ) . $check . '</div>';
 		}
 
+		$view = array(
+			'heading'              => __( 'Judging', 'photo-competition-manager' ),
+			/* translators: %s: judge name */
+			'identity'             => sprintf( __( 'Judge: %s', 'photo-competition-manager' ), $voter->name() ),
+			'instructions_heading' => __( 'How to score', 'photo-competition-manager' ),
+			'instructions_rule'    => __( 'You must score every image to submit your scores.', 'photo-competition-manager' ),
+			'anonymity_notice'     => false,
+			'nonce_action'         => 'photo_competition_vote_as_judge',
+			'submit_label'         => __( 'Submit Scores', 'photo-competition-manager' ),
+			'category'             => $category,
+			'post_category'        => true,
+			// A refused ballot stays on screen; Ballots::cast() holds the door.
+			'check_open'           => false,
+		);
+
 		ob_start();
-		$this->render_voting_interface( $competition, $this->refused_notice(), $voter, $settings, $this->refused['scores'] ?? array(), $token, $category );
+		$this->render_voting_interface( $competition, $this->refused_notice(), $voter, $settings, $this->refused['scores'] ?? array(), $token, $view );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -432,8 +455,22 @@ class Voting_Shortcode {
 			$message = $this->handle_token_request( $competition, $_POST );
 		}
 
+		$view = array(
+			'heading'              => __( 'Voting', 'photo-competition-manager' ),
+			/* translators: %s: member name */
+			'identity'             => $voter ? sprintf( __( 'Authenticated as: %s', 'photo-competition-manager' ), $voter->member()->name ) : '',
+			'instructions_heading' => __( 'How to Vote', 'photo-competition-manager' ),
+			'instructions_rule'    => __( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ),
+			'anonymity_notice'     => true,
+			'nonce_action'         => 'photo_competition_vote_with_token',
+			'submit_label'         => __( 'Submit Anonymous Votes', 'photo-competition-manager' ),
+			'category'             => $voter ? $voter->category() : '',
+			'post_category'        => false,
+			'check_open'           => true,
+		);
+
 		ob_start();
-		$this->render_voting_interface( $competition, $message, $voter, $settings, $this->refused['scores'] ?? array(), $token_string );
+		$this->render_voting_interface( $competition, $message, $voter, $settings, $this->refused['scores'] ?? array(), $token_string, $view );
 		$output = ob_get_clean();
 		return $output ? $output : '';
 	}
@@ -546,10 +583,14 @@ class Voting_Shortcode {
 	 * @param array             $settings        Competition settings.
 	 * @param array<int,string> $submitted_votes The refused ballot's scores, to fill the form back in.
 	 * @param string            $token_string    Raw voting token from the URL, kept on the "Check If Voting Is Open" link.
-	 * @param string            $judge_category  The category a judge scores; ignored for members, whose link names theirs.
+	 * @param array             $view            What differs between a member's page and a judge's: heading,
+	 *                                           identity, instructions_heading, instructions_rule, anonymity_notice,
+	 *                                           nonce_action, submit_label, category (the one voted in),
+	 *                                           post_category (send it with the form) and check_open (refuse
+	 *                                           when voting isn't open).
 	 * @return void
 	 */
-	private function render_voting_interface( object $competition, string $message, ?Voter $voter, array $settings, array $submitted_votes, string $token_string, string $judge_category = '' ): void {
+	private function render_voting_interface( object $competition, string $message, ?Voter $voter, array $settings, array $submitted_votes, string $token_string, array $view ): void {
 		$voting_config = Competition_Settings::get_voting_config( $settings );
 		$categories    = Competition_Settings::get_categories( $settings );
 
@@ -566,17 +607,16 @@ class Voting_Shortcode {
 		$score_matrix        = $voting_config['score_matrix'];
 		$click_image_to_zoom = $voting_config['click_image_to_zoom'] ?? false;
 		$voting_ui_type      = Competition_Settings::get_voting_ui_type( $settings );
-		$is_judge            = $voter instanceof Judge_Voter;
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php $is_judge ? esc_html_e( 'Judging', 'photo-competition-manager' ) : esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( $competition->title ); ?> - <?php echo esc_html( $view['heading'] ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>
 			<?php endif; ?>
 
-			<?php if ( empty( $voting_categories ) && ! $is_judge ) : ?>
+			<?php if ( empty( $voting_categories ) && $view['check_open'] ) : ?>
 				<p class="notice"><?php esc_html_e( 'Voting is not currently open for any category. Please check back later.', 'photo-competition-manager' ); ?></p>
 				<p>
 					<button type="button" class="button photo-comp-redirect-btn" data-redirect-url="<?php echo esc_url( $token_string ? add_query_arg( 'token', rawurlencode( $token_string ), get_permalink() ) : get_permalink() ); ?>">
@@ -634,10 +674,10 @@ class Voting_Shortcode {
 			<?php else : ?>
 				<!-- Member is authenticated with valid token, show voting form -->
 				<?php
-				$category = $voter instanceof Link_Voter ? $voter->category() : $judge_category;
+				$category = $view['category'];
 
-				// Verify voting is still open for this category. A judge's refused ballot stays on screen; Ballots::cast() holds the door.
-				if ( ! $is_judge && ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
+				// Verify voting is still open for this category.
+				if ( $view['check_open'] && ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
 					// Another category is open, so drop the token: the bare page lets the voter request a link for it.
 					echo '<p class="notice">' . esc_html__( 'Voting is no longer open for this category.', 'photo-competition-manager' ) . '</p>';
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
@@ -645,7 +685,7 @@ class Voting_Shortcode {
 				}
 
 				if ( $this->ballots->has_cast( $competition, $category, $voter ) ) {
-					echo wp_kses_post( $this->already_voted_notice( $is_judge ) );
+					echo wp_kses_post( $this->already_voted_notice( $voter::already_cast_message() ) );
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
@@ -667,27 +707,13 @@ class Voting_Shortcode {
 				<div class="current-category">
 					<h3><?php echo esc_html( $category_label ); ?></h3>
 					<p class="member-info">
-						<?php
-						echo esc_html(
-							$voter instanceof Judge_Voter
-								? sprintf(
-									/* translators: %s: judge name */
-									__( 'Judge: %s', 'photo-competition-manager' ),
-									$voter->name()
-								)
-								: sprintf(
-									/* translators: %s: member name */
-									__( 'Authenticated as: %s', 'photo-competition-manager' ),
-									$voter->member()->name
-								)
-						);
-						?>
+						<?php echo esc_html( $view['identity'] ); ?>
 					</p>
 				</div>
 
 				<!-- Voting instructions -->
 				<div class="voting-instructions">
-					<h3><?php $is_judge ? esc_html_e( 'How to score', 'photo-competition-manager' ) : esc_html_e( 'How to Vote', 'photo-competition-manager' ); ?></h3>
+					<h3><?php echo esc_html( $view['instructions_heading'] ); ?></h3>
 					<p>
 						<?php
 							echo esc_html(
@@ -716,8 +742,8 @@ class Voting_Shortcode {
 					);
 				?>
 					</p>
-					<p><strong><?php $is_judge ? esc_html_e( 'You must score every image to submit your scores.', 'photo-competition-manager' ) : esc_html_e( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ); ?></strong></p>
-					<?php if ( ! $is_judge ) : ?>
+					<p><strong><?php echo esc_html( $view['instructions_rule'] ); ?></strong></p>
+					<?php if ( $view['anonymity_notice'] ) : ?>
 					<p class="anonymity-notice" style="color: #666; font-style: italic;">
 						<?php esc_html_e( 'Your votes are completely anonymous. Your name will not be associated with your votes.', 'photo-competition-manager' ); ?>
 					</p>
@@ -726,8 +752,8 @@ class Voting_Shortcode {
 
 				<!-- Voting form -->
 				<form method="post" class="voting-form" id="voting-form">
-					<?php wp_nonce_field( $is_judge ? 'photo_competition_vote_as_judge' : 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' ); ?>
-					<?php if ( $is_judge ) : ?>
+					<?php wp_nonce_field( $view['nonce_action'], 'photo_competition_vote_nonce' ); ?>
+					<?php if ( $view['post_category'] ) : ?>
 						<input type="hidden" name="category" value="<?php echo esc_attr( $category ); ?>" />
 					<?php endif; ?>
 
@@ -775,7 +801,7 @@ class Voting_Shortcode {
 
 					<div class="voting-submit">
 						<button type="submit" name="photo_competition_vote" class="button button-primary button-large">
-							<?php $is_judge ? esc_html_e( 'Submit Scores', 'photo-competition-manager' ) : esc_html_e( 'Submit Anonymous Votes', 'photo-competition-manager' ); ?>
+							<?php echo esc_html( $view['submit_label'] ); ?>
 						</button>
 					</div>
 				</form>
@@ -905,7 +931,7 @@ class Voting_Shortcode {
 					if ( $voter && $this->ballots->has_cast( $competition, $category_slug, $voter ) ) {
 						echo '<div class="voting-category-section voting-category-complete">';
 						echo '<h3>' . esc_html( $category_data['label'] ) . '</h3>';
-						echo wp_kses_post( $this->already_voted_notice() );
+						echo wp_kses_post( $this->already_voted_notice( $voter::already_cast_message() ) );
 						echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 						echo '</div>';
 						continue;
@@ -1052,14 +1078,10 @@ class Voting_Shortcode {
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param bool $judge Whether the voter is a judge, who gives scores rather than votes.
+	 * @param string $message The voter's already-cast message.
 	 * @return string
 	 */
-	private function already_voted_notice( bool $judge = false ): string {
-		$text = $judge
-			? esc_html__( 'Thank you! Your scores for this category have already been recorded.', 'photo-competition-manager' )
-			: esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' );
-
-		return '<p class="notice notice-success">' . $text . '</p>';
+	private function already_voted_notice( string $message ): string {
+		return '<p class="notice notice-success">' . esc_html( $message ) . '</p>';
 	}
 }

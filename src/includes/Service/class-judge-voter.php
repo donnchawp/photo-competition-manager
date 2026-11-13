@@ -87,4 +87,43 @@ final class Judge_Voter implements Voter {
 	public function has_ballot( Votes_Repository $votes, int $competition_id, string $category ): bool {
 		return $votes->has_judge_voted( $competition_id, $category, $this->judge_id() );
 	}
+
+	/**
+	 * Why a ballot with no scores was refused.
+	 *
+	 * @return string
+	 */
+	public static function empty_ballot_message(): string {
+		return __( 'Please score at least one image.', 'photo-competition-manager' );
+	}
+
+	/**
+	 * Why a ballot that left images unscored was refused.
+	 *
+	 * @param int $voted Images scored.
+	 * @param int $total Images in the category.
+	 * @return string
+	 */
+	public static function incomplete_ballot_message( int $voted, int $total ): string {
+		return sprintf(
+			/* translators: %1$d: number of images scored, %2$d: total number of images */
+			_n(
+				'You must score every image. You have scored %1$d of %2$d image.',
+				'You must score every image. You have scored %1$d of %2$d images.',
+				$total,
+				'photo-competition-manager'
+			),
+			$voted,
+			$total
+		);
+	}
+
+	/**
+	 * That the judge's scores for the category are already saved.
+	 *
+	 * @return string
+	 */
+	public static function already_cast_message(): string {
+		return __( 'Thank you! Your scores for this category have already been recorded.', 'photo-competition-manager' );
+	}
 }
