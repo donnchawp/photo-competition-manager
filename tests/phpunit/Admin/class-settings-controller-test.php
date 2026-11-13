@@ -429,6 +429,58 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Judges can be the club's default for who scores.
+	 */
+	public function test_who_scores_can_default_to_judges(): void {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_global_settings',
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'grades'                   => $this->default_grade_rows(),
+				'voting_auth_mode'         => 'judges',
+			)
+		);
+		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$saved = json_decode( (string) get_option( 'photo_comp_default_settings' ), true );
+		$this->assertSame( 'judges', $saved['voting']['auth_mode'] );
+	}
+
+	/**
+	 * An unknown choice for who scores falls back to the voting password.
+	 */
+	public function test_an_unknown_who_scores_falls_back_to_password(): void {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_global_settings',
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '1',
+					),
+				),
+				'grades'                   => $this->default_grade_rows(),
+				'voting_auth_mode'         => 'robots',
+			)
+		);
+		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$saved = json_decode( (string) get_option( 'photo_comp_default_settings' ), true );
+		$this->assertSame( 'password', $saved['voting']['auth_mode'] );
+	}
+
+	/**
 	 * @dataProvider invalid_months
 	 *
 	 * @param string $months Number of months as posted.

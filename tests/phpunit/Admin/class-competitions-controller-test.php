@@ -15,7 +15,9 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
@@ -1549,6 +1551,235 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_request(
 			array(
 				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -----------------------------------------------------------------
+	 * Who scores, and the judges panel.
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Post the settings form with just the scored-by choice.
+	 *
+	 * @param int    $id        Competition ID.
+	 * @param string $auth_mode Choice for voting_auth_mode.
+	 * @return string Redirect location.
+	 */
+	private function post_scored_by( int $id, string $auth_mode ): string {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'voting_auth_mode'         => $auth_mode,
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Who scores can be set to judges.
+	 */
+	public function test_scored_by_can_be_set_to_judges(): void {
+		$id = $this->create_competition( 'Judged', 'judged' );
+
+		$this->post_scored_by( $id, 'judges' );
+
+		$this->assertSame( 'judges', $this->settings( $id )['voting']['auth_mode'] );
+	}
+
+	/**
+	 * Once votes exist, who scores can't move between members and judges, but
+	 * it can still move between the two member options.
+	 */
+	public function test_scored_by_cannot_change_once_votes_exist(): void {
+		$id = $this->create_competition( 'Voted', 'voted' );
+		( new Votes_Repository() )->create_anonymous( $id, 'colour', 4321, 1234, 5 );
+
+		$this->post_scored_by( $id, 'judges' );
+
+		$this->assertContains( 'scored_by_locked', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( 'password', $this->settings( $id )['voting']['auth_mode'] );
+
+		$GLOBALS['wp_settings_errors'] = array(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test isolation.
+		$this->post_scored_by( $id, 'token' );
+
+		$this->assertContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( 'token', $this->settings( $id )['voting']['auth_mode'] );
+	}
+
+	/**
+	 * A judged competition with votes can't go back to members either.
+	 */
+	public function test_scored_by_cannot_leave_judges_once_votes_exist(): void {
+		$id = $this->create_competition( 'Judged Voted', 'judged-voted' );
+		$this->post_scored_by( $id, 'judges' );
+		( new Votes_Repository() )->create_anonymous( $id, 'colour', 4321, 1234, 5 );
+		$GLOBALS['wp_settings_errors'] = array(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test isolation.
+
+		$this->post_scored_by( $id, 'password' );
+
+		$this->assertContains( 'scored_by_locked', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( 'judges', $this->settings( $id )['voting']['auth_mode'] );
+	}
+
+	/**
+	 * Create a judged competition with a voting page.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function create_judged_competition(): int {
+		$id = $this->competitions->create(
+			array(
+				'title'    => 'Judged Show',
+				'slug'     => 'judged-show',
+				'settings' => array(
+					'voting' => array( 'auth_mode' => 'judges' ),
+					'urls'   => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+			)
+		);
+		$this->assertIsInt( $id );
+		return $id;
+	}
+
+	/**
+	 * Post one of the judges panel's actions.
+	 *
+	 * @param int                  $id      Competition ID.
+	 * @param string               $action  Action.
+	 * @param array<string, mixed> $extra   Extra request variables.
+	 * @return string Redirect location.
+	 */
+	private function post_judges_action( int $id, string $action, array $extra = array() ): string {
+		$this->set_request( array_merge( array( 'photo_competition_action' => $action, 'competition_id' => $id ), $extra ) );
+		$this->set_nonce( 'photo_competition_judges_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Ticking judges assigns them and unticking unassigns them.
+	 */
+	public function test_assign_and_unassign_judges(): void {
+		$id     = $this->create_judged_competition();
+		$judges = new Judges_Repository();
+		$ann    = $judges->create( 'Ann', 'ann@example.com' );
+		$bob    = $judges->create( 'Bob', 'bob@example.com' );
+		$links  = new Competition_Judges_Repository();
+
+		$location = $this->post_judges_action( $id, 'update_competition_judges', array( 'judge_ids' => array( (string) $ann, (string) $bob ) ) );
+
+		$this->assertStringContainsString( 'tab=settings', $location );
+		$this->assertSame( array( 'Ann', 'Bob' ), wp_list_pluck( $links->judges_for( $id ), 'name' ) );
+
+		$this->post_judges_action( $id, 'update_competition_judges', array( 'judge_ids' => array( (string) $bob ) ) );
+
+		$this->assertSame( array( 'Bob' ), wp_list_pluck( $links->judges_for( $id ), 'name' ) );
+	}
+
+	/**
+	 * Judges can't be assigned to a competition members score.
+	 */
+	public function test_judges_cant_be_assigned_to_a_member_voted_competition(): void {
+		$id    = $this->create_competition( 'Members', 'members' );
+		$judge = ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' );
+
+		$this->post_judges_action( $id, 'update_competition_judges', array( 'judge_ids' => array( (string) $judge ) ) );
+
+		$this->assertContains( 'judges_not_scoring', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Competition_Judges_Repository() )->judges_for( $id ) );
+	}
+
+	/**
+	 * Send link emails one judge their link and notes when it was sent.
+	 */
+	public function test_send_judge_link_emails_judge(): void {
+		$id    = $this->create_judged_competition();
+		$ann   = ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' );
+		$bob   = ( new Judges_Repository() )->create( 'Bob', 'bob@example.com' );
+		$links = new Competition_Judges_Repository();
+		$token = $links->assign( $id, $ann );
+		$links->assign( $id, $bob );
+		reset_phpmailer_instance();
+
+		$this->post_judges_action( $id, 'send_judge_link', array( 'judge_id' => (string) $ann ) );
+
+		$mailer = tests_retrieve_phpmailer_instance();
+		$this->assertCount( 1, $mailer->mock_sent );
+		$this->assertSame( 'ann@example.com', $mailer->mock_sent[0]['to'][0][0] );
+		$this->assertStringContainsString( 'https://example.com/vote/?judge=' . rawurlencode( $token ), $mailer->mock_sent[0]['body'] );
+		$this->assertStringContainsString( 'Your judging link for Judged Show', $mailer->mock_sent[0]['subject'] );
+		$this->assertContains( 'judge_links_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+
+		$sent = wp_list_pluck( $links->judges_for( $id ), 'sent_at', 'name' );
+		$this->assertNotEmpty( $sent['Ann'] );
+		$this->assertEmpty( $sent['Bob'] );
+	}
+
+	/**
+	 * Send link to all judges emails each assigned judge.
+	 */
+	public function test_send_all_judge_links_emails_every_assigned_judge(): void {
+		$id    = $this->create_judged_competition();
+		$links = new Competition_Judges_Repository();
+		$links->assign( $id, ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' ) );
+		$links->assign( $id, ( new Judges_Repository() )->create( 'Bob', 'bob@example.com' ) );
+		( new Judges_Repository() )->create( 'Cat', 'cat@example.com' );
+		reset_phpmailer_instance();
+
+		$this->post_judges_action( $id, 'send_all_judge_links' );
+
+		$this->assertCount( 2, tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertNotContains( '', array_map( 'strval', wp_list_pluck( $links->judges_for( $id ), 'sent_at' ) ) );
+	}
+
+	/**
+	 * Without a voting page there is no link, so nothing is sent.
+	 */
+	public function test_send_judge_link_without_a_voting_page_sends_nothing(): void {
+		$id = $this->competitions->create(
+			array(
+				'title'    => 'No Page',
+				'slug'     => 'no-page',
+				'settings' => array( 'voting' => array( 'auth_mode' => 'judges' ) ),
+			)
+		);
+		$judge = ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' );
+		( new Competition_Judges_Repository() )->assign( $id, $judge );
+		reset_phpmailer_instance();
+
+		$this->post_judges_action( $id, 'send_judge_link', array( 'judge_id' => (string) $judge ) );
+
+		$this->assertContains( 'judge_link_no_voting_page', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), tests_retrieve_phpmailer_instance()->mock_sent );
+	}
+
+	/**
+	 * A bad nonce aborts the judges actions.
+	 */
+	public function test_judges_actions_bad_nonce_dies(): void {
+		$id = $this->create_judged_competition();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'send_all_judge_links',
 				'competition_id'           => $id,
 			)
 		);

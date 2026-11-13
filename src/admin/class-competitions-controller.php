@@ -12,11 +12,17 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Judge_Link;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -62,6 +68,27 @@ class Competitions_Controller {
 	private $entries;
 
 	/**
+	 * Judges repository.
+	 *
+	 * @var Judges_Repository
+	 */
+	private $judges;
+
+	/**
+	 * Judges assigned to competitions.
+	 *
+	 * @var Competition_Judges_Repository
+	 */
+	private $competition_judges;
+
+	/**
+	 * Votes repository.
+	 *
+	 * @var Votes_Repository
+	 */
+	private $votes;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
@@ -75,6 +102,10 @@ class Competitions_Controller {
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->email_jobs   = $email_jobs ?? ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager;
 		$this->entries      = $entries ?? new Entries( $this->competitions );
+
+		$this->judges             = new Judges_Repository();
+		$this->competition_judges = new Competition_Judges_Repository();
+		$this->votes              = new Votes_Repository();
 	}
 
 	/**
@@ -484,6 +515,10 @@ class Competitions_Controller {
 			$this->redirect_with_settings_errors( $redirect_url );
 		}
 
+		if ( in_array( $action, array( 'update_competition_judges', 'send_judge_link', 'send_all_judge_links' ), true ) ) {
+			$this->handle_judge_actions( $action );
+		}
+
 		if ( 'update_competition_settings' === $action ) {
 			$competition_id = absint( $this->get_post_string( 'competition_id' ) );
 
@@ -515,8 +550,23 @@ class Competitions_Controller {
 			}
 
 			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-			if ( ! in_array( $auth_mode_input, array( 'password', 'token' ), true ) ) {
+			if ( ! in_array( $auth_mode_input, array( 'password', 'token', 'judges' ), true ) ) {
 				$auth_mode_input = 'password';
+			}
+
+			// Votes are tied to who cast them, so who scores can't move between members and judges once any exist.
+			if ( $existing_competition
+				&& Ballots::is_judged( $existing_competition ) !== ( 'judges' === $auth_mode_input )
+				&& $this->votes->has_votes( $competition_id )
+			) {
+				add_settings_error(
+					'photo_competition_manager',
+					'scored_by_locked',
+					__( 'Votes have been cast, so this competition can\'t switch between members and judges scoring it. Reset its votes first.', 'photo-competition-manager' ),
+					'error'
+				);
+
+				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
 			$voting_password       = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
@@ -643,6 +693,151 @@ class Competitions_Controller {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Handle the judges panel's actions.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $action Action from the request.
+	 * @return void
+	 */
+	private function handle_judge_actions( string $action ): void {
+		$competition_id = absint( $this->get_post_string( 'competition_id' ) );
+
+		check_admin_referer( 'photo_competition_judges_' . $competition_id, 'photo_competition_nonce' );
+
+		$competition = $this->competitions->find( $competition_id );
+		$url         = $this->settings_tab_url( $competition_id );
+
+		if ( ! $competition || ! Ballots::is_judged( $competition ) ) {
+			$this->judge_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
+			$this->redirect_with_settings_errors( $url );
+		}
+
+		if ( 'update_competition_judges' === $action ) {
+			$wanted = array_map( 'absint', $this->get_post_array( 'judge_ids' ) );
+
+			foreach ( $this->judges->all() as $judge ) {
+				if ( in_array( (int) $judge->id, $wanted, true ) ) {
+					$this->competition_judges->assign( $competition_id, (int) $judge->id );
+				} else {
+					$this->competition_judges->unassign( $competition_id, (int) $judge->id );
+				}
+			}
+
+			$this->judge_notice( 'judges_updated', __( 'Judges updated.', 'photo-competition-manager' ), 'updated' );
+			$this->redirect_with_settings_errors( $url );
+		}
+
+		$assigned = $this->competition_judges->judges_for( $competition_id );
+
+		if ( 'send_judge_link' === $action ) {
+			$judge_id = absint( $this->get_post_string( 'judge_id' ) );
+			$assigned = array_values(
+				array_filter(
+					$assigned,
+					function ( $judge ) use ( $judge_id ) {
+						return (int) $judge->id === $judge_id;
+					}
+				)
+			);
+		}
+
+		$this->send_judge_links( $competition, $assigned );
+		$this->redirect_with_settings_errors( $url );
+	}
+
+	/**
+	 * Email judges their links and queue the outcome as a notice.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object   $competition Competition row.
+	 * @param object[] $judges      Assigned judges, with their tokens.
+	 * @return void
+	 */
+	private function send_judge_links( object $competition, array $judges ): void {
+		if ( ! $judges ) {
+			$this->judge_notice( 'no_judges_to_email', __( 'There are no judges to email.', 'photo-competition-manager' ), 'error' );
+			return;
+		}
+
+		$email_service = new Email_Service();
+		$sent          = 0;
+		$errors        = array();
+
+		foreach ( $judges as $judge ) {
+			$link = Judge_Link::url( $competition, $judge->token );
+
+			if ( '' === $link ) {
+				$this->judge_notice( 'judge_link_no_voting_page', __( 'No voting page is set for this competition and no published page has the voting shortcode, so there is no link to send.', 'photo-competition-manager' ), 'error' );
+				return;
+			}
+
+			$result = $email_service->send(
+				'judge_link',
+				$judge,
+				$competition,
+				array(
+					'{judge_link}' => $link,
+					'{judge_name}' => (string) $judge->name,
+				)
+			);
+
+			if ( is_wp_error( $result ) ) {
+				/* translators: 1: Judge name, 2: Reason */
+				$errors[] = sprintf( __( 'Could not email %1$s: %2$s', 'photo-competition-manager' ), $judge->name, $result->get_error_message() );
+				continue;
+			}
+
+			$this->competition_judges->mark_sent( (int) $competition->id, (int) $judge->id );
+			++$sent;
+		}
+
+		foreach ( $errors as $error ) {
+			$this->judge_notice( 'judge_link_failed', $error, 'error' );
+		}
+
+		if ( $sent ) {
+			$this->judge_notice(
+				'judge_links_sent',
+				/* translators: %d: Judges emailed */
+				sprintf( _n( 'Link sent to %d judge.', 'Links sent to %d judges.', $sent, 'photo-competition-manager' ), $sent ),
+				'updated'
+			);
+		}
+	}
+
+	/**
+	 * Queue a notice for the next screen.
+	 *
+	 * @param string $code    Notice code.
+	 * @param string $message Message.
+	 * @param string $type    'error' or 'updated'.
+	 * @return void
+	 */
+	private function judge_notice( string $code, string $message, string $type ): void {
+		add_settings_error( 'photo_competition_manager', $code, $message, $type );
+	}
+
+	/**
+	 * A competition's settings tab URL.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function settings_tab_url( int $competition_id ): string {
+		return add_query_arg(
+			array(
+				'page'        => 'photo-competition-manager',
+				'action'      => 'edit',
+				'competition' => $competition_id,
+				'tab'         => 'settings',
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	/**
@@ -774,7 +969,7 @@ class Competitions_Controller {
 		$tabs_html = $this->render_competition_tabs( $competition_id, $current_tab );
 
 		$form_html = 'settings' === $current_tab
-			? $this->render_competition_settings_form( $competition )
+			? $this->render_competition_settings_form( $competition ) . $this->render_judges_panel( $competition )
 			: $this->render_competition_general_form( $competition );
 
 		return $this->render_template(
@@ -874,6 +1069,7 @@ class Competitions_Controller {
 				'category_rows_html'  => $category_rows_html,
 				'upload'              => $upload,
 				'auth_mode'           => $auth_mode,
+				'scored_by_locked'    => $this->votes->has_votes( (int) $competition->id ),
 				'password_value'      => $password_value,
 				'is_legacy_hash'      => $is_legacy_hash,
 				'click_to_zoom'       => $click_to_zoom,
@@ -883,6 +1079,51 @@ class Competitions_Controller {
 				'urls'                => $urls,
 				'share_hash'          => $competition->share_hash ?? '',
 				'results_page_url'    => Competition_Settings::page_url( 'results_page', $competition ),
+			)
+		);
+	}
+
+	/**
+	 * Render the judges panel, for a competition judges score.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param  object $competition Competition data.
+	 * @return string Empty when members score the competition.
+	 */
+	private function render_judges_panel( object $competition ): string {
+		if ( ! Ballots::is_judged( $competition ) ) {
+			return '';
+		}
+
+		$assigned = array();
+		foreach ( $this->competition_judges->judges_for( (int) $competition->id ) as $judge ) {
+			$assigned[ (int) $judge->id ] = (object) array(
+				'id'      => (int) $judge->id,
+				'name'    => $judge->name,
+				'email'   => $judge->email,
+				'link'    => Judge_Link::url( $competition, $judge->token ),
+				'sent_at' => $judge->sent_at ? $this->format_datetime( $judge->sent_at ) : '',
+			);
+		}
+
+		$judges = array();
+		foreach ( $this->judges->all() as $judge ) {
+			$judges[] = (object) array(
+				'id'       => (int) $judge->id,
+				'name'     => $judge->name,
+				'email'    => $judge->email,
+				'assigned' => isset( $assigned[ (int) $judge->id ] ),
+			);
+		}
+
+		return $this->render_template(
+			'admin/competitions/judges-panel.php',
+			array(
+				'competition_id' => (int) $competition->id,
+				'judges'         => $judges,
+				'assigned'       => array_values( $assigned ),
+				'judges_url'     => add_query_arg( array( 'page' => 'photo-competition-manager-judges' ), admin_url( 'admin.php' ) ),
 			)
 		);
 	}

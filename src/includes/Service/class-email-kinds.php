@@ -235,6 +235,28 @@ class Email_Kinds {
 					),
 				),
 			),
+			'judge_link'           => array(
+				'label'        => __( 'Judge link', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to a judge with their link to score a competition.', 'photo-competition-manager' ),
+				'notification' => false,
+				'subject'      => __( 'Your judging link for {competition_title}', 'photo-competition-manager' ),
+				'body'         => self::body(
+					__( 'Hi {judge_name},', 'photo-competition-manager' ),
+					__( "You've been asked to judge {competition_title}. Use this link to score the images when the organiser opens each category.", 'photo-competition-manager' ),
+					self::button( '{judge_link}', __( 'Start judging', 'photo-competition-manager' ) ),
+					__( "Please don't share this link.", 'photo-competition-manager' )
+				),
+				'tags'         => array(
+					'{judge_link}' => array(
+						'type'        => 'link',
+						'description' => __( "The judge's own link to score the competition.", 'photo-competition-manager' ),
+					),
+					'{judge_name}' => array(
+						'type'        => 'text',
+						'description' => __( "The judge's name.", 'photo-competition-manager' ),
+					),
+				),
+			),
 		);
 	}
 
