@@ -255,12 +255,7 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int|false The number of rows deleted, or false on error.
 	 */
 	public function delete_about_member( int $member_id, array $emails ) {
-		global $wpdb;
-
-		list( $conditions, $patterns ) = $this->about_members( array( $member_id ), $emails );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
-		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
+		return $this->delete_about( array( $member_id ), $emails );
 	}
 
 	/**
@@ -273,13 +268,20 @@ class Logs_Repository extends Abstract_Repository {
 	 * @return int|false The number of rows deleted, or false on error.
 	 */
 	public function delete_about_emails( array $emails ) {
+		return $emails ? $this->delete_about( array(), $emails ) : 0;
+	}
+
+	/**
+	 * Delete the log rows about some members or email addresses, as about_members() finds them.
+	 *
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     Email addresses.
+	 * @return int|false The number of rows deleted, or false on error.
+	 */
+	private function delete_about( array $member_ids, array $emails ) {
 		global $wpdb;
 
-		if ( ! $emails ) {
-			return 0;
-		}
-
-		list( $conditions, $patterns ) = $this->about_members( array(), $emails );
+		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
 		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
