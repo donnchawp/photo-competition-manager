@@ -2,7 +2,7 @@
 
 Status: draft for approval · 2026-11-13
 
-## Summary for SACC
+## Summary
 
 This is how the plugin will handle competitions scored by judges instead of club members. Nothing is built yet, so now is the time to tell me if any of this is wrong for you. The rest of the document is mostly for whoever builds it, so you only need this section.
 
@@ -13,7 +13,7 @@ How it will work:
 - You pick the judges for each competition. There can be one judge or several.
 - Each judge gets their own private link. You can email it to them, or open it on a phone, tablet or laptop at the venue. They don't need a password or an account on the website.
 - You stay in charge of the night. You open a category for scoring, the judges score every image in it, and you close it before moving to the next category. This works for judging live in front of an audience and for a private judging session the day before.
-- Each judge gives every image a score, using a range you set (for example 1 to 5). An image's total is all the judges' scores added together, so three judges scoring 1 to 5 gives a maximum of 15. That follows rule 5j of your 2022 interclub rules.
+- Each judge gives every image a score, using a range you set (for example 1 to 5). An image's total is all the judges' scores added together, so three judges scoring 1 to 5 gives a maximum of 15.
 - Judges only see the images. They never see the photographer's name or the club.
 - Club members can't vote in a judged competition.
 - The results show each image's total score and its place in its category and grade. Images on the same score share a place.
@@ -22,7 +22,7 @@ Not included in this first version:
 
 - Awards such as Highly Commended, Commended or best individual image. The results show scores and places only, for now.
 - Judges' comments on images.
-- Adding up the scores per club and finding the overall Cup and Shield winners. That's part of a separate change, competition types, which will let the same website run your interclub competition and your individual competitions, each with its own entrants, grades and categories. I'll write that up separately.
+- Interclub competitions where clubs are the entrants, with overall results that add up each club's scores. That's part of a separate change, competition types, which will let one website run different kinds of competition, each with its own entrants, grades and categories. I'll write that up separately.
 
 Things I'd like you to check:
 
@@ -32,16 +32,16 @@ Things I'd like you to check:
 
 ## Intent
 
-Most photography clubs don't let members vote. One or more external judges score every image, and the results are the sum of the judges' scores. Blarney's member voting is the unusual case. The request came from SACC (Southern Association of Camera Clubs, sacc.ie), whose interclub rules say: "Each judge will score independently. Results shall be based on the aggregate scores given by all judges to each competing panel." Other clubs need the same thing, so the feature isn't specific to SACC.
+Most photography clubs and interclub competitions don't let members vote. One or more external judges score every image independently, and the results are the sum of the judges' scores. The plugin only supports member voting today, which is the unusual case.
 
-This is the first of two features SACC needs. The second, **competition types** (each type with its own members, grades, categories and default settings), will be designed separately afterwards. External judging must work on a site with a single type, as Blarney's site is today, and must not depend on types.
+A related feature, **competition types** (each type with its own members, grades, categories and default settings), will be designed separately afterwards. External judging must work on a site with a single type, as every site is today, and must not depend on types.
 
 ## How a judged competition runs
 
 On the night, a judged competition runs just as a member-voted one does. Only the people holding voting links change.
 
 - The admin runs the voting stages per category as now: preview, open voting, slideshow, close, next category. Only one category in the club accepts votes at a time.
-- The judges score while a category is open, either live in front of an audience (IPF events, Blarney's Photographer of the Year) or the day before in a private session the club runs. Either way the admin decides which category is open. **Judges never score at their own pace over several days.**
+- The judges score while a category is open, either live in front of an audience or the day before in a private session the club runs. Either way the admin decides which category is open. **Judges never score at their own pace over several days.**
 - Each judge has their own voting link and uses it on a phone or computer. The link is emailed to the judge, or the admin opens it in a browser tab at the venue.
 - Each judge gives every entry in the open category a score from the competition's existing score list, then submits. The submission is one ballot, as now.
 
@@ -62,7 +62,7 @@ sequenceDiagram
 
 ## Goals
 
-1. **Each competition says who scores it: members or judges.** Existing competitions, and new ones by default, stay member-scored, so Blarney sees no change.
+1. **Each competition says who scores it: members or judges.** Existing competitions, and new ones by default, stay member-scored, so existing sites see no change.
 2. **The site keeps a Judges list.** Each judge has a name and an email. Judges are reused across competitions, though any one judge is used rarely. Judges aren't members: they have no grade and no entries, they aren't on the Members screen, and they get none of the member emails (upload links, reminders, notifications, results).
 3. **The admin picks one or more judges** from the list for each judged competition.
 4. **Each picked judge gets a private link** to that competition. The admin can email it to the judge or copy it to open on the night. It accepts a ballot only for the category that is open for voting, and only while the competition is in the voting part of its life.
@@ -73,13 +73,13 @@ sequenceDiagram
    Decided: stored file names stay as they are. A custom permalink serves an entry's images by entry ID instead (for example `/photocomp-image/123/` and `/photocomp-image/123/thumb/`; the builder picks the exact shape), so the file name never reaches the browser.
 
    My calls:
-   - The voting page and the slideshow use the permalink in **every** competition, member-voted ones included. It's the same leak for Blarney's members, and showing the same images under a different URL changes nothing they can see.
+   - The voting page and the slideshow use the permalink in **every** competition, member-voted ones included. Members get the same leak today, and showing the same images under a different URL changes nothing they can see.
    - The resized entry image and thumbnail are stripped of author metadata (EXIF Artist and Copyright, the IPTC byline, the XMP creator) when new entries are uploaded. Existing files are left alone. The original keeps its metadata.
 8. **The results stay as they are.** An entry's total score is the sum of its votes, which here means the sum of the judges' scores. Positions are worked out per category and grade, and ties share a position (1, 1, 2). Results show **only the total** for each entry, with no per-judge breakdown anywhere public.
 
 ## Non-goals
 
-- Awards: Highly Commended, Commended, best image, and so on. Positions only. SACC's "best individual image, as determined by the judges" is a judge's choice, not the top score, and is deferred too.
+- Awards: Highly Commended, Commended, best image, and so on. Positions only. A "best image" award is usually the judges' choice rather than the top score, and is deferred too.
 - Judge critique or comments.
 - Judges scoring at their own pace over several days, outside the admin-run voting stages.
 - Overall results per club, and anything else that belongs to competition types.
@@ -109,7 +109,7 @@ Decided with the product owner:
 
 - Scoring by judges is set per competition. Competition types will later supply the default.
 - Several judges, each scoring independently. The total is the sum of their scores.
-- The score range is the existing configurable score list. The IPF Shield example is three judges scoring 1–5, so 15 is the maximum.
+- The score range is the existing configurable score list. For example, three judges scoring 1 to 5 gives a maximum of 15.
 - Judges are kept on file and reused.
 - The admin controls which category is open, exactly as now.
 - Ties share a position. Results show totals only.
