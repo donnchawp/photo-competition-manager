@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -58,19 +59,30 @@ class Members_Controller {
 	private $entries;
 
 	/**
+	 * Competition types repository.
+	 *
+	 * @var Competition_Types_Repository
+	 */
+	private $types;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
+	 * @since 0.5.0 Takes the competition types repository.
 	 *
-	 * @param Competitions_Repository $competitions Competitions repository.
-	 * @param Members_Repository      $members      Members repository.
-	 * @param Entries|null            $entries      Entries module.
+	 * @param Competitions_Repository           $competitions Competitions repository.
+	 * @param Members_Repository                $members      Members repository.
+	 * @param Entries|null                      $entries      Entries module.
+	 * @param Competition_Types_Repository|null $types        Competition types repository.
 	 */
 	public function __construct(
 		Competitions_Repository $competitions,
 		Members_Repository $members,
-		?Entries $entries = null
+		?Entries $entries = null,
+		?Competition_Types_Repository $types = null
 	) {
+		$this->types        = $types ?? new Competition_Types_Repository();
 		$this->competitions = $competitions;
 		$this->workflow     = new Competition_Workflow( $this->competitions );
 		$this->members      = $members;
@@ -113,6 +125,7 @@ class Members_Controller {
 				'selectBulkAction' => __( 'Please select a bulk action.', 'photo-competition-manager' ),
 				'selectOneMember'  => __( 'Please select at least one member.', 'photo-competition-manager' ),
 				'selectGrade'      => __( 'Please select a grade.', 'photo-competition-manager' ),
+				'selectType'       => __( 'Please select a type.', 'photo-competition-manager' ),
 				'confirmDelete'    => __( 'Delete this member, their entries and everything that names them? The votes they cast are kept without their name.', 'photo-competition-manager' ),
 				'memberLabel'      => __( 'Member:', 'photo-competition-manager' ),
 				'cannotUndo'       => __( 'This action cannot be undone.', 'photo-competition-manager' ),
@@ -233,6 +246,11 @@ class Members_Controller {
 				'committee' => $is_committee ? 1 : 0,
 			);
 
+			// The tick boxes only show with several types; otherwise the member gets the only type.
+			if ( $this->has_several_types() ) {
+				$data['type_ids'] = $this->posted_type_ids( 'member_types' );
+			}
+
 			$result = $this->members->create( $data );
 
 			if ( is_wp_error( $result ) ) {
@@ -277,6 +295,10 @@ class Members_Controller {
 			);
 
 			$result = $this->members->update( $member_id, $data );
+
+			if ( ! is_wp_error( $result ) && $this->has_several_types() ) {
+				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
+			}
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -434,7 +456,7 @@ class Members_Controller {
 		}
 
 		// Handle bulk actions.
-		if ( 'bulk_activate' === $action || 'bulk_deactivate' === $action || 'bulk_update_grade' === $action ) {
+		if ( in_array( $action, array( 'bulk_activate', 'bulk_deactivate', 'bulk_update_grade', 'bulk_add_type', 'bulk_remove_type' ), true ) ) {
 			check_admin_referer( 'photo_competition_bulk_members' );
 
 			$member_ids = isset( $_POST['member_ids'] ) && is_array( $_POST['member_ids'] )
@@ -452,7 +474,43 @@ class Members_Controller {
 				$updated_count = 0;
 				$failed_count  = 0;
 
-				if ( 'bulk_activate' === $action ) {
+				if ( 'bulk_add_type' === $action || 'bulk_remove_type' === $action ) {
+					$type_id = isset( $_POST['bulk_type'] ) ? absint( wp_unslash( $_POST['bulk_type'] ) ) : 0;
+					$type    = $type_id ? $this->types->find( $type_id ) : null;
+
+					if ( ! $type ) {
+						add_settings_error(
+							'photo_competition_members',
+							'no_type_selected',
+							__( 'Please select a type.', 'photo-competition-manager' ),
+							'error'
+						);
+					} else {
+						foreach ( $this->members->find_many( $member_ids ) as $member ) {
+							if ( 'bulk_add_type' === $action ) {
+								$this->members->add_type( (int) $member->id, $type_id );
+							} else {
+								$this->members->remove_type( (int) $member->id, $type_id );
+							}
+							++$updated_count;
+						}
+
+						add_settings_error(
+							'photo_competition_members',
+							'bulk_add_type' === $action ? 'bulk_type_added' : 'bulk_type_removed',
+							sprintf(
+								'bulk_add_type' === $action
+									/* translators: 1: number of members, 2: type name */
+									? _n( '%1$d member added to %2$s.', '%1$d members added to %2$s.', $updated_count, 'photo-competition-manager' )
+									/* translators: 1: number of members, 2: type name */
+									: _n( '%1$d member removed from %2$s.', '%1$d members removed from %2$s.', $updated_count, 'photo-competition-manager' ),
+								$updated_count,
+								$type->name
+							),
+							'updated'
+						);
+					}
+				} elseif ( 'bulk_activate' === $action ) {
 					foreach ( $member_ids as $member_id ) {
 						$result = $this->members->update( $member_id, array( 'active' => 1 ) );
 						if ( is_wp_error( $result ) ) {
@@ -602,12 +660,34 @@ class Members_Controller {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$grade_filter = isset( $_GET['grade'] ) ? sanitize_text_field( wp_unslash( $_GET['grade'] ) ) : '';
 
+		// Types only show, and filter, when the club has several.
+		$types        = $this->has_several_types() ? $this->types->all() : array();
+		$type_options = array();
+		foreach ( $types as $type ) {
+			$type_options[ (int) $type->id ] = $type->name;
+		}
+		$tags = $types ? $this->members->all_type_ids() : array();
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
+		$type_filter = $types && isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '';
+		if ( 'none' !== $type_filter && ! isset( $type_options[ (int) $type_filter ] ) ) {
+			$type_filter = '';
+		}
+
 		$all_members = $this->members->all( 10000, false );
+
+		$untagged_count = 0;
+		if ( $types ) {
+			foreach ( $all_members as $member ) {
+				if ( $member->active && empty( $tags[ (int) $member->id ] ) ) {
+					++$untagged_count;
+				}
+			}
+		}
 
 		// Apply filters.
 		$members = array_filter(
 			$all_members,
-			function ( $member ) use ( $search, $status_filter, $grade_filter ) {
+			function ( $member ) use ( $search, $status_filter, $grade_filter, $type_filter, $tags ) {
 				// Search filter (name or email).
 				if ( ! empty( $search ) ) {
 					$search_lower = strtolower( $search );
@@ -633,6 +713,14 @@ class Members_Controller {
 					return false;
 				}
 
+				// Type filter.
+				if ( '' !== $type_filter ) {
+					$member_types = $tags[ (int) $member->id ] ?? array();
+					if ( 'none' === $type_filter ? $member_types : ! in_array( (int) $type_filter, $member_types, true ) ) {
+						return false;
+					}
+				}
+
 				return true;
 			}
 		);
@@ -654,29 +742,34 @@ class Members_Controller {
 
 		if ( 'edit' === $member_action ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_member_edit_form( $current );
+			echo $this->render_member_edit_form( $current, $type_options );
 		}
 
 		// Display members list first (unless in edit mode).
 		if ( 'edit' !== $member_action ) {
+			if ( $untagged_count ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+				echo $this->render_untagged_notice( $untagged_count );
+			}
+
 			// Display filter form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options );
+			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options, $type_options, $type_filter );
 
 			if ( empty( $members ) ) {
-				$has_filters = ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter );
+				$has_filters = ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) || '' !== $type_filter;
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 				echo $this->render_template( 'admin/members/empty-state.php', array( 'has_filters' => $has_filters ) );
 			} else {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-				echo $this->render_members_table( $members, $all_members, $active_competition, $grade_options );
+				echo $this->render_members_table( $members, $all_members, $active_competition, $grade_options, $type_options, $tags );
 			}
 
 			// Show create and import forms after the list.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_member_create_form();
+			echo $this->render_member_create_form( $type_options );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_member_import_form();
+			echo $this->render_member_import_form( (bool) $type_options );
 		}
 
 		echo '</div>';
@@ -727,15 +820,39 @@ class Members_Controller {
 	}
 
 	/**
+	 * Render the notice about active members with no type.
+	 *
+	 * @param  int $count Number of active members with no type.
+	 * @return string
+	 */
+	private function render_untagged_notice( int $count ): string {
+		return $this->render_template(
+			'admin/members/untagged-notice.php',
+			array(
+				'count' => $count,
+				'url'   => add_query_arg(
+					array(
+						'page' => 'photo-competition-manager-members',
+						'type' => 'none',
+					),
+					admin_url( 'admin.php' )
+				),
+			)
+		);
+	}
+
+	/**
 	 * Render the search/status/grade filter form.
 	 *
 	 * @param  string               $search        Current search term.
 	 * @param  string               $status_filter Current status filter.
 	 * @param  string               $grade_filter  Current grade filter.
 	 * @param  array<string,string> $grade_options Grade slug => label options.
+	 * @param  array<int,string>    $type_options  Type ID => name; empty unless the club has several types.
+	 * @param  string               $type_filter   Current type filter: a type ID, "none" or "".
 	 * @return string
 	 */
-	private function render_filters( string $search, string $status_filter, string $grade_filter, array $grade_options ): string {
+	private function render_filters( string $search, string $status_filter, string $grade_filter, array $grade_options, array $type_options, string $type_filter ): string {
 		return $this->render_template(
 			'admin/members/filters.php',
 			array(
@@ -743,6 +860,8 @@ class Members_Controller {
 				'status_filter' => $status_filter,
 				'grade_filter'  => $grade_filter,
 				'grade_options' => $grade_options,
+				'type_options'  => $type_options,
+				'type_filter'   => $type_filter,
 			)
 		);
 	}
@@ -754,9 +873,11 @@ class Members_Controller {
 	 * @param  array<int,object>    $all_members        All members (for the results count).
 	 * @param  object|null          $active_competition Active competition, if any.
 	 * @param  array<string,string> $grade_options      Grade slug => label options.
+	 * @param  array<int,string>    $type_options       Type ID => name; empty unless the club has several types.
+	 * @param  array<int,int[]>     $tags               Type IDs by member ID.
 	 * @return string
 	 */
-	private function render_members_table( array $members, array $all_members, ?object $active_competition, array $grade_options ): string {
+	private function render_members_table( array $members, array $all_members, ?object $active_competition, array $grade_options, array $type_options, array $tags ): string {
 		$total_count    = count( $all_members );
 		$filtered_count = count( $members );
 
@@ -821,6 +942,7 @@ class Members_Controller {
 				'show_send_email' => $show_send_email,
 				'send_url'        => $send_url,
 				'upload_url'      => $upload_url,
+				'types_label'     => implode( ', ', array_map( fn( $type_id ) => $type_options[ $type_id ] ?? '', $tags[ (int) $member->id ] ?? array() ) ),
 			);
 		}
 
@@ -831,6 +953,7 @@ class Members_Controller {
 				'filtered_count' => $filtered_count,
 				'total_count'    => $total_count,
 				'grade_options'  => $grade_options,
+				'type_options'   => $type_options,
 				'rows'           => $rows,
 			)
 		);
@@ -839,22 +962,27 @@ class Members_Controller {
 	/**
 	 * Render create member form.
 	 *
+	 * @param  array<int,string> $type_options Type ID => name; empty unless the club has several types.
 	 * @return string
 	 */
-	private function render_member_create_form(): string {
+	private function render_member_create_form( array $type_options ): string {
 		return $this->render_template(
 			'admin/members/create-form.php',
-			array( 'grade_options' => Competition_Settings::grade_labels() )
+			array(
+				'grade_options' => Competition_Settings::grade_labels(),
+				'type_options'  => $type_options,
+			)
 		);
 	}
 
 	/**
 	 * Render edit member form.
 	 *
-	 * @param  object|null $member Member row.
+	 * @param  object|null       $member       Member row.
+	 * @param  array<int,string> $type_options Type ID => name; empty unless the club has several types.
 	 * @return string
 	 */
-	private function render_member_edit_form( $member ): string {
+	private function render_member_edit_form( $member, array $type_options ): string {
 		if ( ! $member ) {
 			return $this->render_template(
 				'admin/members/edit-form-not-found.php',
@@ -868,6 +996,8 @@ class Members_Controller {
 				'member'        => $member,
 				'grade_options' => Competition_Settings::grade_labels(),
 				'members_url'   => $this->members_url(),
+				'type_options'  => $type_options,
+				'member_types'  => $type_options ? $this->members->type_ids( (int) $member->id ) : array(),
 			)
 		);
 	}
@@ -890,9 +1020,32 @@ class Members_Controller {
 	/**
 	 * Render member import form.
 	 *
+	 * @param  bool $show_types Whether to describe the types column.
 	 * @return string
 	 */
-	private function render_member_import_form(): string {
-		return $this->render_template( 'admin/members/import-form.php' );
+	private function render_member_import_form( bool $show_types ): string {
+		return $this->render_template( 'admin/members/import-form.php', array( 'show_types' => $show_types ) );
+	}
+
+	/**
+	 * Whether the club has more than one competition type, which is when members' types show.
+	 *
+	 * @return bool
+	 */
+	private function has_several_types(): bool {
+		return $this->types->count() > 1;
+	}
+
+	/**
+	 * Type IDs ticked in a posted array field.
+	 *
+	 * @param  string $field Field name.
+	 * @return int[]
+	 */
+	private function posted_type_ids( string $field ): array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Callers verify the nonce.
+		$posted = isset( $_POST[ $field ] ) && is_array( $_POST[ $field ] ) ? array_map( 'absint', wp_unslash( $_POST[ $field ] ) ) : array();
+
+		return array_values( array_filter( $posted ) );
 	}
 }

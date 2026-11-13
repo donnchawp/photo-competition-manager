@@ -22,6 +22,7 @@ use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -53,6 +54,22 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->members  = new Members_Repository();
 		$this->votes    = new Votes_Repository();
 		$this->deletion = new Member_Deletion();
+	}
+
+	public function test_deleting_member_deletes_tags(): void {
+		global $wpdb;
+
+		Types::clear();
+		$type  = Types::create( 'Individual' );
+		$jane  = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john  = $this->create_member( 'John Murphy', 'john@example.com' );
+		$table = $wpdb->prefix . 'photocomp_member_types';
+
+		$this->assertSame( 0, $this->delete( $jane ) );
+
+		$this->assertSame( array(), $this->members->type_ids( $jane ) );
+		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = %d', $table, $jane ) ) );
+		$this->assertSame( array( $type ), $this->members->type_ids( $john ) );
 	}
 
 	public function test_a_deleted_members_voting_link_votes_still_count_under_their_token(): void {

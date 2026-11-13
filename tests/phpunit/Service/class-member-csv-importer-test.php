@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Member_CSV_Importer;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use WP_UnitTestCase;
 
 class Member_CSV_Importer_Test extends WP_UnitTestCase {
@@ -440,5 +441,55 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( 3, $result['imported'] );
 		$this->assertSame( 0, $result['skipped'] );
 		$this->assertSame( 'senior', $this->members_repo->find_by_email( 'jane.smith@example.com' )->grade );
+	}
+
+	public function test_csv_import_tags_new_members_with_the_only_type(): void {
+		Type_Fixtures::clear();
+		$type = Type_Fixtures::create( 'Individual' );
+
+		$this->importer->import( $this->make_file( "name,email,grade\nAda,ada@example.com,beginner\n" ) );
+
+		$this->assertSame( array( $type ), $this->members_repo->type_ids( $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+	}
+
+	public function test_csv_import_types_column_tags_members(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$existing   = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_ids' => array( $individual ) ) );
+		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
+
+		$result = $this->importer->import(
+			$this->make_file( "name,email,grade,types\nAda,ada@example.com,beginner,individual; TEAM\nBob,bob@example.com,,Team\nCy,cy@example.com,,\n" )
+		);
+
+		$this->assertSame( array(), $result['errors'] );
+		$ada = $this->members_repo->find_by_email( 'ada@example.com' );
+		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members_repo->type_ids( (int) $ada->id ) );
+		$this->assertSame( array( $team ), $this->members_repo->type_ids( $existing ) );
+		$this->assertSame( array( $team ), $this->members_repo->type_ids( $kept ) );
+	}
+
+	public function test_csv_import_without_types_column_leaves_tags_alone_with_two_types(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+		$existing = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_ids' => array( $individual ) ) );
+
+		$this->importer->import( $this->make_file( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
+
+		$this->assertSame( array(), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( array( $individual ), $this->members_repo->type_ids( $existing ) );
+	}
+
+	public function test_csv_import_unknown_type_is_a_row_error(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+
+		$result = $this->importer->import( $this->make_file( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Pairs\n" ) );
+
+		$this->assertSame( array( 'Row 2: "Pairs" isn\'t a competition type.' ), $result['errors'] );
+		$this->assertSame( 1, $result['skipped'] );
+		$this->assertNull( $this->members_repo->find_by_email( 'ada@example.com' ) );
 	}
 }

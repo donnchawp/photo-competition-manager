@@ -42,4 +42,39 @@ class Type_Fixtures {
 
 		return (int) $id;
 	}
+
+	/**
+	 * Remove every type and tag, inside the test transaction, so a test can set up exactly the types it needs.
+	 *
+	 * @return void
+	 */
+	public static function clear(): void {
+		global $wpdb;
+
+		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_competition_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_member_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/**
+	 * Create a type.
+	 *
+	 * @param string $name Type name.
+	 * @return int Type ID.
+	 */
+	public static function create( string $name ): int {
+		$id = ( new Competition_Types_Repository() )->create(
+			$name,
+			array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => 2,
+					),
+				),
+			)
+		);
+
+		return (int) $id;
+	}
 }

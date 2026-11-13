@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
@@ -45,6 +46,10 @@ class Member_CSV_Importer {
 	 *
 	 * The grade may be a club grade's label or slug, in any case. A blank
 	 * grade, or no grade column, keeps an existing member's grade.
+	 *
+	 * An optional `types` column holds competition type names separated by `;`, in any case.
+	 * It replaces the member's tags. A blank cell, or no such column, leaves an existing
+	 * member's tags alone, and a new member gets the club's only type, if it has one.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
 	 * @return array<string, mixed>|WP_Error Array with import stats on success, WP_Error on failure.
@@ -110,6 +115,7 @@ class Member_CSV_Importer {
 			$col_grade     = array_search( 'grade', $header, true );
 			$col_active    = array_search( 'active', $header, true );
 			$col_committee = array_search( 'committee', $header, true );
+			$col_types     = array_search( 'types', $header, true );
 
 			$row_number = 1; // The header is row 1, as in a spreadsheet.
 		} else {
@@ -124,8 +130,14 @@ class Member_CSV_Importer {
 			$col_grade     = 2;
 			$col_active    = 3;
 			$col_committee = 4;
+			$col_types     = false;
 
 			$row_number = 0; // Start at 0 since there's no header.
+		}
+
+		$type_ids_by_name = array();
+		foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
+			$type_ids_by_name[ strtolower( trim( $type->name ) ) ] = (int) $type->id;
 		}
 
 		// Process each data row.
@@ -187,6 +199,28 @@ class Member_CSV_Importer {
 				continue;
 			}
 
+			// Resolve the type names to type IDs.
+			$type_ids   = null;
+			$type_names = false !== $col_types && isset( $row[ $col_types ] ) ? array_filter( array_map( 'trim', explode( ';', $row[ $col_types ] ) ), 'strlen' ) : array();
+			if ( $type_names ) {
+				$type_ids = array();
+				foreach ( $type_names as $type_name ) {
+					$type_id = $type_ids_by_name[ strtolower( sanitize_text_field( $type_name ) ) ] ?? null;
+					if ( null === $type_id ) {
+						$stats['errors'][] = sprintf(
+							/* translators: 1: row number, 2: type name from the CSV file */
+							__( 'Row %1$d: "%2$s" isn\'t a competition type.', 'photo-competition-manager' ),
+							$row_number,
+							$type_name
+						);
+						++$stats['skipped'];
+						$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
+						continue 2;
+					}
+					$type_ids[] = $type_id;
+				}
+			}
+
 			// Normalize active field (1, yes, true, active = true; others = false).
 			$active_normalized    = in_array( strtolower( $active ), array( '1', 'yes', 'true', 'active' ), true ) ? 1 : 0;
 			$committee_normalized = in_array( strtolower( $committee ), array( '1', 'yes', 'true' ), true ) ? 1 : 0;
@@ -219,6 +253,9 @@ class Member_CSV_Importer {
 					);
 					++$stats['skipped'];
 				} else {
+					if ( null !== $type_ids ) {
+						$this->members->set_types( (int) $existing->id, $type_ids );
+					}
 					++$stats['updated'];
 				}
 			} elseif ( null === $grade_slug ) {
@@ -230,6 +267,10 @@ class Member_CSV_Importer {
 				++$stats['skipped'];
 			} else {
 				// Create new member.
+				if ( null !== $type_ids ) {
+					$data['type_ids'] = $type_ids;
+				}
+
 				$result = $this->members->create( $data );
 
 				if ( is_wp_error( $result ) ) {

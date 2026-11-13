@@ -22,6 +22,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 
 /**
  * Characterization tests for the members controller.
@@ -1015,5 +1016,155 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
+	}
+
+	/**
+	 * Render the members screen.
+	 *
+	 * @return string
+	 */
+	private function render_screen(): string {
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_untagged_active_members_are_flagged(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'email' => 'a@example.com' ) );
+		$this->create_member( array( 'email' => 'b@example.com' ) );
+		$this->create_member( array( 'email' => 'c@example.com', 'active' => 0 ) );
+
+		$html = $this->render_screen();
+
+		$this->assertStringContainsString( '2 active members have no type, so they get no links for competitions open to all.', $html );
+		$this->assertStringContainsString( 'type=none', $html );
+	}
+
+	public function test_no_type_tools_on_a_one_type_site(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		$this->create_member( array( 'email' => 'a@example.com' ) );
+
+		$html = $this->render_screen();
+
+		$this->assertStringNotContainsString( 'name="type"', $html );
+		$this->assertStringNotContainsString( 'member_types', $html );
+		$this->assertStringNotContainsString( 'bulk_add_type', $html );
+		$this->assertStringNotContainsString( 'have no type', $html );
+	}
+
+	public function test_filter_by_type(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'name' => 'Tagged Tina', 'email' => 'tina@example.com', 'type_ids' => array( $individual ) ) );
+		$this->create_member( array( 'name' => 'Bare Bob', 'email' => 'bob@example.com' ) );
+
+		$this->set_request( array( 'type' => (string) $individual ) );
+		$html = $this->render_screen();
+		$this->assertStringContainsString( 'Tagged Tina', $html );
+		$this->assertStringNotContainsString( 'Bare Bob', $html );
+
+		$this->set_request( array( 'type' => 'none' ) );
+		$html = $this->render_screen();
+		$this->assertStringNotContainsString( 'Tagged Tina', $html );
+		$this->assertStringContainsString( 'Bare Bob', $html );
+	}
+
+	public function test_create_member_saves_the_ticked_types(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		$team = Types::create( 'Team' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_member',
+				'member_name'              => 'Grace Hopper',
+				'member_email'             => 'grace@example.com',
+				'member_grade'             => 'advanced',
+				'member_types'             => array( (string) $team ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_create', 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $team ), $this->members->type_ids( (int) $this->members->find_by_email( 'grace@example.com' )->id ) );
+	}
+
+	public function test_update_member_replaces_the_types(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$id         = $this->create_member( array( 'type_ids' => array( $individual ) ) );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => (string) $id,
+				'member_name'              => 'Test Member',
+				'member_email'             => 'member@example.com',
+				'member_grade'             => 'beginner',
+				'member_active'            => '1',
+				'member_types'             => array( (string) $team ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $team ), $this->members->type_ids( $id ) );
+	}
+
+	public function test_update_member_on_a_one_type_site_keeps_the_tag(): void {
+		Types::clear();
+		$only = Types::create( 'Individual' );
+		$id   = $this->create_member();
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => (string) $id,
+				'member_name'              => 'Renamed',
+				'member_email'             => 'member@example.com',
+				'member_grade'             => 'beginner',
+				'member_active'            => '1',
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $only ), $this->members->type_ids( $id ) );
+	}
+
+	public function test_bulk_add_and_remove_type(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$a          = $this->create_member( array( 'email' => 'a@example.com', 'type_ids' => array( $individual ) ) );
+		$b          = $this->create_member( array( 'email' => 'b@example.com' ) );
+
+		$this->set_request(
+			array(
+				'action'     => 'bulk_add_type',
+				'member_ids' => array( (string) $a, (string) $b ),
+				'bulk_type'  => (string) $team,
+			)
+		);
+		$this->set_nonce( 'photo_competition_bulk_members' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members->type_ids( $a ) );
+		$this->assertSame( array( $team ), $this->members->type_ids( $b ) );
+		$this->assertContains( 'bulk_type_added', $this->settings_error_codes( self::GROUP ) );
+
+		$GLOBALS['wp_settings_errors'] = array(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test isolation.
+		$this->set_request( array( 'action' => 'bulk_remove_type' ) );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $individual ), $this->members->type_ids( $a ) );
+		$this->assertSame( array(), $this->members->type_ids( $b ) );
+		$this->assertContains( 'bulk_type_removed', $this->settings_error_codes( self::GROUP ) );
 	}
 }

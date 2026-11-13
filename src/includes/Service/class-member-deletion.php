@@ -83,7 +83,7 @@ class Member_Deletion {
 	}
 
 	/**
-	 * Delete a member: their entries, tokens, log rows and record. The votes they
+	 * Delete a member: their entries, tokens, log rows, type tags and record. The votes they
 	 * cast are kept.
 	 *
 	 * The count of kept votes includes password votes an earlier, stopped run

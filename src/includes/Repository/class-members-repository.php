@@ -206,6 +206,11 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Create a member record.
 	 *
+	 * The member gets the types in `$data['type_ids']`. Without that key they get the club's
+	 * only type, when it has exactly one, and no type when it has several.
+	 *
+	 * @since 0.5.0 Tags the member with competition types.
+	 *
 	 * @param array<string, mixed> $data Member data.
 	 * @return int|WP_Error
 	 */
@@ -256,7 +261,19 @@ class Members_Repository extends Abstract_Repository {
 			return new WP_Error( 'db_insert_failed', __( 'Could not create member.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
-		return (int) $wpdb->insert_id;
+		$member_id = (int) $wpdb->insert_id;
+
+		if ( array_key_exists( 'type_ids', $data ) ) {
+			$this->set_types( $member_id, (array) $data['type_ids'] );
+		} else {
+			$only = ( new Competition_Types_Repository() )->only();
+
+			if ( $only ) {
+				$this->set_types( $member_id, array( (int) $only->id ) );
+			}
+		}
+
+		return $member_id;
 	}
 
 	/**
@@ -335,6 +352,150 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		return true;
+	}
+
+	/**
+	 * The competition types a member is tagged with.
+	 *
+	 * @since 0.5.0
+	 * @param int $member_id Member ID.
+	 * @return int[] Type IDs.
+	 */
+	public function type_ids( int $member_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT type_id FROM %i WHERE member_id = %d ORDER BY type_id', $this->tags_table(), $member_id ) );
+
+		return array_map( 'intval', $ids );
+	}
+
+	/**
+	 * Every member's tags at once.
+	 *
+	 * @since 0.5.0
+	 * @return array<int, int[]> Type IDs by member ID; members with no tag are absent.
+	 */
+	public function all_type_ids(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT member_id, type_id FROM %i ORDER BY type_id', $this->tags_table() ) );
+		$map  = array();
+
+		foreach ( $rows as $row ) {
+			$map[ (int) $row->member_id ][] = (int) $row->type_id;
+		}
+
+		return $map;
+	}
+
+	/**
+	 * Replace a member's competition type tags. Types that don't exist are ignored.
+	 *
+	 * @since 0.5.0
+	 * @param int   $member_id Member ID.
+	 * @param int[] $type_ids  Type IDs.
+	 * @return void
+	 */
+	public function set_types( int $member_id, array $type_ids ): void {
+		global $wpdb;
+
+		$types = new Competition_Types_Repository();
+		$keep  = array();
+
+		foreach ( array_unique( array_filter( array_map( 'absint', $type_ids ) ) ) as $type_id ) {
+			if ( $types->find( $type_id ) ) {
+				$keep[] = $type_id;
+			}
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete( $this->tags_table(), array( 'member_id' => $member_id ), array( '%d' ) );
+
+		foreach ( $keep as $type_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->insert(
+				$this->tags_table(),
+				array(
+					'member_id' => $member_id,
+					'type_id'   => $type_id,
+				),
+				array( '%d', '%d' )
+			);
+		}
+	}
+
+	/**
+	 * Add one tag to a member, keeping their others.
+	 *
+	 * @since 0.5.0
+	 * @param int $member_id Member ID.
+	 * @param int $type_id   Type ID.
+	 * @return void
+	 */
+	public function add_type( int $member_id, int $type_id ): void {
+		$this->set_types( $member_id, array_merge( $this->type_ids( $member_id ), array( $type_id ) ) );
+	}
+
+	/**
+	 * Remove one tag from a member, keeping their others.
+	 *
+	 * @since 0.5.0
+	 * @param int $member_id Member ID.
+	 * @param int $type_id   Type ID.
+	 * @return void
+	 */
+	public function remove_type( int $member_id, int $type_id ): void {
+		$this->set_types( $member_id, array_diff( $this->type_ids( $member_id ), array( $type_id ) ) );
+	}
+
+	/**
+	 * Fetch the members tagged with a type.
+	 *
+	 * @since 0.5.0
+	 * @param int  $type_id     Type ID.
+	 * @param bool $only_active Whether to restrict to active members.
+	 * @return array<int, object>
+	 */
+	public function find_by_type( int $type_id, bool $only_active = true ): array {
+		global $wpdb;
+
+		$query  = 'SELECT m.* FROM %i m INNER JOIN %i t ON t.member_id = m.id WHERE t.type_id = %d';
+		$query .= $only_active ? ' AND m.active = 1' : '';
+		$query .= ' ORDER BY m.name ASC';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+		return $wpdb->get_results( $wpdb->prepare( $query, $this->table(), $this->tags_table(), $type_id ) );
+	}
+
+	/**
+	 * Fetch the members tagged with no type.
+	 *
+	 * @since 0.5.0
+	 * @param bool $only_active Whether to restrict to active members.
+	 * @return array<int, object>
+	 */
+	public function find_untagged( bool $only_active = true ): array {
+		global $wpdb;
+
+		$query  = 'SELECT m.* FROM %i m WHERE NOT EXISTS ( SELECT 1 FROM %i t WHERE t.member_id = m.id )';
+		$query .= $only_active ? ' AND m.active = 1' : '';
+		$query .= ' ORDER BY m.name ASC';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+		return $wpdb->get_results( $wpdb->prepare( $query, $this->table(), $this->tags_table() ) );
+	}
+
+	/**
+	 * The member-to-type tag table.
+	 *
+	 * @return string
+	 */
+	private function tags_table(): string {
+		global $wpdb;
+
+		return $wpdb->prefix . 'photocomp_member_types';
 	}
 
 	/**
@@ -466,6 +627,7 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		( new Recorded_Results_Repository() )->forget_member( $id );
+		$this->set_types( $id, array() );
 
 		return true;
 	}
