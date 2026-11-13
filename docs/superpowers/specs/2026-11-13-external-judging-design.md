@@ -68,7 +68,13 @@ sequenceDiagram
 4. **Each picked judge gets a private link** to that competition. The admin can email it to the judge or copy it to open on the night. It accepts a ballot only for the category that is open for voting, and only while the competition is in the voting part of its life.
 5. **A judge's ballot behaves like a member's ballot.** It is one score per entry in the category, from the competition's score list. One ballot per judge per category, kept whole or not at all.
 6. **Members can't vote in a judged competition.** They get no voting links, the voting password doesn't work, and the voting page tells a member who arrives there that judges are scoring this competition.
-7. **Judges see no entrant names.** The voting page already shows none, so this must stay true for judges. When competition types add club names and image authors, judges must not see those either.
+7. **Judges see no entrant names.** The voting page shows no names as text, but today the names still leak in other ways. `Entries` names each stored file after the member (`jane-murphy-colour.jpg`, `src/includes/Service/class-entries.php:199`), and the voting page and the slideshow put that URL in `<img src>` and the zoom link. The resized image may also keep EXIF/IPTC author tags. When competition types add club names and image authors, judges must not see those either.
+
+   Decided: stored file names stay as they are. A custom permalink serves an entry's images by entry ID instead (for example `/photocomp-image/123/` and `/photocomp-image/123/thumb/`; the builder picks the exact shape), so the file name never reaches the browser.
+
+   My calls:
+   - The voting page and the slideshow use the permalink in **every** competition, member-voted ones included. It's the same leak for Blarney's members, and showing the same images under a different URL changes nothing they can see.
+   - The resized entry image and thumbnail are stripped of author metadata (EXIF Artist and Copyright, the IPTC byline, the XMP creator) when new entries are uploaded. Existing files are left alone. The original keeps its metadata.
 8. **The results stay as they are.** An entry's total score is the sum of its votes, which here means the sum of the judges' scores. Positions are worked out per category and grade, and ties share a position (1, 1, 2). Results show **only the total** for each entry, with no per-judge breakdown anywhere public.
 
 ## Non-goals
@@ -79,6 +85,7 @@ sequenceDiagram
 - Overall results per club, and anything else that belongs to competition types.
 - A per-judge breakdown of scores in the public results.
 - Mixing judges and member votes in one competition.
+- Showing a category's preview and slideshow on the night after judges scored it in a private session the day before. Voting stages only move forward, so the workaround for now is Reset with votes kept. That reopens voting, but a judge who has already scored the category can't submit a second ballot. A proper "show only" mode is for a later PR.
 
 ## Anti-goals
 
@@ -116,6 +123,8 @@ My calls (the reviewer should check these):
 - **Deleting a judge from the Judges list** removes their name and email, revokes their links, and keeps their votes without anything that identifies them. This mirrors deleting a member, so recorded and unrecorded totals don't move. The privacy eraser should cover judges by email.
 - **The admin Voting screen shows which judges have submitted** for the open category, by name. That's the organiser's progress check on the night, and it shows no scores. Admins can still see raw votes wherever they can today.
 - **The judge link email is a requested email**, a new kind with its own editable template on the Email Templates screen, sent from the competition screen per judge or to all its judges at once. It always sends, like other requested emails.
+- **The detailed results email** (`results_detailed`, `src/templates/email/results-table.php`) lists every vote for an image. In a judged competition that table is a per-judge breakdown, so for judged competitions it shows only the total score and the position. It drops the per-vote table and the vote statistics (count, average, median, range).
+- **Members are never invited to vote in a judged competition.** The `voting_opened` notification isn't sent to members. The voting page hides the form for requesting a voting link and says judges are scoring this competition. Member emails that mention voting, such as the default `upload_reminder` body ("Once voting opens, you can vote at {voting_page}"), mustn't tell members of a judged competition that they can vote. The builder chooses how: a merge tag that renders as empty, or a separate line. An admin's existing edited templates keep working unchanged.
 - **Vocabulary:** the UI says "score" and "judge" in judged competitions. The internal names (ballot, vote, voter) stay.
 
 ## Left to the builder
