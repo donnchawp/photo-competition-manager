@@ -151,13 +151,9 @@ class Competition_Entry {
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
-		$refused = $this->refuse_changes( $competition );
-		if ( $refused ) {
-			return $refused;
-		}
-
-		if ( ! self::is_selected( $competition ) ) {
-			return new WP_Error( 'not_selected_mode', __( 'This competition is open to everyone in its type, so it has no entrants to add.', 'photo-competition-manager' ) );
+		$can_add = $this->can_add_entrants( $competition );
+		if ( is_wp_error( $can_add ) ) {
+			return $can_add;
 		}
 
 		$member = $this->members->find( $member_id );
@@ -182,6 +178,26 @@ class Competition_Entry {
 					$sent->get_error_message()
 				)
 			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether entrants can be added: the competition is for selected entrants
+	 * and its voting hasn't started.
+	 *
+	 * @param object $competition Competition row.
+	 * @return true|WP_Error 'entry_closed' or 'not_selected_mode'.
+	 */
+	public function can_add_entrants( object $competition ) {
+		$refused = $this->refuse_changes( $competition );
+		if ( $refused ) {
+			return $refused;
+		}
+
+		if ( ! self::is_selected( $competition ) ) {
+			return new WP_Error( 'not_selected_mode', __( 'This competition is open to everyone in its type, so it has no entrants to add.', 'photo-competition-manager' ) );
 		}
 
 		return true;

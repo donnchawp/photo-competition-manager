@@ -810,6 +810,12 @@ class Competitions_Controller {
 				break;
 
 			case 'add_new_entrant':
+				// Checked first, so a refused entry leaves no member behind.
+				$can_add = $this->entry->can_add_entrants( $competition );
+				if ( is_wp_error( $can_add ) ) {
+					$this->entrant_notice( $can_add, '', '' );
+					break;
+				}
 				$new_id = $this->members->create(
 					array(
 						'name'  => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
@@ -1296,13 +1302,14 @@ class Competitions_Controller {
 		$competition_id = (int) $competition->id;
 		$type           = $this->types->find( (int) $competition->type_id );
 		$selected       = Competition_Entry::is_selected( $competition );
+		$named_type     = $type && $this->types->count() > 1 ? $type : null;
 
 		$entrants      = array();
 		$member_groups = array();
 
 		if ( $selected ) {
-			$entrant_ids = ( new Entrants_Repository() )->member_ids( $competition_id );
-			$images      = new Images_Repository();
+			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
+			$with_entries = array_flip( array_map( 'intval', wp_list_pluck( ( new Images_Repository() )->find_by_competition( $competition_id ), 'member_id' ) ) );
 
 			foreach ( $this->members->find_many( $entrant_ids ) as $member ) {
 				$entrants[] = (object) array(
@@ -1310,7 +1317,7 @@ class Competitions_Controller {
 					'name'        => $member->name,
 					'email'       => $member->email,
 					'active'      => (bool) $member->active,
-					'has_entries' => $images->count_by_member_category( $competition_id, (int) $member->id ) > 0,
+					'has_entries' => isset( $with_entries[ (int) $member->id ] ),
 				);
 			}
 			usort(
@@ -1320,7 +1327,7 @@ class Competitions_Controller {
 				}
 			);
 
-			$member_groups = $this->entrant_picker_groups( (int) $competition->type_id, $entrant_ids, $type );
+			$member_groups = $this->entrant_picker_groups( (int) $competition->type_id, $entrant_ids, $named_type );
 		}
 
 		return $this->render_template(
@@ -1328,9 +1335,9 @@ class Competitions_Controller {
 			array(
 				'competition_id' => $competition_id,
 				'entry_mode'     => $selected ? 'selected' : 'all',
-				'open_label'     => $type && $this->types->count() > 1
+				'open_label'     => $named_type
 					/* translators: %s: Competition type name */
-					? sprintf( __( 'Open to everyone in %s', 'photo-competition-manager' ), $type->name )
+					? sprintf( __( 'Open to everyone in %s', 'photo-competition-manager' ), $named_type->name )
 					: __( 'Open to all members', 'photo-competition-manager' ),
 				'can_change'     => $this->entry->can_change( $competition ),
 				'uploads_open'   => $this->workflow->is_accepting_uploads( $competition ),
@@ -1349,18 +1356,17 @@ class Competitions_Controller {
 	 *
 	 * @param int         $type_id     The competition's type ID.
 	 * @param int[]       $entrant_ids Current entrants.
-	 * @param object|null $type        The competition's type.
+	 * @param object|null $named_type  The competition's type when the club has several, to name its group; null for one list.
 	 * @return array<int, array{label: string, members: object[]}> Groups; a group's label is '' when there's only one.
 	 */
-	private function entrant_picker_groups( int $type_id, array $entrant_ids, ?object $type ): array {
-		$tagged = array();
-		$others = array();
-
-		$in_type = wp_list_pluck( $this->members->find_by_type( $type_id ), 'id' );
-		$in_type = array_map( 'intval', $in_type );
+	private function entrant_picker_groups( int $type_id, array $entrant_ids, ?object $named_type ): array {
+		$tagged   = array();
+		$others   = array();
+		$entrants = array_flip( $entrant_ids );
+		$in_type  = array_flip( array_map( 'intval', wp_list_pluck( $this->members->find_by_type( $type_id ), 'id' ) ) );
 
 		foreach ( $this->members->find_active_members() as $member ) {
-			if ( in_array( (int) $member->id, $entrant_ids, true ) ) {
+			if ( isset( $entrants[ (int) $member->id ] ) ) {
 				continue;
 			}
 
@@ -1370,7 +1376,7 @@ class Competitions_Controller {
 				'email' => $member->email,
 			);
 
-			if ( in_array( (int) $member->id, $in_type, true ) ) {
+			if ( isset( $in_type[ (int) $member->id ] ) ) {
 				$tagged[] = $option;
 			} else {
 				$others[] = $option;
@@ -1378,7 +1384,7 @@ class Competitions_Controller {
 		}
 
 		// With one type there's nothing to name, so the members come as one list, the type's first.
-		if ( ! $type || $this->types->count() < 2 ) {
+		if ( ! $named_type ) {
 			return array_merge( $tagged, $others )
 				? array(
 					array(
@@ -1393,7 +1399,7 @@ class Competitions_Controller {
 			array_filter(
 				array(
 					array(
-						'label'   => $type->name,
+						'label'   => $named_type->name,
 						'members' => $tagged,
 					),
 					array(

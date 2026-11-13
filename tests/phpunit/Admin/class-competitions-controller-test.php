@@ -2094,6 +2094,44 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
 	}
 
+	public function test_create_member_after_voting_started_creates_no_one(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		Entry_Fixtures::insert_entry( $id, 'colour', $ann, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
+		$this->assertContains( 'entry_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_while_open_to_all_creates_no_one(): void {
+		$id = $this->create_entry_competition( 'all' );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
+		$this->assertContains( 'not_selected_mode', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
 	public function test_resend_upload_link_to_entrant(): void {
 		$id  = $this->create_entry_competition();
 		$ann = $this->create_member( 'Ann' );
