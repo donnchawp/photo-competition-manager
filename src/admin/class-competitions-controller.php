@@ -1095,7 +1095,7 @@ class Competitions_Controller {
 				'competition_id' => (int) $competition->id,
 				'judges'         => $judges,
 				'assigned'       => array_values( $assigned ),
-				'judges_url'     => add_query_arg( array( 'page' => 'photo-competition-manager-judges' ), admin_url( 'admin.php' ) ),
+				'judges_url'     => $this->judges_url(),
 			)
 		);
 	}
