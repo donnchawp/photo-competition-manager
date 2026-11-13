@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Log_Retention;
 
@@ -57,6 +58,7 @@ class Plugin {
 
 		$this->admin->register();
 		$this->frontend->register();
+		( new Image_Permalink() )->register();
 
 		$deps = new Dependencies();
 		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );

@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Slideshow_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use WP_UnitTestCase;
@@ -32,6 +33,13 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 	 * @var int
 	 */
 	private $member_id = 0;
+
+	/**
+	 * Entry added by add_entry().
+	 *
+	 * @var int
+	 */
+	private $entry_id = 0;
 
 	/**
 	 * Entry files written by a test.
@@ -110,7 +118,36 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $response['success'] );
 		$this->assertSame( $entry_id, (int) $response['data']['images'][0]['id'] );
-		$this->assertStringContainsString( '/competitions/slideshow-comp/colour/entry-' . $this->member_id . '.jpg?v=', $response['data']['images'][0]['url'] );
+		$this->assertStringContainsString( '/photocomp-image/' . $entry_id . '/?v=', $response['data']['images'][0]['url'] );
+	}
+
+	public function test_slideshow_payload_has_no_member_slug(): void {
+		$this->add_entry();
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'jane-murphy-colour.jpg',
+			)
+		);
+		$folder = wp_upload_dir()['basedir'] . '/competitions/slideshow-comp/colour';
+		wp_mkdir_p( $folder );
+		$this->written_files[] = $folder . '/jane-murphy-colour.jpg';
+		file_put_contents( end( $this->written_files ), 'full' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+
+		$response = $this->fetch_images( 'slideshow-comp' );
+		$html     = $this->shortcode->render(
+			array(
+				'competition' => 'slideshow-comp',
+				'category'    => 'colour',
+			)
+		);
+
+		$this->assertTrue( $response['success'] );
+		$this->assertStringNotContainsString( 'jane-murphy', wp_json_encode( $response ) );
+		$this->assertStringNotContainsString( 'jane-murphy', $html );
+		$this->assertStringContainsString( 'photocomp-image', $html );
 	}
 
 	/**
@@ -128,7 +165,9 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 			)
 		);
 
-		return Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $this->member_id, array() );
+		$this->entry_id = Entry_Fixtures::insert_entry( $this->competition_id, 'colour', $this->member_id, array() );
+
+		return $this->entry_id;
 	}
 
 	/**

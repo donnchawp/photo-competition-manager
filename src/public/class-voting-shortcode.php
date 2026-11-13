@@ -734,7 +734,7 @@ class Voting_Shortcode {
 					<div class="images-grid">
 						<?php foreach ( $images as $image ) : ?>
 							<?php
-							$urls      = $this->entries->urls( $competition, $image );
+							$urls      = $this->entries->public_urls( $image );
 							$image_url = $urls['full'];
 							$thumb_url = $urls['thumb'] ? $urls['thumb'] : $urls['full'];
 							?>
@@ -992,7 +992,7 @@ class Voting_Shortcode {
 							<div class="images-grid">
 								<?php foreach ( $images as $image ) : ?>
 									<?php
-									$urls      = $this->entries->urls( $competition, $image );
+									$urls      = $this->entries->public_urls( $image );
 									$image_url = $urls['full'];
 									$thumb_url = $urls['thumb'] ? $urls['thumb'] : $urls['full'];
 									?>

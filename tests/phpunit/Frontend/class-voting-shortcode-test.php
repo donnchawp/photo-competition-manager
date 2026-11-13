@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -480,6 +481,33 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Image unavailable', $output );
 		$this->assertStringNotContainsString( '<img', $output );
+	}
+
+	public function test_voting_grid_has_no_member_slug_in_markup(): void {
+		$member   = $this->make_member( 'jane@example.com', true, 'Jane Murphy' );
+		$entry_id = (int) ( new Images_Repository() )->create(
+			array(
+				'competition_id' => (int) $this->competition->id,
+				'member_id'      => $member,
+				'category'       => 'colour',
+				'filename'       => 'jane-murphy-colour.jpg',
+			)
+		);
+		$folder = wp_upload_dir()['basedir'] . '/competitions/token-comp/colour';
+		wp_mkdir_p( $folder );
+		$files = array( $folder . '/jane-murphy-colour.jpg', $folder . '/jane-murphy-colour-thumb.jpg' );
+		foreach ( $files as $file ) {
+			file_put_contents( $file, 'img' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		}
+		$_GET['token'] = $this->issue_token( $member );
+
+		$html = $this->shortcode->render();
+
+		foreach ( $files as $file ) {
+			wp_delete_file( $file );
+		}
+		$this->assertStringContainsString( '/photocomp-image/' . $entry_id . '/', $html );
+		$this->assertStringNotContainsString( 'jane-murphy', $html );
 	}
 
 	public function test_inactive_member_token_falls_back_to_request_form(): void {

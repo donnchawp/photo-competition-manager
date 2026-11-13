@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -49,6 +50,26 @@ class Activator {
 		self::create_tables();
 		self::add_capabilities();
 		self::maybe_upgrade();
+		self::flush_image_permalink_rule();
+	}
+
+	/**
+	 * Register the image permalink's rewrite rule, then flush the rules.
+	 *
+	 * Registered first, because the flush can run before init registers it. The
+	 * upgrade runs on plugins_loaded, before WordPress creates its rewrite
+	 * object, so then the flush waits for the end of init.
+	 *
+	 * @return void
+	 */
+	public static function flush_image_permalink_rule(): void {
+		if ( ! did_action( 'init' ) && ! doing_action( 'init' ) ) {
+			add_action( 'init', array( self::class, 'flush_image_permalink_rule' ), 99 );
+			return;
+		}
+
+		Image_Permalink::add_rewrite_rule();
+		flush_rewrite_rules( false );
 	}
 
 	/**
@@ -125,6 +146,10 @@ class Activator {
 		// votes that carry the judge's ID.
 		if ( $installed < 9 && ! self::add_judging_schema() ) {
 			return;
+		}
+
+		if ( $installed < 9 ) {
+			self::flush_image_permalink_rule();
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );

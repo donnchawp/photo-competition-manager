@@ -750,6 +750,64 @@ class Entries {
 	}
 
 	/**
+	 * Name-free URLs of an entry's image and thumbnail, for pages that mustn't show who took it.
+	 *
+	 * Entry files are named after the member, so these go through the image permalink,
+	 * which serves the file by entry ID.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $entry Entry record.
+	 * @return array{full: string, thumb: string} Each '' when its file is missing.
+	 */
+	public function public_urls( object $entry ): array {
+		$urls = array(
+			'full'  => '',
+			'thumb' => '',
+		);
+		foreach ( array(
+			'full'  => '',
+			'thumb' => 'thumb',
+		) as $key => $size ) {
+			$path = $this->file_path( (int) $entry->id, $size );
+			if ( null !== $path ) {
+				$urls[ $key ] = add_query_arg( 'v', filemtime( $path ), home_url( "/photocomp-image/{$entry->id}/" . ( '' === $size ? '' : 'thumb/' ) ) );
+			}
+		}
+
+		return $urls;
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file.
+	 *
+	 * Built from the entry's competition and category and its stored filename, never from a request.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $entry_id Entry ID.
+	 * @param string $size     'thumb' for the thumbnail, anything else for the full image.
+	 * @return string|null Null when the entry, its competition (soft-deleted counts as missing) or the file is missing.
+	 */
+	public function file_path( int $entry_id, string $size ): ?string {
+		$entry       = $this->images_repo->find( $entry_id );
+		$competition = $entry ? $this->competitions_repo->find( (int) $entry->competition_id ) : null;
+		if ( ! $competition || '' === (string) $entry->filename ) {
+			return null;
+		}
+
+		$directory = $this->category_directory( (string) $competition->slug, (string) $entry->category );
+		if ( is_wp_error( $directory ) ) {
+			return null;
+		}
+
+		$filename = 'thumb' === $size ? Image_Processor::get_thumbnail_filename( $entry->filename ) : $entry->filename;
+		$path     = $directory . '/' . $filename;
+
+		return is_file( $path ) ? $path : null;
+	}
+
+	/**
 	 * Get a member's quota status for every category in a competition.
 	 *
 	 * @param object $competition Competition record.
