@@ -277,7 +277,9 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 	public function test_results_email_shows_type_grade_names(): void {
 		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
-		( new Competitions_Repository() )->update( $this->competition_id, array( 'type_id' => $type_id ) );
+		// Moved directly, so the competition keeps its own categories.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$this->vote_for( $this->seed_entrant( 'cup@example.com' ), 9 );
 
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
