@@ -92,8 +92,8 @@ class Email_Kinds {
 						'description' => __( 'The voting page.', 'photo-competition-manager' ),
 					),
 					'{voting_info}' => array(
-						'type'        => 'text',
-						'description' => __( 'A sentence saying where members can vote. Empty when judges score the competition.', 'photo-competition-manager' ),
+						'type'        => 'html',
+						'description' => __( 'A paragraph saying where members can vote. Empty when judges score the competition.', 'photo-competition-manager' ),
 					),
 				),
 			),

@@ -165,11 +165,17 @@ class Upload_Link_Service {
 		}
 
 		// Judges score a judged competition, so members aren't pointed at a voting page.
-		$voting_page = Competition_Settings::page_url( 'voting_page', $competition );
+		$voting_page = '';
 		$voting_info = '';
-		if ( '' !== $voting_page && ! Ballots::is_judged( $competition ) ) {
-			/* translators: %s: URL of the voting page */
-			$voting_info = sprintf( __( 'Once voting opens, you can vote at %s', 'photo-competition-manager' ), $voting_page );
+		if ( ! Ballots::is_judged( $competition ) ) {
+			$voting_page = Competition_Settings::page_url( 'voting_page', $competition );
+			if ( '' !== $voting_page ) {
+				$voting_info = '<p>' . sprintf(
+					/* translators: %s: link to the voting page */
+					esc_html__( 'Once voting opens, you can vote at %s', 'photo-competition-manager' ),
+					'<a href="' . esc_url( $voting_page ) . '">' . esc_html( $voting_page ) . '</a>'
+				) . '</p>';
+			}
 		}
 
 		$sent = $this->email_service->send(

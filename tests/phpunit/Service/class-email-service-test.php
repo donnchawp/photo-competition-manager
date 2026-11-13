@@ -86,7 +86,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			array(
 				'{upload_link}' => 'https://example.org/upload/?t=abc',
 				'{voting_page}' => 'https://example.org/vote/',
-				'{voting_info}' => 'Once voting opens, you can vote at https://example.org/vote/',
+				'{voting_info}' => '<p>Once voting opens, you can vote at <a href="https://example.org/vote/">https://example.org/vote/</a></p>',
 			)
 		);
 
