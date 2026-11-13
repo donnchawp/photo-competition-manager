@@ -132,7 +132,18 @@ class Votes_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_judge_voted( int $competition_id, string $category, int $judge_id ): bool {
-		return in_array( $judge_id, $this->judges_with_ballot( $competition_id, $category ), true );
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s AND judge_id = %d LIMIT 1',
+				$this->table(),
+				$competition_id,
+				$category,
+				$judge_id
+			)
+		);
 	}
 
 	/**
