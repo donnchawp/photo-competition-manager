@@ -192,4 +192,19 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $type->grade_names );
 		$this->assertSame( 'open', $type->settings['categories'][0]['slug'] );
 	}
+
+	public function test_create_rejects_empty_categories() {
+		$result = $this->repository->create( 'Empty', array( 'categories' => array() ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_settings', $result->get_error_code() );
+		$this->assertSame( 'missing_categories', $result->get_error_data() );
+	}
+
+	public function test_stored_categories_round_trip_through_type_settings() {
+		$id   = $this->repository->create( 'Juniors', $this->settings() );
+		$type = $this->repository->find( $id );
+
+		$this->assertSame( $this->settings()['categories'], Competition_Settings::type_settings( $type )['categories'] );
+	}
 }

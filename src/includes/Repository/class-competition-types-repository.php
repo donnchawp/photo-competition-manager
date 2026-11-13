@@ -185,12 +185,12 @@ class Competition_Types_Repository extends Abstract_Repository {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		if ( false === $wpdb->delete( $this->table(), array( 'id' => $id ), array( '%d' ) ) ) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );
 
 		return true;
 	}

@@ -417,6 +417,10 @@ class Competition_Settings {
 	 * @return true|WP_Error
 	 */
 	public static function validate_type_settings( array $settings ) {
+		if ( isset( $settings['categories'] ) && is_array( $settings['categories'] ) && empty( $settings['categories'] ) ) {
+			return new WP_Error( 'missing_categories', __( 'At least one category is required.', 'photo-competition-manager' ) );
+		}
+
 		return self::validate( $settings, false );
 	}
 
