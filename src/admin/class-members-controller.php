@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Member_Deletion;
@@ -881,6 +882,9 @@ class Members_Controller {
 		$total_count    = count( $all_members );
 		$filtered_count = count( $members );
 
+		// Only members who may enter get an upload link to copy.
+		$may_enter = $active_competition ? array_map( 'intval', wp_list_pluck( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $active_competition ), 'id' ) ) : array();
+
 		$rows = array();
 
 		foreach ( $members as $member ) {
@@ -927,7 +931,9 @@ class Members_Controller {
 				);
 
 				// Upload page link for copying/sharing.
-				$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+				if ( in_array( (int) $member->id, $may_enter, true ) ) {
+					$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
+				}
 			}
 
 			$rows[] = (object) array(

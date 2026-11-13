@@ -620,7 +620,10 @@ class Voting_Controller {
 
 
 	/**
-	 * Queue voting opened notifications to all active members.
+	 * Queue voting opened notifications to the active members carrying the competition's type.
+	 *
+	 * Not narrowed to a selected competition's entrants: anyone of the type
+	 * may vote with the voting password.
 	 *
 	 * When members would be told but there's no voting page to link, nothing
 	 * is queued and the page warns that they weren't emailed.
@@ -653,7 +656,7 @@ class Voting_Controller {
 		}
 
 		$member_ids = array();
-		foreach ( $this->members->all( 10000, true ) as $member ) {
+		foreach ( $this->members->find_by_type( (int) $competition->type_id ) as $member ) {
 			if ( ! empty( $member->email ) ) {
 				$member_ids[] = (int) $member->id;
 			}

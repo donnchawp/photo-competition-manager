@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -159,7 +160,9 @@ class Upload_API extends WP_REST_Controller {
 	}
 
 	/**
-	 * Validate upload token permission.
+	 * Validate upload token permission: the token is valid and its member may enter its competition.
+	 *
+	 * @since 0.5.0 Refuses a member who may not enter, with 'invalid_token' and status 403.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return bool|WP_Error
@@ -182,6 +185,18 @@ class Upload_API extends WP_REST_Controller {
 				'invalid_token',
 				__( 'Invalid or expired upload token.', 'photo-competition-manager' ),
 				array( 'status' => 401 )
+			);
+		}
+
+		// A token whose member may no longer enter, such as a removed entrant, is refused.
+		// A competition that's gone is left to each endpoint, which says it's not found.
+		$competition = $this->competitions_repo->find( (int) $token_record->competition_id );
+		$member      = $this->members_repo->find( (int) $token_record->member_id );
+		if ( $competition && ( ! $member || ! ( new Competition_Entry( $this->competitions_repo, $this->members_repo ) )->may_enter( $competition, $member ) ) ) {
+			return new WP_Error(
+				'invalid_token',
+				__( 'This upload link is no longer valid for this competition.', 'photo-competition-manager' ),
+				array( 'status' => 403 )
 			);
 		}
 

@@ -302,6 +302,61 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The voting opened email goes to the active members carrying the
+	 * competition's type who have an email, whoever may enter: a selected
+	 * competition's voting password works for anyone.
+	 */
+	public function test_voting_opened_goes_to_type_members_only(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->voting_opened_email_on();
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$this->assertTrue(
+			$this->competitions->update(
+				$this->competition_id,
+				array(
+					'type_id'    => $individual,
+					'entry_mode' => 'selected',
+				)
+			)
+		);
+		$members = new Members_Repository();
+		$ann     = $members->create(
+			array(
+				'name'     => 'Ann',
+				'email'    => 'ann@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual, $team ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Ben',
+				'email'    => 'ben@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $team ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Cat',
+				'email'    => 'cat@example.com',
+				'grade'    => 'beginner',
+				'active'   => false,
+				'type_ids' => array( $individual ),
+			)
+		);
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		wp_parse_str( (string) wp_parse_url( $this->open_colour_voting(), PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( 'voting_opened', $job['type'] );
+		$this->assertSame( array( $ann ), $job['member_ids'] );
+	}
+
+	/**
 	 * Turn the voting-opened email on and add one member to send it to.
 	 */
 	private function voting_opened_email_on(): void {

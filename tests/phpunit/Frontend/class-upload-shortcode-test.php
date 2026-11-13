@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 use PhotoCompetitionManager\Frontend\Upload_Shortcode;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
@@ -575,5 +576,94 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'token-request-section', $output );
 		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	/**
+	 * Make the page's competition an Individual one of two types, and issue a token to a member of the given types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return array{0: string, 1: int} Token and member ID.
+	 */
+	private function two_type_token( string $entry_mode, array $types ): array {
+		Type_Fixtures::clear();
+		$type_ids = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$updated = ( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'type_id'    => $type_ids['Individual'],
+				'entry_mode' => $entry_mode,
+			)
+		);
+		$this->assertTrue( $updated );
+		$member_id = (int) $this->members->create(
+			array(
+				'name'     => 'Uploader',
+				'email'    => 'uploader@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+
+		return array( ( new Upload_Token_Repository() )->find_or_create( $member_id, $this->competition_id )->token, $member_id );
+	}
+
+	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
+		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		$entrants                  = new Entrants_Repository();
+		$entrants->add( $this->competition_id, $member_id );
+		$_GET['token'] = $token;
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $this->shortcode->render( array() ) );
+
+		$entrants->remove( $this->competition_id, $member_id );
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertStringContainsString( 'token-request-section', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	public function test_a_removed_entrants_upload_is_refused(): void {
+		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $this->competition_id ) );
+		$nonce = wp_create_nonce( 'photo_competition_upload_with_token' );
+
+		$_GET['token']                       = $token;
+		$_POST['photo_competition_upload']   = '1';
+		$_POST['photo_competition_nonce']    = $nonce;
+		$_REQUEST['photo_competition_nonce'] = $nonce;
+		$_POST['category']                   = 'colour';
+		$GLOBALS['post']                     = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+
+		// No redirect: the upload isn't handled at all.
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertSame( array(), ( new Images_Repository() )->find_by_competition( $this->competition_id ) );
+	}
+
+	public function test_a_member_without_the_competitions_type_is_refused_on_the_page(): void {
+		list( $token ) = $this->two_type_token( 'all', array( 'Team' ) );
+		$_GET['token'] = $token;
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	public function test_a_member_with_the_competitions_type_opens_the_page(): void {
+		list( $token ) = $this->two_type_token( 'all', array( 'Individual', 'Team' ) );
+		$_GET['token'] = $token;
+
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $this->shortcode->render( array() ) );
 	}
 }

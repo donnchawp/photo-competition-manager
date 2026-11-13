@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Ballots;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
@@ -462,6 +463,11 @@ class Voting_Shortcode {
 	/**
 	 * Handle token request form submission.
 	 *
+	 * A member who may not enter the competition gets the same generic
+	 * message as anyone else, and no email.
+	 *
+	 * @since 0.5.0 Only a member who may enter gets a link.
+	 *
 	 * @param object $competition Competition object.
 	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.
 	 * @return string Message to display.
@@ -486,9 +492,9 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Find member by email silently.
+		// Find member by email silently. Only a member who may enter gets a link.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member || ! $member->active ) {
+		if ( ! $member || ! ( new Competition_Entry( $this->competitions_repo, $this->members_repo ) )->may_enter( $competition, $member ) ) {
 			// Return success message but don't send email.
 			return $generic_success;
 		}

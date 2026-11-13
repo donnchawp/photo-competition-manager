@@ -708,6 +708,76 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A member who may not enter the competition gets no link, and the admin is told why.
+	 */
+	public function test_send_member_upload_email_to_a_non_entrant_says_so(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
+		Types::clear();
+		$individual     = Types::create( 'Individual' );
+		$team           = Types::create( 'Team' );
+		$competition_id = $this->competitions->create(
+			array(
+				'type_id'    => $individual,
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'open_date'  => null,
+				'close_date' => null,
+			)
+		);
+		$member_id      = $this->create_member( array( 'type_ids' => array( $team ) ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_member_upload_email',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_email_' . $member_id . '_' . $competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$notices = wp_list_pluck( get_settings_errors( self::GROUP ), 'type', 'code' );
+		$this->assertSame( array( 'not_an_entrant' => 'error' ), $notices );
+	}
+
+	/**
+	 * The members table offers an upload link to copy only for members who may enter.
+	 */
+	public function test_members_table_gives_an_upload_link_only_to_those_who_may_enter(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$this->competitions->create(
+			array(
+				'type_id'    => $individual,
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'open_date'  => null,
+				'close_date' => null,
+			)
+		);
+		$this->create_member( array( 'type_ids' => array( $individual ) ) );
+		$this->create_member(
+			array(
+				'name'     => 'Tess Team',
+				'email'    => 'tess@example.com',
+				'type_ids' => array( $team ),
+			)
+		);
+
+		$html = $this->render_screen();
+
+		$this->assertSame( 1, substr_count( $html, 'https://example.com/upload/?token=' ) );
+		$this->assertSame( 2, substr_count( $html, 'action=send_member_upload_email' ) );
+	}
+
+	/**
 	 * A missing/invalid nonce aborts the send via wp_die().
 	 */
 	public function test_send_member_upload_email_bad_nonce_dies(): void {
