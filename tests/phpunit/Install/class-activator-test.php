@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Legacy_Tables;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -612,7 +613,7 @@ class Activator_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), preg_grep( '/^(CREATE|ALTER|DESCRIBE)/i', $this->ddl ) );
 		$this->assertSame( "{$wpdb->prefix}photocomp_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_judges" ) ) );
-		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_9_adds_the_judge_column_to_an_old_votes_table_and_keeps_its_votes(): void {
@@ -635,7 +636,189 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$this->shadowed} LIKE 'judge_id'" ) );
 		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed}" ) );
 		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed} WHERE judge_id IS NULL" ) );
-		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_10_adds_type_tables_and_columns(): void {
+		global $wpdb;
+		$this->shadow_v9_competitions_table();
+		update_option( 'photo_comp_db_version', 9 );
+
+		Activator::maybe_upgrade();
+
+		foreach ( array( 'type_id', 'entry_mode' ) as $column ) {
+			$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$this->shadowed} LIKE '{$column}'" ), $column );
+		}
+		$this->assertNotEmpty( $wpdb->get_results( "SHOW INDEX FROM {$this->shadowed} WHERE Key_name = 'type_id'" ) );
+		foreach ( array( 'competition_types', 'member_types', 'entrants' ) as $table ) {
+			$this->assertSame( "{$wpdb->prefix}photocomp_{$table}", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_{$table}" ) ), $table );
+		}
+		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_creates_one_type_from_club_settings(): void {
+		update_option(
+			'photo_comp_default_settings',
+			wp_json_encode(
+				array(
+					'categories' => array(
+						array(
+							'slug'  => 'open',
+							'label' => 'Open',
+							'quota' => 3,
+						),
+					),
+					'upload'     => array( 'max_file_size_mb' => 7 ),
+					'voting'     => array( 'score_matrix' => array( 9, 7, 5 ) ),
+				)
+			)
+		);
+		$club = Competition_Settings::global_settings();
+		$this->downgrade_to_9();
+
+		Activator::maybe_upgrade();
+
+		$types = $this->types();
+		$this->assertCount( 1, $types );
+		$this->assertSame( 'Individual', $types[0]->name );
+		$this->assertSame( '{}', $types[0]->grade_names );
+		$settings = json_decode( $types[0]->settings, true );
+		$this->assertSame( Competition_Settings::club_categories(), $settings['categories'] );
+		$this->assertSame( 'open', $settings['categories'][0]['slug'] );
+		$this->assertSame( $club['voting']['score_matrix'], $settings['voting']['score_matrix'] );
+		$this->assertSame( $club['upload'], $settings['upload'] );
+		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_tags_every_member_and_sets_every_competition(): void {
+		global $wpdb;
+		$active   = $this->insert_member( 1 );
+		$inactive = $this->insert_member( 0 );
+		$live     = $this->insert_v2_competition( array() );
+		$deleted  = $this->insert_v2_competition( array() );
+		$wpdb->update( ( new Competitions_Repository() )->table(), array( 'deleted_at' => utc_time() ), array( 'id' => $deleted ) );
+		$this->downgrade_to_9();
+
+		Activator::maybe_upgrade();
+
+		$type_id = (int) $this->types()[0]->id;
+		$tagged  = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT member_id FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_member_types', $type_id ) ) );
+		$this->assertContains( $active, $tagged );
+		$this->assertContains( $inactive, $tagged );
+		$all_members = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $wpdb->prefix . 'photocomp_members' ) );
+		$this->assertCount( $all_members, $tagged );
+		foreach ( array( $live, $deleted ) as $id ) {
+			$row = $wpdb->get_row( $wpdb->prepare( 'SELECT type_id, entry_mode FROM %i WHERE id = %d', ( new Competitions_Repository() )->table(), $id ) );
+			$this->assertSame( $type_id, (int) $row->type_id );
+			$this->assertSame( 'all', $row->entry_mode );
+		}
+	}
+
+	public function test_upgrade_gives_competitions_without_categories_the_club_list(): void {
+		global $wpdb;
+		$table = ( new Competitions_Repository() )->table();
+		$bare  = $this->insert_v2_competition( array() );
+		$own   = $this->insert_v2_competition( array() );
+		$wpdb->update( $table, array( 'settings' => null ), array( 'id' => $bare ) );
+		$wpdb->update( $table, array( 'settings' => wp_json_encode( array( 'categories' => array( array( 'slug' => 'solo', 'label' => 'Solo', 'quota' => 2 ) ) ) ) ), array( 'id' => $own ) );
+		$this->downgrade_to_9();
+
+		Activator::maybe_upgrade();
+
+		$bare_settings = json_decode( $wpdb->get_var( $wpdb->prepare( 'SELECT settings FROM %i WHERE id = %d', $table, $bare ) ), true );
+		$own_settings  = json_decode( $wpdb->get_var( $wpdb->prepare( 'SELECT settings FROM %i WHERE id = %d', $table, $own ) ), true );
+		$this->assertSame( Competition_Settings::club_categories(), $bare_settings['categories'] );
+		$this->assertSame( 'solo', $own_settings['categories'][0]['slug'] );
+	}
+
+	public function test_upgrade_to_10_is_idempotent(): void {
+		global $wpdb;
+		$this->insert_member( 1 );
+		$this->downgrade_to_9();
+		Activator::maybe_upgrade();
+		$tags = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+
+		update_option( 'photo_comp_db_version', 9 );
+		Activator::maybe_upgrade();
+
+		$this->assertCount( 1, $this->types() );
+		$this->assertSame( $tags, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $wpdb->prefix . 'photocomp_member_types' ) ) );
+		$this->assertSame( (int) $this->types()[0]->id, Activator::create_default_type() );
+	}
+
+	/**
+	 * Insert a member row.
+	 *
+	 * @param int $active Whether the member is active.
+	 * @return int Member ID.
+	 */
+	private function insert_member( int $active ): int {
+		global $wpdb;
+
+		static $count = 0;
+		++$count;
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_members',
+			array(
+				'name'   => 'Member ' . $count,
+				'email'  => "member{$count}@example.com",
+				'grade'  => 'beginner',
+				'active' => $active,
+			)
+		);
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Remove what setUp()'s activation created, and make the site look like version 9.
+	 */
+	private function downgrade_to_9(): void {
+		global $wpdb;
+
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		update_option( 'photo_comp_db_version', 9 );
+	}
+
+	/**
+	 * Every competition type row.
+	 *
+	 * @return array<object>
+	 */
+	private function types(): array {
+		global $wpdb;
+
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i ORDER BY id', $wpdb->prefix . 'photocomp_competition_types' ) );
+	}
+
+	/**
+	 * Hide the competitions table behind a temporary one shaped as version 9
+	 * left it, without the type columns. The upgrade's ALTER TABLE runs for
+	 * real: it ends the test's transaction, but only the temporary table changes.
+	 */
+	private function shadow_v9_competitions_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_competitions';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				title VARCHAR(191) NOT NULL,
+				slug VARCHAR(191) NOT NULL,
+				open_date DATETIME NULL,
+				close_date DATETIME NULL,
+				settings LONGTEXT NULL,
+				workflow LONGTEXT NULL,
+				share_hash VARCHAR(64) NOT NULL DEFAULT '',
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NULL,
+				deleted_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY slug (slug),
+				KEY share_hash (share_hash)
+			) {$wpdb->get_charset_collate()}"
+		);
 	}
 
 	public function test_upgrade_to_8_leaves_upload_tokens_with_the_unique_key_alone(): void {
