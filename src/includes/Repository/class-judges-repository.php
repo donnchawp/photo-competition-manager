@@ -109,6 +109,19 @@ class Judges_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * How admin screens and exports label a judge's votes.
+	 *
+	 * @since 0.4.0
+	 * @param int $judge_id Judge ID.
+	 * @return string "Judge: <name>", or "Former judge #<id>" once the judge is deleted.
+	 */
+	public function vote_label( int $judge_id ): string {
+		$judge = $this->find( $judge_id );
+
+		return $judge ? 'Judge: ' . $judge->name : 'Former judge #' . $judge_id;
+	}
+
+	/**
 	 * List every judge, ordered by name.
 	 *
 	 * @since 0.4.0

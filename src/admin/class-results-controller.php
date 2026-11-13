@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -715,7 +716,11 @@ class Results_Controller {
 
 		$vote_rows = array();
 		foreach ( $votes as $vote ) {
-			$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+			if ( ! empty( $vote->judge_id ) ) {
+				$voter_name = ( new Judges_Repository() )->vote_label( (int) $vote->judge_id );
+			} else {
+				$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+			}
 
 			$vote_rows[] = array(
 				'voter_name' => $voter_name,
