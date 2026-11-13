@@ -200,6 +200,9 @@ class Image_Processor {
 			return new WP_Error( 'save_failed', __( 'Could not save image.', 'photo-competition-manager' ) );
 		}
 
+		// The resized copy is what judges and voters see, so it must not say who took it.
+		$this->strip_author_metadata( $target_path );
+
 		// Generate thumbnail.
 		$this->generate_thumbnail( $target_path, $directory );
 
@@ -321,7 +324,33 @@ class Image_Processor {
 			return $saved;
 		}
 
+		$this->strip_author_metadata( $thumb_path );
+
 		return true;
+	}
+
+	/**
+	 * Remove the EXIF, IPTC and XMP profiles from a saved image, keeping the colour profile.
+	 *
+	 * WordPress's Imagick editor keeps these profiles when it saves, and they can name the
+	 * photographer. GD drops them on re-save, so nothing is left to do there.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $path Full path to the image to clean in place.
+	 */
+	public function strip_author_metadata( string $path ): void {
+		$editor = wp_get_image_editor( $path );
+		if ( ! $editor instanceof \WP_Image_Editor_Imagick ) {
+			return;
+		}
+
+		$image = new \Imagick( $path );
+		foreach ( array( 'exif', 'iptc', 'xmp' ) as $profile ) {
+			$image->removeImageProfile( $profile );
+		}
+		$image->writeImage( $path );
+		$image->clear();
 	}
 
 	/**

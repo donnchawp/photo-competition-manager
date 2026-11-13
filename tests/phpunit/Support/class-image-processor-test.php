@@ -364,6 +364,82 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Under GD the re-save drops the metadata already, so this only fails once Imagick is the editor.
+	 */
+	public function test_processed_entry_has_no_author_metadata(): void {
+		$result = $this->process_author_fixture();
+
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+		$paths     = array(
+			trailingslashit( $directory ) . $result['filename'],
+			trailingslashit( $directory ) . Image_Processor::get_thumbnail_filename( $result['filename'] ),
+		);
+
+		foreach ( $paths as $path ) {
+			$this->assertFileExists( $path );
+
+			$exif = @exif_read_data( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			$exif = is_array( $exif ) ? $exif : array();
+			$this->assertArrayNotHasKey( 'Artist', $exif, basename( $path ) );
+			$this->assertArrayNotHasKey( 'Copyright', $exif, basename( $path ) );
+
+			getimagesize( $path, $info );
+			$iptc = isset( $info['APP13'] ) ? iptcparse( $info['APP13'] ) : array();
+			$this->assertArrayNotHasKey( '2#080', is_array( $iptc ) ? $iptc : array(), basename( $path ) );
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+			$this->assertStringNotContainsString( 'Jane Murphy', (string) file_get_contents( $path ), basename( $path ) );
+		}
+	}
+
+	public function test_original_keeps_author_metadata(): void {
+		$this->require_imagick_editor();
+		$result = $this->process_author_fixture();
+
+		$original = get_attached_file( $result['attachment_id'] );
+		$this->assertFileExists( $original );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assertStringContainsString( 'Jane Murphy', (string) file_get_contents( $original ) );
+	}
+
+	/**
+	 * Skip unless WordPress will use Imagick, the editor that keeps metadata on save.
+	 * GD drops it already, so the tests would pass without the strip.
+	 */
+	private function require_imagick_editor(): void {
+		$editor = wp_get_image_editor( dirname( __DIR__ ) . '/fixtures/images/with-author.jpg' );
+		if ( is_wp_error( $editor ) || ! $editor instanceof \WP_Image_Editor_Imagick ) {
+			$this->markTestSkipped( 'Needs the Imagick image editor; GD drops metadata on save anyway.' );
+		}
+	}
+
+	/**
+	 * Process a copy of the author-tagged fixture.
+	 *
+	 * @return array<string, mixed> The process() result.
+	 */
+	private function process_author_fixture(): array {
+		$tmp_file = wp_tempnam( 'with-author' ) . '.jpg';
+		copy( dirname( __DIR__ ) . '/fixtures/images/with-author.jpg', $tmp_file );
+
+		$directory = trailingslashit( get_temp_dir() ) . uniqid( 'image-processor-test-' );
+		wp_mkdir_p( $directory );
+		$this->directories[] = $directory;
+
+		$file   = array(
+			'name'     => 'with-author.jpg',
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp_file ),
+		);
+		$result = $this->processor->process( $file, $directory, 'jane-murphy-colour-1.jpg', 'Jane Murphy', array(), array() );
+		wp_delete_file( $tmp_file );
+
+		$this->assertIsArray( $result );
+		return $result;
+	}
+
+	/**
 	 * Create a test image file.
 	 *
 	 * @param int    $width  Image width.
