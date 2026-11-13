@@ -4,11 +4,11 @@ Status: draft for approval · 2026-11-13
 
 ## Summary
 
-This is how one website will run different kinds of competition side by side, for example a club's monthly competition, a nature competition and an interclub competition. Nothing is built yet.
+This is how one website will run different kinds of competition side by side, for example a club's monthly competition, individual competitions and an interclub competition. Nothing is built yet.
 
 How it will work:
 
-- You set up **competition types**, such as "Nature" or "Interclub". Each type has its own list of categories (for example Colour and Mono, or Nature, Street, Insects and Portraits) and its own default settings, such as whether members or judges score it and the range of scores.
+- You set up **competition types**, such as "Individual" or "Interclub". Each type has its own list of categories (for example Colour and Mono, or Nature, Street, Insects and Portraits) and its own default settings, such as whether members or judges score it and the range of scores.
 - When you create a competition, you choose its type. It starts with that type's categories and settings, and you can still change them for that one competition.
 - There's still **one member list**. You tag each member with the types they take part in, and a member can have several tags. A club entering an interclub competition is a member too, tagged with the interclub type. You can filter the member list by type.
 - Grades don't change. There's one list of grades for the whole website, and each member has one grade. A type can give the grades its own names, though. An interclub type could show Advanced as "Cup" and Non-advanced as "Shield", while individual competitions keep "Advanced" and "Non-advanced".
