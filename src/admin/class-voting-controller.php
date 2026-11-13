@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -623,8 +624,9 @@ class Voting_Controller {
 	/**
 	 * Queue voting opened notifications to the active members carrying the competition's type.
 	 *
-	 * Not narrowed to a selected competition's entrants: anyone of the type
-	 * may vote with the voting password.
+	 * With emailed voting links the recipients are those who may enter, as only they can
+	 * ask for a link. With the voting password it isn't narrowed to a selected competition's
+	 * entrants: anyone of the type may vote with the password.
 	 *
 	 * When members would be told but there's no voting page to link, nothing
 	 * is queued and the page warns that they weren't emailed.
@@ -656,8 +658,14 @@ class Voting_Controller {
 			return null;
 		}
 
+		// With emailed links only those who may enter can ask for one; with a password anyone of the type can vote.
+		$token_mode = 'token' === ( Competition_Settings::parse( $competition->settings )['voting']['auth_mode'] ?? 'password' );
+		$recipients = $token_mode
+			? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition )
+			: $this->members->find_by_type( (int) $competition->type_id );
+
 		$member_ids = array();
-		foreach ( $this->members->find_by_type( (int) $competition->type_id ) as $member ) {
+		foreach ( $recipients as $member ) {
 			if ( ! empty( $member->email ) ) {
 				$member_ids[] = (int) $member->id;
 			}

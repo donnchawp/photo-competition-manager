@@ -315,12 +315,10 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertTrue(
 			$this->competitions->update(
 				$this->competition_id,
-				array(
-					'type_id'    => $individual,
-					'entry_mode' => 'selected',
-				)
+				array( 'entry_mode' => 'selected' )
 			)
 		);
+		$this->move_to_type( $individual );
 		$members = new Members_Repository();
 		$ann     = $members->create(
 			array(
@@ -354,6 +352,64 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertSame( 'voting_opened', $job['type'] );
 		$this->assertSame( array( $ann ), $job['member_ids'] );
+	}
+
+	/**
+	 * With emailed links, only the people who can ask for a link are told voting opened:
+	 * a selected competition's entrants, not the other members of its type.
+	 */
+	public function test_voting_opened_with_emailed_links_goes_to_entrants_only(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->voting_opened_email_on();
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$this->assertTrue(
+			$this->competitions->update(
+				$this->competition_id,
+				array(
+					'entry_mode' => 'selected',
+					'settings'   => array(
+						'categories' => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 2 ) ),
+						'voting'     => array( 'auth_mode' => 'token' ),
+					),
+				)
+			)
+		);
+		$this->move_to_type( $individual );
+		$members = new Members_Repository();
+		$ann     = $members->create(
+			array(
+				'name'     => 'Ann',
+				'email'    => 'ann@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Ben',
+				'email'    => 'ben@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual ),
+			)
+		);
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $this->competition_id, (int) $ann );
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		wp_parse_str( (string) wp_parse_url( $this->open_colour_voting(), PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( array( $ann ), $job['member_ids'] );
+	}
+
+	/**
+	 * Put the competition under a type without copying the type's categories over its own.
+	 *
+	 * @param int $type_id Type ID.
+	 */
+	private function move_to_type( int $type_id ): void {
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
 
 	/**
