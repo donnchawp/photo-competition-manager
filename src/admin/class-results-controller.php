@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Entries;
@@ -642,6 +643,7 @@ class Results_Controller {
 	 */
 	private function render_results_table( object $competition, string $category, array $groups ): string {
 		$grade_tables = array();
+		$labels       = new Competition_Labels();
 
 		foreach ( $groups as $group ) {
 			$rows = array();
@@ -673,7 +675,7 @@ class Results_Controller {
 			}
 
 			$grade_tables[] = array(
-				'label' => $group['label'],
+				'label' => $group['ungraded'] ? $group['label'] : $labels->admin_grade_label( $competition, $group['slug'] ),
 				'rows'  => $rows,
 			);
 		}

@@ -77,6 +77,13 @@ class Member_Export {
 	private $grade_labels;
 
 	/**
+	 * Competition grade names.
+	 *
+	 * @var Competition_Labels
+	 */
+	private $labels;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Members_Repository|null $members Members repository.
@@ -84,6 +91,7 @@ class Member_Export {
 	public function __construct( ?Members_Repository $members = null ) {
 		$this->members      = $members ?? new Members_Repository();
 		$this->competitions = new Competitions_Repository();
+		$this->labels       = new Competition_Labels();
 	}
 
 	/**
@@ -222,7 +230,7 @@ class Member_Export {
 						__( 'Entry ID', 'photo-competition-manager' )    => (string) $row->entry_id,
 						__( 'Total score', 'photo-competition-manager' ) => $row->total_score,
 						__( 'Votes', 'photo-competition-manager' )       => $row->vote_count,
-						__( 'Grade', 'photo-competition-manager' )       => $this->grade_label( (string) $row->grade ),
+						__( 'Grade', 'photo-competition-manager' )       => $this->competition_grade_label( $this->competition( (int) $row->competition_id ), (string) $row->grade ),
 						__( 'Position', 'photo-competition-manager' )    => $row->position,
 					)
 				);
@@ -309,6 +317,17 @@ class Member_Export {
 		$this->grade_labels = $this->grade_labels ?? Competition_Settings::grade_labels();
 
 		return $this->grade_labels[ $grade ] ?? $grade;
+	}
+
+	/**
+	 * A grade's label as the competition showed it: its type's name, else the club's label, else the slug.
+	 *
+	 * @param object|null $competition Competition row, or null if it no longer exists.
+	 * @param string      $grade       Grade slug.
+	 * @return string
+	 */
+	private function competition_grade_label( $competition, string $grade ): string {
+		return $competition ? $this->labels->grade_label( $competition, $grade ) : $this->grade_label( $grade );
 	}
 
 	/**

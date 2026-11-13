@@ -217,6 +217,21 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A type that renames a grade shows its name on the public results.
+	 */
+	public function test_results_page_shows_type_grade_names(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		// The type is locked once a competition has entries, so set it directly.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( 'Novice Cup', $html );
+		$this->assertStringNotContainsString( '>Beginner<', $html );
+	}
+
+	/**
 	 * A named competition with hidden results shows them only with its
 	 * share link.
 	 */

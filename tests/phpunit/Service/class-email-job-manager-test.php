@@ -275,6 +275,16 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '1 of 1 (Club Starters)', $this->bodies['starter@example.com'] );
 	}
 
+	public function test_results_email_shows_type_grade_names(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		( new Competitions_Repository() )->update( $this->competition_id, array( 'type_id' => $type_id ) );
+		$this->vote_for( $this->seed_entrant( 'cup@example.com' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 1 (Novice Cup)', $this->bodies['cup@example.com'] );
+	}
+
 	public function test_results_email_tied_entries_share_a_position(): void {
 		$this->vote_for( $this->seed_entrant( 'tied-a@example.com' ), 9 );
 		$this->vote_for( $this->seed_entrant( 'tied-b@example.com' ), 9 );

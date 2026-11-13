@@ -136,6 +136,14 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertSame( 0, $groups[0]['entries'][1]['vote_count'] );
 	}
 
+	public function test_unrenamed_type_output_is_unchanged(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 5 ) );
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( Competition_Settings::grade_labels()['beginner'], $groups[0]['label'] );
+	}
+
 	public function test_entries_without_a_club_grade_go_in_a_trailing_ungraded_group(): void {
 		$this->seed_entry( 'Graded', 'beginner', array( 5 ) );
 		$this->seed_entry( 'No Grade', '', array( 9 ) );
