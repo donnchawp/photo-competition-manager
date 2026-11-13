@@ -580,6 +580,44 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_9_adds_judge_tables_and_votes_column(): void {
+		global $wpdb;
+		update_option( 'photo_comp_db_version', 8 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( "{$wpdb->prefix}photocomp_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_judges" ) ) );
+		$this->assertSame( "{$wpdb->prefix}photocomp_competition_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_competition_judges" ) ) );
+		$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}photocomp_votes LIKE 'judge_id'" ) );
+		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_9_adds_the_judge_column_and_keys_to_an_old_votes_table(): void {
+		$this->shadow_v3_votes_table();
+		update_option( 'photo_comp_db_version', 8 );
+
+		Activator::maybe_upgrade();
+
+		$alter = implode( "\n", preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
+		$this->assertMatchesRegularExpression( '/ADD COLUMN judge_id BIGINT UNSIGNED NULL/i', $alter );
+		$this->assertMatchesRegularExpression( '/ADD KEY judge_id \(judge_id\)/i', $alter );
+		$this->assertMatchesRegularExpression( '/ADD UNIQUE KEY image_judge \(image_id, judge_id\)/i', $alter );
+		// The swallowed ALTER leaves the column, so the step runs again on the next request.
+		$this->assertSame( 8, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_existing_votes_keep_null_judge_id_after_upgrade(): void {
+		global $wpdb;
+		$this->insert_vote( 1, 1, 1 );
+		update_option( 'photo_comp_db_version', 8 );
+
+		Activator::maybe_upgrade();
+
+		$table = $wpdb->prefix . 'photocomp_votes';
+		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ) );
+		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE judge_id IS NULL" ) );
+	}
+
 	public function test_upgrade_to_8_leaves_upload_tokens_with_the_unique_key_alone(): void {
 		global $wpdb;
 		$this->record_ddl();
