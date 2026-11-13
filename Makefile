@@ -49,6 +49,9 @@ fix: ## Auto-fix PHP coding standard violations
 
 test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI)
 	$(WP_ENV) start
+	@# The tests image has ImageMagick without a JPEG coder, so WordPress would use GD (queryFormats() needs the imagemagick package's config too). Imagick keeps
+	@# image metadata on save, which the author-stripping tests need. wp-env can't run as root, docker can.
+	docker exec -u root $(PLUGIN_NAME)-tests-cli-1 apk add --no-cache imagemagick imagemagick-jpeg >/dev/null
 	$(WP_ENV) run tests-cli --env-cwd=wp-content/pcm \
 		bash -c 'WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
 
