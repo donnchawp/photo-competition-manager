@@ -19,6 +19,16 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * How voters prove who they are: the club's voting password, a member's
+	 * voting link, or an external judge's link.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const AUTH_MODES = array( 'password', 'token', 'judges' );
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -302,8 +312,7 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['voting']['auth_mode'] ) ) {
-			$valid_modes = array( 'password', 'token', 'judges' );
-			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
+			if ( ! in_array( $settings['voting']['auth_mode'], self::AUTH_MODES, true ) ) {
 				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be "password", "token" or "judges".', 'photo-competition-manager' ) );
 			}
 		}

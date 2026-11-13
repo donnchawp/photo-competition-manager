@@ -132,7 +132,7 @@ class Settings_Controller {
 		}
 
 		$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-		if ( ! in_array( $auth_mode_input, array( 'password', 'token', 'judges' ), true ) ) {
+		if ( ! in_array( $auth_mode_input, Competition_Settings::AUTH_MODES, true ) ) {
 			$auth_mode_input = 'password';
 		}
 
