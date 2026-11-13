@@ -7,12 +7,16 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -137,6 +141,129 @@ class Ballots_Test extends WP_UnitTestCase {
 			'link voter'  => array( 'link' ),
 			'named voter' => array( 'named' ),
 		);
+	}
+
+	/**
+	 * Make the competition judged and assign a judge to it.
+	 *
+	 * @param string $email Judge email.
+	 * @return string The judge's link token.
+	 */
+	private function judge_token( string $email ): string {
+		$judge_id = ( new Judges_Repository() )->create( 'Judge ' . $email, $email );
+		$this->assertNotWPError( $judge_id );
+		$token = ( new Competition_Judges_Repository() )->assign( (int) $this->competition->id, $judge_id );
+		$this->assertNotWPError( $token );
+		return $token;
+	}
+
+	private function make_judged(): void {
+		$this->competition->settings = wp_json_encode(
+			array_merge(
+				json_decode( $this->competition->settings, true ),
+				array(
+					'voting' => array(
+						'auth_mode'    => 'judges',
+						'score_matrix' => array( 5, 4, 3 ),
+					),
+				)
+			)
+		);
+	}
+
+	private function judge( string $email ) {
+		$voter = $this->ballots->judge_voter( $this->competition, $this->judge_token( $email ) );
+		$this->assertNotWPError( $voter );
+		return $voter;
+	}
+
+	public function test_judges_ballots_sum_into_totals(): void {
+		$this->make_judged();
+		$a                 = $this->judge( 'a@example.com' );
+		$b                 = $this->judge( 'b@example.com' );
+		list( $one, $two ) = $this->images['colour'];
+
+		$this->assertTrue(
+			$this->ballots->cast(
+				$this->competition,
+				'colour',
+				$a,
+				array(
+					$one => '5',
+					$two => '3',
+				)
+			)
+		);
+		$this->assertTrue(
+			$this->ballots->cast(
+				$this->competition,
+				'colour',
+				$b,
+				array(
+					$one => '4',
+					$two => '4',
+				)
+			)
+		);
+		$this->assertTrue( $this->ballots->has_cast( $this->competition, 'colour', $a ) );
+
+		$ranking = new Results_Ranking( new Images_Repository(), new Votes_Repository(), new Members_Repository() );
+		$totals  = array();
+		foreach ( $ranking->rank_category( (int) $this->competition->id, 'colour' ) as $group ) {
+			foreach ( $group['entries'] as $entry ) {
+				$totals[ (int) $entry['image']->id ] = $entry['total_score'];
+			}
+		}
+		$this->assertSame( 9, $totals[ $one ] );
+		$this->assertSame( 7, $totals[ $two ] );
+	}
+
+	public function test_judge_link_for_other_competition_is_invalid(): void {
+		$this->make_judged();
+		$token     = $this->judge_token( 'a@example.com' );
+		$other     = clone $this->competition;
+		$other->id = (int) $this->competition->id + 1;
+
+		$this->assertSame( 'invalid_link', $this->ballots->judge_voter( $other, $token )->get_error_code() );
+		$this->assertSame( 'invalid_link', $this->ballots->judge_voter( $this->competition, 'nope' )->get_error_code() );
+	}
+
+	public function test_judge_cannot_cast_twice_in_category(): void {
+		$this->make_judged();
+		$judge  = $this->judge( 'a@example.com' );
+		$scores = array(
+			$this->images['colour'][0] => '5',
+			$this->images['colour'][1] => '4',
+		);
+
+		$this->assertTrue( $this->ballots->cast( $this->competition, 'colour', $judge, $scores ) );
+		$this->assertSame( 'already_cast', $this->ballots->cast( $this->competition, 'colour', $judge, $scores )->get_error_code() );
+		$this->assertSame( 2, $this->vote_count() );
+	}
+
+	public function test_judge_ballot_refused_when_category_not_open(): void {
+		$this->make_judged();
+		$judge = $this->judge( 'a@example.com' );
+
+		$result = $this->ballots->cast( $this->competition, 'mono', $judge, array( $this->images['mono'][0] => '5' ) );
+
+		$this->assertSame( 'voting_closed', $result->get_error_code() );
+	}
+
+	public function test_member_voters_refused_in_judged_competition(): void {
+		$this->make_judged();
+		$member_id = Member_Fixtures::insert_with_grade( 'Ann Voter', 'ann@example.com', 'beginner' );
+
+		$this->assertSame( 'judged_competition', $this->ballots->link_voter( $this->competition, $this->issue_link( $member_id ) )->get_error_code() );
+		$this->assertSame( 'judged_competition', $this->ballots->named_voter( $this->competition, 'Ann', self::PASSWORD )->get_error_code() );
+		$this->assertTrue( Ballots::is_judged( $this->competition ) );
+	}
+
+	public function test_judge_voter_refused_in_member_competition(): void {
+		$token = $this->judge_token( 'a@example.com' );
+
+		$this->assertSame( 'not_judged', $this->ballots->judge_voter( $this->competition, $token )->get_error_code() );
+		$this->assertFalse( Ballots::is_judged( $this->competition ) );
 	}
 
 	private function vote_count(): int {

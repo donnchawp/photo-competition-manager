@@ -82,7 +82,7 @@ class Competition_Settings {
 			),
 			'voting'          => array(
 				'score_matrix'        => array( 9, 8, 7, 6, 5 ),
-				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
+				'auth_mode'           => 'password', // 'password', 'token' (email magic links) or 'judges' (external judges score it).
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 				'ui_type'             => 'default',
@@ -302,9 +302,9 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['voting']['auth_mode'] ) ) {
-			$valid_modes = array( 'password', 'token' );
+			$valid_modes = array( 'password', 'token', 'judges' );
 			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
-				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'photo-competition-manager' ) );
+				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be "password", "token" or "judges".', 'photo-competition-manager' ) );
 			}
 		}
 

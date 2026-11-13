@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
@@ -60,26 +61,78 @@ final class Ballots {
 	private $images;
 
 	/**
+	 * Competition judges repository.
+	 *
+	 * @var Competition_Judges_Repository
+	 */
+	private $competition_judges;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Competition_Workflow|null    $workflow      Competition workflow.
-	 * @param Votes_Repository|null        $votes         Votes repository.
-	 * @param Voting_Token_Repository|null $voting_tokens Voting token repository.
-	 * @param Members_Repository|null      $members       Members repository.
-	 * @param Images_Repository|null       $images        Images repository.
+	 * @param Competition_Workflow|null          $workflow      Competition workflow.
+	 * @param Votes_Repository|null              $votes         Votes repository.
+	 * @param Voting_Token_Repository|null       $voting_tokens Voting token repository.
+	 * @param Members_Repository|null            $members       Members repository.
+	 * @param Images_Repository|null             $images        Images repository.
+	 * @param Competition_Judges_Repository|null $competition_judges Competition judges repository.
 	 */
 	public function __construct(
 		?Competition_Workflow $workflow = null,
 		?Votes_Repository $votes = null,
 		?Voting_Token_Repository $voting_tokens = null,
 		?Members_Repository $members = null,
-		?Images_Repository $images = null
+		?Images_Repository $images = null,
+		?Competition_Judges_Repository $competition_judges = null
 	) {
 		$this->workflow      = $workflow ?? new Competition_Workflow();
 		$this->images        = $images ?? new Images_Repository();
 		$this->votes         = $votes ?? new Votes_Repository();
 		$this->voting_tokens = $voting_tokens ?? new Voting_Token_Repository();
 		$this->members       = $members ?? new Members_Repository();
+
+		$this->competition_judges = $competition_judges ?? new Competition_Judges_Repository();
+	}
+
+	/**
+	 * Whether external judges, not members, score the competition.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public static function is_judged( object $competition ): bool {
+		$voting = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
+
+		return 'judges' === ( $voting['auth_mode'] ?? 'password' );
+	}
+
+	/**
+	 * The error for a member trying to vote in a judged competition.
+	 *
+	 * @return WP_Error
+	 */
+	private static function judged_error(): WP_Error {
+		return new WP_Error( 'judged_competition', __( 'Judges are scoring this competition, so members can\'t vote in it.', 'photo-competition-manager' ) );
+	}
+
+	/**
+	 * A judge, once their link checks out: known, and for this judged competition.
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $token       The token from the judge's link.
+	 * @return Judge_Voter|WP_Error
+	 */
+	public function judge_voter( object $competition, string $token ) {
+		if ( ! self::is_judged( $competition ) ) {
+			return new WP_Error( 'not_judged', __( 'This competition isn\'t scored by judges.', 'photo-competition-manager' ) );
+		}
+
+		$assignment = $this->competition_judges->find_by_token( $token );
+		if ( ! $assignment || (int) $assignment->competition_id !== (int) $competition->id ) {
+			return new WP_Error( 'invalid_link', __( 'This judging link isn\'t valid.', 'photo-competition-manager' ) );
+		}
+
+		return new Judge_Voter( $assignment );
 	}
 
 	/**
@@ -91,6 +144,10 @@ final class Ballots {
 	 * @return Link_Voter|WP_Error
 	 */
 	public function link_voter( object $competition, string $token ) {
+		if ( self::is_judged( $competition ) ) {
+			return self::judged_error();
+		}
+
 		$record = '' === $token ? null : $this->voting_tokens->find_valid_token( hash( 'sha256', $token ) );
 		$member = $record && (int) $record->competition_id === (int) $competition->id ? $this->members->find( (int) $record->member_id ) : null;
 
@@ -110,6 +167,10 @@ final class Ballots {
 	 * @return Named_Voter|WP_Error
 	 */
 	public function named_voter( object $competition, string $name, string $password ) {
+		if ( self::is_judged( $competition ) ) {
+			return self::judged_error();
+		}
+
 		$voter = new Named_Voter( $name );
 		if ( '' === $voter->name() ) {
 			return new WP_Error( 'missing_name', __( 'Please enter your name.', 'photo-competition-manager' ) );
