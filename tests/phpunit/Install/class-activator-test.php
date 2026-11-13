@@ -580,42 +580,62 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 6, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
-	public function test_upgrade_to_9_adds_judge_tables_and_votes_column(): void {
+	public function test_upgrade_to_9_creates_a_missing_judge_table(): void {
 		global $wpdb;
+		$this->record_ddl();
+		$judges = "{$wpdb->prefix}photocomp_judges";
+		add_filter(
+			'query',
+			function ( $query ) use ( $judges ) {
+				// Make the judges table look missing to SHOW TABLES.
+				return false !== strpos( $query, 'SHOW TABLES LIKE' ) && false !== strpos( $query, $judges ) ? 'SELECT NULL WHERE 1 = 0' : $query;
+			},
+			20
+		);
 		update_option( 'photo_comp_db_version', 8 );
 
 		Activator::maybe_upgrade();
 
-		$this->assertSame( "{$wpdb->prefix}photocomp_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_judges" ) ) );
-		$this->assertSame( "{$wpdb->prefix}photocomp_competition_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_competition_judges" ) ) );
-		$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}photocomp_votes LIKE 'judge_id'" ) );
-		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
-	}
-
-	public function test_upgrade_to_9_adds_the_judge_column_and_keys_to_an_old_votes_table(): void {
-		$this->shadow_v3_votes_table();
-		update_option( 'photo_comp_db_version', 8 );
-
-		Activator::maybe_upgrade();
-
-		$alter = implode( "\n", preg_grep( '/^ALTER TABLE/i', $this->ddl ) );
-		$this->assertMatchesRegularExpression( '/ADD COLUMN judge_id BIGINT UNSIGNED NULL/i', $alter );
-		$this->assertMatchesRegularExpression( '/ADD KEY judge_id \(judge_id\)/i', $alter );
-		$this->assertMatchesRegularExpression( '/ADD UNIQUE KEY image_judge \(image_id, judge_id\)/i', $alter );
-		// The swallowed ALTER leaves the column, so the step runs again on the next request.
+		// dbDelta compares each table against its schema, so it describes both judge tables.
+		$this->assertCount( 1, preg_grep( '/^DESCRIBE `?\w*photocomp_judges`?;?$/i', $this->ddl ), implode( "\n", $this->ddl ) );
+		$this->assertCount( 1, preg_grep( '/^DESCRIBE `?\w*photocomp_competition_judges`?;?$/i', $this->ddl ) );
+		// The table still looks missing, so the step runs again on the next request.
 		$this->assertSame( 8, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
-	public function test_existing_votes_keep_null_judge_id_after_upgrade(): void {
+	public function test_upgrade_to_9_leaves_existing_judge_tables_alone(): void {
 		global $wpdb;
-		$this->insert_vote( 1, 1, 1 );
+		$this->record_ddl();
 		update_option( 'photo_comp_db_version', 8 );
 
 		Activator::maybe_upgrade();
 
-		$table = $wpdb->prefix . 'photocomp_votes';
-		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ) );
-		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE judge_id IS NULL" ) );
+		$this->assertSame( array(), preg_grep( '/^(CREATE|ALTER|DESCRIBE)/i', $this->ddl ) );
+		$this->assertSame( "{$wpdb->prefix}photocomp_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_judges" ) ) );
+		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_9_adds_the_judge_column_to_an_old_votes_table_and_keeps_its_votes(): void {
+		global $wpdb;
+		$this->shadow_v8_votes_table();
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'competition_id'  => 1,
+				'category'        => 'colour',
+				'voting_token_id' => 1,
+				'image_id'        => 1,
+				'score'           => 5,
+			)
+		);
+		update_option( 'photo_comp_db_version', 8 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$this->shadowed} LIKE 'judge_id'" ) );
+		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed}" ) );
+		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed} WHERE judge_id IS NULL" ) );
+		$this->assertSame( 9, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_8_leaves_upload_tokens_with_the_unique_key_alone(): void {
@@ -875,6 +895,33 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertLessThanOrEqual( 1, count( $logs ) );
 
 		return $logs ? (int) json_decode( $logs[0]->metadata, true )['removed'] : 0;
+	}
+
+	/**
+	 * Hide the votes table behind a temporary one shaped as version 8 left
+	 * it, without the judge column. The upgrade's ALTER TABLE runs for real:
+	 * it ends the test's transaction, but only the temporary table changes.
+	 */
+	private function shadow_v8_votes_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_votes';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				voter_name VARCHAR(191) NULL,
+				voting_token_id BIGINT UNSIGNED NULL,
+				image_id BIGINT UNSIGNED NOT NULL,
+				score INT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				KEY image (image_id),
+				UNIQUE KEY image_token (image_id, voting_token_id),
+				UNIQUE KEY image_voter (image_id, voter_name)
+			) {$wpdb->get_charset_collate()}"
+		);
 	}
 
 	/**
