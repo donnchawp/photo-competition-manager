@@ -353,24 +353,34 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Changing a competition's type doesn't copy the new type's settings over it.
+	 * Changing a competition's type before it has entries takes the new type's categories and settings, and keeps its own page links.
 	 */
-	public function test_editing_type_after_editing_competition_doesnt_change_it(): void {
-		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
-		$ids  = $this->use_types(
+	public function test_changing_type_replaces_categories_and_settings_but_keeps_urls(): void {
+		$ids = $this->use_types(
 			array(
-				'Individual' => $cats,
-				'Team'       => array( 'categories' => array( array( 'label' => 'Duo', 'slug' => 'duo', 'quota' => 1 ) ) ),
+				'Individual' => array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) ),
+				'Team'       => array(
+					'categories' => array( array( 'label' => 'Duo', 'slug' => 'duo', 'quota' => 1 ) ),
+					'voting'     => array( 'score_matrix' => array( 3, 2, 1 ) ),
+				),
 			)
 		);
 
 		$this->post_create( array( 'competition_type' => (string) $ids['Individual'] ) );
 		$id = (int) $this->competitions->find_by_slug( 'typed-show' )->id;
+		$this->competitions->update(
+			$id,
+			array( 'settings' => array_merge( $this->stored_settings( $id ), array( 'urls' => array( 'upload_page' => 'https://example.com/own-upload/' ) ) ) )
+		);
 
 		$this->post_update( $id, array( 'competition_type' => (string) $ids['Team'] ) );
 
+		$settings = $this->stored_settings( $id );
 		$this->assertSame( $ids['Team'], (int) $this->competitions->find( $id )->type_id );
-		$this->assertSame( array( 'open' ), wp_list_pluck( $this->stored_settings( $id )['categories'], 'slug' ) );
+		$this->assertSame( array( 'duo' ), wp_list_pluck( $settings['categories'], 'slug' ) );
+		$this->assertSame( array( 3, 2, 1 ), $settings['voting']['score_matrix'] );
+		$this->assertSame( 'https://example.com/own-upload/', $settings['urls']['upload_page'] );
+		$this->assertContains( 'type_settings_copied', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**

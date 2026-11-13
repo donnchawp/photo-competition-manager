@@ -265,6 +265,7 @@ class Competitions_Controller {
 				$data['type_id'] = absint( $this->get_post_string( 'competition_type' ) );
 			}
 
+			$before = $this->competitions->find( $competition_id );
 			$result = $this->link_overlap_error( $this->competitions->update( $competition_id, $data ) );
 
 			if ( is_wp_error( $result ) ) {
@@ -276,6 +277,22 @@ class Competitions_Controller {
 				);
 
 				$this->redirect_with_settings_errors( $this->edit_url( $competition_id ) );
+			}
+
+			if ( $before && isset( $data['type_id'] ) && (int) $data['type_id'] !== (int) $before->type_id ) {
+				$new_type = ( new Competition_Types_Repository() )->find( (int) $data['type_id'] );
+				if ( $new_type ) {
+					add_settings_error(
+						'photo_competition_manager',
+						'type_settings_copied',
+						sprintf(
+							/* translators: %s: competition type name */
+							__( 'Categories and settings now come from %s.', 'photo-competition-manager' ),
+							$new_type->name
+						),
+						'updated'
+					);
+				}
 			}
 
 			add_settings_error(

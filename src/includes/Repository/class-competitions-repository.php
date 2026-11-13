@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Repository;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Service\Competition_Labels;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 use function PhotoCompetitionManager\Support\format_slug;
@@ -382,7 +383,8 @@ class Competitions_Repository extends Abstract_Repository {
 	 * When the dates change, refuses dates that overlap another competition
 	 * with a 'competition_overlap' error. A `type_id` that names no type is
 	 * refused with 'invalid_type', and one that changes while the competition
-	 * has entries with 'type_locked'.
+	 * has entries with 'type_locked'. A changed type replaces the competition's categories and
+	 * type settings with the new type's, keeping its page links.
 	 *
 	 * @since 0.5.0 Takes `type_id` and `entry_mode`.
 	 *
@@ -432,14 +434,23 @@ class Competitions_Repository extends Abstract_Repository {
 
 		$type_id = isset( $data['type_id'] ) ? (int) $data['type_id'] : (int) $current->type_id;
 
+		$settings_json = isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings;
+
 		if ( isset( $data['type_id'] ) && $type_id !== (int) $current->type_id ) {
-			if ( ! ( new Competition_Types_Repository() )->find( $type_id ) ) {
+			$new_type = ( new Competition_Types_Repository() )->find( $type_id );
+
+			if ( ! $new_type ) {
 				return $this->invalid_type();
 			}
 
 			if ( $this->has_entries( $id ) ) {
 				return new WP_Error( 'type_locked', __( 'A competition\'s type can\'t change once it has entries.', 'photo-competition-manager' ) );
 			}
+
+			// The competition takes the new type's categories and settings, and keeps its own page links.
+			$own           = json_decode( (string) ( $data['settings'] ?? $current->settings ), true );
+			$own           = is_array( $own ) ? $own : array();
+			$settings_json = wp_json_encode( array_merge( array_diff_key( $own, array_flip( Competition_Settings::TYPE_KEYS ) ), Competition_Settings::type_settings( $new_type ) ) );
 		}
 
 		$payload = array(
@@ -447,7 +458,7 @@ class Competitions_Repository extends Abstract_Repository {
 			'slug'       => $slug,
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
-			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
+			'settings'   => $settings_json,
 			'entry_mode' => isset( $data['entry_mode'] ) ? $this->entry_mode( $data['entry_mode'] ) : $current->entry_mode,
 			'updated_at' => utc_time(),
 		);
