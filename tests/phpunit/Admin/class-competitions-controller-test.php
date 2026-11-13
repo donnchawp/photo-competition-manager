@@ -2077,6 +2077,27 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
+	public function test_create_member_and_enter_them_tags_them_with_the_competitions_type_on_a_multi_type_site(): void {
+		$id = $this->create_entry_competition();
+		Type_Fixtures::create( 'Juniors' );
+		$type_id = (int) $this->competitions->find( $id )->type_id;
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$members = new Members_Repository();
+		$dan     = $members->find_by_email( 'dan@example.com' );
+		$this->assertNotNull( $dan );
+		$this->assertSame( array( $type_id ), $members->type_ids( (int) $dan->id ) );
+	}
+
 	public function test_create_member_with_a_bad_email_shows_the_error(): void {
 		$id = $this->create_entry_competition();
 
