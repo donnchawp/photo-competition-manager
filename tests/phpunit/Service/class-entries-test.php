@@ -129,7 +129,9 @@ class Entries_Test extends WP_UnitTestCase {
 		);
 		$competition_id = $this->create_competition( 'label-comp' );
 		$type_id        = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
-		$this->competitions_repo->update( $competition_id, array( 'type_id' => $type_id ) );
+		// Moved directly, so the competition keeps its own categories.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
 
 		$this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );

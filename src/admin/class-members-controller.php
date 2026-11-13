@@ -231,9 +231,9 @@ class Members_Controller {
 		if ( 'create_member' === $action ) {
 			check_admin_referer( 'photo_competition_member_create', 'photo_competition_member_nonce' );
 
-			$name_raw  = $this->get_post_string( 'member_name' );
-			$email_raw = $this->get_post_string( 'member_email' );
-			$grade_raw = $this->get_post_string( 'member_grade' );
+			$name_raw     = $this->get_post_string( 'member_name' );
+			$email_raw    = $this->get_post_string( 'member_email' );
+			$grade_raw    = $this->get_post_string( 'member_grade' );
 			$is_active    = isset( $_POST['member_active'] );
 			$is_committee = isset( $_POST['member_committee'] );
 			$name         = sanitize_text_field( $name_raw );

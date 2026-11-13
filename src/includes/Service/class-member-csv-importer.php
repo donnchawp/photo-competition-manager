@@ -154,9 +154,9 @@ class Member_CSV_Importer {
 			}
 
 			// Extract and sanitize data.
-			$name   = isset( $row[ $col_name ] ) ? sanitize_text_field( trim( $row[ $col_name ] ) ) : '';
-			$email  = isset( $row[ $col_email ] ) ? sanitize_email( trim( $row[ $col_email ] ) ) : '';
-			$grade  = false !== $col_grade && isset( $row[ $col_grade ] ) ? sanitize_text_field( trim( $row[ $col_grade ] ) ) : '';
+			$name      = isset( $row[ $col_name ] ) ? sanitize_text_field( trim( $row[ $col_name ] ) ) : '';
+			$email     = isset( $row[ $col_email ] ) ? sanitize_email( trim( $row[ $col_email ] ) ) : '';
+			$grade     = false !== $col_grade && isset( $row[ $col_grade ] ) ? sanitize_text_field( trim( $row[ $col_grade ] ) ) : '';
 			$active    = false !== $col_active && isset( $row[ $col_active ] ) ? trim( $row[ $col_active ] ) : '1';
 			$committee = false !== $col_committee && isset( $row[ $col_committee ] ) ? trim( $row[ $col_committee ] ) : '0';
 
