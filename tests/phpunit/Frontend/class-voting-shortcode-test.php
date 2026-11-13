@@ -484,6 +484,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_voting_grid_has_no_member_slug_in_markup(): void {
+		$this->set_permalink_structure( '/%postname%/' );
 		$member   = $this->make_member( 'jane@example.com', true, 'Jane Murphy' );
 		$entry_id = (int) ( new Images_Repository() )->create(
 			array(

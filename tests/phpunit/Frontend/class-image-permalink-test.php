@@ -79,11 +79,46 @@ class Image_Permalink_Test extends WP_UnitTestCase {
 	}
 
 	public function test_public_urls_use_entry_id_not_filename(): void {
+		$this->set_permalink_structure( '/%postname%/' );
 		$urls = ( new Entries() )->public_urls( ( new Images_Repository() )->find( $this->entry_id ) );
 
 		$this->assertStringContainsString( '/photocomp-image/' . $this->entry_id . '/?v=', $urls['full'] );
 		$this->assertStringContainsString( '/photocomp-image/' . $this->entry_id . '/thumb/?v=', $urls['thumb'] );
 		$this->assertStringNotContainsString( 'jane-murphy', $urls['full'] . $urls['thumb'] );
+	}
+
+	public function test_public_urls_use_query_args_on_plain_permalinks(): void {
+		$this->set_permalink_structure( '' );
+		$urls = ( new Entries() )->public_urls( ( new Images_Repository() )->find( $this->entry_id ) );
+
+		$this->assertStringNotContainsString( '/photocomp-image/', $urls['full'] . $urls['thumb'] );
+		$this->assertStringNotContainsString( 'jane-murphy', $urls['full'] . $urls['thumb'] );
+		parse_str( (string) wp_parse_url( $urls['full'], PHP_URL_QUERY ), $full );
+		parse_str( (string) wp_parse_url( $urls['thumb'], PHP_URL_QUERY ), $thumb );
+		$this->assertSame( (string) $this->entry_id, $full['photocomp_image'] );
+		$this->assertArrayNotHasKey( 'photocomp_image_size', $full );
+		$this->assertArrayHasKey( 'v', $full );
+		$this->assertSame( (string) $this->entry_id, $thumb['photocomp_image'] );
+		$this->assertSame( 'thumb', $thumb['photocomp_image_size'] );
+		$this->assertArrayHasKey( 'v', $thumb );
+	}
+
+	public function test_the_query_form_is_served_through_the_registered_query_vars(): void {
+		$vars = ( new Image_Permalink() )->add_query_vars( array() );
+
+		$this->assertContains( Image_Permalink::QUERY_VAR, $vars );
+		$this->assertContains( Image_Permalink::SIZE_QUERY_VAR, $vars );
+	}
+
+	/**
+	 * The rule is added on every init, so a flush after the upgrade step keeps it in the stored rules.
+	 */
+	public function test_the_rewrite_rule_is_registered_on_init_and_the_template_redirect_serves(): void {
+		$permalink = new Image_Permalink();
+		$permalink->register();
+
+		$this->assertNotFalse( has_action( 'init', array( Image_Permalink::class, 'add_rewrite_rule' ) ) );
+		$this->assertNotFalse( has_action( 'template_redirect', array( $permalink, 'maybe_serve' ) ) );
 	}
 
 	public function test_public_urls_are_empty_when_the_file_is_missing(): void {

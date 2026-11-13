@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -771,11 +772,33 @@ class Entries {
 		) as $key => $size ) {
 			$path = $this->file_path( (int) $entry->id, $size );
 			if ( null !== $path ) {
-				$urls[ $key ] = add_query_arg( 'v', filemtime( $path ), home_url( "/photocomp-image/{$entry->id}/" . ( '' === $size ? '' : 'thumb/' ) ) );
+				$urls[ $key ] = $this->image_permalink( (int) $entry->id, $size, (int) filemtime( $path ) );
 			}
 		}
 
 		return $urls;
+	}
+
+	/**
+	 * The permalink of an entry's image: the pretty URL, or the query form on plain permalinks, where the rewrite rule can't match.
+	 *
+	 * @param int    $entry_id Entry ID.
+	 * @param string $size     'thumb' for the thumbnail, anything else for the full image.
+	 * @param int    $version  Cache buster.
+	 * @return string
+	 */
+	private function image_permalink( int $entry_id, string $size, int $version ): string {
+		$thumb = 'thumb' === $size;
+
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			$args = array( Image_Permalink::QUERY_VAR => $entry_id );
+			if ( $thumb ) {
+				$args[ Image_Permalink::SIZE_QUERY_VAR ] = 'thumb';
+			}
+			return add_query_arg( 'v', $version, add_query_arg( $args, home_url( '/' ) ) );
+		}
+
+		return add_query_arg( 'v', $version, home_url( "/photocomp-image/{$entry_id}/" . ( $thumb ? 'thumb/' : '' ) ) );
 	}
 
 	/**

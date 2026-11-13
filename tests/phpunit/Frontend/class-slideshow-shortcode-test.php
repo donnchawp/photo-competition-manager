@@ -108,6 +108,7 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_fetched_images_are_found_under_the_competitions_own_slug(): void {
+		$this->set_permalink_structure( '/%postname%/' );
 		$entry_id = $this->add_entry();
 		$folder   = wp_upload_dir()['basedir'] . '/competitions/slideshow-comp/colour';
 		wp_mkdir_p( $folder );
@@ -122,6 +123,7 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_slideshow_payload_has_no_member_slug(): void {
+		$this->set_permalink_structure( '/%postname%/' );
 		$this->add_entry();
 		( new Images_Repository() )->create(
 			array(
