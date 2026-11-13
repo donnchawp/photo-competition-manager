@@ -80,7 +80,7 @@ class Image_Permalink_Test extends WP_UnitTestCase {
 
 	public function test_public_urls_use_entry_id_not_filename(): void {
 		$this->set_permalink_structure( '/%postname%/' );
-		$urls = ( new Entries() )->public_urls( ( new Images_Repository() )->find( $this->entry_id ) );
+		$urls = ( new Entries() )->public_urls( ( new Competitions_Repository() )->find( $this->competition_id ), ( new Images_Repository() )->find( $this->entry_id ) );
 
 		$this->assertStringContainsString( '/photocomp-image/' . $this->entry_id . '/?v=', $urls['full'] );
 		$this->assertStringContainsString( '/photocomp-image/' . $this->entry_id . '/thumb/?v=', $urls['thumb'] );
@@ -89,7 +89,7 @@ class Image_Permalink_Test extends WP_UnitTestCase {
 
 	public function test_public_urls_use_query_args_on_plain_permalinks(): void {
 		$this->set_permalink_structure( '' );
-		$urls = ( new Entries() )->public_urls( ( new Images_Repository() )->find( $this->entry_id ) );
+		$urls = ( new Entries() )->public_urls( ( new Competitions_Repository() )->find( $this->competition_id ), ( new Images_Repository() )->find( $this->entry_id ) );
 
 		$this->assertStringNotContainsString( '/photocomp-image/', $urls['full'] . $urls['thumb'] );
 		$this->assertStringNotContainsString( 'jane-murphy', $urls['full'] . $urls['thumb'] );
@@ -124,7 +124,7 @@ class Image_Permalink_Test extends WP_UnitTestCase {
 	public function test_public_urls_are_empty_when_the_file_is_missing(): void {
 		wp_delete_file( $this->written_files[1] );
 
-		$urls = ( new Entries() )->public_urls( ( new Images_Repository() )->find( $this->entry_id ) );
+		$urls = ( new Entries() )->public_urls( ( new Competitions_Repository() )->find( $this->competition_id ), ( new Images_Repository() )->find( $this->entry_id ) );
 
 		$this->assertNotSame( '', $urls['full'] );
 		$this->assertSame( '', $urls['thumb'] );

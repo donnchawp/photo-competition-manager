@@ -758,38 +758,29 @@ class Entries {
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param object $entry Entry record.
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
 	 * @return array{full: string, thumb: string} Each '' when its file is missing.
 	 */
-	public function public_urls( object $entry ): array {
-		$urls = array(
-			'full'  => '',
-			'thumb' => '',
-		);
-		foreach ( array(
-			'full'  => '',
-			'thumb' => 'thumb',
-		) as $key => $size ) {
-			$path = $this->file_path( (int) $entry->id, $size );
-			if ( null !== $path ) {
-				$urls[ $key ] = $this->image_permalink( (int) $entry->id, $size, (int) filemtime( $path ) );
-			}
-		}
+	public function public_urls( object $competition, object $entry ): array {
+		$full  = $this->path_for( $competition, $entry, false );
+		$thumb = $this->path_for( $competition, $entry, true );
 
-		return $urls;
+		return array(
+			'full'  => null === $full ? '' : $this->image_permalink( (int) $entry->id, false, (int) filemtime( $full ) ),
+			'thumb' => null === $thumb ? '' : $this->image_permalink( (int) $entry->id, true, (int) filemtime( $thumb ) ),
+		);
 	}
 
 	/**
 	 * The permalink of an entry's image: the pretty URL, or the query form on plain permalinks, where the rewrite rule can't match.
 	 *
-	 * @param int    $entry_id Entry ID.
-	 * @param string $size     'thumb' for the thumbnail, anything else for the full image.
-	 * @param int    $version  Cache buster.
+	 * @param int  $entry_id Entry ID.
+	 * @param bool $thumb    Whether it's the thumbnail.
+	 * @param int  $version  Cache buster.
 	 * @return string
 	 */
-	private function image_permalink( int $entry_id, string $size, int $version ): string {
-		$thumb = 'thumb' === $size;
-
+	private function image_permalink( int $entry_id, bool $thumb, int $version ): string {
 		if ( '' === (string) get_option( 'permalink_structure' ) ) {
 			$args = array( Image_Permalink::QUERY_VAR => $entry_id );
 			if ( $thumb ) {
@@ -802,9 +793,7 @@ class Entries {
 	}
 
 	/**
-	 * Path of an entry's image or thumbnail file.
-	 *
-	 * Built from the entry's competition and category and its stored filename, never from a request.
+	 * Path of an entry's image or thumbnail file, looked up by entry ID.
 	 *
 	 * @since 0.4.0
 	 *
@@ -815,7 +804,24 @@ class Entries {
 	public function file_path( int $entry_id, string $size ): ?string {
 		$entry       = $this->images_repo->find( $entry_id );
 		$competition = $entry ? $this->competitions_repo->find( (int) $entry->competition_id ) : null;
-		if ( ! $competition || '' === (string) $entry->filename ) {
+
+		return $competition ? $this->path_for( $competition, $entry, 'thumb' === $size ) : null;
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file.
+	 *
+	 * Built from the entry's competition and category and its stored filename, never from a request.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @param bool   $thumb       Whether to give the thumbnail's path.
+	 * @return string|null Null when the file is missing.
+	 */
+	private function path_for( object $competition, object $entry, bool $thumb ): ?string {
+		if ( '' === (string) $entry->filename ) {
 			return null;
 		}
 
@@ -824,8 +830,7 @@ class Entries {
 			return null;
 		}
 
-		$filename = 'thumb' === $size ? Image_Processor::get_thumbnail_filename( $entry->filename ) : $entry->filename;
-		$path     = $directory . '/' . $filename;
+		$path = $directory . '/' . ( $thumb ? Image_Processor::get_thumbnail_filename( $entry->filename ) : $entry->filename );
 
 		return is_file( $path ) ? $path : null;
 	}
