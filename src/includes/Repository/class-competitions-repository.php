@@ -448,7 +448,7 @@ class Competitions_Repository extends Abstract_Repository {
 			}
 
 			// The competition takes the new type's categories and settings, and keeps its own page links.
-			$own           = json_decode( (string) ( $data['settings'] ?? $current->settings ), true );
+			$own           = isset( $data['settings'] ) ? (array) $data['settings'] : json_decode( (string) $current->settings, true );
 			$own           = is_array( $own ) ? $own : array();
 			$settings_json = wp_json_encode( array_merge( array_diff_key( $own, array_flip( Competition_Settings::TYPE_KEYS ) ), Competition_Settings::type_settings( $new_type ) ) );
 		}
