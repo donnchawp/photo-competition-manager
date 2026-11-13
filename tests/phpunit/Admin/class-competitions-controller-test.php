@@ -1753,6 +1753,13 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'photo_competition_action' => 'update_competition_settings',
 				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '2',
+					),
+				),
 				'voting_auth_mode'         => $auth_mode,
 			)
 		);
