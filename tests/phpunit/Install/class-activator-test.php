@@ -770,6 +770,30 @@ class Activator_Test extends WP_UnitTestCase {
 		return (int) $wpdb->insert_id;
 	}
 
+	public function test_upgrade_to_10_finishes_a_run_that_died_after_inserting_the_type(): void {
+		global $wpdb;
+		$this->downgrade_to_9();
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_competition_types',
+			array(
+				'name'        => 'Individual',
+				'settings'    => '{}',
+				'grade_names' => '{}',
+			)
+		);
+		$type_id = (int) $wpdb->insert_id;
+		$member  = $this->insert_member( 1 );
+		$comp    = $this->insert_v2_competition( array() );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', ( new Competitions_Repository() )->table() ) );
+
+		Activator::maybe_upgrade();
+
+		$this->assertCount( 1, $this->types() );
+		$this->assertSame( 1, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = %d AND type_id = %d', $wpdb->prefix . 'photocomp_member_types', $member, $type_id ) ) );
+		$this->assertSame( $type_id, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT type_id FROM %i WHERE id = %d', ( new Competitions_Repository() )->table(), $comp ) ) );
+		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	/**
 	 * Remove what setUp()'s activation created, and make the site look like version 9.
 	 */

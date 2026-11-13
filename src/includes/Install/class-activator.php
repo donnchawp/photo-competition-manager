@@ -622,7 +622,9 @@ class Activator {
 	 * Create the one type every existing competition and member gets.
 	 *
 	 * Its competition defaults are the club's settings. A site that already
-	 * has a type is left alone, and the first one's ID comes back.
+	 * has a type keeps its first one. Either way the backfill runs, so an
+	 * upgrade that died partway is finished: it only touches members without
+	 * the tag and competitions without a type.
 	 *
 	 * @since 0.5.0
 	 *
@@ -636,11 +638,33 @@ class Activator {
 		$competitions = $wpdb->prefix . 'photocomp_competitions';
 		$members      = $wpdb->prefix . 'photocomp_members';
 
+		$categories = Competition_Settings::club_categories();
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$existing = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id ASC LIMIT 1', $types ) );
-		if ( null !== $existing ) {
-			return (int) $existing;
+		$type_id  = null !== $existing ? (int) $existing : self::insert_default_type( $types, $categories );
+		if ( ! $type_id ) {
+			return false;
 		}
+
+		$tagged = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $member_types, $type_id, $members ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$typed  = $wpdb->query( $wpdb->prepare( "UPDATE %i SET type_id = %d, entry_mode = 'all' WHERE type_id IS NULL", $competitions, $type_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$listed = self::give_competitions_the_club_categories( $competitions, $categories );
+
+		return false === $tagged || false === $typed || ! $listed ? false : $type_id;
+	}
+
+	/**
+	 * Insert the Individual type, with the club's settings as its defaults.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string                           $table      Types table.
+	 * @param array<int, array<string, mixed>> $categories The club's category list.
+	 * @return int The new type's ID, or 0 on failure.
+	 */
+	private static function insert_default_type( string $table, array $categories ): int {
+		global $wpdb;
 
 		$club     = Competition_Settings::global_settings();
 		$defaults = array();
@@ -649,13 +673,11 @@ class Activator {
 				$defaults[ $key ] = $club[ $key ];
 			}
 		}
-		$categories = Competition_Settings::club_categories();
-
 		$defaults = array( 'categories' => $categories ) + $defaults;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert(
-			$types,
+			$table,
 			array(
 				'name'        => __( 'Individual', 'photo-competition-manager' ),
 				'settings'    => wp_json_encode( $defaults ),
@@ -664,21 +686,9 @@ class Activator {
 			)
 		);
 		if ( ! $inserted ) {
-			return false;
+			return 0;
 		}
-		$type_id = (int) $wpdb->insert_id;
-
-		$tagged = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $member_types, $type_id, $members ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$typed  = $wpdb->query( $wpdb->prepare( "UPDATE %i SET type_id = %d, entry_mode = 'all'", $competitions, $type_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$listed = self::give_competitions_the_club_categories( $competitions, $categories );
-
-		if ( false === $tagged || false === $typed || ! $listed ) {
-			// Leave no type behind, so the step starts over.
-			$wpdb->delete( $types, array( 'id' => $type_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			return false;
-		}
-
-		return $type_id;
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -1004,10 +1014,10 @@ class Activator {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			deleted_at DATETIME NULL,
-			PRIMARY KEY  (id),
-			UNIQUE KEY slug (slug),
 			type_id BIGINT UNSIGNED NULL,
 			entry_mode VARCHAR(20) NOT NULL DEFAULT 'all',
+			PRIMARY KEY  (id),
+			UNIQUE KEY slug (slug),
 			KEY share_hash (share_hash),
 			KEY type_id (type_id)
 		) {$charset_collate};";
