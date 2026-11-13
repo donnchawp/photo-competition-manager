@@ -406,6 +406,25 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		}
 	}
 
+	/**
+	 * The stripping editor drops EXIF, so the rotation has to be applied before it does.
+	 */
+	public function test_processed_entry_is_turned_upright_and_keeps_no_orientation_tag(): void {
+		$this->require_imagick_editor();
+		// The fixture is 640x480 with Orientation 6, so it displays as 480x640.
+		$result    = $this->process_fixture( 'orientation-6.jpg' );
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+
+		foreach ( array( $result['filename'], Image_Processor::get_thumbnail_filename( $result['filename'] ) ) as $name ) {
+			$path = trailingslashit( $directory ) . $name;
+			$size = getimagesize( $path );
+			$this->assertGreaterThan( $size[0], $size[1], $name . ' should be portrait.' );
+
+			$exif = @exif_read_data( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			$this->assertTrue( ! is_array( $exif ) || ! isset( $exif['Orientation'] ) || 1 === (int) $exif['Orientation'], $name );
+		}
+	}
+
 	public function test_original_keeps_author_metadata(): void {
 		$this->require_imagick_editor();
 		$result = $this->process_fixture( 'with-author.jpg' );

@@ -188,6 +188,10 @@ class Image_Processor {
 				return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'photo-competition-manager' ) );
 			}
 
+			// Saving drops the EXIF Orientation tag, so turn the pixels upright first or
+			// camera and phone photos display sideways.
+			$image->maybe_exif_rotate();
+
 			// Always resize to max dimensions to ensure file size compliance.
 			$max_width  = $constraints['max_width'] ?? 1920;
 			$max_height = $constraints['max_height'] ?? 1920;
