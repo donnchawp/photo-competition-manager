@@ -160,7 +160,8 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs nine database upgrades (versions 1 to 9) on the first request after it's installed.
+  * Back up the database first. The update runs ten database upgrades (versions 1 to 10) on the first request after it's installed.
+  * The upgrade puts every competition into a new competition type called "Individual", which holds the club's current categories and upload, voting and slideshow settings. Every member is tagged with it and every competition stays open to all members, so nothing changes until you add a second type. Those settings move from Settings to the new Competition Types screen.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
   * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
   * On sites installed before November 2025 the upgrade rebuilds the upload links' database index so a member can have only one upload link per competition. A member who somehow has two keeps the earlier one, and the later emailed link stops working.
@@ -218,6 +219,18 @@ Yes. Visit **Competitions → Export** to download:
   * The detailed results email shows only an image's total and position in a judged competition. Admins can still see each judge's score on the Results screen and in the votes CSV, where each judge is named
   * Voting Controls shows which judges have scored the open category
   * Deleting a judge, or erasing them with Tools > Erase Personal Data, removes their name and email and every log entry about them. Their scores still count
+
+* **Competition types**
+  * A new Competition Types screen. Each type has its own categories, default upload, voting and slideshow settings, and can give the club's grades its own names, for example Advanced shown as "Cup"
+  * Settings keeps only what's club-wide: grades, email, page addresses, the voting form layout and log retention
+  * A new competition picks its type and starts with that type's categories and settings. With only one type there's nothing to pick. The type can be changed until the competition has entries, and changing it copies the new type's settings
+  * Members are tagged with the types they enter. With one type this happens automatically. With more, the Members screen has a Types column, a type filter and bulk add or remove, CSV import takes a `types` column, and members with no type are flagged
+  * A competition is open to everyone in its type, or to selected entrants only. Add entrants on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go. An entrant added while uploads are open is sent their upload link
+  * Only members who may enter a competition get its upload links and reminders, can use the upload page, or can upload through the REST API. In a selected-entrants competition only entrants can ask for a voting link
+  * The Voting Opened email and "Email results to all members" go to the competition type's members
+  * Results pages, Top 3, emails and exports show the type's grade names. Admin screens show both, for example "Cup (Advanced)"
+  * A competition title can include `{grade}`, for example "SACC {grade} 2026". Each entrant sees their own grade's name on their upload page and in their emails, and everywhere else shows the grade names joined, for example "SACC Cup / SACC Shield 2026"
+  * The Upload Confirmation email's `{member_grade}` shows the grade's name instead of its slug
 
 * **Results**
   * Tied entries share a position in the results email
