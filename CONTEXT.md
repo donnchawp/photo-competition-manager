@@ -1,14 +1,18 @@
 # Photo Competition Manager
 
-Runs a photography club's monthly competitions: members upload images, members or judges score them, and results are published by category and grade.
+Runs a photography club's monthly competitions: members upload images, members or judges score them, and results are published by category and grade. A club can run more than one kind of competition, each a competition type with its own members, categories and settings.
 
 ## Language
 
 ### Members
 
 **Grade**:
-A member's skill level, such as Beginner, Intermediate or Advanced. Members compete only against others in the same grade. The club defines one list of grades, and every competition uses it. Every member has exactly one grade from that list, and a member without one is a data error. Renaming a grade keeps its members in it, and a grade can't be removed while any member holds it.
+A member's skill level, such as Beginner, Intermediate or Advanced. Members compete only against others in the same grade. The club defines one list of grades, and every competition of every type uses it. Every member has exactly one grade from that list, and a member without one is a data error. Renaming a grade keeps its members in it, and a grade can't be removed while any member holds it. A competition type can show a grade under another name, such as Cup for Advanced. Members and the public see that name everywhere, and admins see it with the grade's own name, as "Cup (Advanced)". The grade itself, its order and its members are unchanged. A `{grade}` in a competition's title becomes each entrant's own grade name on their upload page and in their emails, and elsewhere the names of every grade that has entries, joined with " / ".
 _Avoid_: Level, class, division
+
+**Type tag**:
+The link between a member and a competition type they belong to. A member can have several, and the types they are tagged with decide which competitions they can enter. With one type every member carries its tag automatically. With several, an active member who has none is flagged, since they can enter nothing. Admins set tags on the Members screen, one member or many at once, and by a `types` column in a CSV import that can name several types.
+_Avoid_: Membership, group
 
 **Deactivated member**:
 A member who has left but whose record and history stay. They get no upload or voting links and can't upload or vote, and an admin can make them active again.
@@ -20,13 +24,21 @@ _Avoid_: Erasing (except for WordPress's own tool), removing a member
 
 ### Competitions
 
+**Competition type**:
+A kind of competition the club runs, such as Individual or Juniors, with its own name, categories, default settings and grade display names. Its settings cover upload limits, voting (who scores and the score range) and the slideshow. A type has at least one category, and the club has at least one type. A competition belongs to one type, chosen when it is created; with only one type there is nothing to choose. The competition copies the type's categories and settings, and the club's page links, so editing the type later changes only competitions created afterwards. A competition's type can't be changed once it has entries. A type can't be deleted while a competition uses it, or when it is the club's only type. The club's grades, email settings, page links, voting form layout and log retention stay in Settings and apply to every type. A club upgraded from before types has one type, Individual, built from its old settings: every member is tagged with it and every competition belongs to it, open to everyone.
+_Avoid_: Competition kind, series, league
+
 **Category**:
-A kind of image a competition accepts, such as Colour or Black & White, with a quota of entries per member. Entries are voted on and ranked within their category. The club defines a list of categories, and a new competition starts with a copy of it. A competition can change its own list, which then replaces the club's. A competition with no categories of its own uses the club's list.
+A kind of image a competition accepts, such as Colour or Black & White, with a quota of entries per member. Entries are voted on and ranked within their category. Each competition type defines a list of categories, and a new competition starts with a copy of its type's list. A competition can change its own list, which then replaces its type's. A competition from before types that had no categories of its own was given the club's old list when the club upgraded.
 _Avoid_: Section, class
 
 **Entry**:
 An image a member has entered in one category of a competition. It has an entry image (resized for voting and the slideshow), a thumbnail, and an original.
 _Avoid_: Submission, image (for the record)
+
+**Entrant**:
+A member who may enter a competition. A competition is either open to everyone in its type, where every active member tagged with the type is an entrant, or for selected entrants only, where an admin picks them. Entrants can be added until voting starts; if uploads are open, a new entrant is sent their upload link. An entrant can be removed unless they have entries, and removing one revokes their link. An admin can create a member and enter them in one step. Only entrants get upload links and reminders, and only entrants can upload, on the upload page or through the API. In a selected-entrants competition only entrants get voting links. When voting opens, the "voting opened" email goes to the members of the competition's type.
+_Avoid_: Participant, contestant
 
 **Original**:
 The full-size file a member uploaded for an entry, kept in the media library for export until an admin discards it. Discarding originals leaves the entries in place. WordPress also keeps a 2560px `-scaled` copy of a larger original as its attached file; that copy isn't the original, and export uses the full-size file.

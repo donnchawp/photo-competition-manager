@@ -29,6 +29,8 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 | Feature | Description |
 |----------|-------------|
 | **Competition Management** | Create and manage competitions (e.g., “October 2024”). Define open/close dates and categories. Grades are set once for the club, in Settings, and every competition uses them. |
+| **Competition Types** | The club defines kinds of competition (e.g. Individual, Juniors), each with its own categories, default settings and grade display names. Every competition belongs to one type. |
+| **Entrants** | Members are tagged with the types they belong to. A competition is open to everyone in its type or to selected entrants only. |
 | **Member Management** | Maintain a separate list of members (not WordPress users). Admins can add/edit members and upload on their behalf. |
 | **Image Upload** | Members can upload a set number of images in defined categories (e.g. Colour, Black & White). Images validated, resized, renamed automatically. |
 | **Voting System** | Voting opens manually or at a defined time. Members can vote via a mobile-friendly page or QR code link. |
@@ -55,12 +57,31 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 
 ### 4.1 Competition Setup
 - Admin can create competitions with:
-  - Name (e.g., *2024-10*)
+  - Type (chosen at creation; not asked when the club has one type)
+  - Name (e.g., *2024-10*). A `{grade}` in the name becomes each entrant's own grade name on their upload page and in their emails, and the names of all grades with entries, joined " / ", elsewhere.
   - Categories (e.g., Colour, Black & White)
   - Grades (e.g., Beginner, Intermediate, Advanced)
   - Upload start/end dates
 - Only one competition can be active at a time. Creating, editing or restoring a competition is refused if its dates overlap another competition's from now on (past overlaps are ignored); a missing open date means "from now" and a missing close date means "never closes". An open competition can be closed early with **Close Competition**.
 - Past competitions automatically archived.
+
+### 4.1a Competition Types
+- A **Competition Types** admin screen lists, adds, edits and deletes types. Each type has:
+  - A name.
+  - Categories with a quota per member (at least one).
+  - Default settings: upload limits, voting (who scores and the score range) and slideshow.
+  - Grade display names: a type can show a grade under another name (e.g. Cup for Advanced). Members and the public see the display name everywhere; admins see "Cup (Advanced)".
+- Settings keeps what applies to the whole club: grades, email, page URLs, voting form layout and log retention.
+- A new competition copies its type's categories and settings and the club's page links. Later edits to the type don't change existing competitions.
+- A competition's type can't be changed once it has entries. A type can't be deleted while a competition uses it, or when it is the only type.
+- On upgrade the club gets one type, Individual, built from its old settings. Every member is tagged with it, every competition is set to it and open to everyone, and a competition with no categories of its own is given the club's list.
+
+### 4.1b Entrants
+- Members carry type tags. With one type every member is tagged automatically. Otherwise the Members screen has type checkboxes, a type filter and bulk add/remove, and the CSV import accepts a `types` column naming several types. Active members with no tag are flagged when there are several types.
+- A competition's entry setting is **open to everyone in the type** or **selected entrants only**.
+- Entrants can be added until voting starts; if uploads are open the new entrant is sent their upload link. An entrant can be removed unless they have entries, which revokes their link. An admin can create a member and enter them in one step.
+- Only those who may enter receive upload links and reminders, and only they can upload, through the upload page or the API.
+- In a selected-entrants competition only entrants receive voting links. The "voting opened" email goes to the members of the competition's type.
 
 ### 4.2 Member & Image Upload
 - Members are managed internally (custom table).
@@ -177,7 +198,14 @@ Admins can upload or replace images for any member directly from the dashboard.
 ### Tables
 - `wp_photocomp_members`
   - id, name, email, grade, active, created_at
+- `wp_photocomp_competition_types`
+  - id, name, settings (categories and default settings), grade_names (display names by grade), created_at, updated_at
+- `wp_photocomp_member_types`
+  - member_id, type_id; one row per type tag, primary key on the pair
+- `wp_photocomp_entrants`
+  - competition_id, member_id, created_at; the selected entrants of a competition, primary key on the pair. Used only when the competition's entry mode is selected entrants.
 - `wp_photocomp_competitions`
+  - `type_id`: the competition's type; `entry_mode`: `all` (everyone in the type) or `selected`
   - Date normalization for open_date, close_date
   - `settings`: the competition's configuration (categories, upload limits, voting options)
   - `workflow`: uploads closed, results published, and each category's voting stage. Only `Competition_Workflow` reads or writes it, so saving settings can't change it.
@@ -236,7 +264,8 @@ Admins can upload or replace images for any member directly from the dashboard.
 
 Sections:
 1. **Dashboard** – Overview of current competition and recent activity.
-2. **Competitions** – Create/edit competitions, set parameters.
+2. **Competitions** – Create/edit competitions, set parameters, manage entrants.
+   **Competition Types** – Define types, their categories, default settings and grade display names.
 3. **Members** – Add/edit/import members, upload for members.
 4. **Images** – View all images uploaded per category/member.
 5. **Voting** – Start/stop voting, monitor live results.
