@@ -448,8 +448,7 @@ class Competitions_Repository extends Abstract_Repository {
 			}
 
 			// The competition takes the new type's categories and settings, and keeps its own page links.
-			$own           = isset( $data['settings'] ) ? (array) $data['settings'] : json_decode( (string) $current->settings, true );
-			$own           = is_array( $own ) ? $own : array();
+			$own           = isset( $data['settings'] ) ? (array) $data['settings'] : Competition_Settings::decode( $current->settings );
 			$settings_json = wp_json_encode( array_merge( array_diff_key( $own, array_flip( Competition_Settings::TYPE_KEYS ) ), Competition_Settings::type_settings( $new_type ) ) );
 		}
 
@@ -503,7 +502,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * @return bool
 	 */
 	public function has_entries( int $id ): bool {
-		return array() !== ( new Images_Repository() )->find_by_competition( $id );
+		return array() !== ( new Images_Repository() )->member_ids( $id );
 	}
 
 	/**

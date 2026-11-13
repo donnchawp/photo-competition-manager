@@ -98,7 +98,8 @@ class Settings_Controller {
 
 		// Competition defaults (categories, upload, voting, slideshow) belong
 		// to competition types now. Their old copies stay in the option untouched.
-		$settings           = $this->stored_club_settings();
+		// Read as stored, without defaults, so a save keeps every key it doesn't set.
+		$settings           = Competition_Settings::stored_club_settings_array();
 		$settings['grades'] = $sanitized_grades;
 		$settings['email']  = array(
 			'from_name'  => sanitize_text_field( $this->get_post_string( 'email_from_name', '' ) ),
@@ -276,19 +277,6 @@ class Settings_Controller {
 	 */
 	private function save_global_settings( array $settings ): void {
 		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $settings ) );
-	}
-
-	/**
-	 * The club option as stored, without defaults filled in, so a save keeps
-	 * every key it doesn't set.
-	 *
-	 * @since 0.5.0
-	 * @return array<string, mixed>
-	 */
-	private function stored_club_settings(): array {
-		$stored = json_decode( (string) get_option( 'photo_comp_default_settings', '' ), true );
-
-		return is_array( $stored ) ? $stored : array();
 	}
 
 	/**

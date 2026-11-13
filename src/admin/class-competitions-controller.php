@@ -280,7 +280,7 @@ class Competitions_Controller {
 			}
 
 			if ( $before && isset( $data['type_id'] ) && (int) $data['type_id'] !== (int) $before->type_id ) {
-				$new_type = ( new Competition_Types_Repository() )->find( (int) $data['type_id'] );
+				$new_type = $this->types->find( (int) $data['type_id'] );
 				if ( $new_type ) {
 					add_settings_error(
 						'photo_competition_manager',
@@ -566,47 +566,23 @@ class Competitions_Controller {
 			$existing_competition = $this->competitions->find( $competition_id );
 			$existing_settings    = $existing_competition ? Competition_Settings::parse( $existing_competition->settings ) : array();
 
-			$categories = $this->get_post_array( 'categories' );
+			$settings   = ( new Type_Settings_Form() )->from_post( array_intersect_key( $existing_settings, array_flip( Competition_Settings::TYPE_KEYS ) ) );
+			$validation = Competition_Settings::validate_type_settings( $settings );
 
-			$sanitized_categories = array();
-			foreach ( $categories as $category ) {
-				if ( ! isset( $category['label'], $category['slug'], $category['quota'] ) ) {
-					continue;
-				}
-
-				$sanitized_categories[] = array(
-					'label' => sanitize_text_field( $category['label'] ),
-					'slug'  => sanitize_title( $category['slug'] ),
-					'quota' => absint( $category['quota'] ),
-				);
-			}
-
-			if ( empty( $sanitized_categories ) ) {
+			if ( is_wp_error( $validation ) ) {
 				add_settings_error(
 					'photo_competition_manager',
-					'no_categories',
-					__( 'A competition needs at least one category.', 'photo-competition-manager' ),
+					$validation->get_error_code(),
+					$validation->get_error_message(),
 					'error'
 				);
 
 				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
-			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
-			$score_matrix     = array_values( array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) ) );
-
-			if ( empty( $score_matrix ) ) {
-				$score_matrix = array( 9, 8, 7, 6, 5 );
-			}
-
-			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-			if ( ! in_array( $auth_mode_input, Competition_Settings::AUTH_MODES, true ) ) {
-				$auth_mode_input = 'password';
-			}
-
 			// Votes are tied to who cast them, so who scores can't move between members and judges once any exist.
 			if ( $existing_competition
-				&& Ballots::is_judged( $existing_competition ) !== ( 'judges' === $auth_mode_input )
+				&& Ballots::is_judged( $existing_competition ) !== ( 'judges' === $settings['voting']['auth_mode'] )
 				&& $this->votes->has_votes( $competition_id )
 			) {
 				add_settings_error(
@@ -619,20 +595,11 @@ class Competitions_Controller {
 				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
-			$voting_password       = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
-			$voting_password_clear = isset( $_POST['voting_password_clear'] ) && '1' === $_POST['voting_password_clear'];
-			$click_image_to_zoom   = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
+			$voting_password       = $settings['voting']['password'];
+			$voting_password_clear = '1' === $this->get_post_string( 'voting_password_clear' );
 			$voting_ui_type        = sanitize_text_field( $this->get_post_string( 'voting_ui_type', 'buttons' ) );
 			if ( ! in_array( $voting_ui_type, array( 'buttons', 'dropdown' ), true ) ) {
 				$voting_ui_type = 'buttons';
-			}
-
-			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
-			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
-
-			$progress_meter_type_input = sanitize_text_field( $this->get_post_string( 'progress_meter_type', 'bar' ) );
-			if ( ! in_array( $progress_meter_type_input, array( 'bar', 'line', 'dots', 'radial' ), true ) ) {
-				$progress_meter_type_input = 'bar';
 			}
 
 			// Store the password if provided, clear if empty or checkbox checked.
@@ -651,52 +618,12 @@ class Competitions_Controller {
 				$hashed_password = $existing_password;
 			}
 
-			$settings = array(
-				'categories'      => $sanitized_categories,
-				'upload'          => array(
-					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
-					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
-					'allowed_formats'  => array( 'jpg', 'jpeg' ),
-				),
-				'voting'          => array(
-					'score_matrix'        => $score_matrix,
-					'auth_mode'           => $auth_mode_input,
-					'password'            => $hashed_password,
-					'click_image_to_zoom' => $click_image_to_zoom,
-					'ui_type'             => $voting_ui_type,
-				),
-				'slideshow'       => array(
-					'progress_meter_type' => $progress_meter_type_input,
-					'preview_duration'    => $existing_settings['slideshow']['preview_duration'] ?? 10,
-					'voting_duration'     => $existing_settings['slideshow']['voting_duration'] ?? 15,
-					'critique_duration'   => $existing_settings['slideshow']['critique_duration'] ?? 0,
-				),
-				'email_reminders' => array(
-					'enabled'                => true,
-					'days_before_open'       => 7,
-					'days_before_close'      => 1,
-					'include_qr_code_voting' => true,
-				),
-				'urls'            => array(
-					'upload_page' => $upload_page_url,
-					'voting_page' => $voting_page_url,
-				),
+			$settings['voting']['password'] = $hashed_password;
+			$settings['voting']['ui_type']  = $voting_ui_type;
+			$settings['urls']               = array(
+				'upload_page' => sanitize_url( $this->get_post_string( 'upload_page_url', '' ) ),
+				'voting_page' => sanitize_url( $this->get_post_string( 'voting_page_url', '' ) ),
 			);
-
-			// Categories were checked above, so the list is never empty here.
-			$validation = Competition_Settings::validate( $settings, false );
-
-			if ( is_wp_error( $validation ) ) {
-				add_settings_error(
-					'photo_competition_manager',
-					$validation->get_error_code(),
-					$validation->get_error_message(),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
-			}
 
 			$result = $this->competitions->update(
 				$competition_id,
@@ -812,7 +739,7 @@ class Competitions_Controller {
 				$added = 0;
 				foreach ( array_unique( array_map( 'absint', $this->get_post_array( 'member_ids' ) ) ) as $id ) {
 					$result = $this->entry->add_entrant( $competition, $id );
-					$added += ( true === $result || 'upload_link_not_sent' === $result->get_error_code() ) ? 1 : 0;
+					$added += $this->was_entered( $result ) ? 1 : 0;
 					$this->entrant_notice( $result, '', '' );
 				}
 				$this->entrants_added_notice( $added );
@@ -839,7 +766,7 @@ class Competitions_Controller {
 				}
 				$result = $this->entry->add_entrant( $competition, $new_id );
 				$this->entrant_notice( $result, '', '' );
-				$this->entrants_added_notice( true === $result || 'upload_link_not_sent' === $result->get_error_code() ? 1 : 0 );
+				$this->entrants_added_notice( $this->was_entered( $result ) ? 1 : 0 );
 				break;
 
 			case 'remove_entrant':
@@ -848,13 +775,7 @@ class Competitions_Controller {
 				break;
 
 			case 'send_entrant_upload_link':
-				if ( ! ( new Entrants_Repository() )->has( $competition_id, $member_id ) ) {
-					$result = new \WP_Error( 'not_an_entrant', __( 'That member isn\'t an entrant.', 'photo-competition-manager' ) );
-				} elseif ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
-					$result = new \WP_Error( 'uploads_not_open', __( 'Uploads aren\'t open, so there is no upload link to send.', 'photo-competition-manager' ) );
-				} else {
-					$result = ( new Upload_Link_Service() )->send_to_member( $competition_id, $member_id, true );
-				}
+				$result = $this->entry->send_upload_link( $competition, $member_id );
 				$this->entrant_notice( $result, 'upload_link_sent', __( 'Upload link sent.', 'photo-competition-manager' ) );
 				break;
 		}
@@ -876,6 +797,16 @@ class Competitions_Controller {
 		} elseif ( '' !== $code ) {
 			$this->queue_notice( $code, $message, 'updated' );
 		}
+	}
+
+	/**
+	 * Whether add_entrant() entered the member, even if their upload link didn't go.
+	 *
+	 * @param true|\WP_Error $result add_entrant()'s outcome.
+	 * @return bool
+	 */
+	private function was_entered( $result ): bool {
+		return true === $result || 'upload_link_not_sent' === $result->get_error_code();
 	}
 
 	/**
@@ -1170,7 +1101,7 @@ class Competitions_Controller {
 	 */
 	private function render_competition_general_form( object $competition ): string {
 		$types   = $this->types->all();
-		$type    = $this->types->find( (int) $competition->type_id );
+		$type    = array_column( $types, null, 'id' )[ (int) $competition->type_id ] ?? null;
 		$several = count( $types ) > 1;
 
 		return $this->render_template(
@@ -1304,14 +1235,14 @@ class Competitions_Controller {
 		$competition_id = (int) $competition->id;
 		$type           = $this->types->find( (int) $competition->type_id );
 		$selected       = Competition_Entry::is_selected( $competition );
-		$named_type     = $type && $this->types->count() > 1 ? $type : null;
+		$named_type     = $type && $this->types->has_several() ? $type : null;
 
 		$entrants      = array();
 		$member_groups = array();
 
 		if ( $selected ) {
 			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
-			$with_entries = array_flip( array_map( 'intval', wp_list_pluck( ( new Images_Repository() )->find_by_competition( $competition_id ), 'member_id' ) ) );
+			$with_entries = array_flip( ( new Images_Repository() )->member_ids( $competition_id ) );
 
 			foreach ( $this->members->find_many( $entrant_ids ) as $member ) {
 				$entrants[] = (object) array(

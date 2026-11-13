@@ -100,7 +100,7 @@ class Types_Controller {
 
 			$back = is_wp_error( $result ) ? $this->types_url( array( 'type_action' => 'add' ) ) : $this->types_url();
 
-			$this->notice_and_redirect( $result, 'type_created', __( 'Competition type added.', 'photo-competition-manager' ), $back );
+			$this->notice_and_redirect( self::GROUP, $result, 'type_created', __( 'Competition type added.', 'photo-competition-manager' ), $back );
 		}
 
 		if ( 'update_type' === $action ) {
@@ -127,7 +127,7 @@ class Types_Controller {
 				)
 				: $this->types_url();
 
-			$this->notice_and_redirect( $result, 'type_updated', __( 'Competition type updated.', 'photo-competition-manager' ), $back );
+			$this->notice_and_redirect( self::GROUP, $result, 'type_updated', __( 'Competition type updated.', 'photo-competition-manager' ), $back );
 		}
 
 		if ( 'delete_type' === $action ) {
@@ -136,6 +136,7 @@ class Types_Controller {
 			check_admin_referer( 'photo_competition_delete_type_' . $type_id, 'photo_competition_type_nonce' );
 
 			$this->notice_and_redirect(
+				self::GROUP,
 				$this->types->delete( $type_id ),
 				'type_deleted',
 				__( 'Competition type deleted.', 'photo-competition-manager' ),
@@ -270,24 +271,5 @@ class Types_Controller {
 		}
 
 		return $names;
-	}
-
-	/**
-	 * Queue the outcome as a notice and redirect.
-	 *
-	 * @param mixed  $result  Repository result; a WP_Error is an error.
-	 * @param string $code    Success notice code.
-	 * @param string $message Success message.
-	 * @param string $url     Where to go next.
-	 * @return never
-	 */
-	private function notice_and_redirect( $result, string $code, string $message, string $url ): void {
-		if ( is_wp_error( $result ) ) {
-			add_settings_error( self::GROUP, $result->get_error_code(), $result->get_error_message(), 'error' );
-		} else {
-			add_settings_error( self::GROUP, $code, $message, 'updated' );
-		}
-
-		$this->redirect_with_settings_errors( $url );
 	}
 }

@@ -219,6 +219,27 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Queue an outcome as a notice and redirect: its error, or the success message.
+	 *
+	 * @since 0.5.0
+	 * @param string $group   Settings errors group.
+	 * @param mixed  $result  Outcome; a WP_Error is an error.
+	 * @param string $code    Success notice code.
+	 * @param string $message Success message.
+	 * @param string $url     Where to go next.
+	 * @return never
+	 */
+	private function notice_and_redirect( string $group, $result, string $code, string $message, string $url ): void {
+		if ( is_wp_error( $result ) ) {
+			add_settings_error( $group, $result->get_error_code(), $result->get_error_message(), 'error' );
+		} else {
+			add_settings_error( $group, $code, $message, 'updated' );
+		}
+
+		$this->redirect_with_settings_errors( $url );
+	}
+
+	/**
 	 * Render a template partial to a string through Support\render_template().
 	 *
 	 * @since 0.3.0

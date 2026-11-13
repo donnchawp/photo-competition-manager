@@ -152,6 +152,16 @@ class Competition_Types_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Whether the club has more than one type, which is when types show.
+	 *
+	 * @since 0.5.0
+	 * @return bool
+	 */
+	public function has_several(): bool {
+		return $this->count() > 1;
+	}
+
+	/**
 	 * The type, when the club has exactly one.
 	 *
 	 * @since 0.5.0
@@ -180,7 +190,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 			return new WP_Error( 'type_in_use', __( 'This type has competitions, so it cannot be deleted.', 'photo-competition-manager' ) );
 		}
 
-		if ( $this->count() <= 1 ) {
+		if ( ! $this->has_several() ) {
 			return new WP_Error( 'last_type', __( 'The last type cannot be deleted.', 'photo-competition-manager' ) );
 		}
 
@@ -226,22 +236,10 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * @return object
 	 */
 	private function hydrate( object $row ): object {
-		$row->settings    = $this->decode( $row->settings );
-		$row->grade_names = $this->decode( $row->grade_names );
+		$row->settings    = Competition_Settings::decode( $row->settings );
+		$row->grade_names = Competition_Settings::decode( $row->grade_names );
 
 		return $row;
-	}
-
-	/**
-	 * Decode a JSON column, treating empty or invalid JSON as an empty array.
-	 *
-	 * @param string|null $json JSON string.
-	 * @return array<string, mixed>
-	 */
-	private function decode( ?string $json ): array {
-		$decoded = ! empty( $json ) ? json_decode( $json, true ) : array();
-
-		return is_array( $decoded ) ? $decoded : array();
 	}
 
 	/**

@@ -249,7 +249,7 @@ class Members_Controller {
 			);
 
 			// The tick boxes only show with several types; otherwise the member gets the only type.
-			if ( $this->has_several_types() ) {
+			if ( $this->types->has_several() ) {
 				$data['type_ids'] = $this->posted_type_ids( 'member_types' );
 			}
 
@@ -298,7 +298,7 @@ class Members_Controller {
 
 			$result = $this->members->update( $member_id, $data );
 
-			if ( ! is_wp_error( $result ) && $this->has_several_types() ) {
+			if ( ! is_wp_error( $result ) && $this->types->has_several() ) {
 				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
 			}
 
@@ -477,7 +477,7 @@ class Members_Controller {
 				$failed_count  = 0;
 
 				if ( 'bulk_add_type' === $action || 'bulk_remove_type' === $action ) {
-					$type_id = isset( $_POST['bulk_type'] ) ? absint( wp_unslash( $_POST['bulk_type'] ) ) : 0;
+					$type_id = absint( $this->get_post_string( 'bulk_type' ) );
 					$type    = $type_id ? $this->types->find( $type_id ) : null;
 
 					if ( ! $type ) {
@@ -663,7 +663,7 @@ class Members_Controller {
 		$grade_filter = isset( $_GET['grade'] ) ? sanitize_text_field( wp_unslash( $_GET['grade'] ) ) : '';
 
 		// Types only show, and filter, when the club has several.
-		$types        = $this->has_several_types() ? $this->types->all() : array();
+		$types        = $this->types->has_several() ? $this->types->all() : array();
 		$type_options = array();
 		foreach ( $types as $type ) {
 			$type_options[ (int) $type->id ] = $type->name;
@@ -884,7 +884,7 @@ class Members_Controller {
 		$filtered_count = count( $members );
 
 		// Only members who may enter get an upload link to copy or send.
-		$may_enter = $active_competition ? array_map( 'intval', wp_list_pluck( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $active_competition ), 'id' ) ) : array();
+		$may_enter = $active_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_member_ids( $active_competition ) : array();
 
 		$rows = array();
 
@@ -1033,24 +1033,12 @@ class Members_Controller {
 	}
 
 	/**
-	 * Whether the club has more than one competition type, which is when members' types show.
-	 *
-	 * @return bool
-	 */
-	private function has_several_types(): bool {
-		return $this->types->count() > 1;
-	}
-
-	/**
 	 * Type IDs ticked in a posted array field.
 	 *
 	 * @param  string $field Field name.
 	 * @return int[]
 	 */
 	private function posted_type_ids( string $field ): array {
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Callers verify the nonce.
-		$posted = isset( $_POST[ $field ] ) && is_array( $_POST[ $field ] ) ? array_map( 'absint', wp_unslash( $_POST[ $field ] ) ) : array();
-
-		return array_values( array_filter( $posted ) );
+		return array_values( array_filter( array_map( 'absint', $this->get_post_array( $field ) ) ) );
 	}
 }

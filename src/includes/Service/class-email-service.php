@@ -27,10 +27,18 @@ class Email_Service {
 	private $event_logger;
 
 	/**
+	 * Competition labels, shared so a batch of emails looks each type up once.
+	 *
+	 * @var Competition_Labels
+	 */
+	private $labels;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
 		$this->event_logger = new Event_Logger();
+		$this->labels       = new Competition_Labels();
 	}
 
 	/**
@@ -69,7 +77,7 @@ class Email_Service {
 		$member_name = '' !== (string) ( $member->name ?? '' ) ? (string) $member->name : (string) $member->email;
 		$values      = array(
 			'{member_name}'       => $member_name,
-			'{competition_title}' => $competition ? ( new Competition_Labels() )->title_for( $competition, $member ) : '',
+			'{competition_title}' => $competition ? $this->labels->title_for( $competition, $member ) : '',
 			'{site_name}'         => $this->site_name(),
 		) + $tags;
 		$types       = wp_list_pluck( Email_Kinds::tags( $kind ), 'type' );

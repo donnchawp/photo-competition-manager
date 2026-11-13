@@ -172,6 +172,28 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The members with entries in a competition.
+	 *
+	 * @since 0.5.0
+	 * @param int $competition_id Competition ID.
+	 * @return int[] Member IDs.
+	 */
+	public function member_ids( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$member_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
+				$this->table(),
+				$competition_id
+			)
+		);
+
+		return array_map( 'intval', $member_ids );
+	}
+
+	/**
 	 * Get next random number for a competition category.
 	 *
 	 * @param int    $competition_id Competition ID.
@@ -251,15 +273,7 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$member_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
-				$this->table(),
-				$competition_id
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$member_ids = $this->member_ids( $competition_id );
 
 		if ( empty( $member_ids ) ) {
 			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'photo-competition-manager' ) );

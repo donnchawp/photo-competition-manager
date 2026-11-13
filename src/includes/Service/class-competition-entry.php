@@ -142,6 +142,16 @@ class Competition_Entry {
 	}
 
 	/**
+	 * The IDs of the members eligible_members() returns.
+	 *
+	 * @param object $competition Competition row.
+	 * @return int[] Member IDs, by name.
+	 */
+	public function eligible_member_ids( object $competition ): array {
+		return array_map( 'intval', wp_list_pluck( $this->eligible_members( $competition ), 'id' ) );
+	}
+
+	/**
 	 * Enter a member in a competition for selected entrants. While its uploads
 	 * are open, they're sent their upload link.
 	 *
@@ -167,7 +177,7 @@ class Competition_Entry {
 			return true;
 		}
 
-		$sent = $this->upload_links->send_to_member( (int) $competition->id, $member_id, true );
+		$sent = $this->send_upload_link( $competition, $member_id );
 		if ( is_wp_error( $sent ) ) {
 			return new WP_Error(
 				'upload_link_not_sent',
@@ -181,6 +191,23 @@ class Competition_Entry {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Email a member their upload link now, even if one went out recently.
+	 *
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @return true|WP_Error 'uploads_not_open', 'not_an_entrant', or the send's error.
+	 */
+	public function send_upload_link( object $competition, int $member_id ) {
+		if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
+			return new WP_Error( 'uploads_not_open', __( 'Uploads aren\'t open, so there is no upload link to send.', 'photo-competition-manager' ) );
+		}
+
+		$sent = $this->upload_links->send_to_member( (int) $competition->id, $member_id, true );
+
+		return is_wp_error( $sent ) ? $sent : true;
 	}
 
 	/**
@@ -246,9 +273,7 @@ class Competition_Entry {
 		}
 
 		if ( 'selected' === $mode ) {
-			$with_entries = array_unique( array_map( 'intval', wp_list_pluck( $this->images->find_by_competition( (int) $competition->id ), 'member_id' ) ) );
-
-			foreach ( $with_entries as $member_id ) {
+			foreach ( $this->images->member_ids( (int) $competition->id ) as $member_id ) {
 				$this->entrants->add( (int) $competition->id, $member_id );
 			}
 		}

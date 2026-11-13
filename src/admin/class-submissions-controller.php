@@ -729,7 +729,7 @@ class Submissions_Controller {
 		// for the members who may still enter: the upload page refuses anyone else's.
 		$upload_links       = new Upload_Link_Service();
 		$member_upload_urls = array();
-		$may_enter          = $selected_competition ? array_map( 'intval', wp_list_pluck( ( new Competition_Entry( $this->competitions, $this->members, $upload_links ) )->eligible_members( $selected_competition ), 'id' ) ) : array();
+		$may_enter          = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members, $upload_links ) )->eligible_member_ids( $selected_competition ) : array();
 
 		foreach ( $submissions as $submission ) {
 			$submission_member_id = (int) $submission->member_id;

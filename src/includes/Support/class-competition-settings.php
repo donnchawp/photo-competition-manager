@@ -37,6 +37,15 @@ class Competition_Settings {
 	public const AUTH_MODES = array( 'password', 'token', 'judges' );
 
 	/**
+	 * The slideshow's progress meter styles.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @var string[]
+	 */
+	public const METER_TYPES = array( 'bar', 'line', 'dots', 'radial' );
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -178,12 +187,23 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The club's settings as stored, without defaults filled in.
+	 *
+	 * @since 0.5.0
+	 * @return array<string, mixed>
+	 */
+	public static function stored_club_settings_array(): array {
+		return self::decode( self::stored_club_settings() );
+	}
+
+	/**
 	 * Decode settings JSON, treating empty or invalid JSON as no settings.
 	 *
+	 * @since 0.5.0 Public.
 	 * @param string|null $json Settings JSON.
 	 * @return array<string, mixed>
 	 */
-	private static function decode( ?string $json ): array {
+	public static function decode( ?string $json ): array {
 		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
 
 		return is_array( $decoded ) ? $decoded : array();
@@ -333,8 +353,7 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
-			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
-			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
+			if ( ! in_array( $settings['slideshow']['progress_meter_type'], self::METER_TYPES, true ) ) {
 				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
 			}
 		}

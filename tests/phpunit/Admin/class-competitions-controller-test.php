@@ -1501,6 +1501,45 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Settings the competition form doesn't show keep their values on save.
+	 */
+	public function test_update_competition_settings_keeps_settings_the_form_leaves_out(): void {
+		$id = $this->create_competition( 'Settings Comp', 'settings-comp' );
+		$this->competitions->update(
+			$id,
+			array(
+				'settings' => array(
+					'categories'      => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 1 ) ),
+					'slideshow'       => array( 'preview_duration' => 42 ),
+					'email_reminders' => array( 'enabled' => false ),
+				),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => '2' ) ),
+				'score_matrix'             => '9, 8, 7',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$settings = $this->stored_settings( $id );
+		$this->assertSame( 2, $settings['categories'][0]['quota'] );
+		$this->assertSame( 42, $settings['slideshow']['preview_duration'] );
+		$this->assertFalse( $settings['email_reminders']['enabled'] );
+		$this->assertArrayNotHasKey( 'grades', $settings );
+	}
+
+	/**
 	 * A competition can't be saved with no categories, and keeps the ones it has.
 	 */
 	public function test_update_competition_settings_refuses_no_categories(): void {
@@ -1529,7 +1568,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'tab=settings', $location );
-		$this->assertContains( 'no_categories', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertContains( 'missing_categories', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertNotContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertSame( $before, $this->settings( $id )['categories'] );
 	}

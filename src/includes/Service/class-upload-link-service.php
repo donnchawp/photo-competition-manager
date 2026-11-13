@@ -307,7 +307,7 @@ class Upload_Link_Service {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 
-		$member_ids = array_map( 'intval', wp_list_pluck( $this->entry()->eligible_members( $competition ), 'id' ) );
+		$member_ids = $this->entry()->eligible_member_ids( $competition );
 
 		if ( empty( $member_ids ) ) {
 			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );

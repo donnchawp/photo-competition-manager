@@ -741,7 +741,6 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( array(), $members->type_ids( $id ) );
-		$this->assertSame( array( $id ), array_map( fn( $m ) => (int) $m->id, $members->find_untagged() ) );
 	}
 
 	public function test_create_tags_with_the_types_given(): void {
@@ -786,7 +785,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $members->type_ids( $id ) );
 	}
 
-	public function test_find_by_type_and_untagged_respect_active(): void {
+	public function test_find_by_type_skips_inactive_and_untagged(): void {
 		Type_Fixtures::clear();
 		$a = Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
@@ -798,7 +797,5 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$ids = fn( array $rows ) => array_map( fn( $m ) => (int) $m->id, $rows );
 
 		$this->assertSame( array( $tagged ), $ids( $members->find_by_type( $a ) ) );
-		$this->assertSame( array( $inactive, $tagged ), $ids( $members->find_by_type( $a, false ) ) );
-		$this->assertSame( array( $untagged ), $ids( $members->find_untagged() ) );
 	}
 }

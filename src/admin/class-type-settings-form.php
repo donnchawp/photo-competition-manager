@@ -22,13 +22,14 @@ class Type_Settings_Form {
 	use Form_Rendering;
 
 	/**
-	 * Read the posted sections over a type's current settings.
+	 * Read the posted sections over a type's or competition's current settings.
 	 *
-	 * Settings the form doesn't show, such as email reminders and the
-	 * originals' size, keep their current values. The caller verifies the nonce.
+	 * Settings the form doesn't post, such as email reminders, the originals'
+	 * size, or the slideshow durations a competition's form leaves out, keep
+	 * their current values. The caller verifies the nonce.
 	 *
 	 * @since 0.5.0
-	 * @param array<string, mixed> $current The type's settings, from Competition_Settings::type_settings().
+	 * @param array<string, mixed> $current Current settings, e.g. from Competition_Settings::type_settings().
 	 * @return array<string, mixed>
 	 */
 	public function from_post( array $current ): array {
@@ -57,7 +58,7 @@ class Type_Settings_Form {
 		}
 
 		$progress_meter_type = sanitize_text_field( $this->get_post_string( 'progress_meter_type', 'bar' ) );
-		if ( ! in_array( $progress_meter_type, array( 'bar', 'line', 'dots', 'radial' ), true ) ) {
+		if ( ! in_array( $progress_meter_type, Competition_Settings::METER_TYPES, true ) ) {
 			$progress_meter_type = 'bar';
 		}
 
@@ -84,9 +85,9 @@ class Type_Settings_Form {
 			$current['slideshow'] ?? array(),
 			array(
 				'progress_meter_type' => $progress_meter_type,
-				'preview_duration'    => $this->posted_duration( 'preview_duration', 10 ),
-				'voting_duration'     => $this->posted_duration( 'voting_duration', 15 ),
-				'critique_duration'   => $this->posted_duration( 'critique_duration', 0 ),
+				'preview_duration'    => $this->posted_duration( 'preview_duration', (int) ( $current['slideshow']['preview_duration'] ?? 10 ) ),
+				'voting_duration'     => $this->posted_duration( 'voting_duration', (int) ( $current['slideshow']['voting_duration'] ?? 15 ) ),
+				'critique_duration'   => $this->posted_duration( 'critique_duration', (int) ( $current['slideshow']['critique_duration'] ?? 0 ) ),
 			)
 		);
 
@@ -111,7 +112,7 @@ class Type_Settings_Form {
 	 * A posted slideshow duration in seconds, from 0 to 120.
 	 *
 	 * @param string $key      POST key.
-	 * @param int    $fallback Value when nothing is posted.
+	 * @param int    $fallback Value when nothing is posted: the current one.
 	 * @return int
 	 */
 	private function posted_duration( string $key, int $fallback ): int {

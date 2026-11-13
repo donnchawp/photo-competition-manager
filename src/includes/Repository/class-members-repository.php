@@ -451,40 +451,24 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Fetch the members tagged with a type.
+	 * Fetch the active members tagged with a type.
 	 *
 	 * @since 0.5.0
-	 * @param int  $type_id     Type ID.
-	 * @param bool $only_active Whether to restrict to active members.
+	 * @param int $type_id Type ID.
 	 * @return array<int, object>
 	 */
-	public function find_by_type( int $type_id, bool $only_active = true ): array {
+	public function find_by_type( int $type_id ): array {
 		global $wpdb;
 
-		$query  = 'SELECT m.* FROM %i m INNER JOIN %i t ON t.member_id = m.id WHERE t.type_id = %d';
-		$query .= $only_active ? ' AND m.active = 1' : '';
-		$query .= ' ORDER BY m.name ASC';
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		return $wpdb->get_results( $wpdb->prepare( $query, $this->table(), $this->tags_table(), $type_id ) );
-	}
-
-	/**
-	 * Fetch the members tagged with no type.
-	 *
-	 * @since 0.5.0
-	 * @param bool $only_active Whether to restrict to active members.
-	 * @return array<int, object>
-	 */
-	public function find_untagged( bool $only_active = true ): array {
-		global $wpdb;
-
-		$query  = 'SELECT m.* FROM %i m WHERE NOT EXISTS ( SELECT 1 FROM %i t WHERE t.member_id = m.id )';
-		$query .= $only_active ? ' AND m.active = 1' : '';
-		$query .= ' ORDER BY m.name ASC';
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
-		return $wpdb->get_results( $wpdb->prepare( $query, $this->table(), $this->tags_table() ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT m.* FROM %i m INNER JOIN %i t ON t.member_id = m.id WHERE t.type_id = %d AND m.active = 1 ORDER BY m.name ASC',
+				$this->table(),
+				$this->tags_table(),
+				$type_id
+			)
+		);
 	}
 
 	/**

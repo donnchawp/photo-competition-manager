@@ -426,6 +426,7 @@ class Results_Controller {
 
 		// Competition selector options.
 		$competition_options = array();
+		$labels              = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
 			$url = add_query_arg(
 				array(
@@ -438,7 +439,7 @@ class Results_Controller {
 			$competition_options[] = array(
 				'url'      => $url,
 				'selected' => ( (int) $comp->id === (int) $competition->id ),
-				'title'    => ( new Competition_Labels() )->title_for_everyone( $comp ),
+				'title'    => $labels->title_for_everyone( $comp ),
 			);
 		}
 
@@ -544,7 +545,7 @@ class Results_Controller {
 
 		$send_all_confirm = __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' );
 		$types            = new Competition_Types_Repository();
-		if ( $types->count() > 1 ) {
+		if ( $types->has_several() ) {
 			$type = $types->find( (int) $competition->type_id );
 			if ( $type ) {
 				$send_all_confirm = sprintf(
@@ -816,6 +817,7 @@ class Results_Controller {
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
+		$title             = ( new Competition_Labels() )->title_for_everyone( $competition );
 		$rows_by_grade     = array_fill_keys( array_column( Competition_Settings::club_grades(), 'slug' ), array() );
 		$rows_by_grade[''] = array();
 
@@ -829,7 +831,7 @@ class Results_Controller {
 					$member = $entry['member'];
 
 					$rows_by_grade[ $group['slug'] ][] = array(
-						( new Competition_Labels() )->title_for_everyone( $competition ),
+						$title,
 						$group['label'],
 						$category_label,
 						$entry['position'],
