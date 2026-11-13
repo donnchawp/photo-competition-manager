@@ -883,7 +883,7 @@ class Members_Controller {
 		$total_count    = count( $all_members );
 		$filtered_count = count( $members );
 
-		// Only members who may enter get an upload link to copy.
+		// Only members who may enter get an upload link to copy or send.
 		$may_enter = $active_competition ? array_map( 'intval', wp_list_pluck( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $active_competition ), 'id' ) ) : array();
 
 		$rows = array();
@@ -912,7 +912,7 @@ class Members_Controller {
 				'photo_competition_delete_member_' . (int) $member->id
 			);
 
-			$show_send_email = (bool) ( $active_competition && $member->active && ! empty( $member->email ) );
+			$show_send_email = (bool) ( $active_competition && $member->active && ! empty( $member->email ) && in_array( (int) $member->id, $may_enter, true ) );
 			$send_url        = '';
 			$upload_url      = '';
 
@@ -932,9 +932,7 @@ class Members_Controller {
 				);
 
 				// Upload page link for copying/sharing.
-				if ( in_array( (int) $member->id, $may_enter, true ) ) {
-					$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
-				}
+				$upload_url = $this->get_member_upload_url( (int) $member->id, $active_competition );
 			}
 
 			$rows[] = (object) array(

@@ -746,7 +746,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * The members table offers an upload link to copy only for members who may enter.
+	 * The members table offers an upload link to copy, and to email, only for members who may enter.
 	 */
 	public function test_members_table_gives_an_upload_link_only_to_those_who_may_enter(): void {
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
@@ -774,7 +774,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_screen();
 
 		$this->assertSame( 1, substr_count( $html, 'https://example.com/upload/?token=' ) );
-		$this->assertSame( 2, substr_count( $html, 'action=send_member_upload_email' ) );
+		$this->assertSame( 1, substr_count( $html, 'action=send_member_upload_email' ) );
 	}
 
 	/**
