@@ -861,4 +861,46 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 			'gigabytes and bytes are mixed' => array( '1G', '3145728', 3 * MB_IN_BYTES ),
 		);
 	}
+
+	public function test_settings_for_new_competition_copies_type_and_club_urls(): void {
+		update_option(
+			'photo_comp_default_settings',
+			wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) )
+		);
+		$type = (object) array(
+			'settings' => array(
+				'categories' => array(
+					array(
+						'slug'  => 'open',
+						'label' => 'Open',
+						'quota' => 3,
+					),
+				),
+				'voting'     => array( 'score_matrix' => array( 10, 8 ) ),
+			),
+		);
+
+		$settings = Competition_Settings::settings_for_new_competition( $type );
+
+		$this->assertSame( 'open', $settings['categories'][0]['slug'] );
+		$this->assertSame( array( 10, 8 ), $settings['voting']['score_matrix'] );
+		$this->assertSame( Competition_Settings::defaults()['voting']['auth_mode'], $settings['voting']['auth_mode'] );
+		$this->assertSame( 'https://example.com/upload/', $settings['urls']['upload_page'] );
+		$this->assertArrayNotHasKey( 'grades', $settings );
+		$this->assertEqualsCanonicalizing(
+			array_merge( Competition_Settings::TYPE_KEYS, array( 'urls' ) ),
+			array_keys( $settings )
+		);
+	}
+
+	public function test_validate_type_settings_rejects_empty_score_matrix(): void {
+		$settings                           = Competition_Settings::type_settings( (object) array( 'settings' => array() ) );
+		$settings['voting']['score_matrix'] = array();
+
+		$result = Competition_Settings::validate_type_settings( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_score_matrix', $result->get_error_code() );
+		$this->assertTrue( Competition_Settings::validate_type_settings( Competition_Settings::type_settings( (object) array( 'settings' => array() ) ) ) );
+	}
 }

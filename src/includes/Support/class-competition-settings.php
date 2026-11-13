@@ -19,6 +19,14 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * The settings a competition type holds.
+	 *
+	 * @since 0.5.0
+	 * @var string[]
+	 */
+	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders' );
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -385,6 +393,47 @@ class Competition_Settings {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A type's settings with defaults filled in, for exactly the keys a type holds.
+	 *
+	 * @since 0.5.0
+	 * @param object $type Type row, with its settings decoded to an array.
+	 * @return array<string, mixed>
+	 */
+	public static function type_settings( object $type ): array {
+		$stored = is_array( $type->settings ?? null ) ? $type->settings : array();
+		$merged = self::merge_recursive( self::defaults(), $stored );
+
+		return array_intersect_key( $merged, array_flip( self::TYPE_KEYS ) );
+	}
+
+	/**
+	 * Validate the settings a type holds.
+	 *
+	 * @since 0.5.0
+	 * @param array<string, mixed> $settings Settings to validate.
+	 * @return true|WP_Error
+	 */
+	public static function validate_type_settings( array $settings ) {
+		return self::validate( $settings, false );
+	}
+
+	/**
+	 * The settings a new competition of a type starts with.
+	 *
+	 * Competitions keep their own copy of the club's page links.
+	 *
+	 * @since 0.5.0
+	 * @param object $type Type row.
+	 * @return array<string, mixed>
+	 */
+	public static function settings_for_new_competition( object $type ): array {
+		$settings         = self::type_settings( $type );
+		$settings['urls'] = self::global_settings()['urls'] ?? array();
+
+		return $settings;
 	}
 
 	/**
