@@ -112,7 +112,7 @@ Admins can upload or replace images for any member directly from the dashboard.
   - Mobile-optimized grid of image thumbnails with image numbers.
   - Option to switch to full-screen view for individual images.
 - Votes stored in custom database table.
-- Images on the voting page and slideshow are served by entry ID (`/photocomp-image/<id>/`) for every competition, so file names, which contain member names, never reach the browser.
+- Images on the voting page and slideshow are served by entry ID (`/photocomp-image/<id>/`, or `?photocomp_image=<id>` on plain permalinks) for every competition, so file names, which contain member names, never reach the browser.
 
 #### External judging
 - Each competition has a "Who scores" setting: the voting password, members' voting links, or judges.
