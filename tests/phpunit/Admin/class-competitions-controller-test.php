@@ -1491,6 +1491,40 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A competition can't be saved with no categories, and keeps the ones it has.
+	 */
+	public function test_update_competition_settings_refuses_no_categories(): void {
+		$id = $this->create_competition( 'Settings Comp', 'settings-comp' );
+		$this->competitions->update(
+			$id,
+			array( 'settings' => array( 'categories' => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 2 ) ) ) )
+		);
+		$before = $this->settings( $id )['categories'];
+		$this->assertCount( 1, $before );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(),
+				'score_matrix'             => '9, 8, 7',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'tab=settings', $location );
+		$this->assertContains( 'no_categories', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( $before, $this->settings( $id )['categories'] );
+	}
+
+	/**
 	 * The settings screen keeps the competition's own size limit, even when
 	 * PHP's is lower. Only the upload page shows the lower one.
 	 */

@@ -564,6 +564,17 @@ class Competitions_Controller {
 				);
 			}
 
+			if ( empty( $sanitized_categories ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					'no_categories',
+					__( 'A competition needs at least one category.', 'photo-competition-manager' ),
+					'error'
+				);
+
+				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
+			}
+
 			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
 			$score_matrix     = array_values( array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) ) );
 
@@ -656,7 +667,7 @@ class Competitions_Controller {
 				),
 			);
 
-			// Allow empty categories for competitions (they fall back to the club's).
+			// Categories were checked above, so the list is never empty here.
 			$validation = Competition_Settings::validate( $settings, false );
 
 			if ( is_wp_error( $validation ) ) {
