@@ -1,0 +1,39 @@
+name: PR Preview
+
+# Adds a "Preview in WordPress Playground" button to each pull request's
+# description. The button boots WordPress with the plugin from the PR branch,
+# logs in as admin and opens the plugin's Competitions screen.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: WordPress/action-wp-playground-pr-preview@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          blueprint: |
+            {
+              "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+              "landingPage": "/wp-admin/admin.php?page=photo-competition-manager",
+              "preferredVersions": { "php": "8.3", "wp": "latest" },
+              "steps": [
+                { "step": "login", "username": "admin" },
+                {
+                  "step": "installPlugin",
+                  "pluginData": {
+                    "resource": "git:directory",
+                    "url": "https://github.com/${{ github.repository }}.git",
+                    "ref": "${{ github.event.pull_request.head.ref }}",
+                    "refType": "branch",
+                    "path": "src"
+                  },
+                  "options": { "activate": true }
+                }
+              ]
+            }
