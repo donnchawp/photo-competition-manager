@@ -263,6 +263,51 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Step durations come from the competition's own settings, not the old
+	 * club defaults, which competition types replaced.
+	 */
+	public function test_render_step_durations_come_from_the_competition(): void {
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'slideshow' => array( 'preview_duration' => 77 ) ) ) );
+		$comp_id = $this->competitions->create(
+			array(
+				'title'    => 'Spring Show',
+				'slug'     => 'spring-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'slideshow'  => array( 'preview_duration' => 42 ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+			)
+		);
+		$this->competitions->save_workflow( $comp_id, array( 'uploads_closed' => true ) );
+
+		$html = $this->render_html();
+		delete_option( 'photo_comp_default_settings' );
+
+		$this->assertStringContainsString( 'photo-comp-step-duration" value="42"', $html );
+		$this->assertStringNotContainsString( 'value="77"', $html );
+	}
+
+	/**
 	 * A completed competition's Slideshow and Critique replay buttons carry no
 	 * competition slug either.
 	 */

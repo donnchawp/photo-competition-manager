@@ -129,24 +129,7 @@ class Competitions_Controller {
 			return;
 		}
 
-		wp_enqueue_script(
-			'photo-comp-admin-category-grade',
-			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
-			array(),
-			PHOTO_COMPETITION_MANAGER_VERSION,
-			true
-		);
-
-		wp_localize_script(
-			'photo-comp-admin-category-grade',
-			'photoCompCategoryGrade',
-			array(
-				'labelText'       => __( 'Label', 'photo-competition-manager' ),
-				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
-				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
-				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
-			)
-		);
+		$this->enqueue_category_grade_script();
 
 		wp_enqueue_script(
 			'photo-comp-admin-confirm',

@@ -340,7 +340,7 @@ class Competition_Settings {
 	 * @param array<string, mixed> $settings Club settings to validate.
 	 * @return true|WP_Error
 	 */
-	private static function validate_grades( array $settings ) {
+	public static function validate_grades( array $settings ) {
 		if ( ! isset( $settings['grades'] ) || ! is_array( $settings['grades'] ) ) {
 			return new WP_Error( 'invalid_grades', __( 'Grades must be an array.', 'photo-competition-manager' ) );
 		}

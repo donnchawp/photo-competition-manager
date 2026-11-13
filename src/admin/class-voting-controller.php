@@ -425,7 +425,6 @@ class Voting_Controller {
 		}
 
 		$active_settings = Competition_Settings::parse( $active_competition->settings );
-		$global_settings = Competition_Settings::global_settings();
 
 		// Check that required pages are configured.
 		$voting_page  = Competition_Settings::page_url( 'voting_page', $active_competition );
@@ -552,10 +551,10 @@ class Voting_Controller {
 
 		if ( $all_complete && ! $voting_open_globally ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings, $results_page, $top3_page );
+			echo $this->render_competition_complete( $active_competition, $all_categories, $active_settings, $results_page, $top3_page );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
+			echo $this->render_workflow_steps( $active_category_data, $active_settings, count( $all_categories ) );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -767,11 +766,11 @@ class Voting_Controller {
 	 * Replaces the old render_category_control_panel() method.
 	 *
 	 * @param array $category_data    Category data array with competition, settings, etc.
-	 * @param array $global_settings  Global default settings.
+	 * @param array $settings         The competition's settings.
 	 * @param int   $total_categories Total number of categories (for single-category heading).
 	 * @return string
 	 */
-	private function render_workflow_steps( array $category_data, array $global_settings, int $total_categories = 1 ): string {
+	private function render_workflow_steps( array $category_data, array $settings, int $total_categories = 1 ): string {
 		$competition    = $category_data['competition'];
 		$category       = $category_data['category'];
 		$image_count    = $category_data['image_count'];
@@ -780,10 +779,10 @@ class Voting_Controller {
 		$current_step   = $category_data['current_step'] ?? 1;
 		$comp_id        = (int) $competition->id;
 
-		// Duration defaults from global settings.
-		$preview_duration  = $global_settings['slideshow']['preview_duration'] ?? 10;
-		$voting_duration   = $global_settings['slideshow']['voting_duration'] ?? 15;
-		$critique_duration = $global_settings['slideshow']['critique_duration'] ?? 0;
+		// Duration defaults from the competition's settings.
+		$preview_duration  = $settings['slideshow']['preview_duration'] ?? 10;
+		$voting_duration   = $settings['slideshow']['voting_duration'] ?? 15;
+		$critique_duration = $settings['slideshow']['critique_duration'] ?? 0;
 
 		// Why the workflow can't start, and why Open Voting is disabled.
 		// Only the previewed step shows the Open Voting button.
@@ -941,17 +940,17 @@ class Voting_Controller {
 	 *
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
-	 * @param array  $global_settings   Global settings.
+	 * @param array  $settings          The competition's settings.
 	 * @param string $results_url       The results page URL.
 	 * @param string $top3_url          The top 3 page URL.
 	 * @return string
 	 */
-	private function render_competition_complete( object $competition, array $all_categories, array $global_settings, string $results_url, string $top3_url ): string {
+	private function render_competition_complete( object $competition, array $all_categories, array $settings, string $results_url, string $top3_url ): string {
 		$results_visible = $this->workflow->results_published( $competition );
 
 		// Duration defaults for replay.
-		$slideshow_replay_duration = $global_settings['slideshow']['voting_duration'] ?? 15;
-		$critique_replay_duration  = $global_settings['slideshow']['critique_duration'] ?? 0;
+		$slideshow_replay_duration = $settings['slideshow']['voting_duration'] ?? 15;
+		$critique_replay_duration  = $settings['slideshow']['critique_duration'] ?? 0;
 
 		$show_results_url = wp_nonce_url(
 			add_query_arg(

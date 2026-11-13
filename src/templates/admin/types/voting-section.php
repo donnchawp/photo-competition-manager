@@ -1,11 +1,10 @@
 <?php
 /**
- * Voting configuration section partial for the admin settings page.
+ * Voting configuration section partial for the competition type form.
  *
  * Reads $data['auth_mode'] (string: 'password'|'token'|'judges'),
- * $data['voting_ui_type'] (string: 'buttons'|'dropdown'), $data['password']
- * (string), $data['click_to_zoom'] (bool), and $data['score_matrix_str']
- * (string, comma-separated scores).
+ * $data['password'] (string), $data['click_to_zoom'] (bool), and
+ * $data['score_matrix_str'] (string, comma-separated scores).
  *
  * @package PhotoCompetitionManager
  */
@@ -22,15 +21,6 @@ echo '<option value="token"' . selected( $data['auth_mode'], 'token', false ) . 
 echo '<option value="judges"' . selected( $data['auth_mode'], 'judges', false ) . '>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</option>';
 echo '</select><br />';
 echo '<span class="description">' . esc_html__( 'Choose who scores. Members can vote with a shared voting password or with links emailed to them. Judges are people outside the club who each get their own link.', 'photo-competition-manager' ) . '</span>';
-echo '</p>';
-
-echo '<p>';
-echo '<label for="voting_ui_type">' . esc_html__( 'Voting UI Type', 'photo-competition-manager' ) . '</label><br />';
-echo '<select id="voting_ui_type" name="voting_ui_type">';
-echo '<option value="buttons"' . selected( $data['voting_ui_type'], 'buttons', false ) . '>' . esc_html__( 'Horizontal Score Buttons', 'photo-competition-manager' ) . '</option>';
-echo '<option value="dropdown"' . selected( $data['voting_ui_type'], 'dropdown', false ) . '>' . esc_html__( 'Dropdown', 'photo-competition-manager' ) . '</option>';
-echo '</select><br />';
-echo '<span class="description">' . esc_html__( 'Choose how voters select scores. Buttons offer a quick, one-click experience, while dropdowns conserve vertical space.', 'photo-competition-manager' ) . '</span>';
 echo '</p>';
 
 echo '<p>';

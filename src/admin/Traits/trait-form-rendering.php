@@ -50,6 +50,50 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Enqueue the script that adds and removes category and grade rows and
+	 * animates the progress meter previews.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return void
+	 */
+	private function enqueue_category_grade_script(): void {
+		wp_enqueue_script(
+			'photo-comp-admin-category-grade',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'photo-comp-admin-category-grade',
+			'photoCompCategoryGrade',
+			array(
+				'labelText'       => __( 'Label', 'photo-competition-manager' ),
+				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
+				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
+				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+			)
+		);
+	}
+
+	/**
+	 * Types screen URL.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param array<string, string|int> $args Extra query arguments.
+	 * @return string
+	 */
+	private function types_url( array $args = array() ): string {
+		return add_query_arg(
+			array_merge( array( 'page' => 'photo-competition-manager-types' ), $args ),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
 	 * Dashboard URL.
 	 *
 	 * @return string

@@ -1,6 +1,6 @@
 <?php
 /**
- * Upload constraints section partial for the admin settings page.
+ * Upload constraints section partial for the competition type form.
  *
  * Reads $data['max_file_size_mb'], $data['max_width'], and
  * $data['max_height'] (all int|string).
