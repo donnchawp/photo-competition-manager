@@ -2,6 +2,34 @@
 
 Status: draft for approval · 2026-11-13
 
+## Summary for SACC
+
+This is how the plugin will handle competitions scored by judges instead of club members. Nothing is built yet, so now is the time to tell me if any of this is wrong for you. The rest of the document is mostly for whoever builds it, so you only need this section.
+
+How it will work:
+
+- When you set up a competition, you choose whether members or judges score it.
+- The website keeps a list of your judges, with a name and email address for each. You add a judge once and pick them again for later competitions.
+- You pick the judges for each competition. There can be one judge or several.
+- Each judge gets their own private link. You can email it to them, or open it on a phone, tablet or laptop at the venue. They don't need a password or an account on the website.
+- You stay in charge of the night. You open a category for scoring, the judges score every image in it, and you close it before moving to the next category. This works for judging live in front of an audience and for a private judging session the day before.
+- Each judge gives every image a score, using a range you set (for example 1 to 5). An image's total is all the judges' scores added together, so three judges scoring 1 to 5 gives a maximum of 15. That follows rule 5j of your 2022 interclub rules.
+- Judges only see the images. They never see the photographer's name or the club.
+- Club members can't vote in a judged competition.
+- The results show each image's total score and its place in its category and grade. Images on the same score share a place.
+
+Not included in this first version:
+
+- Awards such as Highly Commended, Commended or best individual image. The results show scores and places only, for now.
+- Judges' comments on images.
+- Adding up the scores per club and finding the overall Cup and Shield winners. That's part of a separate change, competition types, which will let the same website run your interclub competition and your individual competitions, each with its own entrants, grades and categories. I'll write that up separately.
+
+Things I'd like you to check:
+
+- Does the way a judging night runs above match how you'd use it?
+- Is there anything a judge needs to see while scoring apart from the image, such as its title?
+- Would you ever want the published results to show each judge's score as well as the total? The plan shows only the total.
+
 ## Intent
 
 Most photography clubs don't let members vote. One or more external judges score every image, and the results are the sum of the judges' scores. Blarney's member voting is the unusual case. The request came from SACC (Southern Association of Camera Clubs, sacc.ie), whose interclub rules say: "Each judge will score independently. Results shall be based on the aggregate scores given by all judges to each competing panel." Other clubs need the same thing, so the feature isn't specific to SACC.
