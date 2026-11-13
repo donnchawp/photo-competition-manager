@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
@@ -305,7 +306,7 @@ class Results_Controller {
 			if ( 'send_results_committee' === $action ) {
 				$recipients = $this->members->find_committee_members();
 			} else {
-				$recipients = $this->members->find_active_members();
+				$recipients = $this->members->find_by_type( (int) $competition->type_id );
 			}
 
 			$member_ids = array();
@@ -542,9 +543,23 @@ class Results_Controller {
 			);
 		}
 
+		$send_all_confirm = __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' );
+		$types            = new Competition_Types_Repository();
+		if ( $types->count() > 1 ) {
+			$type = $types->find( (int) $competition->type_id );
+			if ( $type ) {
+				$send_all_confirm = sprintf(
+					/* translators: %s: competition type name */
+					__( 'This will send the results link to all active members of %s. Continue?', 'photo-competition-manager' ),
+					$type->name
+				);
+			}
+		}
+
 		return $this->render_template(
 			'admin/results/overview.php',
 			array(
+				'send_all_confirm'     => $send_all_confirm,
 				'competition_options'  => $competition_options,
 				'summary_cards_html'   => $summary_cards_html,
 				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),

@@ -18,6 +18,7 @@
  * $data['share_url']          string Share link URL; only set when both share_hash and results_page are present.
  * $data['send_committee_url'] string Nonced send-to-committee URL; only set when both share_hash and results_page are present.
  * $data['send_all_url']       string Nonced send-to-all URL; only set when both share_hash and results_page are present.
+ * $data['send_all_confirm']   string Confirmation text for the send-to-all link.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -116,7 +117,7 @@ if ( ! empty( $data['share_hash'] ) && ! empty( $data['results_page'] ) ) {
 	echo '<span class="dashicons dashicons-groups" style="margin-top: 4px;"></span> ';
 	echo esc_html__( 'Send to Committee', 'photo-competition-manager' );
 	echo '</a> ';
-	echo '<a href="' . esc_url( $data['send_all_url'] ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' ) ) . '\');">';
+	echo '<a href="' . esc_url( $data['send_all_url'] ) . '" class="button" onclick="return confirm(\'' . esc_js( $data['send_all_confirm'] ) . '\');">';
 	echo '<span class="dashicons dashicons-email" style="margin-top: 4px;"></span> ';
 	echo esc_html__( 'Send to All Members', 'photo-competition-manager' );
 	echo '</a>';

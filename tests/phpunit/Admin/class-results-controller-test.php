@@ -442,6 +442,61 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The results link to all members goes only to the active members of the competition's type.
+	 */
+	public function test_send_results_all_goes_only_to_members_of_the_competitions_type(): void {
+		$other_type = Type_Fixtures::create( 'Juniors' );
+		$own_type   = Type_Fixtures::id();
+
+		$id = $this->create_competition(
+			array(
+				'type_id'    => $own_type,
+				'share_hash' => 'def456hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		Workflow_Fixtures::publish_results( $id );
+
+		$inside  = (int) $this->members->create(
+			array(
+				'name'     => 'Inside',
+				'email'    => 'inside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $own_type ),
+			)
+		);
+		$outside = (int) $this->members->create(
+			array(
+				'name'     => 'Outside',
+				'email'    => 'outside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $other_type ),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertContains( $inside, array_map( 'intval', $job['member_ids'] ) );
+		$this->assertNotContains( $outside, array_map( 'intval', $job['member_ids'] ) );
+	}
+
+	/**
 	 * The results link goes to every member only once results are published.
 	 */
 	public function test_send_results_all_before_results_are_published_is_refused(): void {
