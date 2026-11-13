@@ -703,6 +703,27 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'photo_competition_request_voting_token', $html );
 	}
 
+	public function test_judge_page_uses_scoring_wording_and_member_page_keeps_voting_wording(): void {
+		$token = $this->make_judged_with_judge();
+		$this->view_page();
+		$_GET['judge'] = $token;
+
+		$html = $this->shortcode->render();
+
+		$this->assertStringContainsString( ' - Judging</h2>', $html );
+		$this->assertStringContainsString( 'How to score', $html );
+		$this->assertStringContainsString( 'You must score every image to submit your scores.', $html );
+		$this->assertStringNotContainsString( 'How to Vote', $html );
+		$this->assertStringNotContainsString( 'You must vote for all images', $html );
+		$this->assertStringNotContainsString( ' - Voting</h2>', $html );
+
+		$this->submit_judge_ballot( $token, 'colour', array( $this->images['colour'] => 5 ) );
+		$_GET['judge'] = $token;
+		$html          = $this->shortcode->render();
+		$this->assertStringContainsString( 'Your scores for this category have already been recorded.', $html );
+		$this->assertStringNotContainsString( 'Your votes for this category', $html );
+	}
+
 	public function test_judge_link_with_no_open_category_says_so(): void {
 		$token = $this->make_judged_with_judge();
 		$this->set_open_categories( array() );

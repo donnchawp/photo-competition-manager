@@ -228,6 +228,26 @@ class Ballots_Test extends WP_UnitTestCase {
 		$this->assertSame( 'invalid_link', $this->ballots->judge_voter( $this->competition, 'nope' )->get_error_code() );
 	}
 
+	public function test_judges_are_told_to_score_not_vote(): void {
+		$this->make_judged();
+		$judge = $this->judge( 'a@example.com' );
+
+		$incomplete = $this->ballots->cast( $this->competition, 'colour', $judge, array( $this->images['colour'][0] => '5' ) );
+		$this->assertSame( 'incomplete_ballot', $incomplete->get_error_code() );
+		$this->assertSame( 'You must score every image. You have scored 1 of 2 images.', $incomplete->get_error_message() );
+
+		$empty = $this->ballots->cast( $this->competition, 'colour', $judge, array() );
+		$this->assertSame( 'Please score at least one image.', $empty->get_error_message() );
+
+		$full = array(
+			$this->images['colour'][0] => '5',
+			$this->images['colour'][1] => '4',
+		);
+		$this->assertTrue( $this->ballots->cast( $this->competition, 'colour', $judge, $full ) );
+		$again = $this->ballots->cast( $this->competition, 'colour', $judge, $full );
+		$this->assertSame( 'Thank you! Your scores for this category have already been recorded.', $again->get_error_message() );
+	}
+
 	public function test_judge_cannot_cast_twice_in_category(): void {
 		$this->make_judged();
 		$judge  = $this->judge( 'a@example.com' );

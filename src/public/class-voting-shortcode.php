@@ -340,7 +340,7 @@ class Voting_Shortcode {
 		}
 
 		if ( 'already_cast' === $outcome ) {
-			$message = $this->already_voted_notice();
+			$message = $this->already_voted_notice( 'judges' === $auth_mode );
 		} elseif ( 'judges' === $auth_mode ) {
 			$message = '<p class="success">' . esc_html__( 'Thank you, your scores have been recorded.', 'photo-competition-manager' ) . '</p>';
 		} elseif ( 'token' === $auth_mode ) {
@@ -350,7 +350,7 @@ class Voting_Shortcode {
 		}
 
 		return '<div class="photo-comp-voting">'
-			. '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</h2>'
+			. '<h2>' . esc_html( $competition->title ) . ' - ' . ( 'judges' === $auth_mode ? esc_html__( 'Judging', 'photo-competition-manager' ) : esc_html__( 'Voting', 'photo-competition-manager' ) ) . '</h2>'
 			. wp_kses_post( $message )
 			. '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $page_url ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>'
 			. '</div>';
@@ -376,7 +376,7 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_judged_voting( object $competition, array $settings ): string {
-		$heading = '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Voting', 'photo-competition-manager' ) . '</h2>';
+		$heading = '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Judging', 'photo-competition-manager' ) . '</h2>';
 		$token   = $this->judge_token_from_url();
 		$voter   = $this->ballots->judge_voter( $competition, $token );
 
@@ -400,7 +400,7 @@ class Voting_Shortcode {
 
 		if ( '' === $category ) {
 			$open_any = $this->workflow->categories_accepting_votes( $competition );
-			$notice   = $open_any ? $this->already_voted_notice() : '<p class="notice">' . esc_html__( 'Scoring isn\'t open yet.', 'photo-competition-manager' ) . '</p>';
+			$notice   = $open_any ? $this->already_voted_notice( true ) : '<p class="notice">' . esc_html__( 'Scoring isn\'t open yet.', 'photo-competition-manager' ) . '</p>';
 			return '<div class="photo-comp-voting">' . $heading . wp_kses_post( $notice ) . $check . '</div>';
 		}
 
@@ -570,7 +570,7 @@ class Voting_Shortcode {
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( $competition->title ); ?> - <?php $is_judge ? esc_html_e( 'Judging', 'photo-competition-manager' ) : esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>
@@ -645,7 +645,7 @@ class Voting_Shortcode {
 				}
 
 				if ( $this->ballots->has_cast( $competition, $category, $voter ) ) {
-					echo wp_kses_post( $this->already_voted_notice() );
+					echo wp_kses_post( $this->already_voted_notice( $is_judge ) );
 					echo '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( get_permalink() ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>';
 					return;
 				}
@@ -687,7 +687,7 @@ class Voting_Shortcode {
 
 				<!-- Voting instructions -->
 				<div class="voting-instructions">
-					<h3><?php esc_html_e( 'How to Vote', 'photo-competition-manager' ); ?></h3>
+					<h3><?php $is_judge ? esc_html_e( 'How to score', 'photo-competition-manager' ) : esc_html_e( 'How to Vote', 'photo-competition-manager' ); ?></h3>
 					<p>
 						<?php
 							echo esc_html(
@@ -716,7 +716,7 @@ class Voting_Shortcode {
 					);
 				?>
 					</p>
-					<p><strong><?php esc_html_e( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ); ?></strong></p>
+					<p><strong><?php $is_judge ? esc_html_e( 'You must score every image to submit your scores.', 'photo-competition-manager' ) : esc_html_e( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ); ?></strong></p>
 					<?php if ( ! $is_judge ) : ?>
 					<p class="anonymity-notice" style="color: #666; font-style: italic;">
 						<?php esc_html_e( 'Your votes are completely anonymous. Your name will not be associated with your votes.', 'photo-competition-manager' ); ?>
@@ -1052,9 +1052,14 @@ class Voting_Shortcode {
 	 *
 	 * @since 0.4.0
 	 *
+	 * @param bool $judge Whether the voter is a judge, who gives scores rather than votes.
 	 * @return string
 	 */
-	private function already_voted_notice(): string {
-		return '<p class="notice notice-success">' . esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' ) . '</p>';
+	private function already_voted_notice( bool $judge = false ): string {
+		$text = $judge
+			? esc_html__( 'Thank you! Your scores for this category have already been recorded.', 'photo-competition-manager' )
+			: esc_html__( 'Thank you! Your votes for this category have already been recorded.', 'photo-competition-manager' );
+
+		return '<p class="notice notice-success">' . $text . '</p>';
 	}
 }
