@@ -738,7 +738,7 @@ class Results_Controller {
 				'image_url'      => $image_url,
 				'member_name'    => $member ? $member->name : __( 'Unknown', 'photo-competition-manager' ),
 				'member_email'   => ( $member && ! empty( $member->email ) ) ? $member->email : '',
-				'member_grade'   => $member ? $member->grade : '',
+				'member_grade'   => $member ? ( new Competition_Labels() )->admin_grade_label( $competition, (string) $member->grade ) : '',
 				'has_member'     => (bool) $member,
 				'category_label' => $category_label,
 				'image_number'   => $image->random_number,

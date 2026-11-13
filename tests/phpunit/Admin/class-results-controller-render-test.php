@@ -553,6 +553,35 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'Former member', $html );
 	}
 
+	public function test_render_shows_a_renamed_grade_as_cup_advanced(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'advanced' => 'Cup' ) );
+		$comp_id = $this->seed_competition( 'Cup Show', 'cup-show', array( 'type_id' => $type_id ) );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced' ) );
+		$image   = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ada,
+				'filename'  => 'ada.jpg',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->assertStringContainsString( '<h3>Cup (Advanced)</h3>', $this->render_normalized( array( $comp_id ) ) );
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'image'       => (string) $image,
+			)
+		);
+		$this->assertStringContainsString( '<br>Cup (Advanced)</p>', $this->render_normalized( array( $comp_id ), array(), array( $image ) ) );
+	}
+
 	public function test_render_warns_about_ungraded_entries_in_another_category(): void {
 		// The warning is about the whole competition, so it shows whichever
 		// category tab is open.
