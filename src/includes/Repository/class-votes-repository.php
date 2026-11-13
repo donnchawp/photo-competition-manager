@@ -20,6 +20,33 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Votes_Repository extends Abstract_Repository {
 
 	/**
+	 * How admin screens and exports name each vote's voter: the judge's label, else
+	 * the voter's name, else the voting link's token, as a voting-link vote has no name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object[] $votes Vote rows.
+	 * @return string[] A label per vote, with the votes' keys.
+	 */
+	public function voter_labels( array $votes ): array {
+		$judges       = new Judges_Repository();
+		$judge_labels = array();
+
+		return array_map(
+			function ( object $vote ) use ( $judges, &$judge_labels ): string {
+				if ( empty( $vote->judge_id ) ) {
+					return $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+				}
+
+				$judge_id = (int) $vote->judge_id;
+
+				return $judge_labels[ $judge_id ] ??= $judges->vote_label( $judge_id );
+			},
+			$votes
+		);
+	}
+
+	/**
 	 * Table suffix.
 	 *
 	 * @return string
