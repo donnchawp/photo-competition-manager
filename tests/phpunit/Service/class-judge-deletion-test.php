@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
@@ -60,6 +61,7 @@ class Judge_Deletion_Test extends WP_UnitTestCase {
 		$competitions   = new Competitions_Repository();
 		$competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Judged Comp',
 				'slug'      => 'judged-comp',
 				'open_date' => '2020-01-01 00:00:00',

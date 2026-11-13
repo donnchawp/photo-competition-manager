@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Results_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -40,6 +41,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Results Comp',
 				'slug'      => 'results-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -182,6 +184,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
 		$competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Next Month',
 				'slug'      => 'next-month',
 				'open_date' => '2020-02-01 00:00:00',

@@ -3,7 +3,8 @@
  * Create-competition form partial for the admin dashboard page.
  *
  * Reads $data['label_format'] (string): human-readable date format label
- * for the UI.
+ * for the UI. $data['types'] (object[]): the types to choose from, empty
+ * when the club has one.
  *
  * @package PhotoCompetitionManager
  */
@@ -25,6 +26,18 @@ echo '<p>';
 echo '<label for="competition_slug">' . esc_html__( 'Slug (optional)', 'photo-competition-manager' ) . '</label><br />';
 echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" />';
 echo '</p>';
+
+if ( $data['types'] ) {
+	echo '<p>';
+	echo '<label for="competition_type">' . esc_html__( 'Type', 'photo-competition-manager' ) . '</label><br />';
+	echo '<select id="competition_type" name="competition_type" required>';
+	echo '<option value="">' . esc_html__( 'Choose a type', 'photo-competition-manager' ) . '</option>';
+	foreach ( $data['types'] as $type_row ) {
+		echo '<option value="' . esc_attr( $type_row->id ) . '">' . esc_html( $type_row->name ) . '</option>';
+	}
+	echo '</select>';
+	echo '</p>';
+}
 
 echo '<p>';
 echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'photo-competition-manager' ) . ' (' . esc_html( $data['label_format'] ) . ')</label><br />';

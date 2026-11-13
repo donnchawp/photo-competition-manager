@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Install;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -944,6 +945,7 @@ class Activator_Test extends WP_UnitTestCase {
 	private function competition_with_an_entry( string $title, int $opens_in, int $closes_in ): int {
 		$id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => sanitize_title( $title ) . '-' . wp_generate_password( 6, false ),
 				'open_date'  => utc_time( $opens_in * DAY_IN_SECONDS ),

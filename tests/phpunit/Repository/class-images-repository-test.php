@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
@@ -63,6 +64,7 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		// Create test competition.
 		$competition_id = $this->competitions_repo->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Test Competition',
 				'slug'     => 'test-competition',
 				'status'   => 'active',

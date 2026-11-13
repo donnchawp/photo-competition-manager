@@ -6,7 +6,9 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
@@ -46,6 +48,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$result = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'October 2024 Competition',
 				'open_date' => '2024-10-01',
 			)
@@ -74,6 +77,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$first = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Monthly Challenge',
 				'slug'  => 'monthly-challenge',
 			)
@@ -83,6 +87,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$second = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Another Challenge',
 				'slug'  => 'monthly-challenge',
 			)
@@ -102,6 +107,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Winter Showcase',
 				'status'=> 'draft',
 			)
@@ -135,6 +141,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Spring Gala',
 				'slug'  => 'spring-gala',
 			)
@@ -164,6 +171,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Archive Me',
 			)
 		);
@@ -191,6 +199,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Restore Me',
 			)
 		);
@@ -216,6 +225,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'October 2025',
 				'slug'  => 'october-2025',
 			)
@@ -239,6 +249,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$competition_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Archived Competition',
 				'slug'  => 'archived-comp',
 			)
@@ -276,22 +287,25 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_all_open_returns_only_open_competitions(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$archived_id = $repository->create( array( 'title' => 'Archived Comp' ) );
+		$archived_id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Archived Comp' ) );
 		$repository->archive( $archived_id );
 		$open_id     = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Open Comp',
 				'close_date' => '2098-12-31 00:00:00',
 			)
 		);
 		$closed_id   = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closed Comp',
 				'close_date' => '2020-02-01 00:00:00',
 			)
 		);
 		$future_id   = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Future Comp',
 				'open_date' => '2099-01-01 00:00:00',
 			)
@@ -313,12 +327,13 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository = new Competitions_Repository( $wpdb );
 
-		$open_id = $repository->create( array( 'title' => 'Old Open Comp' ) );
+		$open_id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Old Open Comp' ) );
 		$wpdb->update( $repository->table(), array( 'created_at' => '2000-01-01 00:00:00' ), array( 'id' => $open_id ) );
 
 		for ( $i = 1; $i <= 101; $i++ ) {
 			$repository->create(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => "Closed Comp {$i}",
 					'close_date' => '2020-02-01 00:00:00',
 				)
@@ -335,6 +350,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closing Now',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => utc_time(),
@@ -349,6 +365,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closed Comp',
 				'close_date' => '2020-02-01 00:00:00',
 			)
@@ -369,6 +386,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -389,6 +407,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -408,6 +427,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => $hand_over,
@@ -427,6 +447,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next',
 				'open_date'  => $hand_over,
 				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
@@ -445,6 +466,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$undated_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Undated Open',
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
 			)
@@ -465,6 +487,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$stale_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Stale',
 				'open_date' => '2020-01-01 00:00:00',
 			)
@@ -485,6 +508,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Last Year',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => '2020-02-01 00:00:00',
@@ -504,6 +528,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Last Year',
 				'open_date'  => '2025-01-01 00:00:00',
 				'close_date' => '2025-02-05 00:00:00',
@@ -523,6 +548,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closed Today',
 				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
 				'close_date' => utc_time(),
@@ -541,6 +567,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Stale',
 				'open_date' => '2020-01-01 00:00:00',
 			)
@@ -557,6 +584,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -572,7 +600,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_find_overlapping_ignores_archived_competitions(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$id = $repository->create( array( 'title' => 'Archived' ) );
+		$id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Archived' ) );
 		$repository->archive( $id );
 
 		$this->assertNull( $repository->find_overlapping( utc_time( 10 * DAY_IN_SECONDS ), utc_time( 40 * DAY_IN_SECONDS ) ) );
@@ -587,6 +615,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -595,6 +624,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$result = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Clashing',
 				'open_date'  => utc_time( 10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 40 * DAY_IN_SECONDS ),
@@ -613,6 +643,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => $hand_over,
@@ -622,6 +653,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertIsInt(
 			$repository->create(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Next',
 					'open_date'  => $hand_over,
 					'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
@@ -635,6 +667,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -643,6 +676,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$next_opens = utc_time( 20 * DAY_IN_SECONDS );
 		$next_id    = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next',
 				'open_date'  => $next_opens,
 				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
@@ -665,6 +699,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -683,7 +718,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository = new Competitions_Repository( $wpdb );
 
-		$first_id = $repository->create( array( 'title' => 'First' ) );
+		$first_id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'First' ) );
 		$wpdb->insert(
 			$repository->table(),
 			array(
@@ -703,6 +738,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 10 * DAY_IN_SECONDS ),
@@ -710,6 +746,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next',
 				'open_date'  => $hand_over,
 				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
@@ -729,7 +766,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository = new Competitions_Repository( $wpdb );
 
-		$open_id = $repository->create( array( 'title' => 'Open' ) );
+		$open_id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Open' ) );
 		$wpdb->insert(
 			$repository->table(),
 			array(
@@ -749,6 +786,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$archived_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Archived',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => $hand_over,
@@ -757,6 +795,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository->archive( $archived_id );
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next',
 				'open_date'  => $hand_over,
 				'close_date' => utc_time( 50 * DAY_IN_SECONDS ),
@@ -772,6 +811,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$archived_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Archived',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 20 * DAY_IN_SECONDS ),
@@ -780,6 +820,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository->archive( $archived_id );
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -5 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 25 * DAY_IN_SECONDS ),
@@ -803,6 +844,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Active Comp',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => '2099-12-31 23:59:59',
@@ -820,6 +862,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Past Comp',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => '2020-02-01 00:00:00',
@@ -834,6 +877,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closing Now',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => utc_time(),
@@ -848,6 +892,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Archived Active',
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => '2099-12-31 23:59:59',
@@ -872,6 +917,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$last_month_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Last Month',
 				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( -25 * DAY_IN_SECONDS ),
@@ -879,6 +925,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next Month',
 				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
@@ -893,6 +940,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$july_id     = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'July',
 				'open_date'  => '2020-07-01 00:00:00',
 				'close_date' => '2020-08-01 00:00:00',
@@ -900,6 +948,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$archived_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Archived',
 				'open_date'  => '2020-08-01 00:00:00',
 				'close_date' => '2020-09-01 00:00:00',
@@ -918,6 +967,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'August',
 				'open_date'  => '2020-08-01 00:00:00',
 				'close_date' => '2020-09-01 00:00:00',
@@ -925,6 +975,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$undated_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'September',
 				'close_date' => utc_time( -DAY_IN_SECONDS ),
 			)
@@ -938,6 +989,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next Month',
 				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
@@ -959,6 +1011,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$current_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Current',
 				'open_date'  => utc_time( -10 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 5 * DAY_IN_SECONDS ),
@@ -966,6 +1019,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Short',
 				'open_date'  => utc_time( -3 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( -DAY_IN_SECONDS ),
@@ -980,6 +1034,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$last_month_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Last Month',
 				'open_date'  => utc_time( -30 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( -25 * DAY_IN_SECONDS ),
@@ -987,6 +1042,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		);
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Next Month',
 				'open_date'  => utc_time( 2 * DAY_IN_SECONDS ),
 				'close_date' => utc_time( 7 * DAY_IN_SECONDS ),
@@ -1005,6 +1061,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Shared Comp',
 				'share_hash' => 'abc123',
 			)
@@ -1027,6 +1084,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Archived Shared',
 				'share_hash' => 'xyz789',
 			)
@@ -1040,7 +1098,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_update_share_hash_persists(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$id = $repository->create( array( 'title' => 'Hash Comp' ) );
+		$id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Hash Comp' ) );
 
 		$result = $repository->update_share_hash( $id, 'newhash' );
 		$this->assertTrue( $result );
@@ -1064,7 +1122,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_delete_removes_competition(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$id = $repository->create( array( 'title' => 'Delete Me' ) );
+		$id = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Delete Me' ) );
 
 		$result = $repository->delete( $id );
 		$this->assertTrue( $result );
@@ -1077,7 +1135,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$repository  = new Competitions_Repository( $GLOBALS['wpdb'] );
 		$assignments = new Competition_Judges_Repository();
 
-		$id       = $repository->create( array( 'title' => 'Judged' ) );
+		$id       = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Judged' ) );
 		$judge_id = ( new Judges_Repository() )->create( 'Jane Judge', 'jane@example.com' );
 		$token    = $assignments->assign( $id, $judge_id );
 
@@ -1089,7 +1147,7 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 	public function test_delete_refuses_while_the_competition_has_entries(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$id       = $repository->create( array( 'title' => 'Still Entered' ) );
+		$id       = $repository->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Still Entered' ) );
 		$entry_id = Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
 
 		$result = $repository->delete( $id );
@@ -1114,5 +1172,53 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$result = $repository->delete( 9999 );
 		$this->assertWPError( $result );
 		$this->assertSame( 'missing_competition', $result->get_error_code() );
+	}
+
+	public function test_create_refuses_a_missing_or_unknown_type(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+
+		foreach ( array( array( 'title' => 'No Type' ), array( 'title' => 'Bad Type', 'type_id' => 999999 ) ) as $data ) {
+			$result = $repository->create( $data );
+			$this->assertWPError( $result );
+			$this->assertSame( 'invalid_type', $result->get_error_code() );
+		}
+	}
+
+	public function test_create_stores_the_type_and_an_entry_mode_that_defaults_to_all(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$type_id    = Type_Fixtures::id();
+
+		$all      = $repository->find( $repository->create( array( 'type_id' => $type_id, 'title' => 'All Mode', 'open_date' => '2020-01-01', 'close_date' => '2020-01-02' ) ) );
+		$selected = $repository->find( $repository->create( array( 'type_id' => $type_id, 'title' => 'Selected Mode', 'open_date' => '2020-01-01', 'close_date' => '2020-01-02', 'entry_mode' => 'selected' ) ) );
+		$bogus    = $repository->find( $repository->create( array( 'type_id' => $type_id, 'title' => 'Bogus Mode', 'open_date' => '2020-01-01', 'close_date' => '2020-01-02', 'entry_mode' => 'x' ) ) );
+
+		$this->assertSame( $type_id, (int) $all->type_id );
+		$this->assertSame( 'all', $all->entry_mode );
+		$this->assertSame( 'selected', $selected->entry_mode );
+		$this->assertSame( 'all', $bogus->entry_mode );
+	}
+
+	public function test_update_changes_the_type_until_the_competition_has_entries(): void {
+		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
+		$types      = new Competition_Types_Repository();
+		$first      = Type_Fixtures::id();
+		$second     = (int) $types->create( 'Second', array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 1 ) ) ) );
+		$id         = $repository->create( array( 'type_id' => $first, 'title' => 'Movable' ) );
+
+		$this->assertTrue( $repository->update( $id, array( 'type_id' => $second ) ) );
+		$this->assertSame( $second, (int) $repository->find( $id )->type_id );
+
+		$invalid = $repository->update( $id, array( 'type_id' => 999999 ) );
+		$this->assertWPError( $invalid );
+		$this->assertSame( 'invalid_type', $invalid->get_error_code() );
+
+		Entry_Fixtures::insert_entry( $id, 'open', 1, array() );
+
+		$locked = $repository->update( $id, array( 'type_id' => $first ) );
+		$this->assertWPError( $locked );
+		$this->assertSame( 'type_locked', $locked->get_error_code() );
+		$this->assertSame( $second, (int) $repository->find( $id )->type_id );
+
+		$this->assertTrue( $repository->update( $id, array( 'title' => 'Renamed', 'type_id' => $second ) ), 'Posting the same type is not a change.' );
 	}
 }

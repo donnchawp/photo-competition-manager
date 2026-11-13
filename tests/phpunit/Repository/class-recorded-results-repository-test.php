@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
@@ -35,6 +36,7 @@ class Recorded_Results_Repository_Test extends WP_UnitTestCase {
 		$this->record         = new Recorded_Results_Repository();
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title' => 'Recorded Comp',
 				'slug'  => 'recorded-comp',
 			)

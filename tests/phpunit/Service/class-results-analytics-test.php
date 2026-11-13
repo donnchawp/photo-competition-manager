@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -113,6 +114,7 @@ class Results_Analytics_Test extends WP_UnitTestCase {
 	public function test_image_details(): void {
 		$competition_id = (int) $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 				'open_date'  => null,

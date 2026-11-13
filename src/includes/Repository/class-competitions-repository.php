@@ -297,13 +297,23 @@ class Competitions_Repository extends Abstract_Repository {
 	 * Create a competition.
 	 *
 	 * Refuses dates that overlap another competition with a
-	 * 'competition_overlap' error.
+	 * 'competition_overlap' error, and a missing type with 'invalid_type'.
+	 *
+	 * @since 0.5.0 Needs a `type_id`, and takes an `entry_mode` ('all' or 'selected', default 'all').
 	 *
 	 * @param array<string, mixed> $data Competition data.
 	 * @return int|WP_Error
 	 */
 	public function create( array $data ) {
 		global $wpdb;
+
+		$type_id = isset( $data['type_id'] ) ? (int) $data['type_id'] : 0;
+
+		if ( ! ( new Competition_Types_Repository() )->find( $type_id ) ) {
+			return $this->invalid_type();
+		}
+
+		$entry_mode = $this->entry_mode( $data['entry_mode'] ?? 'all' );
 
 		$title = isset( $data['title'] ) ? sanitize_text_field( (string) $data['title'] ) : '';
 
@@ -336,6 +346,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
 			'share_hash' => isset( $data['share_hash'] ) ? sanitize_text_field( (string) $data['share_hash'] ) : '',
+			'type_id'    => $type_id,
+			'entry_mode' => $entry_mode,
 			'created_at' => $now,
 			'updated_at' => $now,
 		);
@@ -346,6 +358,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'%s',
 			'%s',
 			'%s',
+			'%s',
+			'%d',
 			'%s',
 			'%s',
 			'%s',
@@ -365,7 +379,11 @@ class Competitions_Repository extends Abstract_Repository {
 	 * Update a competition.
 	 *
 	 * When the dates change, refuses dates that overlap another competition
-	 * with a 'competition_overlap' error.
+	 * with a 'competition_overlap' error. A `type_id` that names no type is
+	 * refused with 'invalid_type', and one that changes while the competition
+	 * has entries with 'type_locked'.
+	 *
+	 * @since 0.5.0 Takes `type_id` and `entry_mode`.
 	 *
 	 * @param int                  $id   Competition ID.
 	 * @param array<string, mixed> $data Updated data.
@@ -411,12 +429,25 @@ class Competitions_Repository extends Abstract_Repository {
 			}
 		}
 
+		$type_id = isset( $data['type_id'] ) ? (int) $data['type_id'] : (int) $current->type_id;
+
+		if ( isset( $data['type_id'] ) && $type_id !== (int) $current->type_id ) {
+			if ( ! ( new Competition_Types_Repository() )->find( $type_id ) ) {
+				return $this->invalid_type();
+			}
+
+			if ( $this->has_entries( $id ) ) {
+				return new WP_Error( 'type_locked', __( 'A competition\'s type can\'t change once it has entries.', 'photo-competition-manager' ) );
+			}
+		}
+
 		$payload = array(
 			'title'      => $title,
 			'slug'       => $slug,
 			'open_date'  => $open_date,
 			'close_date' => $close_date,
 			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : $current->settings,
+			'entry_mode' => isset( $data['entry_mode'] ) ? $this->entry_mode( $data['entry_mode'] ) : $current->entry_mode,
 			'updated_at' => utc_time(),
 		);
 
@@ -427,7 +458,13 @@ class Competitions_Repository extends Abstract_Repository {
 			'%s',
 			'%s',
 			'%s',
+			'%s',
 		);
+
+		if ( isset( $data['type_id'] ) ) {
+			$payload['type_id'] = $type_id;
+			$format[]           = '%d';
+		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$updated = $wpdb->update(
@@ -443,6 +480,37 @@ class Competitions_Repository extends Abstract_Repository {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Whether a competition has any entries.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $id Competition ID.
+	 * @return bool
+	 */
+	public function has_entries( int $id ): bool {
+		return array() !== ( new Images_Repository() )->find_by_competition( $id );
+	}
+
+	/**
+	 * The error for a type that doesn't exist.
+	 *
+	 * @return WP_Error
+	 */
+	private function invalid_type(): WP_Error {
+		return new WP_Error( 'invalid_type', __( 'Choose a competition type.', 'photo-competition-manager' ) );
+	}
+
+	/**
+	 * A valid entry mode.
+	 *
+	 * @param mixed $value Requested mode.
+	 * @return string 'selected' or 'all'.
+	 */
+	private function entry_mode( $value ): string {
+		return 'selected' === $value ? 'selected' : 'all';
 	}
 
 	/**

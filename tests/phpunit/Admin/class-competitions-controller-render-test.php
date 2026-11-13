@@ -21,7 +21,10 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -96,6 +99,9 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$html       = preg_replace( '/name="competition_id" value="' . $id_pattern . '"/', 'name="competition_id" value="ID"', $html );
 		}
 
+		// Type IDs are auto-increment too.
+		$html = preg_replace( '/(<option value=")\d+(")/', '$1TYPE$2', $html );
+
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
 		// &amp;; core has changed usage between releases).
@@ -149,6 +155,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$id = $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => $title,
 					'slug'       => $slug,
 					'open_date'  => null,
@@ -491,6 +498,87 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'edit-general-tab', array( $comp_id ) );
+	}
+
+	/**
+	 * Replace the site's types with Individual and Team.
+	 *
+	 * @return array<string, int> Type IDs by name.
+	 */
+	private function use_two_types(): array {
+		global $wpdb;
+
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+
+		$types      = new Competition_Types_Repository();
+		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+
+		return array(
+			'Individual' => (int) $types->create( 'Individual', $categories ),
+			'Team'       => (int) $types->create( 'Team', $categories ),
+		);
+	}
+
+	public function test_render_create_form_with_two_types_has_a_required_type_select(): void {
+		$this->use_two_types();
+
+		$this->assert_matches_snapshot( 'no-competitions-active-two-types' );
+	}
+
+	public function test_render_edit_general_tab_with_two_types_offers_the_type(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'type_id'    => $ids['Team'],
+				'open_date'  => '2026-04-01 00:00:00',
+				'close_date' => '2026-04-30 00:00:00',
+			),
+			array(
+				'created_at' => '2026-01-01 00:00:00',
+				'updated_at' => '2026-01-01 00:00:00',
+			)
+		);
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-general-tab-two-types', array( $comp_id ) );
+	}
+
+	public function test_render_edit_general_tab_shows_the_type_read_only_once_there_are_entries(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'type_id' => $ids['Team'] ) );
+		Entry_Fixtures::insert_entry( $comp_id, 'open', 1, array() );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<strong>Team</strong>', $html );
+		$this->assertStringContainsString( 'A competition&#039;s type can&#039;t change once it has entries.', $html );
+		$this->assertStringNotContainsString( 'name="competition_type"', $html );
+	}
+
+	public function test_render_edit_general_tab_with_one_type_has_no_type_field(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$this->assertStringNotContainsString( 'competition_type', $this->render_normalized( array( $comp_id ) ) );
 	}
 
 	public function test_render_edit_settings_tab_defaults(): void {

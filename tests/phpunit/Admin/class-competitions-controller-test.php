@@ -14,6 +14,8 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -71,6 +73,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_competition( string $title, string $slug, ?string $open_date = null, ?string $close_date = null ): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => $open_date,
@@ -192,65 +195,187 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * A new competition keeps a copy of the club's categories, even a
-	 * single one, the shape that used to gain "Black & White".
+	 * Replace the site's types with the given ones.
+	 *
+	 * @param array<string, array<string, mixed>> $types Settings by type name.
+	 * @return array<string, int> Type IDs by name.
 	 */
-	public function test_create_competition_copies_the_clubs_categories(): void {
+	private function use_types( array $types ): array {
+		global $wpdb;
+
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+
+		$repo = new Competition_Types_Repository();
+		$ids  = array();
+		foreach ( $types as $name => $settings ) {
+			$ids[ $name ] = (int) $repo->create( $name, $settings );
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Post the create form.
+	 *
+	 * @param array<string, mixed> $extra Extra posted fields.
+	 * @return string Redirect location.
+	 */
+	private function post_create( array $extra = array() ): string {
+		$this->set_request(
+			array_merge(
+				array(
+					'photo_competition_action' => 'create_competition',
+					'competition_title'        => 'Typed Show',
+					'competition_slug'         => 'typed-show',
+					'competition_open_date'    => '',
+					'competition_close_date'   => '',
+				),
+				$extra
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Post the general tab's form.
+	 *
+	 * @param int                  $id    Competition ID.
+	 * @param array<string, mixed> $extra Extra posted fields.
+	 * @return string Redirect location.
+	 */
+	private function post_update( int $id, array $extra = array() ): string {
+		$this->set_request(
+			array_merge(
+				array(
+					'photo_competition_action' => 'update_competition',
+					'competition_id'           => (string) $id,
+					'competition_title'        => 'Typed Show',
+					'competition_slug'         => 'typed-show',
+					'competition_open_date'    => '',
+					'competition_close_date'   => '',
+				),
+				$extra
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * With one type the form has no type field, so the competition takes that type.
+	 */
+	public function test_create_with_one_type_needs_no_type_field(): void {
+		$ids = $this->use_types( array( 'Individual' => array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) ) ) );
+
+		$this->post_create();
+
+		$competition = $this->competitions->find_by_slug( 'typed-show' );
+		$this->assertNotNull( $competition );
+		$this->assertSame( $ids['Individual'], (int) $competition->type_id );
+		$this->assertSame( 'all', $competition->entry_mode );
+	}
+
+	/**
+	 * A new competition keeps its own copy of its type's categories and settings,
+	 * and the club's page links, not the club's categories.
+	 */
+	public function test_create_copies_type_categories_and_settings(): void {
 		$open = array(
 			'slug'  => 'open',
 			'label' => 'Open',
 			'quota' => 2,
 		);
-		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => array( $open ) ) ) );
-		$this->set_request(
+		$this->use_types(
 			array(
-				'photo_competition_action' => 'create_competition',
-				'competition_title'        => 'Open Show',
-				'competition_slug'         => 'open-show',
-				'competition_open_date'    => '',
-				'competition_close_date'   => '',
+				'Individual' => array(
+					'categories' => array( $open ),
+					'voting'     => array( 'score_matrix' => array( 3, 2, 1 ) ),
+				),
 			)
 		);
-		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => array( array_merge( $open, array( 'slug' => 'club' ) ) ) ) ) );
 
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
+		$this->post_create();
 
-		$competition = $this->competitions->find_by_slug( 'open-show' );
-		$this->assertSame( array( $open ), $this->stored_settings( (int) $competition->id )['categories'] ?? null );
+		$stored = $this->stored_settings( (int) $this->competitions->find_by_slug( 'typed-show' )->id );
+		$this->assertSame( array( $open ), $stored['categories'] );
+		$this->assertSame( array( 3, 2, 1 ), $stored['voting']['score_matrix'] );
+		$this->assertArrayNotHasKey( 'grades', $stored );
 	}
 
 	/**
-	 * A new competition keeps a copy of the built-in categories when the club
-	 * has never saved its own, so later club changes don't alter it.
+	 * With several types, one has to be chosen.
 	 */
-	public function test_create_competition_copies_the_built_in_categories_when_the_club_has_none(): void {
-		delete_option( 'photo_comp_default_settings' );
-		$this->set_request(
+	public function test_create_with_two_types_requires_a_type(): void {
+		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+		$ids  = $this->use_types(
 			array(
-				'photo_competition_action' => 'create_competition',
-				'competition_title'        => 'First Show',
-				'competition_slug'         => 'first-show',
-				'competition_open_date'    => '',
-				'competition_close_date'   => '',
+				'Individual' => $cats,
+				'Team'       => $cats,
 			)
 		);
-		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
 
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
+		$this->post_create();
+		$this->assertNull( $this->competitions->find_by_slug( 'typed-show' ) );
+		$this->assertContains( 'invalid_type', $this->settings_error_codes( 'photo_competition_manager' ) );
+
+		$this->post_create( array( 'competition_type' => (string) $ids['Team'] ) );
+		$this->assertSame( $ids['Team'], (int) $this->competitions->find_by_slug( 'typed-show' )->type_id );
+	}
+
+	/**
+	 * Changing a competition's type doesn't copy the new type's settings over it.
+	 */
+	public function test_editing_type_after_editing_competition_doesnt_change_it(): void {
+		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+		$ids  = $this->use_types(
+			array(
+				'Individual' => $cats,
+				'Team'       => array( 'categories' => array( array( 'label' => 'Duo', 'slug' => 'duo', 'quota' => 1 ) ) ),
+			)
 		);
 
-		$competition = $this->competitions->find_by_slug( 'first-show' );
-		$this->assertSame(
-			array( 'colour', 'black-white' ),
-			wp_list_pluck( $this->stored_settings( (int) $competition->id )['categories'] ?? array(), 'slug' )
+		$this->post_create( array( 'competition_type' => (string) $ids['Individual'] ) );
+		$id = (int) $this->competitions->find_by_slug( 'typed-show' )->id;
+
+		$this->post_update( $id, array( 'competition_type' => (string) $ids['Team'] ) );
+
+		$this->assertSame( $ids['Team'], (int) $this->competitions->find( $id )->type_id );
+		$this->assertSame( array( 'open' ), wp_list_pluck( $this->stored_settings( $id )['categories'], 'slug' ) );
+	}
+
+	/**
+	 * Once a competition has entries its type is fixed.
+	 */
+	public function test_type_cannot_change_once_competition_has_entries(): void {
+		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+		$ids  = $this->use_types(
+			array(
+				'Individual' => $cats,
+				'Team'       => $cats,
+			)
 		);
+
+		$this->post_create( array( 'competition_type' => (string) $ids['Individual'] ) );
+		$id = (int) $this->competitions->find_by_slug( 'typed-show' )->id;
+		Entry_Fixtures::insert_entry( $id, 'open', 1, array() );
+
+		$this->post_update( $id, array( 'competition_type' => (string) $ids['Team'] ) );
+
+		$this->assertSame( $ids['Individual'], (int) $this->competitions->find( $id )->type_id );
+		$this->assertContains( 'type_locked', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**
@@ -1644,6 +1769,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_judged_competition(): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Judged Show',
 				'slug'     => 'judged-show',
 				'settings' => array(
@@ -1757,6 +1883,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_send_judge_link_without_a_voting_page_sends_nothing(): void {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'No Page',
 				'slug'     => 'no-page',
 				'settings' => array( 'voting' => array( 'auth_mode' => 'judges' ) ),

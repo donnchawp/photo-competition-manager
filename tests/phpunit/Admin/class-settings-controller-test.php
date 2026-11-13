@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Settings_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -297,6 +298,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$competitions = new Competitions_Repository();
 		$id           = $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Old Comp',
 				'slug'     => 'old-comp',
 				'settings' => array(

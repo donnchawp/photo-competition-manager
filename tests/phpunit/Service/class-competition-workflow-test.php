@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -53,6 +54,7 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		return (int) $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Workflow ' . $n,
 					'slug'       => 'workflow-' . $n,
 					'open_date'  => utc_time( -DAY_IN_SECONDS ),

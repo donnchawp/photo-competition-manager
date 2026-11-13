@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Image_Permalink;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Service\Entries;
@@ -38,6 +39,7 @@ class Image_Permalink_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Permalink Comp',
 				'slug'      => 'permalink-comp',
 				'open_date' => '2020-01-01 00:00:00',

@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\API;
 
 use PhotoCompetitionManager\API\Upload_API;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -55,6 +56,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	private function request_for_member( bool $active ): WP_REST_Request {
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',

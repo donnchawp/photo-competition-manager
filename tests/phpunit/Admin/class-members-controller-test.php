@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Members_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -73,6 +74,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_open_competition( string $title = 'Spring Show', string $slug = 'spring-show' ): int {
 		return $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				// Null dates make is_open() true independent of the clock, so the
@@ -403,7 +405,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_delete_member_removes_their_entries(): void {
 		$id             = $this->create_member();
-		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		$competition_id = (int) $this->competitions->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Entered' ) );
 		$entry_id       = Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array( 7 ) );
 
 		$this->set_request(
@@ -461,7 +463,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_delete_member_keeps_the_member_when_an_entry_wont_go(): void {
 		$id             = $this->create_member();
-		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		$competition_id = (int) $this->competitions->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Entered' ) );
 		Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array() );
 
 		$failing_repo     = new class() extends Images_Repository {

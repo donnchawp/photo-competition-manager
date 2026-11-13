@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Dependencies;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -64,6 +65,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	private function make_open_competition(): int {
 		return (int) $this->comps->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Open Comp',
 				'slug'      => 'open-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -74,6 +76,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	private function make_closed_competition(): int {
 		return (int) $this->comps->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closed Comp',
 				'slug'       => 'closed-comp',
 				'open_date'  => '2020-01-01 00:00:00',

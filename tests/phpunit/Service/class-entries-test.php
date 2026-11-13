@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -1211,6 +1212,7 @@ class Entries_Test extends WP_UnitTestCase {
 
 		return (int) $this->competitions_repo->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $slug,
 				'slug'       => $slug,
 				'open_date'  => '2020-01-01 00:00:00',

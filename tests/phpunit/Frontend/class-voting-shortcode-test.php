@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -118,6 +119,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$competitions      = new Competitions_Repository();
 		$competition_id    = $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Token Comp',
 				'slug'      => 'token-comp',
 				'open_date' => '2020-01-01 00:00:00',

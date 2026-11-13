@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -103,6 +104,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 				'open_date'  => null,
@@ -855,6 +857,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$member_id = $this->seed_member( 'a@example.com' );
 		$other     = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Other',
 				'slug'       => 'other-' . wp_generate_password( 6, false ),
 				'open_date'  => '2020-01-01 00:00:00',

@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Support;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
@@ -783,6 +784,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$repo = new Competitions_Repository();
 		$id   = $repo->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Links',
 				'slug'     => 'links-' . wp_generate_password( 6, false ),
 				'settings' => array( 'urls' => $urls ),

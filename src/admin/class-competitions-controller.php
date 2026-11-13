@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
@@ -89,6 +90,13 @@ class Competitions_Controller {
 	private $votes;
 
 	/**
+	 * Competition types.
+	 *
+	 * @var Competition_Types_Repository
+	 */
+	private $types;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
@@ -106,6 +114,7 @@ class Competitions_Controller {
 		$this->judges             = new Judges_Repository();
 		$this->competition_judges = new Competition_Judges_Repository();
 		$this->votes              = new Votes_Repository();
+		$this->types              = new Competition_Types_Repository();
 	}
 
 	/**
@@ -175,17 +184,17 @@ class Competitions_Controller {
 			$title = sanitize_text_field( $title_raw );
 			$slug  = sanitize_title( $slug_raw );
 
+			// With one type there's no choice to make.
+			$type = $this->types->only() ?? $this->types->find( absint( $this->get_post_string( 'competition_type' ) ) );
+
 			$data = array(
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
-				// Grades belong to the club, so they aren't copied in. The
-				// categories are, so later changes to the club's don't alter it.
-				'settings'   => array_merge(
-					array_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),
-					array( 'categories' => Competition_Settings::club_categories() )
-				),
+				'type_id'    => $type ? (int) $type->id : 0,
+				// The competition keeps its own copy, so later changes to the type don't alter it.
+				'settings'   => $type ? Competition_Settings::settings_for_new_competition( $type ) : array(),
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
@@ -229,6 +238,11 @@ class Competitions_Controller {
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->close_date_from_form( $competition_id, $this->parse_date_input( $close_date_raw ) ),
 			);
+
+			// Only posted when the club has several types, and not once there are entries.
+			if ( '' !== $this->get_post_string( 'competition_type' ) ) {
+				$data['type_id'] = absint( $this->get_post_string( 'competition_type' ) );
+			}
 
 			$result = $this->link_overlap_error( $this->competitions->update( $competition_id, $data ) );
 
@@ -996,9 +1010,17 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function render_competition_general_form( object $competition ): string {
+		$types   = $this->types->all();
+		$type    = $this->types->find( (int) $competition->type_id );
+		$several = count( $types ) > 1;
+
 		return $this->render_template(
 			'admin/competitions/general-form.php',
 			array(
+				'types'            => $several ? $types : array(),
+				'type_id'          => (int) $competition->type_id,
+				'type_name'        => $type ? $type->name : '',
+				'type_locked'      => $several && $this->competitions->has_entries( (int) $competition->id ),
 				'competition_id'   => (int) $competition->id,
 				'title'            => $competition->title,
 				'slug'             => $competition->slug,
@@ -1327,10 +1349,13 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function render_create_form(): string {
+		$types = $this->types->all();
+
 		return $this->render_template(
 			'admin/competitions/create-form.php',
 			array(
 				'label_format' => $this->get_ui_date_label(),
+				'types'        => count( $types ) > 1 ? $types : array(),
 			)
 		);
 	}

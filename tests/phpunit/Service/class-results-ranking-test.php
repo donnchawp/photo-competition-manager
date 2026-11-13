@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
@@ -49,6 +50,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Ranking Comp',
 				'slug'     => 'ranking-comp',
 				'settings' => array(

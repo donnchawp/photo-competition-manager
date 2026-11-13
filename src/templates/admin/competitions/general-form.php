@@ -6,7 +6,10 @@
  * $data['slug'] (string), $data['label_format'] (string): human-readable
  * date format label for the UI. $data['open_date_value'] (string): Y-m-d
  * value for the open-date input, or ''. $data['close_date_value'] (string):
- * Y-m-d value for the close-date input, or ''.
+ * Y-m-d value for the close-date input, or ''. $data['types'] (object[]):
+ * the types to choose from, empty when the club has one. $data['type_id']
+ * (int), $data['type_name'] (string): the competition's type.
+ * $data['type_locked'] (bool): whether entries stop it changing.
  *
  * @package PhotoCompetitionManager
  */
@@ -27,6 +30,24 @@ echo '<p>';
 echo '<label for="competition_slug">' . esc_html__( 'Slug', 'photo-competition-manager' ) . '</label><br />';
 echo '<input type="text" id="competition_slug" name="competition_slug" class="regular-text" value="' . esc_attr( $data['slug'] ) . '" />';
 echo '</p>';
+
+if ( $data['types'] ) {
+	echo '<p>';
+	echo '<label for="competition_type">' . esc_html__( 'Type', 'photo-competition-manager' ) . '</label><br />';
+
+	if ( $data['type_locked'] ) {
+		echo '<strong>' . esc_html( $data['type_name'] ) . '</strong><br />';
+		echo '<span class="description">' . esc_html__( 'A competition\'s type can\'t change once it has entries.', 'photo-competition-manager' ) . '</span>';
+	} else {
+		echo '<select id="competition_type" name="competition_type" required>';
+		foreach ( $data['types'] as $type_row ) {
+			echo '<option value="' . esc_attr( $type_row->id ) . '"' . selected( (int) $type_row->id, $data['type_id'], false ) . '>' . esc_html( $type_row->name ) . '</option>';
+		}
+		echo '</select>';
+	}
+
+	echo '</p>';
+}
 
 echo '<p>';
 echo '<label for="competition_open_date">' . esc_html__( 'Open Date', 'photo-competition-manager' ) . ' (' . esc_html( $data['label_format'] ) . ')</label><br />';
