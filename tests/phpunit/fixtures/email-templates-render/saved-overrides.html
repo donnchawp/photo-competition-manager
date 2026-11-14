@@ -1,7 +1,7 @@
 <div class="wrap"><h1>Email Templates</h1><p class="description">Customize the email templates sent to members. Use merge tags to personalize messages.</p><form method="post" class="photo-comp-email-templates"><input type="hidden" id="_wpnonce" name="_wpnonce" value="NONCE" /><input type="hidden" name="_wp_http_referer" value="" /><input type="hidden" name="photo_competition_action" value="save_email_templates" /><div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;"><h2 id="template-upload_reminder-heading" style="margin-top: 0;">Upload link <span class="photo-comp-template-edited">Edited</span></h2><p class="description">Sent to members with a link to upload their images.</p><table class="form-table"><tbody><tr><th scope="row"><label for="template-upload_reminder-subject">Subject Line</label></th><td><input type="text" id="template-upload_reminder-subject" name="templates[upload_reminder][subject]" value="Custom subject for {competition_title}" class="large-text" /></td></tr><tr><th scope="row"><label for="template-upload_reminder-body">Email Body</label></th><td><div id="wp-template_upload_reminder_body-wrap" class="wp-core-ui wp-editor-wrap html-active"><div id="wp-template_upload_reminder_body-editor-container" class="wp-editor-container"><div id="qt_template_upload_reminder_body_toolbar" class="quicktags-toolbar hide-if-no-js"></div><textarea class="wp-editor-area" rows="12" cols="40" name="templates[upload_reminder][body]" id="template_upload_reminder_body"><p>Custom body with a "quote" & an ampersand.</p></textarea></div>
 </div>
 
-<p class="description">Available merge tags:</p><ul class="description"><li><code>{member_name}</code> The member&#039;s name.</li><li><code>{competition_title}</code> The competition&#039;s title.</li><li><code>{site_name}</code> This site&#039;s name.</li><li><code>{upload_link}</code> The member&#039;s own upload link.</li><li><code>{voting_page}</code> The voting page.</li></ul></td></tr></tbody></table><p><button type="button" class="button photo-comp-restore-default" aria-describedby="template-upload_reminder-heading" data-subject-field="template-upload_reminder-subject" data-body-field="template_upload_reminder_body" data-default-subject="Upload your images for {competition_title}" data-default-body="&lt;p&gt;Hi {member_name},&lt;/p&gt;
+<p class="description">Available merge tags:</p><ul class="description"><li><code>{member_name}</code> The member&#039;s name.</li><li><code>{competition_title}</code> The competition&#039;s title.</li><li><code>{site_name}</code> This site&#039;s name.</li><li><code>{upload_link}</code> The member&#039;s own upload link.</li><li><code>{voting_page}</code> The voting page.</li><li><code>{voting_info}</code> A paragraph saying where members can vote. Empty when judges score the competition.</li></ul></td></tr></tbody></table><p><button type="button" class="button photo-comp-restore-default" aria-describedby="template-upload_reminder-heading" data-subject-field="template-upload_reminder-subject" data-body-field="template_upload_reminder_body" data-default-subject="Upload your images for {competition_title}" data-default-body="&lt;p&gt;Hi {member_name},&lt;/p&gt;
 
 &lt;p&gt;Here is your link to upload images for {competition_title}.&lt;/p&gt;
 
@@ -9,7 +9,7 @@
 
 &lt;p&gt;This link stays active for 14 days, so you can come back and carry on uploading.&lt;/p&gt;
 
-&lt;p&gt;Once voting opens, you can vote at {voting_page}&lt;/p&gt;
+&lt;p&gt;{voting_info}&lt;/p&gt;
 
 &lt;p&gt;If you didn&#039;t ask for this email, your club&#039;s competitions officer may have sent it. You can ignore it if you don&#039;t want to enter this competition.&lt;/p&gt;
 
@@ -94,4 +94,19 @@
 
 &lt;p&gt;You have uploaded {current_count} of {quota} images for this category.&lt;/p&gt;
 
-&lt;p&gt;Thank you for your entry!&lt;/p&gt;">Restore default</button> <span class="description">Fills in the default subject and body. Save the email templates to keep them.</span></p></div><p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Save Email Templates"  /></p></form></div>
+&lt;p&gt;Thank you for your entry!&lt;/p&gt;">Restore default</button> <span class="description">Fills in the default subject and body. Save the email templates to keep them.</span></p></div><div class="card photo-comp-template-card" style="margin-bottom: 20px; padding: 20px; max-width: none;"><h2 id="template-judge_link-heading" style="margin-top: 0;">Judge link</h2><p class="description">Sent to a judge with their link to score a competition.</p><table class="form-table"><tbody><tr><th scope="row"><label for="template-judge_link-subject">Subject Line</label></th><td><input type="text" id="template-judge_link-subject" name="templates[judge_link][subject]" value="Your judging link for {competition_title}" class="large-text" /></td></tr><tr><th scope="row"><label for="template-judge_link-body">Email Body</label></th><td><div id="wp-template_judge_link_body-wrap" class="wp-core-ui wp-editor-wrap html-active"><div id="wp-template_judge_link_body-editor-container" class="wp-editor-container"><div id="qt_template_judge_link_body_toolbar" class="quicktags-toolbar hide-if-no-js"></div><textarea class="wp-editor-area" rows="12" cols="40" name="templates[judge_link][body]" id="template_judge_link_body"><p>Hi {judge_name},</p>
+
+<p>You've been asked to judge {competition_title}. Use this link to score the images when the organiser opens each category.</p>
+
+<p><a href="{judge_link}" style="background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Start judging</a></p>
+
+<p>Please don't share this link.</p></textarea></div>
+</div>
+
+<p class="description">Available merge tags:</p><ul class="description"><li><code>{member_name}</code> The member&#039;s name.</li><li><code>{competition_title}</code> The competition&#039;s title.</li><li><code>{site_name}</code> This site&#039;s name.</li><li><code>{judge_link}</code> The judge&#039;s own link to score the competition.</li><li><code>{judge_name}</code> The judge&#039;s name.</li></ul></td></tr></tbody></table><p><button type="button" class="button photo-comp-restore-default" aria-describedby="template-judge_link-heading" data-subject-field="template-judge_link-subject" data-body-field="template_judge_link_body" data-default-subject="Your judging link for {competition_title}" data-default-body="&lt;p&gt;Hi {judge_name},&lt;/p&gt;
+
+&lt;p&gt;You&#039;ve been asked to judge {competition_title}. Use this link to score the images when the organiser opens each category.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;{judge_link}&quot; style=&quot;background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;&quot;&gt;Start judging&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Please don&#039;t share this link.&lt;/p&gt;">Restore default</button> <span class="description">Fills in the default subject and body. Save the email templates to keep them.</span></p></div><p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Save Email Templates"  /></p></form></div>

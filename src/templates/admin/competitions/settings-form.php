@@ -6,7 +6,9 @@
  * pre-rendered category row markup, one row per configured category.
  * $data['upload'] (array{max_file_size_mb: int,
  * max_width: int, max_height: int}): upload constraints. $data['auth_mode']
- * (string): 'password' or 'token'. $data['password_value'] (string):
+ * (string): 'password', 'token' or 'judges'. $data['scored_by_locked']
+ * (bool): whether votes exist, so who scores can't move between members and
+ * judges. $data['password_value'] (string):
  * plaintext password to prefill, or '' when unset/legacy-hashed.
  * $data['is_legacy_hash'] (bool): whether a legacy phpass-style password
  * hash is stored. $data['click_to_zoom'] (bool). $data['voting_ui_type']
@@ -61,12 +63,16 @@ echo '</p>';
 echo '<h3>' . esc_html__( 'Voting Configuration', 'photo-competition-manager' ) . '</h3>';
 
 echo '<p>';
-echo '<label for="voting_auth_mode">' . esc_html__( 'Voting Authentication Mode', 'photo-competition-manager' ) . '</label><br />';
+echo '<label for="voting_auth_mode">' . esc_html__( 'Who scores', 'photo-competition-manager' ) . '</label><br />';
 echo '<select id="voting_auth_mode" name="voting_auth_mode">';
-echo '<option value="password"' . selected( $data['auth_mode'], 'password', false ) . '>' . esc_html__( 'Password-based (traditional)', 'photo-competition-manager' ) . '</option>';
-echo '<option value="token"' . selected( $data['auth_mode'], 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'photo-competition-manager' ) . '</option>';
+echo '<option value="password"' . selected( $data['auth_mode'], 'password', false ) . '>' . esc_html__( 'Members, with the voting password', 'photo-competition-manager' ) . '</option>';
+echo '<option value="token"' . selected( $data['auth_mode'], 'token', false ) . '>' . esc_html__( 'Members, with emailed links', 'photo-competition-manager' ) . '</option>';
+echo '<option value="judges"' . selected( $data['auth_mode'], 'judges', false ) . '>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</option>';
 echo '</select><br />';
-echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'photo-competition-manager' ) . '</span>';
+echo '<span class="description">' . esc_html__( 'Choose who scores. Members can vote with a shared voting password or with links emailed to them. Judges are people outside the club who each get their own link.', 'photo-competition-manager' ) . '</span>';
+if ( $data['scored_by_locked'] ) {
+	echo '<br /><span class="description">' . esc_html__( 'Votes have been cast, so this can switch between the two member options but not to or from Judges.', 'photo-competition-manager' ) . '</span>';
+}
 echo '</p>';
 
 echo '<p>';

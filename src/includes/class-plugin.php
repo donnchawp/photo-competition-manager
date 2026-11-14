@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Admin_Screen;
 use PhotoCompetitionManager\Frontend\Frontend;
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Log_Retention;
 
@@ -57,6 +58,7 @@ class Plugin {
 
 		$this->admin->register();
 		$this->frontend->register();
+		( new Image_Permalink() )->register();
 
 		$deps = new Dependencies();
 		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
@@ -65,6 +67,7 @@ class Plugin {
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
+		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Judge_Deletion::class, 'register_eraser' ) );
 		add_filter( 'wp_privacy_personal_data_exporters', array( \PhotoCompetitionManager\Service\Member_Export::class, 'register_exporter' ) );
 		add_action( 'admin_init', array( \PhotoCompetitionManager\Support\Privacy_Policy::class, 'suggest' ) );
 	}

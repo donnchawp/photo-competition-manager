@@ -1,6 +1,6 @@
 # Photo Competition Manager
 
-Runs a photography club's monthly competitions: members upload images, members vote on them, and results are published by category and grade.
+Runs a photography club's monthly competitions: members upload images, members or judges score them, and results are published by category and grade.
 
 ## Language
 
@@ -42,22 +42,29 @@ How far one category has got on competition night: Not started, Previewed, Votin
 _Avoid_: Step
 
 **Ballot**:
-One voter's scores for every entry in one category of a competition, their own entries included. A voter casts at most one ballot per category, and it is kept whole or not at all.
+One voter's scores for every entry in one category of a competition, their own entries included. A voter casts at most one ballot per category, and it is kept whole or not at all. A judge's ballot scores every entry in the open category, from the competition's score list.
 _Avoid_: Votes (for the set), submission
 
 **Vote**:
 The score one entry got on one ballot.
 
 **Voter**:
-Whoever casts a ballot. A link voter is a member, proved by their voting link. A named voter is a name given with the club's voting password, taken on trust. Names that differ only in case, accents or surrounding spaces belong to the same voter, so "Seán" and "sean" are one voter.
+Whoever casts a ballot. A link voter is a member, proved by their voting link. A judge is proved by their judge link. A named voter is a name given with the club's voting password, taken on trust. Names that differ only in case, accents or surrounding spaces belong to the same voter, so "Seán" and "sean" are one voter.
 Asking for a voting link replaces the member's earlier one. That's an accepted trade-off: anyone who knows a member's email can make their earlier link stop working, at most once every 5 minutes, but the member always receives the newest link, so no votes are lost.
 _Avoid_: User, member (for a named voter)
+
+**Judge**:
+Someone outside the club who scores a judged competition. The club keeps one list of judges, a name and an email, apart from its members. An admin chooses the judges for each competition, and each gets a private link that works only while they are chosen for it and a category is open. A judge scores every entry in the open category once. Deleting a judge keeps their scores without anything that identifies them, and a privacy erasure request covers judges.
+_Avoid_: Adjudicator, voter (for a judge)
+
+**Judged competition**:
+A competition whose "Who scores" setting is Judges rather than the voting password or members' voting links. Only its judges score it: members get no voting links, the password doesn't work, they aren't sent "voting opened", and upload emails don't mention voting. Total score is the sum of the judges' scores. Public results pages and the results email show only the total and position; admins can still see individual scores.
 
 **Reset**:
 Returning a category's voting stage to Not started, optionally clearing its votes. It lifts the rule that fixes a started category's entries (see **Voting stage**). Votes it keeps still stop entries being added to the category or moved in or out.
 
 **Self-vote**:
-A member's vote on their own entry. Members vote on their own entries like any others, and are expected to give them the top score.
+A member's vote on their own entry. Members vote on their own entries like any others, and are expected to give them the top score. It doesn't apply to judges, who aren't members and have no entries.
 
 ### Results
 

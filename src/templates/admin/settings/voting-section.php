@@ -2,7 +2,7 @@
 /**
  * Voting configuration section partial for the admin settings page.
  *
- * Reads $data['auth_mode'] (string: 'password'|'token'),
+ * Reads $data['auth_mode'] (string: 'password'|'token'|'judges'),
  * $data['voting_ui_type'] (string: 'buttons'|'dropdown'), $data['password']
  * (string), $data['click_to_zoom'] (bool), and $data['score_matrix_str']
  * (string, comma-separated scores).
@@ -15,12 +15,13 @@ defined( 'ABSPATH' ) || exit;
 echo '<h2>' . esc_html__( 'Voting Configuration', 'photo-competition-manager' ) . '</h2>';
 
 echo '<p>';
-echo '<label for="voting_auth_mode">' . esc_html__( 'Voting Authentication Mode', 'photo-competition-manager' ) . '</label><br />';
+echo '<label for="voting_auth_mode">' . esc_html__( 'Who scores', 'photo-competition-manager' ) . '</label><br />';
 echo '<select id="voting_auth_mode" name="voting_auth_mode">';
-echo '<option value="password"' . selected( $data['auth_mode'], 'password', false ) . '>' . esc_html__( 'Password-based (traditional)', 'photo-competition-manager' ) . '</option>';
-echo '<option value="token"' . selected( $data['auth_mode'], 'token', false ) . '>' . esc_html__( 'Email Magic Links (anonymous)', 'photo-competition-manager' ) . '</option>';
+echo '<option value="password"' . selected( $data['auth_mode'], 'password', false ) . '>' . esc_html__( 'Members, with the voting password', 'photo-competition-manager' ) . '</option>';
+echo '<option value="token"' . selected( $data['auth_mode'], 'token', false ) . '>' . esc_html__( 'Members, with emailed links', 'photo-competition-manager' ) . '</option>';
+echo '<option value="judges"' . selected( $data['auth_mode'], 'judges', false ) . '>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</option>';
 echo '</select><br />';
-echo '<span class="description">' . esc_html__( 'Choose how voters authenticate. Password mode allows voters to enter their name and optional password. Token mode sends secure one-time voting links via email for anonymous voting.', 'photo-competition-manager' ) . '</span>';
+echo '<span class="description">' . esc_html__( 'Choose who scores. Members can vote with a shared voting password or with links emailed to them. Judges are people outside the club who each get their own link.', 'photo-competition-manager' ) . '</span>';
 echo '</p>';
 
 echo '<p>';

@@ -8,6 +8,7 @@
  *
  * @package PhotoCompetitionManager
  *
+ * $data['judged'] bool Whether judges scored the competition. Their votes aren't broken down, so the vote count is left out.
  * $data['images'] array<int, array{
  *     category_label: string,
  *     image_number: int|string,
@@ -76,11 +77,12 @@ defined( 'ABSPATH' ) || exit;
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['total_score'], 0 ) ); ?></strong></td>
-								</tr>
+								</tr><?php if ( empty( $data['judged'] ) ) : ?>
+
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total Votes:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['vote_count'] ); ?></td>
-								</tr><?php if ( null !== $image_data['statistics'] ) : ?>
+								</tr><?php endif; ?><?php if ( null !== $image_data['statistics'] ) : ?>
 
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Average Score:', 'photo-competition-manager' ); ?></td>

@@ -32,6 +32,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 | **Member Management** | Maintain a separate list of members (not WordPress users). Admins can add/edit members and upload on their behalf. |
 | **Image Upload** | Members can upload a set number of images in defined categories (e.g. Colour, Black & White). Images validated, resized, renamed automatically. |
 | **Voting System** | Voting opens manually or at a defined time. Members can vote via a mobile-friendly page or QR code link. |
+| **External Judging** | A competition can be scored by outside judges instead of members. Judges are kept in their own list, each gets a private link, and members don't vote. |
 | **Slideshow Display** | Admin projects images in a timed slideshow view for group voting. |
 | **Email Reminders** | Automated reminders and notifications (1 week before, and configurable follow-ups). |
 | **Results & Archiving** | Automatically sort and display results by grade. Provide CSV export and HTML results page with top 3 thumbnails per grade. |
@@ -45,6 +46,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 |------|--------------|
 | **Admin** | Create/edit competitions, manage members, upload images, configure categories and grades, open/close voting, view/export results, manage email settings. |
 | **Member** | Upload images when competition is open, view competition details, vote when voting opens. |
+| **Judge** | An outsider chosen for a judged competition. Scores every entry in the open category through a private link; has no other access. |
 | **Public Viewer** | View published results after competition closes. |
 
 ---
@@ -92,6 +94,7 @@ Admins can upload or replace images for any member directly from the dashboard.
   /wp-content/uploads/competitions/<competition-name>/<category>/
   ```
 - Thumbnails generated automatically via WordPress media functions.
+- Resized entry images and thumbnails are stripped of author metadata (EXIF Artist/Copyright, IPTC byline, XMP creator) on new uploads, keeping the colour profile. Originals are untouched.
 - Each image assigned a random number (1–N) within its category for anonymized presentation.
 - Deleting a competition or a member removes their entries first: each entry's row and votes, then its image, thumbnail and original. A deleted competition's folder goes too. A file that won't delete is logged and doesn't stop the removal, but a row that won't delete stops it, and the competition or member is kept.
 - An entry's image and thumbnail URLs carry the file's modified time (`?v=`), so an entry replaced by one with the same filename shows the new image straight away. Screens show "Image unavailable" in place of an image whose file is missing, and the slideshow leaves it out.
@@ -109,6 +112,16 @@ Admins can upload or replace images for any member directly from the dashboard.
   - Mobile-optimized grid of image thumbnails with image numbers.
   - Option to switch to full-screen view for individual images.
 - Votes stored in custom database table.
+- Images on the voting page and slideshow are served by entry ID (`/photocomp-image/<id>/`, or `?photocomp_image=<id>` on plain permalinks) for every competition, so file names, which contain member names, never reach the browser.
+
+#### External judging
+- Each competition has a "Who scores" setting: the voting password, members' voting links, or judges.
+- Judges live on their own admin screen as a name and email; they are not members. Deleting a judge keeps their scores without identifying them, and the privacy eraser covers judges.
+- An admin chooses the judges for a competition and emails them their links. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
+- A judge scores every entry in the open category from the competition's score list, one ballot per judge per category. An entry's total is the sum of the judges' scores.
+- In a judged competition members get no voting links and the password doesn't work. They aren't sent "voting opened", and upload emails don't mention voting.
+- Public results pages and the results email show only the total and position. Admins can still see individual scores on the Results screen and in the export, where each judge is named, or shown as "Former judge #<id>" once deleted.
+- The Voting Controls screen shows which judges have scored the open category.
 
 ### 4.5 Slideshow Display
 - Separate shortcode (e.g. `[competition_slideshow]`) for admin use.
@@ -171,7 +184,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_photocomp_images`
   - id, member_id, competition_id, category, filename, random_number, created_at
 - `wp_photocomp_votes`
-  - id, competition_id, category, voter_name, voting_token_id, image_id, score, created_at
+  - id, competition_id, category, voter_name, voting_token_id, judge_id, image_id, score, created_at
   - A voter gets one vote per image: unique keys on (image_id, voting_token_id) and (image_id, voter_name) refuse a second ballot, which the voting page reports as already voted.
 - `wp_photocomp_recorded_results`
   - id, competition_id, category, entry_id, member_id, grade, total_score, vote_count, position, created_at
@@ -179,6 +192,11 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_photocomp_voting_tokens`
   - id, member_id, competition_id, category, token_hash, expires_at, first_accessed_at, sent_at, created_at
   - A member has one token per competition and category: a unique key on (member_id, competition_id, category). Asking for a voting link again renews it with a new hash and expiry, so the old link stops working and the member's ballot stays with the token.
+- `wp_photocomp_judges`
+  - id, name, email, created_at, updated_at
+- `wp_photocomp_competition_judges`
+  - id, competition_id, judge_id, token, sent_at, created_at
+  - A judge has one row, and so one link, per competition they are chosen for: a unique key on (competition_id, judge_id). Removing the row stops the link working. A judge's votes carry their `judge_id`, with a unique key on (image_id, judge_id) allowing one score per entry.
 
 ---
 
@@ -233,4 +251,4 @@ Sections:
 - Optional anonymous voting (no name required).
 - Integration with Google Drive or Dropbox for image backup.
 - REST API endpoints for external integration.
-- Automatic watermarking or EXIF stripping.
+- Automatic watermarking.

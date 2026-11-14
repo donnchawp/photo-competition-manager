@@ -155,6 +155,52 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '#href="https://example.com/upload/\?[^"]+"#', $this->last_mail['message'] );
 	}
 
+	public function test_upload_link_email_in_judged_competition_has_no_voting_line() {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/', 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$competition_id = $this->make_open_competition();
+		$this->comps->update( $competition_id, array( 'settings' => array( 'voting' => array( 'auth_mode' => 'judges', 'score_matrix' => array( 5, 4, 3 ) ) ) ) );
+		$member_id = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id );
+
+		$this->assertSame( 1, $this->mail_count );
+		$this->assertStringNotContainsString( 'you can vote at', $this->last_mail['message'] );
+		$this->assertStringNotContainsString( 'example.com/vote', $this->last_mail['message'] );
+		$this->assertStringNotContainsString( '<p></p>', $this->last_mail['message'] );
+	}
+
+	public function test_upload_link_email_in_judged_competition_ignores_voting_page_in_an_edited_template() {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/', 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'upload_reminder' => array(
+					'enabled' => true,
+					'subject' => 'Upload',
+					'body'    => '<p>Upload at {upload_link} and vote at {voting_page}</p>',
+				),
+			)
+		);
+		$competition_id = $this->make_open_competition();
+		$this->comps->update( $competition_id, array( 'settings' => array( 'voting' => array( 'auth_mode' => 'judges', 'score_matrix' => array( 5, 4, 3 ) ) ) ) );
+		$member_id = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id );
+
+		$this->assertSame( 1, $this->mail_count );
+		$this->assertStringNotContainsString( 'example.com/vote', $this->last_mail['message'] );
+	}
+
+	public function test_upload_link_email_in_member_competition_keeps_voting_line() {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/', 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id );
+
+		$this->assertStringContainsString( 'Once voting opens, you can vote at <a href="https://example.com/vote/">', $this->last_mail['message'] );
+	}
+
 	public function test_send_to_member_links_the_pages_the_rule_finds() {
 		update_option(
 			'photo_comp_default_settings',
@@ -180,7 +226,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->service->send_to_member( $competition_id, $member_id );
 
 		$this->assertMatchesRegularExpression( '#href="https://example.com/club-upload/\?[^"]+"#', $this->last_mail['message'] );
-		$this->assertStringContainsString( 'you can vote at https://example.com/club-vote/', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'you can vote at <a href="https://example.com/club-vote/">', $this->last_mail['message'] );
 	}
 
 	public function test_send_to_member_refuses_when_no_upload_page_can_be_found() {

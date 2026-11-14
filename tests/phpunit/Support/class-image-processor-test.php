@@ -363,6 +363,139 @@ class Image_Processor_Test extends WP_UnitTestCase {
 		unlink( $tmp_file );
 	}
 
+	public function test_processed_entry_has_no_author_metadata(): void {
+		$this->require_imagick_editor();
+		$result    = $this->process_fixture( 'with-author.jpg' );
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+
+		$this->assert_has_no_author_metadata( trailingslashit( $directory ) . $result['filename'] );
+		$this->assert_has_no_author_metadata( trailingslashit( $directory ) . Image_Processor::get_thumbnail_filename( $result['filename'] ) );
+	}
+
+	public function test_processed_entry_has_no_author_metadata_under_gd(): void {
+		$only_gd = static function () {
+			return array( 'WP_Image_Editor_GD' );
+		};
+		add_filter( 'wp_image_editors', $only_gd, 99 );
+		$result = $this->process_fixture( 'with-author.jpg' );
+		remove_filter( 'wp_image_editors', $only_gd, 99 );
+
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+		$this->assert_has_no_author_metadata( trailingslashit( $directory ) . $result['filename'] );
+	}
+
+	/**
+	 * An image missing some of the profiles used to make Imagick throw, failing the upload.
+	 */
+	public function test_an_image_with_only_some_profiles_still_uploads_without_the_author(): void {
+		$this->require_imagick_editor();
+		$result    = $this->process_fixture( 'exif-only.jpg' );
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+
+		$this->assert_has_no_author_metadata( trailingslashit( $directory ) . $result['filename'] );
+	}
+
+	public function test_processed_entry_keeps_its_colour_profile(): void {
+		$this->require_imagick_editor();
+		$result    = $this->process_fixture( 'with-author.jpg' );
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+
+		foreach ( array( $result['filename'], Image_Processor::get_thumbnail_filename( $result['filename'] ) ) as $name ) {
+			$image = new \Imagick( trailingslashit( $directory ) . $name );
+			$this->assertContains( 'icc', $image->getImageProfiles( '*', false ), $name );
+		}
+	}
+
+	/**
+	 * The stripping editor drops EXIF, so the rotation has to be applied before it does.
+	 */
+	public function test_processed_entry_is_turned_upright_and_keeps_no_orientation_tag(): void {
+		$this->require_imagick_editor();
+		// The fixture is 640x480 with Orientation 6, so it displays as 480x640.
+		$result    = $this->process_fixture( 'orientation-6.jpg' );
+		$directory = $this->directories[ count( $this->directories ) - 1 ];
+
+		foreach ( array( $result['filename'], Image_Processor::get_thumbnail_filename( $result['filename'] ) ) as $name ) {
+			$path = trailingslashit( $directory ) . $name;
+			$size = getimagesize( $path );
+			$this->assertGreaterThan( $size[0], $size[1], $name . ' should be portrait.' );
+
+			$exif = @exif_read_data( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			$this->assertTrue( ! is_array( $exif ) || ! isset( $exif['Orientation'] ) || 1 === (int) $exif['Orientation'], $name );
+		}
+	}
+
+	public function test_original_keeps_author_metadata(): void {
+		$this->require_imagick_editor();
+		$result = $this->process_fixture( 'with-author.jpg' );
+
+		$original = get_attached_file( $result['attachment_id'] );
+		$this->assertFileExists( $original );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assertStringContainsString( 'Jane Murphy', (string) file_get_contents( $original ) );
+	}
+
+	/**
+	 * Skip unless WordPress will use Imagick, the editor that keeps metadata on save.
+	 * The tests container installs the JPEG coder for it; see the Makefile.
+	 */
+	private function require_imagick_editor(): void {
+		$editor = wp_get_image_editor( dirname( __DIR__ ) . '/fixtures/images/with-author.jpg' );
+		if ( is_wp_error( $editor ) || ! $editor instanceof \WP_Image_Editor_Imagick ) {
+			$this->markTestSkipped( 'Needs the Imagick image editor with JPEG support.' );
+		}
+	}
+
+	/**
+	 * Assert an image file carries no EXIF artist or copyright, no IPTC byline and no trace of the name.
+	 *
+	 * @param string $path Image file.
+	 */
+	private function assert_has_no_author_metadata( string $path ): void {
+		$this->assertFileExists( $path );
+
+		$exif = @exif_read_data( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$exif = is_array( $exif ) ? $exif : array();
+		$this->assertArrayNotHasKey( 'Artist', $exif, basename( $path ) );
+		$this->assertArrayNotHasKey( 'Copyright', $exif, basename( $path ) );
+
+		getimagesize( $path, $info );
+		$iptc = isset( $info['APP13'] ) ? iptcparse( $info['APP13'] ) : array();
+		$this->assertArrayNotHasKey( '2#080', is_array( $iptc ) ? $iptc : array(), basename( $path ) );
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assertStringNotContainsString( 'Jane Murphy', (string) file_get_contents( $path ), basename( $path ) );
+	}
+
+	/**
+	 * Process a copy of an image from tests/phpunit/fixtures/images.
+	 *
+	 * @param string $fixture Fixture file name.
+	 * @return array<string, mixed> The process() result.
+	 */
+	private function process_fixture( string $fixture ): array {
+		$temp     = wp_tempnam( 'fixture' );
+		$tmp_file = $temp . '.jpg';
+		copy( dirname( __DIR__ ) . '/fixtures/images/' . $fixture, $tmp_file );
+
+		$directory = trailingslashit( get_temp_dir() ) . uniqid( 'image-processor-test-' );
+		wp_mkdir_p( $directory );
+		$this->directories[] = $directory;
+
+		$file   = array(
+			'name'     => $fixture,
+			'tmp_name' => $tmp_file,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp_file ),
+		);
+		$result = $this->processor->process( $file, $directory, 'jane-murphy-colour-1.jpg', 'Jane Murphy', array(), array() );
+		wp_delete_file( $tmp_file );
+		wp_delete_file( $temp );
+
+		$this->assertIsArray( $result );
+		return $result;
+	}
+
 	/**
 	 * Create a test image file.
 	 *

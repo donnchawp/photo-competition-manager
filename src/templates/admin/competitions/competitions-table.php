@@ -8,7 +8,8 @@
  * string, last_updated: string, edit_url: string, is_archived: bool,
  * toggle_uploads_url: string, uploads_closed: bool, reopen_refusal: string
  * (why uploads can't reopen; empty when they can), is_open: bool,
- * send_email_url: string, close_url: string, generate_link_url: string,
+ * send_email_url: string, email_judges_url: string (empty unless judges
+ * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string,
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
@@ -94,6 +95,10 @@ foreach ( $data['rows'] as $row ) {
 		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
 	} else {
 		$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+	}
+
+	if ( '' !== $row['email_judges_url'] ) {
+		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['email_judges_url'] ), esc_html__( 'Email Judges', 'photo-competition-manager' ) );
 	}
 
 	// Close competition action: sets the close date to now and closes voting.

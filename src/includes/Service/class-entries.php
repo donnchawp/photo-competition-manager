@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -747,6 +748,91 @@ class Entries {
 		}
 
 		return $urls;
+	}
+
+	/**
+	 * Name-free URLs of an entry's image and thumbnail, for pages that mustn't show who took it.
+	 *
+	 * Entry files are named after the member, so these go through the image permalink,
+	 * which serves the file by entry ID.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @return array{full: string, thumb: string} Each '' when its file is missing.
+	 */
+	public function public_urls( object $competition, object $entry ): array {
+		$full  = $this->path_for( $competition, $entry, false );
+		$thumb = $this->path_for( $competition, $entry, true );
+
+		return array(
+			'full'  => null === $full ? '' : $this->image_permalink( (int) $entry->id, false, (int) filemtime( $full ) ),
+			'thumb' => null === $thumb ? '' : $this->image_permalink( (int) $entry->id, true, (int) filemtime( $thumb ) ),
+		);
+	}
+
+	/**
+	 * The permalink of an entry's image: the pretty URL, or the query form on plain permalinks, where the rewrite rule can't match.
+	 *
+	 * @param int  $entry_id Entry ID.
+	 * @param bool $thumb    Whether it's the thumbnail.
+	 * @param int  $version  Cache buster.
+	 * @return string
+	 */
+	private function image_permalink( int $entry_id, bool $thumb, int $version ): string {
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			$args = array( Image_Permalink::QUERY_VAR => $entry_id );
+			if ( $thumb ) {
+				$args[ Image_Permalink::SIZE_QUERY_VAR ] = 'thumb';
+			}
+			return add_query_arg( 'v', $version, add_query_arg( $args, home_url( '/' ) ) );
+		}
+
+		return add_query_arg( 'v', $version, home_url( "/photocomp-image/{$entry_id}/" . ( $thumb ? 'thumb/' : '' ) ) );
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file, looked up by entry ID.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $entry_id Entry ID.
+	 * @param string $size     'thumb' for the thumbnail, anything else for the full image.
+	 * @return string|null Null when the entry, its competition (soft-deleted counts as missing) or the file is missing.
+	 */
+	public function file_path( int $entry_id, string $size ): ?string {
+		$entry       = $this->images_repo->find( $entry_id );
+		$competition = $entry ? $this->competitions_repo->find( (int) $entry->competition_id ) : null;
+
+		return $competition ? $this->path_for( $competition, $entry, 'thumb' === $size ) : null;
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file.
+	 *
+	 * Built from the entry's competition and category and its stored filename, never from a request.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @param bool   $thumb       Whether to give the thumbnail's path.
+	 * @return string|null Null when the file is missing.
+	 */
+	private function path_for( object $competition, object $entry, bool $thumb ): ?string {
+		if ( '' === (string) $entry->filename ) {
+			return null;
+		}
+
+		$directory = $this->category_directory( (string) $competition->slug, (string) $entry->category );
+		if ( is_wp_error( $directory ) ) {
+			return null;
+		}
+
+		$path = $directory . '/' . ( $thumb ? Image_Processor::get_thumbnail_filename( $entry->filename ) : $entry->filename );
+
+		return is_file( $path ) ? $path : null;
 	}
 
 	/**

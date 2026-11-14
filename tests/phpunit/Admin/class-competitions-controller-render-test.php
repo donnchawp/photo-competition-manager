@@ -21,7 +21,9 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
@@ -69,6 +71,14 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			'$1NONCE$2',
 			$html
 		);
+
+		// The judges panel's nonce fields have no id, as there is one per form.
+		$html = preg_replace( '/(<input type="hidden" name="photo_competition_nonce" value=")[a-f0-9]{10}(")/', '$1NONCE$2', $html );
+
+		// Judge IDs and tokens are not stable across runs.
+		$html = preg_replace( '/(name="judge_ids\[\]" value=")\d+(")/', '$1JUDGE$2', $html );
+		$html = preg_replace( '/(name="judge_id" value=")\d+(")/', '$1JUDGE$2', $html );
+		$html = preg_replace( '/judge=[A-Za-z0-9%_-]+/', 'judge=TOKEN', $html );
 
 		// Normalize the referer hidden field wp_nonce_field() emits by default;
 		// its value is the current REQUEST_URI, which is test-runner dependent.
@@ -183,6 +193,23 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// in the table area, zero counts in the subsubsub view links, plus
 		// the always-present create form.
 		$this->assert_matches_snapshot( 'no-competitions-active' );
+	}
+
+	public function test_render_list_offers_email_judges_only_where_judges_are_assigned(): void {
+		// Scheduled, not yet open: judges get their links ahead of the night.
+		$judges   = array( 'voting' => array( 'auth_mode' => 'judges' ) );
+		$judged   = $this->seed_competition( 'Judged Show', 'judged-show', array( 'open_date' => '2099-01-01 00:00:00', 'close_date' => '2099-01-10 00:00:00', 'settings' => $judges ) );
+		$unjudged = $this->seed_competition( 'Empty Panel', 'empty-panel', array( 'open_date' => '2099-02-01 00:00:00', 'close_date' => '2099-02-10 00:00:00', 'settings' => $judges ) );
+		$members  = $this->seed_competition( 'Members Show', 'members-show', array( 'open_date' => '2099-03-01 00:00:00', 'close_date' => '2099-03-10 00:00:00' ) );
+		( new Competition_Judges_Repository() )->assign( $judged, ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertSame( 1, substr_count( $html, 'Email Judges' ) );
+		$this->assertMatchesRegularExpression( '/action=email_judges&(#038;|amp;)?competition=' . $judged . '&/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/action=email_judges&(#038;|amp;)?competition=(' . $unjudged . '|' . $members . ')&/', $html );
 	}
 
 	public function test_render_list_active_with_rows(): void {
@@ -609,6 +636,78 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'edit-settings-tab-configured', array( $comp_id ) );
+	}
+
+	public function test_render_edit_settings_tab_judged(): void {
+		// A competition judges score shows the judges panel under the form: a
+		// checkbox per judge, and a link, last-sent time and Send link action
+		// for each assigned judge. Cat is not assigned.
+		$comp_id = $this->seed_competition(
+			'Judged Show',
+			'judged-show',
+			array(
+				'settings'   => array(
+					'voting' => array( 'auth_mode' => 'judges' ),
+					'urls'   => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+				'share_hash' => 'judgedsharehash',
+			),
+			array(
+				'created_at' => '2026-01-01 00:00:00',
+				'updated_at' => '2026-01-01 00:00:00',
+			)
+		);
+
+		$judges = new Judges_Repository();
+		$links  = new Competition_Judges_Repository();
+		$links->assign( $comp_id, $judges->create( 'Ann', 'ann@example.com' ) );
+		$links->assign( $comp_id, $judges->create( 'Bob', 'bob@example.com' ) );
+		$judges->create( 'Cat', 'cat@example.com' );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-settings-tab-judged', array( $comp_id ) );
+	}
+
+	public function test_render_judges_panel_links_to_the_judges_screen_when_there_are_none(): void {
+		$comp_id = $this->seed_competition( 'Judged Show', 'judged-show', array( 'settings' => array( 'voting' => array( 'auth_mode' => 'judges' ) ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'page=photo-competition-manager-judges', $html );
+		$this->assertStringNotContainsString( 'Send link to all judges', $html );
+	}
+
+	public function test_render_no_judges_panel_when_members_score(): void {
+		$comp_id = $this->seed_competition( 'Members Show', 'members-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( '<h3>Judges</h3>', $html );
 	}
 
 	public function test_render_edit_settings_tab_legacy_password(): void {

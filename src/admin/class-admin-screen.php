@@ -33,6 +33,13 @@ class Admin_Screen {
 	private $members_controller;
 
 	/**
+	 * Judges controller.
+	 *
+	 * @var Judges_Controller
+	 */
+	private $judges_controller;
+
+	/**
 	 * Submissions controller.
 	 *
 	 * @var Submissions_Controller
@@ -106,6 +113,7 @@ class Admin_Screen {
 		// Initialize controllers with their dependencies.
 		$this->competitions_controller    = new Competitions_Controller( $deps->competitions, $deps->email_job_manager );
 		$this->members_controller         = new Members_Controller( $deps->competitions, $deps->members );
+		$this->judges_controller          = new Judges_Controller( new \PhotoCompetitionManager\Repository\Judges_Repository() );
 		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
 		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images, $deps->members, $deps->email_job_manager );
 		$this->settings_controller        = new Settings_Controller( $deps->members );
@@ -137,6 +145,7 @@ class Admin_Screen {
 		// Register all controllers.
 		$this->competitions_controller->register();
 		$this->members_controller->register();
+		$this->judges_controller->register();
 		$this->submissions_controller->register();
 		$this->voting_controller->register();
 		$this->settings_controller->register();
@@ -179,6 +188,15 @@ class Admin_Screen {
 			'manage_photo_competitions',
 			'photo-competition-manager-members',
 			array( $this->members_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Judges', 'photo-competition-manager' ),
+			__( 'Judges', 'photo-competition-manager' ),
+			'manage_photo_competitions',
+			'photo-competition-manager-judges',
+			array( $this->judges_controller, 'render' )
 		);
 
 		add_submenu_page(

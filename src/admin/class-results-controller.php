@@ -714,11 +714,10 @@ class Results_Controller {
 		$image_url = $this->entries->urls( $competition, $image )['thumb'];
 
 		$vote_rows = array();
-		foreach ( $votes as $vote ) {
-			$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
-
+		$labels    = $this->votes->voter_labels( $votes );
+		foreach ( $votes as $key => $vote ) {
 			$vote_rows[] = array(
-				'voter_name' => $voter_name,
+				'voter_name' => $labels[ $key ],
 				'score'      => $vote->score,
 				'created_at' => $this->format_datetime( $vote->created_at ),
 			);

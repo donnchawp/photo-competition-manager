@@ -14,7 +14,9 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -619,6 +621,101 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		ob_start();
 		$this->controller->render();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Seed a judged competition with an entry, Ann (who has scored) and Bob
+	 * (who hasn't), with the colour category's voting open.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function seed_judged_competition(): int {
+		$comp_id   = $this->competitions->create(
+			array(
+				'title'    => 'Judged Show',
+				'slug'     => 'judged-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'judges' ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$image_id  = $this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+				'random_number'  => 100,
+			)
+		);
+		$judges    = new Judges_Repository();
+		$links     = new Competition_Judges_Repository();
+		$ann_id    = $judges->create( 'Ann', 'ann@example.com' );
+		$links->assign( $comp_id, $ann_id );
+		$links->assign( $comp_id, $judges->create( 'Bob', 'bob@example.com' ) );
+		( new Votes_Repository() )->create_judge_ballot( $comp_id, 'colour', $ann_id, array( $image_id => 7 ) );
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => Competition_Workflow::STAGE_VOTING ),
+			)
+		);
+
+		return $comp_id;
+	}
+
+	/**
+	 * A judged competition with voting open lists each judge as Scored or
+	 * Waiting, and shows no scores.
+	 */
+	public function test_render_judged_voting_shows_which_judges_have_scored(): void {
+		$comp_id = $this->seed_judged_competition();
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'Judge progress', $html );
+		$this->assertMatchesRegularExpression( '/Ann<\/td>\s*<td>Scored</', $html );
+		$this->assertMatchesRegularExpression( '/Bob<\/td>\s*<td>Waiting</', $html );
+		$this->assertStringNotContainsString( '>7<', $html );
+		$this->assert_matches_snapshot( 'judged-voting-open', array( $comp_id ) );
+	}
+
+	/**
+	 * Before voting opens there is nothing for judges to have scored, so no panel.
+	 */
+	public function test_render_judged_without_open_voting_has_no_progress(): void {
+		$comp_id = $this->seed_judged_competition();
+		$this->competitions->save_workflow( $comp_id, array( 'uploads_closed' => true ) );
+
+		$this->assertStringNotContainsString( 'Judge progress', $this->render_html() );
+	}
+
+	/**
+	 * Member-voted competitions show no judges panel.
+	 */
+	public function test_render_member_voted_has_no_judges_progress(): void {
+		$this->seed_competition_with_workflow(
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => Competition_Workflow::STAGE_VOTING ),
+			)
+		);
+
+		$this->assertStringNotContainsString( 'Judge progress', $this->render_html() );
 	}
 
 	/**

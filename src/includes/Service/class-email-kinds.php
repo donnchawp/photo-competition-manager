@@ -69,7 +69,7 @@ class Email_Kinds {
 					__( 'Here is your link to upload images for {competition_title}.', 'photo-competition-manager' ),
 					self::button( '{upload_link}', __( 'Upload images', 'photo-competition-manager' ) ),
 					__( 'This link stays active for 14 days, so you can come back and carry on uploading.', 'photo-competition-manager' ),
-					__( 'Once voting opens, you can vote at {voting_page}', 'photo-competition-manager' ),
+					'{voting_info}',
 					__( "If you didn't ask for this email, your club's competitions officer may have sent it. You can ignore it if you don't want to enter this competition.", 'photo-competition-manager' ),
 					__( 'If you have any questions, please contact your club competitions officer.', 'photo-competition-manager' )
 				),
@@ -90,6 +90,10 @@ class Email_Kinds {
 					'{voting_page}' => array(
 						'type'        => 'link',
 						'description' => __( 'The voting page.', 'photo-competition-manager' ),
+					),
+					'{voting_info}' => array(
+						'type'        => 'html',
+						'description' => __( 'A paragraph saying where members can vote. Empty when judges score the competition.', 'photo-competition-manager' ),
 					),
 				),
 			),
@@ -232,6 +236,28 @@ class Email_Kinds {
 					'{quota}'         => array(
 						'type'        => 'text',
 						'description' => __( 'How many images the category takes from each member.', 'photo-competition-manager' ),
+					),
+				),
+			),
+			'judge_link'           => array(
+				'label'        => __( 'Judge link', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to a judge with their link to score a competition.', 'photo-competition-manager' ),
+				'notification' => false,
+				'subject'      => __( 'Your judging link for {competition_title}', 'photo-competition-manager' ),
+				'body'         => self::body(
+					__( 'Hi {judge_name},', 'photo-competition-manager' ),
+					__( "You've been asked to judge {competition_title}. Use this link to score the images when the organiser opens each category.", 'photo-competition-manager' ),
+					self::button( '{judge_link}', __( 'Start judging', 'photo-competition-manager' ) ),
+					__( "Please don't share this link.", 'photo-competition-manager' )
+				),
+				'tags'         => array(
+					'{judge_link}' => array(
+						'type'        => 'link',
+						'description' => __( "The judge's own link to score the competition.", 'photo-competition-manager' ),
+					),
+					'{judge_name}' => array(
+						'type'        => 'text',
+						'description' => __( "The judge's name.", 'photo-competition-manager' ),
 					),
 				),
 			),

@@ -13,10 +13,12 @@ use PhotoCompetitionManager\Admin\Traits\Admin_Action_Dispatcher;
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
@@ -556,6 +558,9 @@ class Voting_Controller {
 			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
 		}
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_judges_progress( $active_competition, $open_here[0] ?? '' );
+
 		// Render Quick Actions.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_quick_actions( $voting_page, $results_page, $top3_page, $active_settings );
@@ -569,6 +574,39 @@ class Voting_Controller {
 		echo $this->render_slideshow_container();
 
 		echo '</div>';
+	}
+
+	/**
+	 * Render which judges have scored the category open for voting.
+	 *
+	 * Only a judged competition with a category accepting votes shows it,
+	 * and it never shows scores.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Slug of the category accepting votes, or ''.
+	 * @return string
+	 */
+	private function render_judges_progress( object $competition, string $category_slug ): string {
+		if ( '' === $category_slug || ! Ballots::is_judged( $competition ) ) {
+			return '';
+		}
+
+		$scored = $this->votes->judges_with_ballot( (int) $competition->id, $category_slug );
+		$judges = array();
+		foreach ( ( new Competition_Judges_Repository() )->judges_for( (int) $competition->id ) as $judge ) {
+			$judges[] = array(
+				'name'      => (string) $judge->name,
+				'submitted' => in_array( (int) $judge->id, $scored, true ),
+			);
+		}
+
+		if ( empty( $judges ) ) {
+			return '';
+		}
+
+		return $this->render_template( 'admin/voting/judges-progress.php', array( 'judges' => $judges ) );
 	}
 
 	/**
@@ -592,6 +630,11 @@ class Voting_Controller {
 	 * @return string|null Job ID, or null if nothing was queued.
 	 */
 	private function queue_voting_opened_notifications( object $competition ): ?string {
+		// Judges score a judged competition; members aren't invited to vote.
+		if ( Ballots::is_judged( $competition ) ) {
+			return null;
+		}
+
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
 			return null;
 		}

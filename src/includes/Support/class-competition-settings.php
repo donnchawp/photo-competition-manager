@@ -19,6 +19,16 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * How voters prove who they are: the club's voting password, a member's
+	 * voting link, or an external judge's link.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const AUTH_MODES = array( 'password', 'token', 'judges' );
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -82,7 +92,7 @@ class Competition_Settings {
 			),
 			'voting'          => array(
 				'score_matrix'        => array( 9, 8, 7, 6, 5 ),
-				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
+				'auth_mode'           => 'password', // 'password', 'token' (email magic links) or 'judges' (external judges score it).
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 				'ui_type'             => 'default',
@@ -302,9 +312,8 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['voting']['auth_mode'] ) ) {
-			$valid_modes = array( 'password', 'token' );
-			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
-				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'photo-competition-manager' ) );
+			if ( ! in_array( $settings['voting']['auth_mode'], self::AUTH_MODES, true ) ) {
+				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be "password", "token" or "judges".', 'photo-competition-manager' ) );
 			}
 		}
 

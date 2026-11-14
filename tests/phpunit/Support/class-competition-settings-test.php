@@ -181,6 +181,20 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertTrue( $result );
 	}
 
+	public function test_validate_accepts_judges_auth_mode(): void {
+		$settings                        = Competition_Settings::defaults();
+		$settings['voting']['auth_mode'] = 'judges';
+
+		$this->assertTrue( Competition_Settings::validate( $settings ) );
+	}
+
+	public function test_validate_rejects_unknown_auth_mode(): void {
+		$settings                        = Competition_Settings::defaults();
+		$settings['voting']['auth_mode'] = 'carrier-pigeon';
+
+		$this->assertSame( 'invalid_auth_mode', Competition_Settings::validate( $settings )->get_error_code() );
+	}
+
 	public function test_validate_rejects_missing_categories(): void {
 		$settings = Competition_Settings::defaults();
 		unset( $settings['categories'] );
@@ -257,7 +271,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_empty_grades(): void {
-		$settings          = Competition_Settings::defaults();
+		$settings           = Competition_Settings::defaults();
 		$settings['grades'] = array();
 
 		$result = Competition_Settings::validate( $settings );
@@ -289,7 +303,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_file_size(): void {
-		$settings                           = Competition_Settings::defaults();
+		$settings                               = Competition_Settings::defaults();
 		$settings['upload']['max_file_size_mb'] = 0;
 
 		$result = Competition_Settings::validate( $settings );
@@ -299,7 +313,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_score_matrix(): void {
-		$settings                       = Competition_Settings::defaults();
+		$settings                           = Competition_Settings::defaults();
 		$settings['voting']['score_matrix'] = array();
 
 		$result = Competition_Settings::validate( $settings );
@@ -309,7 +323,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_voting_ui_type(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'slider';
 
 		$result = Competition_Settings::validate( $settings );
@@ -441,14 +455,14 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_get_voting_ui_type_respects_competition_override(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'dropdown';
 
 		$this->assertSame( 'dropdown', Competition_Settings::get_voting_ui_type( $settings ) );
 	}
 
 	public function test_get_voting_ui_type_falls_back_to_global_option(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'default';
 
 		update_option( 'photo_comp_voting_ui_type', 'dropdown' );
@@ -459,7 +473,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_get_voting_ui_type_defaults_to_buttons_when_global_invalid(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'default';
 
 		update_option( 'photo_comp_voting_ui_type', 'slider' );
@@ -584,7 +598,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	public function test_parse_empty_and_empty_object_return_same_urls(): void {
 		$page_id = $this->create_page( '[competition_voting]' );
 
-		$empty_result       = Competition_Settings::parse( '' );
+		$empty_result        = Competition_Settings::parse( '' );
 		$empty_object_result = Competition_Settings::parse( '{}' );
 
 		$this->assertSame( $empty_object_result['urls'], $empty_result['urls'] );

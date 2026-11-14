@@ -95,6 +95,38 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_every_judge_gets_their_own_row_in_the_votes_csv(): void {
+		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
+		$ann    = $judges->create( 'Ann', 'ann@example.com' );
+		$bob    = $judges->create( 'Bob', 'bob@example.com' );
+		$gone   = $judges->create( 'Cat', 'cat@example.com' );
+		$judges->delete( $gone );
+
+		$image  = (object) array(
+			'id'            => 11,
+			'random_number' => 1,
+			'category'      => 'colour',
+		);
+		$judged = function ( int $judge_id, int $score ): object {
+			$vote           = $this->vote( 11, $score, null );
+			$vote->judge_id = $judge_id;
+			return $vote;
+		};
+
+		// Judge rows sort by ID as text, so compare without caring about order.
+		$this->assertEqualsCanonicalizing(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #1' ),
+				array( 'Judge: Ann', 7 ),
+				array( 'Judge: Bob', 8 ),
+				array( 'Former judge #' . $gone, 9 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( array( $judged( $bob, 8 ), $judged( $ann, 7 ), $judged( $gone, 9 ) ), array( $image ) )
+		);
+	}
+
 	public function test_exporting_a_large_original_puts_the_full_size_file_in_the_zip(): void {
 		$this->competition_id = $this->create_competition();
 		$entries              = new Entries();

@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -33,7 +34,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 8;
+	const DB_VERSION = 9;
 
 	/**
 	 * Option holding the installed data version.
@@ -49,6 +50,26 @@ class Activator {
 		self::create_tables();
 		self::add_capabilities();
 		self::maybe_upgrade();
+		self::flush_image_permalink_rule();
+	}
+
+	/**
+	 * Register the image permalink's rewrite rule, then flush the rules.
+	 *
+	 * Registered first, because the flush can run before init registers it. The
+	 * upgrade runs on plugins_loaded, before WordPress creates its rewrite
+	 * object, so then the flush waits for the end of init.
+	 *
+	 * @return void
+	 */
+	public static function flush_image_permalink_rule(): void {
+		if ( ! did_action( 'init' ) && ! doing_action( 'init' ) ) {
+			add_action( 'init', array( self::class, 'flush_image_permalink_rule' ), 99 );
+			return;
+		}
+
+		Image_Permalink::add_rewrite_rule();
+		flush_rewrite_rules( false );
 	}
 
 	/**
@@ -119,6 +140,16 @@ class Activator {
 		// the unique key that says so.
 		if ( $installed < 8 && ! self::make_upload_tokens_unique() ) {
 			return;
+		}
+
+		// External judges are invited by competition and score images through
+		// votes that carry the judge's ID.
+		if ( $installed < 9 && ! self::add_judging_schema() ) {
+			return;
+		}
+
+		if ( $installed < 9 ) {
+			self::flush_image_permalink_rule();
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
@@ -505,6 +536,51 @@ class Activator {
 	}
 
 	/**
+	 * Add the judges tables, and the judge column and keys on votes.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the schema is still incomplete, so the step runs again.
+	 */
+	private static function add_judging_schema(): bool {
+		global $wpdb;
+
+		$judges      = $wpdb->prefix . 'photocomp_judges';
+		$assignments = $wpdb->prefix . 'photocomp_competition_judges';
+		$votes       = $wpdb->prefix . 'photocomp_votes';
+
+		// Requests run upgrades without activating, so add the tables here.
+		// Only when they're missing: DDL ends the running transaction.
+		if ( ! self::table_exists( $judges ) || ! self::table_exists( $assignments ) ) {
+			self::create_tables();
+		}
+
+		if ( ! self::column_exists( $votes, 'judge_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN judge_id BIGINT UNSIGNED NULL, ADD KEY judge_id (judge_id), ADD UNIQUE KEY image_judge (image_id, judge_id)', $votes ) );
+		}
+
+		return self::table_exists( $judges )
+			&& self::table_exists( $assignments )
+			&& self::column_exists( $votes, 'judge_id' );
+	}
+
+	/**
+	 * Whether a table exists.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Table name.
+	 * @return bool
+	 */
+	private static function table_exists( string $table ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	}
+
+	/**
 	 * Whether a table has all of the named keys, and each is unique.
 	 *
 	 * A name isn't enough: old voting and upload tokens tables have a plain
@@ -806,6 +882,7 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			voter_name VARCHAR(191) NULL,
 			voting_token_id BIGINT UNSIGNED NULL,
+			judge_id BIGINT UNSIGNED NULL,
 			image_id BIGINT UNSIGNED NOT NULL,
 			score INT NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -814,8 +891,10 @@ class Activator {
 			KEY image (image_id),
 			KEY voting_token (voting_token_id),
 			KEY voter_name (voter_name),
+			KEY judge_id (judge_id),
 			UNIQUE KEY image_token (image_id, voting_token_id),
-			UNIQUE KEY image_voter (image_id, voter_name)
+			UNIQUE KEY image_voter (image_id, voter_name),
+			UNIQUE KEY image_judge (image_id, judge_id)
 		) {$charset_collate};";
 
 		$upload_tokens = "CREATE TABLE {$wpdb->prefix}photocomp_upload_tokens (
@@ -885,6 +964,28 @@ class Activator {
 			KEY member (member_id)
 		) {$charset_collate};";
 
+		$judges = "CREATE TABLE {$wpdb->prefix}photocomp_judges (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(191) NOT NULL,
+			email VARCHAR(191) NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY email (email)
+		) {$charset_collate};";
+
+		$competition_judges = "CREATE TABLE {$wpdb->prefix}photocomp_competition_judges (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			judge_id BIGINT UNSIGNED NOT NULL,
+			token VARCHAR(64) NOT NULL,
+			sent_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY competition_judge (competition_id, judge_id),
+			UNIQUE KEY token (token)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -894,6 +995,8 @@ class Activator {
 			$voting_tokens,
 			$logs,
 			$recorded_results,
+			$judges,
+			$competition_judges,
 		);
 	}
 }

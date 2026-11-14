@@ -80,6 +80,21 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Judges screen URL.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, string|int> $args Extra query arguments.
+	 * @return string
+	 */
+	private function judges_url( array $args = array() ): string {
+		return add_query_arg(
+			array_merge( array( 'page' => 'photo-competition-manager-judges' ), $args ),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
 	 * Competition edit screen URL.
 	 *
 	 * @since 0.3.0

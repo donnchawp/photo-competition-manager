@@ -313,7 +313,9 @@ class Export_Screen {
 		// Group votes by category, then by voter, then by image_id.
 		// Skip votes for images that no longer exist.
 		$votes_by_category = array();
-		foreach ( $votes as $vote ) {
+		$voter_labels      = array();
+		$labels            = $this->votes_repository->voter_labels( $votes );
+		foreach ( $votes as $key => $vote ) {
 			$image_id = (int) $vote->image_id;
 
 			// Skip votes for deleted/non-existent images.
@@ -322,8 +324,9 @@ class Export_Screen {
 			}
 
 			$category = $vote->category;
-			// A voting-link vote has no name, so it's labelled by its token, as on the Results screen.
-			$voter = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+			// A judge's vote is keyed by judge ID, so judges never share a column.
+			$voter                  = empty( $vote->judge_id ) ? $labels[ $key ] : 'judge:' . (int) $vote->judge_id;
+			$voter_labels[ $voter ] = $labels[ $key ];
 
 			if ( ! isset( $votes_by_category[ $category ] ) ) {
 				$votes_by_category[ $category ] = array();
@@ -352,7 +355,7 @@ class Export_Screen {
 			// Rows for this category, with votes in random_number order.
 			ksort( $votes_by_voter ); // Sort voters alphabetically.
 			foreach ( $votes_by_voter as $voter => $voter_votes ) {
-				$row = array( $voter );
+				$row = array( $voter_labels[ $voter ] ?? $voter );
 				foreach ( $all_random_numbers as $random_number ) {
 					// Check if this random_number has an image in this category.
 					$image_id_for_random = $random_to_image_by_cat[ $category ][ $random_number ] ?? null;

@@ -95,6 +95,13 @@ jobs:
       - name: Start wp-env
         run: npx --yes @wordpress/env start
 
+      # The tests image has ImageMagick without a JPEG coder, so WordPress would fall back
+      # to GD. Imagick keeps image metadata on save, which is what the author-stripping tests need.
+      - name: Install the Imagick JPEG coder
+        run: |
+          docker exec -u root "$(docker ps --filter name=tests-cli --format '{{.Names}}' | head -n 1)" \
+            apk add --no-cache imagemagick imagemagick-jpeg
+
       # Tests run *inside* the tests container, where wp-env provides the
       # PHPUnit library (WP_TESTS_DIR=/wordpress-phpunit) and the tests DB
       # (tests-mysql). The repo is mounted at wp-content/pcm via .wp-env.json,

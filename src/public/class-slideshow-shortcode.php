@@ -256,7 +256,7 @@ class Slideshow_Shortcode {
 	private function slides( object $competition, array $images ): array {
 		$slides = array();
 		foreach ( $images as $image ) {
-			$url = $this->entries->urls( $competition, $image )['full'];
+			$url = $this->entries->public_urls( $competition, $image )['full'];
 			if ( '' !== $url ) {
 				$slides[] = array(
 					'id'            => $image->id,

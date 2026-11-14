@@ -679,6 +679,35 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'image-details-happy-path', array( $comp_id ), array(), array( $image ) );
 	}
 
+	public function test_image_details_name_judges_and_former_judges(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$member  = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced' ) );
+		$image   = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $member,
+				'filename'  => 'a.jpg',
+			)
+		);
+
+		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
+		$ann    = $judges->create( 'Ann', 'ann@example.com' );
+		$this->votes->create_judge_ballot( $comp_id, 'colour', $ann, array( $image => 8 ) );
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'image'       => (string) $image,
+			)
+		);
+		$this->assertStringContainsString( 'Judge: Ann', $this->render_normalized( array( $comp_id ), array(), array( $image ) ) );
+
+		$judges->delete( $ann );
+		$html = $this->render_normalized( array( $comp_id ), array(), array( $image ) );
+		$this->assertStringContainsString( 'Former judge #' . $ann, $html );
+		$this->assertStringNotContainsString( 'Ann', $html );
+	}
+
 	public function test_render_image_details_no_votes_no_member(): void {
 		// The image's member_id does not resolve to any member row: both the
 		// "Unknown" member-name fallback and the skipped email/grade
