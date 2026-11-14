@@ -40,11 +40,12 @@ if ( $data['types'] ) {
 		echo '<strong>' . esc_html( $data['type_name'] ) . '</strong><br />';
 		echo '<span class="description">' . esc_html__( 'A competition\'s type can\'t change once it has entries.', 'photo-competition-manager' ) . '</span>';
 	} else {
-		echo '<select id="competition_type" name="competition_type" required>';
+		echo '<select id="competition_type" name="competition_type" aria-describedby="competition_type_help" required>';
 		foreach ( $data['types'] as $type_row ) {
 			echo '<option value="' . esc_attr( $type_row->id ) . '"' . selected( (int) $type_row->id, $data['type_id'], false ) . '>' . esc_html( $type_row->name ) . '</option>';
 		}
-		echo '</select>';
+		echo '</select><br />';
+		echo '<span class="description" id="competition_type_help">' . esc_html__( 'Changing the type replaces this competition\'s categories and its Settings tab with the new type\'s, including any voting password, quotas and slideshow timings set here.', 'photo-competition-manager' ) . '</span>';
 	}
 
 	echo '</p>';
