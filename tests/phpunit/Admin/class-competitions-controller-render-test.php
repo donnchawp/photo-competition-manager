@@ -195,6 +195,23 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'no-competitions-active' );
 	}
 
+	public function test_render_list_offers_email_judges_only_where_judges_are_assigned(): void {
+		// Scheduled, not yet open: judges get their links ahead of the night.
+		$judges   = array( 'voting' => array( 'auth_mode' => 'judges' ) );
+		$judged   = $this->seed_competition( 'Judged Show', 'judged-show', array( 'open_date' => '2099-01-01 00:00:00', 'close_date' => '2099-01-10 00:00:00', 'settings' => $judges ) );
+		$unjudged = $this->seed_competition( 'Empty Panel', 'empty-panel', array( 'open_date' => '2099-02-01 00:00:00', 'close_date' => '2099-02-10 00:00:00', 'settings' => $judges ) );
+		$members  = $this->seed_competition( 'Members Show', 'members-show', array( 'open_date' => '2099-03-01 00:00:00', 'close_date' => '2099-03-10 00:00:00' ) );
+		( new Competition_Judges_Repository() )->assign( $judged, ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertSame( 1, substr_count( $html, 'Email Judges' ) );
+		$this->assertMatchesRegularExpression( '/action=email_judges&(#038;|amp;)?competition=' . $judged . '&/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/action=email_judges&(#038;|amp;)?competition=(' . $unjudged . '|' . $members . ')&/', $html );
+	}
+
 	public function test_render_list_active_with_rows(): void {
 		// Two active competitions exercising both states of the per-row
 		// branches: Spring Show is currently open (open_date in the past,

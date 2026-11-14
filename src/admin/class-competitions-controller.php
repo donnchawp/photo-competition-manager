@@ -350,10 +350,11 @@ class Competitions_Controller {
 			$this->redirect_with_settings_errors( $this->dashboard_url() );
 		}
 
-		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
+		if ( in_array( $action, array( 'archive', 'restore', 'send_emails', 'email_judges', 'delete', 'reset_votes' ), true ) && isset( $_GET['competition'] ) ) {
 			$competition_id = absint( wp_unslash( $_GET['competition'] ) );
 			$nonces         = array(
-				'send_emails' => 'photo_competition_send_emails_',
+				'send_emails'  => 'photo_competition_send_emails_',
+				'email_judges' => 'photo_competition_email_judges_',
 				'archive'     => 'photo_competition_archive_',
 				'restore'     => 'photo_competition_restore_',
 				'delete'      => 'photo_competition_delete_',
@@ -362,6 +363,17 @@ class Competitions_Controller {
 			$nonce_action   = $nonces[ $action ];
 
 			check_admin_referer( $nonce_action . $competition_id );
+
+			if ( 'email_judges' === $action ) {
+				$competition = $this->competitions->find( $competition_id );
+				if ( ! $competition || ! Ballots::is_judged( $competition ) ) {
+					$this->judge_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
+					$this->redirect_with_settings_errors( $this->dashboard_url() );
+				}
+
+				$this->send_judge_links( $competition, $this->competition_judges->judges_for( $competition_id ) );
+				$this->redirect_with_settings_errors( $this->judges_section_url( $competition_id ) );
+			}
 
 			if ( 'delete' === $action ) {
 				// The entries go first, so their files and originals go with them.
@@ -689,7 +701,7 @@ class Competitions_Controller {
 		check_admin_referer( 'photo_competition_judges_' . $competition_id, 'photo_competition_nonce' );
 
 		$competition = $this->competitions->find( $competition_id );
-		$url         = $this->settings_tab_url( $competition_id );
+		$url         = $this->judges_section_url( $competition_id );
 
 		if ( ! $competition || ! Ballots::is_judged( $competition ) ) {
 			$this->judge_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
@@ -810,6 +822,18 @@ class Competitions_Controller {
 	 */
 	private function settings_tab_url( int $competition_id ): string {
 		return add_query_arg( 'tab', 'settings', $this->edit_url( $competition_id ) );
+	}
+
+	/**
+	 * The Judges section of a competition's settings tab, where Last sent shows each link's email.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function judges_section_url( int $competition_id ): string {
+		return $this->settings_tab_url( $competition_id ) . '#photo-comp-judges';
 	}
 
 	/**
@@ -1214,6 +1238,22 @@ class Competitions_Controller {
 				);
 			}
 
+			// Judges get their links ahead of the night, so any time before the competition closes.
+			$email_judges_url = '';
+			if ( ! $is_archived && Ballots::is_judged( $competition ) && ! $this->workflow->has_closed( $competition ) && $this->competition_judges->judges_for( $comp_id ) ) {
+				$email_judges_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager',
+							'action'      => 'email_judges',
+							'competition' => $comp_id,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_email_judges_' . $comp_id
+				);
+			}
+
 			$generate_link_url = wp_nonce_url(
 				add_query_arg(
 					array(
@@ -1292,6 +1332,7 @@ class Competitions_Controller {
 				'reopen_refusal'     => $reopen_refusal,
 				'is_open'            => $is_open,
 				'send_email_url'     => $send_email_url,
+				'email_judges_url'   => $email_judges_url,
 				'close_url'          => $close_url,
 				'generate_link_url'  => $generate_link_url,
 				'restore_url'        => $restore_url,

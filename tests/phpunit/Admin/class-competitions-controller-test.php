@@ -1745,10 +1745,70 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		( new Judges_Repository() )->create( 'Cat', 'cat@example.com' );
 		reset_phpmailer_instance();
 
-		$this->post_judges_action( $id, 'send_all_judge_links' );
+		$location = $this->post_judges_action( $id, 'send_all_judge_links' );
 
+		$this->assertStringContainsString( 'tab=settings', $location );
+		$this->assertStringEndsWith( '#photo-comp-judges', $location );
 		$this->assertCount( 2, tests_retrieve_phpmailer_instance()->mock_sent );
 		$this->assertNotContains( '', array_map( 'strval', wp_list_pluck( $links->judges_for( $id ), 'sent_at' ) ) );
+	}
+
+	/**
+	 * Run a link action from the competitions list.
+	 *
+	 * @param int    $id     Competition ID.
+	 * @param string $action Action.
+	 * @param string $nonce  Nonce action prefix.
+	 * @return string Redirect location.
+	 */
+	private function get_list_action( int $id, string $action, string $nonce ): string {
+		$this->set_request(
+			array(
+				'action'      => $action,
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( $nonce . $id );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Email Judges on the competitions list emails each assigned judge and
+	 * lands on the competition's Judges section, where Last sent shows it.
+	 */
+	public function test_email_judges_from_the_list_emails_every_assigned_judge(): void {
+		$id    = $this->create_judged_competition();
+		$links = new Competition_Judges_Repository();
+		$links->assign( $id, ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' ) );
+		$links->assign( $id, ( new Judges_Repository() )->create( 'Bob', 'bob@example.com' ) );
+		( new Judges_Repository() )->create( 'Cat', 'cat@example.com' );
+		reset_phpmailer_instance();
+
+		$location = $this->get_list_action( $id, 'email_judges', 'photo_competition_email_judges_' );
+
+		$this->assertStringContainsString( 'competition=' . $id, $location );
+		$this->assertStringContainsString( 'tab=settings', $location );
+		$this->assertStringEndsWith( '#photo-comp-judges', $location );
+		$this->assertSame( array( 'ann@example.com', 'bob@example.com' ), array_map( fn( $m ) => $m['to'][0][0], tests_retrieve_phpmailer_instance()->mock_sent ) );
+		$this->assertContains( 'judge_links_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * Email Judges on a competition members score sends nothing.
+	 */
+	public function test_email_judges_on_a_member_voted_competition_sends_nothing(): void {
+		$id = $this->create_competition( 'Members', 'members' );
+		reset_phpmailer_instance();
+
+		$this->get_list_action( $id, 'email_judges', 'photo_competition_email_judges_' );
+
+		$this->assertSame( array( 'judges_not_scoring' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertCount( 0, tests_retrieve_phpmailer_instance()->mock_sent );
 	}
 
 	/**
