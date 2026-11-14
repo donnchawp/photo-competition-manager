@@ -52,6 +52,24 @@ class Plugin_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Upgrades wait for init: they read settings whose defaults are translated, and
+	 * translating at plugins_loaded logs a notice on the first request after an update.
+	 * Priority 0 runs them before anything else hooked to init.
+	 *
+	 * @return void
+	 */
+	public function test_bootstrap_runs_upgrades_at_the_start_of_init(): void {
+		$upgrade = array( Activator::class, 'maybe_upgrade' );
+		remove_action( 'init', $upgrade, 0 );
+
+		$plugin = new Plugin();
+		$plugin->register();
+		$plugin->bootstrap();
+
+		$this->assertSame( 0, has_action( 'init', $upgrade ) );
+	}
+
+	/**
 	 * Bootstrapping schedules the daily log trim, and the event trims old rows.
 	 *
 	 * @return void

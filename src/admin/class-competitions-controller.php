@@ -1303,6 +1303,8 @@ class Competitions_Controller {
 			$member_groups = $this->entrant_picker_groups( (int) $competition->type_id, $entrant_ids, $named_type );
 		}
 
+		$refusal = $this->entry->change_refusal( $competition );
+
 		return $this->render_template(
 			'admin/competitions/entrants-panel.php',
 			array(
@@ -1312,7 +1314,8 @@ class Competitions_Controller {
 					/* translators: %s: Competition type name */
 					? sprintf( __( 'Open to everyone in %s', 'photo-competition-manager' ), $named_type->name )
 					: __( 'Open to all members', 'photo-competition-manager' ),
-				'can_change'     => $this->entry->can_change( $competition ),
+				'can_change'     => null === $refusal,
+				'locked_message' => $refusal ? $refusal->get_error_message() : '',
 				'uploads_open'   => $this->workflow->is_accepting_uploads( $competition ),
 				'entrants'       => $entrants,
 				'member_groups'  => $member_groups,

@@ -5,7 +5,8 @@
  *
  * Reads $data['competition_id'] (int), $data['entry_mode'] ('all' or
  * 'selected'), $data['open_label'] (string): the label for 'all',
- * $data['can_change'] (bool): false once voting has started,
+ * $data['can_change'] (bool): false once voting has started or the competition
+ * has closed, $data['locked_message'] (string): why, or '' while it can change,
  * $data['uploads_open'] (bool), $data['entrants'] (objects with id, name,
  * email, active and has_entries), $data['member_groups'] (arrays with label,
  * '' for an unnamed group, and members: objects with id, name and email) for
@@ -49,7 +50,7 @@ if ( $data['can_change'] ) {
 	echo '</form>';
 } else {
 	echo '<p><strong>' . esc_html( $modes[ $data['entry_mode'] ] ) . '</strong></p>';
-	echo '<p class="description">' . esc_html__( 'Voting has started, so who enters this competition can\'t change.', 'photo-competition-manager' ) . '</p>';
+	echo '<p class="description">' . esc_html( $data['locked_message'] ) . '</p>';
 }
 
 echo '</div>';

@@ -227,7 +227,33 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'entry_closed', $result->get_error_code() );
+		$this->assertSame( 'Voting has started, so who enters this competition can\'t change.', $result->get_error_message() );
 		$this->assertFalse( $this->entrants->has( (int) $competition->id, $bob ) );
+	}
+
+	public function test_changes_after_the_competition_closed_say_it_has_closed(): void {
+		$competition = $this->competition( 'Individual', 'selected' );
+		$ann         = $this->member( 'Ann' );
+		$bob         = $this->member( 'Bob' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		$this->entrants->add( (int) $competition->id, $bob );
+		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $ann, array() );
+		Workflow_Fixtures::set_stage( (int) $competition->id, 'open', Competition_Workflow::STAGE_DONE );
+		$this->competitions->update(
+			(int) $competition->id,
+			array(
+				'open_date'  => gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS ),
+				'close_date' => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $this->entry->remove_entrant( $this->reload( $competition ), $bob );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'entry_closed', $result->get_error_code() );
+		$this->assertSame( 'This competition has closed, so who enters it can\'t change.', $result->get_error_message() );
+		$this->assertSame( $result->get_error_message(), $this->entry->change_refusal( $this->reload( $competition ) )->get_error_message() );
+		$this->assertTrue( $this->entrants->has( (int) $competition->id, $bob ) );
 	}
 
 	public function test_add_entrant_while_previewed_is_allowed(): void {

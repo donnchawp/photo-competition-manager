@@ -218,7 +218,7 @@ class Competition_Entry {
 	 * @return true|WP_Error 'entry_closed' or 'not_selected_mode'.
 	 */
 	public function can_add_entrants( object $competition ) {
-		$refused = $this->refuse_changes( $competition );
+		$refused = $this->change_refusal( $competition );
 		if ( $refused ) {
 			return $refused;
 		}
@@ -238,7 +238,7 @@ class Competition_Entry {
 	 * @return true|WP_Error 'entry_closed' or 'entrant_has_entries'.
 	 */
 	public function remove_entrant( object $competition, int $member_id ) {
-		$refused = $this->refuse_changes( $competition );
+		$refused = $this->change_refusal( $competition );
 		if ( $refused ) {
 			return $refused;
 		}
@@ -267,7 +267,7 @@ class Competition_Entry {
 			return new WP_Error( 'invalid_entry_mode', __( 'Choose who may enter.', 'photo-competition-manager' ) );
 		}
 
-		$refused = $this->refuse_changes( $competition );
+		$refused = $this->change_refusal( $competition );
 		if ( $refused ) {
 			return $refused;
 		}
@@ -284,16 +284,6 @@ class Competition_Entry {
 	}
 
 	/**
-	 * Whether who may enter can still change: not once any category's voting has started.
-	 *
-	 * @param object $competition Competition row.
-	 * @return bool
-	 */
-	public function can_change( object $competition ): bool {
-		return ! $this->workflow->has_any_voting_started( $competition );
-	}
-
-	/**
 	 * Whether the competition is for selected entrants only.
 	 *
 	 * @param object $competition Competition row.
@@ -304,16 +294,22 @@ class Competition_Entry {
 	}
 
 	/**
-	 * The refusal for changing who may enter once voting has started.
+	 * Why who may enter can no longer change, or null while it still can:
+	 * not once the competition has closed or any category's voting has started.
 	 *
+	 * @since 0.4.0
 	 * @param object $competition Competition row.
-	 * @return WP_Error|null
+	 * @return WP_Error|null 'entry_closed', or null.
 	 */
-	private function refuse_changes( object $competition ): ?WP_Error {
-		if ( $this->can_change( $competition ) ) {
-			return null;
+	public function change_refusal( object $competition ): ?WP_Error {
+		if ( $this->workflow->has_closed( $competition ) ) {
+			return new WP_Error( 'entry_closed', __( 'This competition has closed, so who enters it can\'t change.', 'photo-competition-manager' ) );
 		}
 
-		return new WP_Error( 'entry_closed', __( 'Voting has started, so who enters this competition can\'t change.', 'photo-competition-manager' ) );
+		if ( $this->workflow->has_any_voting_started( $competition ) ) {
+			return new WP_Error( 'entry_closed', __( 'Voting has started, so who enters this competition can\'t change.', 'photo-competition-manager' ) );
+		}
+
+		return null;
 	}
 }

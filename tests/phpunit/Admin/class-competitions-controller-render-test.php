@@ -814,6 +814,33 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-entrants-tab-open-to-all', array( $comp_id ) );
 	}
 
+	public function test_render_entrants_tab_of_a_closed_competition_says_it_has_closed(): void {
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'open_date'  => gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS ),
+				'close_date' => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
+			)
+		);
+		// Closed without voting ever starting, which locks entry too.
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'This competition has closed, so who enters it can&#039;t change.', $html );
+		$this->assertStringNotContainsString( 'Voting has started', $html );
+		$this->assertStringNotContainsString( 'name="entry_mode"', $html );
+	}
+
 	public function test_render_edit_entrants_tab_selected(): void {
 		// Selected entrants while uploads are open: Ann has an entry, so she
 		// can't be removed; Bob can. Both can be sent their upload link. The
