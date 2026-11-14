@@ -2,7 +2,9 @@
 /**
  * Add-member form partial for the admin members page.
  *
- * Reads $data['grade_options'] (array<string,string> of grade slug => label).
+ * Reads $data['grade_options'] (array<string,string> of grade slug => label) and
+ * $data['type_options'] (array<int,string> of type ID => name; empty unless the club
+ * has several types).
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -53,6 +55,18 @@ echo '<input type="checkbox" name="member_committee" value="1" /> ';
 echo esc_html__( 'Committee Member', 'photo-competition-manager' );
 echo '</label>';
 echo '</p>';
+
+if ( $data['type_options'] ) {
+	echo '<fieldset>';
+	echo '<legend>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</legend>';
+	foreach ( $data['type_options'] as $type_id => $type_name ) {
+		echo '<label style="display:block;">';
+		echo '<input type="checkbox" name="member_types[]" value="' . esc_attr( $type_id ) . '" /> ';
+		echo esc_html( $type_name );
+		echo '</label>';
+	}
+	echo '</fieldset>';
+}
 
 submit_button( __( 'Add Member', 'photo-competition-manager' ) );
 

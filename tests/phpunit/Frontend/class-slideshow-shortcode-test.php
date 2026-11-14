@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Slideshow_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -54,6 +55,7 @@ class Slideshow_Shortcode_Test extends WP_UnitTestCase {
 		$this->shortcode      = new Slideshow_Shortcode();
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Slideshow Comp',
 				'slug'      => 'slideshow-comp',
 				'open_date' => '2020-01-01 00:00:00',

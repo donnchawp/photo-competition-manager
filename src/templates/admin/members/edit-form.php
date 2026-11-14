@@ -4,7 +4,9 @@
  *
  * Reads $data['member'] (object with id, name, email, grade, active,
  * committee), $data['grade_options'] (array<string,string> of grade slug =>
- * label), $data['members_url'] (string).
+ * label), $data['members_url'] (string), $data['type_options'] (array<int,string>
+ * of type ID => name; empty unless the club has several types) and
+ * $data['member_types'] (int[] of the member's type IDs).
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -55,6 +57,18 @@ echo '<input type="checkbox" name="member_committee" value="1"' . checked( (bool
 echo esc_html__( 'Committee Member', 'photo-competition-manager' );
 echo '</label>';
 echo '</p>';
+
+if ( $data['type_options'] ) {
+	echo '<fieldset>';
+	echo '<legend>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</legend>';
+	foreach ( $data['type_options'] as $type_id => $type_name ) {
+		echo '<label style="display:block;">';
+		echo '<input type="checkbox" name="member_types[]" value="' . esc_attr( $type_id ) . '"' . checked( in_array( (int) $type_id, $data['member_types'], true ), true, false ) . ' /> ';
+		echo esc_html( $type_name );
+		echo '</label>';
+	}
+	echo '</fieldset>';
+}
 
 submit_button( __( 'Update Member', 'photo-competition-manager' ) );
 

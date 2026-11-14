@@ -73,7 +73,7 @@ class Judges_Controller {
 				$this->get_post_string( 'judge_email' )
 			);
 
-			$this->notice_and_redirect( $result, 'judge_created', __( 'Judge added.', 'photo-competition-manager' ), $this->judges_url() );
+			$this->notice_and_redirect( self::GROUP, $result, 'judge_created', __( 'Judge added.', 'photo-competition-manager' ), $this->judges_url() );
 		}
 
 		if ( 'update_judge' === $action ) {
@@ -96,7 +96,7 @@ class Judges_Controller {
 				)
 				: $this->judges_url();
 
-			$this->notice_and_redirect( $result, 'judge_updated', __( 'Judge updated.', 'photo-competition-manager' ), $back );
+			$this->notice_and_redirect( self::GROUP, $result, 'judge_updated', __( 'Judge updated.', 'photo-competition-manager' ), $back );
 		}
 
 		if ( 'delete_judge' === $action ) {
@@ -107,6 +107,7 @@ class Judges_Controller {
 			$result = ( new Judge_Deletion( $this->judges ) )->delete( $judge_id );
 
 			$this->notice_and_redirect(
+				self::GROUP,
 				$result,
 				'judge_deleted',
 				__( 'Judge deleted. Their scores stay in every competition they judged.', 'photo-competition-manager' ),
@@ -172,24 +173,5 @@ class Judges_Controller {
 		echo $screen; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		echo '</div>';
-	}
-
-	/**
-	 * Queue the outcome as a notice and redirect.
-	 *
-	 * @param mixed  $result  Repository result; a WP_Error is an error.
-	 * @param string $code    Success notice code.
-	 * @param string $message Success message.
-	 * @param string $url     Where to go next.
-	 * @return never
-	 */
-	private function notice_and_redirect( $result, string $code, string $message, string $url ): void {
-		if ( is_wp_error( $result ) ) {
-			add_settings_error( self::GROUP, $result->get_error_code(), $result->get_error_message(), 'error' );
-		} else {
-			add_settings_error( self::GROUP, $code, $message, 'updated' );
-		}
-
-		$this->redirect_with_settings_errors( $url );
 	}
 }

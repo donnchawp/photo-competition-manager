@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Ranking;
@@ -143,7 +144,7 @@ class Top3_Shortcode {
 
 		if ( ! $this->results_viewable( $competition, $share_hash ) ) {
 			echo '<div class="photo-comp-top3">';
-			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Top 3 Winners', 'photo-competition-manager' ) . '</h2>';
+			echo '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . esc_html__( 'Top 3 Winners', 'photo-competition-manager' ) . '</h2>';
 			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';
 			echo '</div>';
 			return;
@@ -180,7 +181,7 @@ class Top3_Shortcode {
 
 		?>
 		<div class="photo-comp-top3">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php esc_html_e( 'Top 3 Results', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Top 3 Results', 'photo-competition-manager' ); ?></h2>
 
 			<?php foreach ( $categories as $category_config ) : ?>
 				<?php

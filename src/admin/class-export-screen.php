@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use WP_Error;
@@ -86,6 +87,7 @@ class Export_Screen {
 	 * @return void
 	 */
 	public function render(): void {
+		$labels = new Competition_Labels();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Export Data', 'photo-competition-manager' ); ?></h1>
@@ -109,7 +111,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -140,7 +142,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -171,7 +173,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Slideshow section partial for the admin settings page.
+ * Slideshow section partial for the competition type form.
  *
  * Reads $data['meter_types'] (array<string,string>, meter-type slug =>
  * label), $data['progress_meter_type'] (string), $data['preview_duration'],

@@ -26,9 +26,10 @@ echo '<div>';
 echo '<label for="competition-filter"><strong>' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</strong></label><br>';
 echo '<select id="competition-filter" name="competition" style="width: 100%;">';
 echo '<option value="0">' . esc_html__( 'All Competitions', 'photo-competition-manager' ) . '</option>';
+$labels = new \PhotoCompetitionManager\Service\Competition_Labels();
 foreach ( $data['competitions'] as $comp ) {
 	$selected = ( (int) $comp->id === $data['selected_competition'] ) ? ' selected' : '';
-	echo '<option value="' . esc_attr( $comp->id ) . '"' . esc_attr( $selected ) . '>' . esc_html( $comp->title ) . '</option>';
+	echo '<option value="' . esc_attr( $comp->id ) . '"' . esc_attr( $selected ) . '>' . esc_html( $labels->title_for_everyone( $comp ) ) . '</option>';
 }
 echo '</select>';
 echo '</div>';

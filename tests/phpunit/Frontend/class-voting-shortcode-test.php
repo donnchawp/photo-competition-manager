@@ -8,8 +8,10 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -118,6 +120,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$competitions      = new Competitions_Repository();
 		$competition_id    = $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Token Comp',
 				'slug'      => 'token-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -360,6 +363,74 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 0, $this->mail_count );
 		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	/**
+	 * Give the competition under test's type (Individual) a second type (Team), and add a member of the given types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return int Member ID.
+	 */
+	private function two_type_member( string $entry_mode, array $types ): int {
+		// The competition has entries, so it keeps its type; a second type joins it.
+		$type_ids = array(
+			'Individual' => (int) $this->competition->type_id,
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$this->assertTrue( ( new Competitions_Repository() )->update( (int) $this->competition->id, array( 'entry_mode' => $entry_mode ) ) );
+		$this->competition = ( new Competitions_Repository() )->find( (int) $this->competition->id );
+
+		return (int) $this->members->create(
+			array(
+				'name'     => 'Voter',
+				'email'    => 'voter@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+	}
+
+	public function test_non_entrant_cannot_request_voting_link_in_selected_competition(): void {
+		$member_id = $this->two_type_member( 'selected', array( 'Individual' ) );
+
+		$message = $this->request_token( 'voter@example.com' );
+
+		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_an_entrant_can_request_a_voting_link_in_selected_competition(): void {
+		$member_id = $this->two_type_member( 'selected', array( 'Team' ) );
+		( new Entrants_Repository() )->add( (int) $this->competition->id, $member_id );
+
+		$this->request_token( 'voter@example.com' );
+
+		$this->assertSame( 1, $this->mail_count );
+	}
+
+	public function test_a_member_without_the_type_cannot_request_a_voting_link(): void {
+		$member_id = $this->two_type_member( 'all', array( 'Team' ) );
+
+		$message = $this->request_token( 'voter@example.com' );
+
+		$this->assertStringContainsString( 'class="success"', $message );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_a_member_with_the_type_can_request_a_voting_link(): void {
+		$this->two_type_member( 'all', array( 'Individual' ) );
+
+		$this->request_token( 'voter@example.com' );
+
+		$this->assertSame( 1, $this->mail_count );
 	}
 
 	/**

@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
@@ -49,6 +50,7 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Ranking Comp',
 				'slug'     => 'ranking-comp',
 				'settings' => array(
@@ -132,6 +134,14 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 			$this->summarize( $groups )
 		);
 		$this->assertSame( 0, $groups[0]['entries'][1]['vote_count'] );
+	}
+
+	public function test_unrenamed_type_output_is_unchanged(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 5 ) );
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( Competition_Settings::grade_labels()['beginner'], $groups[0]['label'] );
 	}
 
 	public function test_entries_without_a_club_grade_go_in_a_trailing_ungraded_group(): void {

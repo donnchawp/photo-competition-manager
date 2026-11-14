@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -103,6 +104,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 				'open_date'  => null,
@@ -271,6 +273,18 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
 		$this->assertStringContainsString( '1 of 1 (Club Starters)', $this->bodies['starter@example.com'] );
+	}
+
+	public function test_results_email_shows_type_grade_names(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		// Moved directly, so the competition keeps its own categories.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$this->vote_for( $this->seed_entrant( 'cup@example.com' ), 9 );
+
+		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertStringContainsString( '1 of 1 (Novice Cup)', $this->bodies['cup@example.com'] );
 	}
 
 	public function test_results_email_tied_entries_share_a_position(): void {
@@ -855,6 +869,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$member_id = $this->seed_member( 'a@example.com' );
 		$other     = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Other',
 				'slug'       => 'other-' . wp_generate_password( 6, false ),
 				'open_date'  => '2020-01-01 00:00:00',

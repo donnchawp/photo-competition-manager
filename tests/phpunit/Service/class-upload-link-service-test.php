@@ -8,9 +8,12 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Dependencies;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use WP_UnitTestCase;
@@ -64,6 +67,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	private function make_open_competition(): int {
 		return (int) $this->comps->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Open Comp',
 				'slug'      => 'open-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -74,6 +78,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 	private function make_closed_competition(): int {
 		return (int) $this->comps->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Closed Comp',
 				'slug'       => 'closed-comp',
 				'open_date'  => '2020-01-01 00:00:00',
@@ -388,5 +393,132 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$result = $this->service->queue_reminders( $competition_id, $this->jobs() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'no_members', $result->get_error_code() );
+	}
+
+	// --- who may enter ---
+
+	/**
+	 * Two types, Individual and Team, with an open competition of Individual.
+	 *
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @return array{0:int,1:array<string,int>} Competition ID and type IDs by name.
+	 */
+	private function two_type_competition( string $entry_mode = 'all' ): array {
+		Type_Fixtures::clear();
+		$types = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+
+		$competition_id = (int) $this->comps->create(
+			array(
+				'type_id'    => $types['Individual'],
+				'title'      => 'Open Comp',
+				'slug'       => 'open-comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'entry_mode' => $entry_mode,
+			)
+		);
+
+		return array( $competition_id, $types );
+	}
+
+	private function make_typed_member( string $name, array $type_ids ): int {
+		return (int) $this->members->create(
+			array(
+				'name'     => $name,
+				'email'    => strtolower( $name ) . '@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => $type_ids,
+			)
+		);
+	}
+
+	public function test_untagged_member_gets_no_link_for_open_competition() {
+		list( $competition_id, $types ) = $this->two_type_competition();
+		$member_id                      = $this->make_typed_member( 'Tess', array( $types['Team'] ) );
+
+		$result = $this->service->send_to_member( $competition_id, $member_id, true );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_an_entrant', $result->get_error_code() );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertSame( array(), ( new Upload_Token_Repository() )->get_tracking_by_competition( $competition_id ) );
+	}
+
+	public function test_tagged_member_gets_a_link_for_open_competition() {
+		list( $competition_id, $types ) = $this->two_type_competition();
+		$member_id                      = $this->make_typed_member( 'Ian', array( $types['Individual'] ) );
+
+		$this->assertTrue( $this->service->send_to_member( $competition_id, $member_id, true ) );
+		$this->assertSame( 1, $this->mail_count );
+	}
+
+	public function test_reminders_go_only_to_entrants_when_selected() {
+		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
+		$entrant                        = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$this->make_typed_member( 'Ben', array( $types['Individual'] ) );
+		( new Entrants_Repository() )->add( $competition_id, $entrant );
+		$jobs = $this->jobs();
+
+		$job_id = $this->service->queue_reminders( $competition_id, $jobs );
+
+		$this->assertIsString( $job_id );
+		$this->assertSame( array( $entrant ), $jobs->get_job( $job_id )['member_ids'] );
+	}
+
+	public function test_reminders_go_only_to_the_type_when_open_to_all() {
+		list( $competition_id, $types ) = $this->two_type_competition();
+		$individual                     = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$this->make_typed_member( 'Ben', array( $types['Team'] ) );
+		$jobs = $this->jobs();
+
+		$job_id = $this->service->queue_reminders( $competition_id, $jobs );
+
+		$this->assertSame( array( $individual ), $jobs->get_job( $job_id )['member_ids'] );
+	}
+
+	public function test_reminders_with_no_one_who_may_enter_is_no_members() {
+		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
+		$this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+
+		$result = $this->service->queue_reminders( $competition_id, $this->jobs() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_members', $result->get_error_code() );
+		$this->assertSame( 'No one may enter this competition yet.', $result->get_error_message() );
+	}
+
+	public function test_queued_reminder_for_a_removed_entrant_is_not_sent() {
+		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
+		$member_id                      = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+
+		$result = $this->service->send_reminder( $competition_id, $member_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_an_entrant', $result->get_error_code() );
+		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_request_link_by_email_for_non_entrant_sends_nothing() {
+		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
+		$this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+
+		$this->assertTrue( $this->service->send_by_email( $competition_id, 'ann@example.com' ) );
+		$this->assertSame( 0, $this->mail_count );
+	}
+
+	public function test_one_type_site_sends_links_to_all_active_members_as_before() {
+		$competition_id = $this->make_open_competition();
+		$alice          = $this->make_member( 'Alice', 'alice@example.com' );
+		$bob            = $this->make_member( 'Bob', 'bob@example.com' );
+		$jobs           = $this->jobs();
+
+		$this->assertTrue( $this->service->send_to_member( $competition_id, $alice, true ) );
+		$this->assertTrue( $this->service->send_by_email( $competition_id, 'bob@example.com' ) );
+		$this->assertSame( 2, $this->mail_count );
+
+		$job_id = $this->service->queue_reminders( $competition_id, $jobs );
+		$this->assertSame( array( $alice, $bob ), $jobs->get_job( $job_id )['member_ids'] );
 	}
 }

@@ -35,7 +35,7 @@ class Plugin_Test extends WP_UnitTestCase {
 	public function test_activation_schema_contains_expected_tables(): void {
 		$schema = Activator::get_schema( $GLOBALS['wpdb'] );
 
-		$this->assertCount( 10, $schema );
+		$this->assertCount( 13, $schema );
 		$this->assertStringContainsString( 'photocomp_members', $schema[0] );
 		$this->assertStringContainsString( 'photocomp_competitions', $schema[1] );
 		$this->assertStringContainsString( 'photocomp_images', $schema[2] );
@@ -46,6 +46,27 @@ class Plugin_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'photocomp_recorded_results', $schema[7] );
 		$this->assertStringContainsString( 'photocomp_judges', $schema[8] );
 		$this->assertStringContainsString( 'photocomp_competition_judges', $schema[9] );
+		$this->assertStringContainsString( 'photocomp_competition_types', $schema[10] );
+		$this->assertStringContainsString( 'photocomp_member_types', $schema[11] );
+		$this->assertStringContainsString( 'photocomp_entrants', $schema[12] );
+	}
+
+	/**
+	 * Upgrades wait for init: they read settings whose defaults are translated, and
+	 * translating at plugins_loaded logs a notice on the first request after an update.
+	 * Priority 0 runs them before anything else hooked to init.
+	 *
+	 * @return void
+	 */
+	public function test_bootstrap_runs_upgrades_at_the_start_of_init(): void {
+		$upgrade = array( Activator::class, 'maybe_upgrade' );
+		remove_action( 'init', $upgrade, 0 );
+
+		$plugin = new Plugin();
+		$plugin->register();
+		$plugin->bootstrap();
+
+		$this->assertSame( 0, has_action( 'init', $upgrade ) );
 	}
 
 	/**

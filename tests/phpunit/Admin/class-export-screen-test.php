@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Export_Screen;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -271,6 +272,7 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	private function create_competition(): int {
 		return (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Export Comp',
 				'slug'      => 'export-comp',
 				'open_date' => '2020-01-01 00:00:00',

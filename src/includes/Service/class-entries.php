@@ -243,7 +243,7 @@ class Entries {
 			$member,
 			$competition,
 			array(
-				'{member_grade}'  => (string) ( $member->grade ?? '' ),
+				'{member_grade}'  => ( new Competition_Labels() )->grade_label( $competition, (string) ( $member->grade ?? '' ) ),
 				'{category_name}' => (string) $category_config['label'],
 				'{current_count}' => (string) ( $current_count + 1 ),
 				'{quota}'         => (string) $quota,

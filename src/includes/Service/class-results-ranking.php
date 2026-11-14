@@ -129,10 +129,14 @@ class Results_Ranking {
 		}
 
 		// Labelled here, not in empty_groups(): the upgrade records results
-		// before translations can load.
+		// before translations can load. A grade is shown under its competition
+		// type's name when it has one; a grade the club no longer has keeps its slug.
+		$labels = $competition ? ( new Competition_Labels() )->grade_labels( $competition ) : array();
 		foreach ( $groups as $index => $group ) {
 			if ( $group['ungraded'] ) {
 				$groups[ $index ]['label'] = __( 'Ungraded', 'photo-competition-manager' );
+			} elseif ( isset( $labels[ $group['slug'] ] ) ) {
+				$groups[ $index ]['label'] = $labels[ $group['slug'] ];
 			}
 		}
 

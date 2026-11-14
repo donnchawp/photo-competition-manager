@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Kinds;
 
@@ -109,7 +110,7 @@ class Email_Job_Controller {
 				array(
 					'message'      => sprintf(
 						Email_Kinds::get( $job['type'] )['job']['stopped'],
-						$competition ? $competition->title : '#' . $job['competition_id'],
+						$competition ? ( new Competition_Labels() )->title_for_everyone( $competition ) : '#' . $job['competition_id'],
 						$this->email_job_progress( $job ),
 						$job['total_count']
 					),

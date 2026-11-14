@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -21,6 +22,7 @@ use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
@@ -54,6 +56,22 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 		$this->deletion = new Member_Deletion();
 	}
 
+	public function test_deleting_member_deletes_tags(): void {
+		global $wpdb;
+
+		Types::clear();
+		$type  = Types::create( 'Individual' );
+		$jane  = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john  = $this->create_member( 'John Murphy', 'john@example.com' );
+		$table = $wpdb->prefix . 'photocomp_member_types';
+
+		$this->assertSame( 0, $this->delete( $jane ) );
+
+		$this->assertSame( array(), $this->members->type_ids( $jane ) );
+		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = %d', $table, $jane ) ) );
+		$this->assertSame( array( $type ), $this->members->type_ids( $john ) );
+	}
+
 	public function test_a_deleted_members_voting_link_votes_still_count_under_their_token(): void {
 		$competition_id = $this->create_competition( 'link-votes' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -84,6 +102,19 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array( $john_id ), array_keys( $uploads->get_tracking_by_competition( $competition_id ) ) );
 		$this->assertSame( array( $john_id ), array_keys( ( new Voting_Token_Repository() )->get_tracking_by_competition( $competition_id ) ) );
+	}
+
+	public function test_a_deleted_member_is_no_longer_an_entrant(): void {
+		$competition_id = $this->create_competition( 'entrants' );
+		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$john_id        = $this->create_member( 'John Murphy', 'john@example.com' );
+		$entrants       = new \PhotoCompetitionManager\Repository\Entrants_Repository();
+		$entrants->add( $competition_id, $jane_id );
+		$entrants->add( $competition_id, $john_id );
+
+		$this->assertSame( 0, $this->delete( $jane_id ) );
+
+		$this->assertSame( array( $john_id ), $entrants->member_ids( $competition_id ) );
 	}
 
 	public function test_a_deleted_members_password_votes_are_cast_by_a_former_member(): void {
@@ -397,6 +428,7 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 	private function create_competition( string $slug ): int {
 		return (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $slug,
 				'slug'       => $slug,
 				'open_date'  => '2020-01-01 00:00:00',

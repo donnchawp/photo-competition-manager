@@ -24,6 +24,8 @@ use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
 
+use function PhotoCompetitionManager\Support\utc_time;
+
 /**
  * Plugin Activator.
  *
@@ -34,7 +36,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 9;
+	const DB_VERSION = 10;
 
 	/**
 	 * Option holding the installed data version.
@@ -145,6 +147,13 @@ class Activator {
 		// External judges are invited by competition and score images through
 		// votes that carry the judge's ID.
 		if ( $installed < 9 && ! self::add_judging_schema() ) {
+			return;
+		}
+
+		// Competitions have a type, members are tagged with types, and a
+		// competition can list its entrants. Every existing competition and
+		// member gets the one type, so a club with a single type sees no change.
+		if ( $installed < 10 && ( ! self::add_types_schema() || false === self::create_default_type() ) ) {
 			return;
 		}
 
@@ -566,6 +575,156 @@ class Activator {
 	}
 
 	/**
+	 * Add the type, member tag and entrant tables and the competition columns.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the schema is still incomplete, so the step runs again.
+	 */
+	private static function add_types_schema(): bool {
+		global $wpdb;
+
+		$types        = $wpdb->prefix . 'photocomp_competition_types';
+		$member_types = $wpdb->prefix . 'photocomp_member_types';
+		$entrants     = $wpdb->prefix . 'photocomp_entrants';
+		$competitions = $wpdb->prefix . 'photocomp_competitions';
+
+		// Requests run upgrades without activating, so add the tables here.
+		// Only when they're missing: DDL ends the running transaction.
+		if ( ! self::table_exists( $types ) || ! self::table_exists( $member_types ) || ! self::table_exists( $entrants ) ) {
+			self::create_tables();
+		}
+
+		if ( ! self::column_exists( $competitions, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN type_id BIGINT UNSIGNED NULL', $competitions ) );
+		}
+
+		if ( ! self::has_key( $competitions, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD KEY type_id (type_id)', $competitions ) );
+		}
+
+		if ( ! self::column_exists( $competitions, 'entry_mode' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN entry_mode VARCHAR(20) NOT NULL DEFAULT 'all'", $competitions ) );
+		}
+
+		return self::table_exists( $types )
+			&& self::table_exists( $member_types )
+			&& self::table_exists( $entrants )
+			&& self::column_exists( $competitions, 'type_id' )
+			&& self::has_key( $competitions, 'type_id' )
+			&& self::column_exists( $competitions, 'entry_mode' );
+	}
+
+	/**
+	 * Create the one type every existing competition and member gets.
+	 *
+	 * Its competition defaults are the club's settings. A site that already
+	 * has a type keeps its first one. Either way the backfill runs, so an
+	 * upgrade that died partway is finished: it only touches members without
+	 * the tag and competitions without a type.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return int|false The type's ID, or false if a step failed and the upgrade must run again.
+	 */
+	public static function create_default_type() {
+		global $wpdb;
+
+		$types        = $wpdb->prefix . 'photocomp_competition_types';
+		$member_types = $wpdb->prefix . 'photocomp_member_types';
+		$competitions = $wpdb->prefix . 'photocomp_competitions';
+		$members      = $wpdb->prefix . 'photocomp_members';
+
+		$categories = Competition_Settings::club_categories();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$existing = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id ASC LIMIT 1', $types ) );
+		$type_id  = null !== $existing ? (int) $existing : self::insert_default_type( $types, $categories );
+		if ( ! $type_id ) {
+			return false;
+		}
+
+		$tagged = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $member_types, $type_id, $members ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$typed  = $wpdb->query( $wpdb->prepare( "UPDATE %i SET type_id = %d, entry_mode = 'all' WHERE type_id IS NULL", $competitions, $type_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$listed = self::give_competitions_the_club_categories( $competitions, $categories );
+
+		return false === $tagged || false === $typed || ! $listed ? false : $type_id;
+	}
+
+	/**
+	 * Insert the Individual type, with the club's settings as its defaults.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string                           $table      Types table.
+	 * @param array<int, array<string, mixed>> $categories The club's category list.
+	 * @return int The new type's ID, or 0 on failure.
+	 */
+	private static function insert_default_type( string $table, array $categories ): int {
+		global $wpdb;
+
+		$club     = Competition_Settings::global_settings();
+		$defaults = array();
+		foreach ( array( 'upload', 'voting', 'slideshow', 'email_reminders' ) as $key ) {
+			if ( isset( $club[ $key ] ) ) {
+				$defaults[ $key ] = $club[ $key ];
+			}
+		}
+		$defaults = array( 'categories' => $categories ) + $defaults;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert(
+			$table,
+			array(
+				'name'        => __( 'Individual', 'photo-competition-manager' ),
+				'settings'    => wp_json_encode( $defaults ),
+				'grade_names' => '{}',
+				'created_at'  => utc_time(),
+			)
+		);
+		if ( ! $inserted ) {
+			return 0;
+		}
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Give each competition without categories the club's current list.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string                           $table      Competitions table.
+	 * @param array<int, array<string, mixed>> $categories The club's category list.
+	 * @return bool False if a competition couldn't be updated.
+	 */
+	private static function give_competitions_the_club_categories( string $table, array $categories ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, settings FROM %i', $table ) );
+
+		foreach ( $rows as $row ) {
+			$settings = ! empty( $row->settings ) ? json_decode( $row->settings, true ) : array();
+			$settings = is_array( $settings ) ? $settings : array();
+
+			if ( ! empty( $settings['categories'] ) ) {
+				continue;
+			}
+
+			$settings['categories'] = $categories;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( false === $wpdb->update( $table, array( 'settings' => wp_json_encode( $settings ) ), array( 'id' => (int) $row->id ) ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Whether a table exists.
 	 *
 	 * @since 0.4.0
@@ -855,9 +1014,12 @@ class Activator {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			deleted_at DATETIME NULL,
+			type_id BIGINT UNSIGNED NULL,
+			entry_mode VARCHAR(20) NOT NULL DEFAULT 'all',
 			PRIMARY KEY  (id),
 			UNIQUE KEY slug (slug),
-			KEY share_hash (share_hash)
+			KEY share_hash (share_hash),
+			KEY type_id (type_id)
 		) {$charset_collate};";
 
 		$images = "CREATE TABLE {$wpdb->prefix}photocomp_images (
@@ -986,6 +1148,31 @@ class Activator {
 			UNIQUE KEY token (token)
 		) {$charset_collate};";
 
+		$competition_types = "CREATE TABLE {$wpdb->prefix}photocomp_competition_types (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(191) NOT NULL,
+			settings LONGTEXT NULL,
+			grade_names LONGTEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NULL,
+			PRIMARY KEY  (id)
+		) {$charset_collate};";
+
+		$member_types = "CREATE TABLE {$wpdb->prefix}photocomp_member_types (
+			member_id BIGINT UNSIGNED NOT NULL,
+			type_id BIGINT UNSIGNED NOT NULL,
+			PRIMARY KEY  (member_id, type_id),
+			KEY type_id (type_id)
+		) {$charset_collate};";
+
+		$entrants = "CREATE TABLE {$wpdb->prefix}photocomp_entrants (
+			competition_id BIGINT UNSIGNED NOT NULL,
+			member_id BIGINT UNSIGNED NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (competition_id, member_id),
+			KEY member_id (member_id)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -997,6 +1184,9 @@ class Activator {
 			$recorded_results,
 			$judges,
 			$competition_judges,
+			$competition_types,
+			$member_types,
+			$entrants,
 		);
 	}
 }

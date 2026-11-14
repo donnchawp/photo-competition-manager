@@ -7,7 +7,10 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Service\Email_Service;
 use WP_UnitTestCase;
 
@@ -427,5 +430,35 @@ class Email_Service_Test extends WP_UnitTestCase {
 
 		$this->assertFalse( $this->service->is_template_enabled( 'voting_opened' ) );
 		$this->assertFalse( $this->service->is_template_enabled( 'no_such_template' ) );
+	}
+
+	/**
+	 * A recipient sees {grade} in the subject as their own grade's name.
+	 */
+	public function test_email_subject_uses_recipients_grade_title() {
+		$slug = Competition_Settings::club_grades()[0]['slug'];
+		$id   = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'   => Type_Fixtures::create( 'Cup', array( $slug => 'Cup' ) ),
+				'title'     => '{grade} 2026',
+				'slug'      => 'grade-subject',
+				'open_date' => '2020-01-01 00:00:00',
+			)
+		);
+		$member = $this->member();
+		$member->grade = $slug;
+
+		$this->service->send(
+			'upload_reminder',
+			$member,
+			( new Competitions_Repository() )->find( $id ),
+			array(
+				'{upload_link}' => 'https://example.org/upload/?t=abc',
+				'{voting_page}' => 'https://example.org/vote/',
+				'{voting_info}' => '',
+			)
+		);
+
+		$this->assertStringContainsString( 'Cup 2026', $this->last_mail['subject'] );
 	}
 }

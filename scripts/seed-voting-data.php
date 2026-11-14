@@ -7,6 +7,7 @@
  * @package PhotoCompetitionManager
  */
 
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -19,11 +20,8 @@ defined( 'ABSPATH' ) || exit;
  * 1. Resolve grades and categories from saved settings.
  * ----------------------------------------------------------------*/
 
-$settings   = Competition_Settings::global_settings();
-$grades     = Competition_Settings::club_grades();
-$categories = Competition_Settings::club_categories();
+$grades = Competition_Settings::club_grades();
 
-// club_categories() falls back to the built-in list, so it's never empty.
 if ( empty( $grades ) ) {
 	WP_CLI::error( 'No grades configured. Save default settings first.' );
 }
@@ -87,16 +85,21 @@ if ( $competition ) {
 	$yesterday = gmdate( 'Y-m-d 00:00:00', strtotime( '-1 day' ) );
 	$in_5_days = gmdate( 'Y-m-d 23:59:59', strtotime( '+5 days' ) );
 
-	$comp_settings               = array_diff_key( $settings, array( 'grades' => true ) );
-	$comp_settings['categories'] = $categories;
+	$types = new Competition_Types_Repository();
+	$type  = $types->only() ?? ( $types->all()[0] ?? null );
+
+	if ( ! $type ) {
+		WP_CLI::error( 'No competition types. Create one first.' );
+	}
 
 	$comp_id = $competitions_repo->create(
 		array(
-			'title'     => 'Test Competition ' . gmdate( 'M Y' ),
-			'slug'      => 'test-' . gmdate( 'Y-m' ),
-			'open_date' => $yesterday,
+			'title'      => 'Test Competition ' . gmdate( 'M Y' ),
+			'slug'       => 'test-' . gmdate( 'Y-m' ),
+			'open_date'  => $yesterday,
 			'close_date' => $in_5_days,
-			'settings'  => $comp_settings,
+			'type_id'    => (int) $type->id,
+			'settings'   => Competition_Settings::settings_for_new_competition( $type ),
 		)
 	);
 
@@ -107,6 +110,8 @@ if ( $competition ) {
 	$competition = $competitions_repo->find( $comp_id );
 	WP_CLI::success( sprintf( 'Created competition: %s (open %s to %s)', $competition->title, $yesterday, $in_5_days ) );
 }
+
+$categories = Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ) );
 
 /* ------------------------------------------------------------------
  * 4. Create a small test JPEG in memory for uploads.

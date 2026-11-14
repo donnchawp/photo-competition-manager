@@ -14,7 +14,9 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
@@ -359,7 +361,7 @@ class Voting_Shortcode {
 		}
 
 		return '<div class="photo-comp-voting">'
-			. '<h2>' . esc_html( $competition->title ) . ' - ' . ( 'judges' === $auth_mode ? esc_html__( 'Judging', 'photo-competition-manager' ) : esc_html__( 'Voting', 'photo-competition-manager' ) ) . '</h2>'
+			. '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . ( 'judges' === $auth_mode ? esc_html__( 'Judging', 'photo-competition-manager' ) : esc_html__( 'Voting', 'photo-competition-manager' ) ) . '</h2>'
 			. wp_kses_post( $message )
 			. '<p><button type="button" class="button photo-comp-redirect-btn" data-redirect-url="' . esc_url( $page_url ) . '">' . esc_html__( 'Check If Voting Is Open', 'photo-competition-manager' ) . '</button></p>'
 			. '</div>';
@@ -385,7 +387,7 @@ class Voting_Shortcode {
 	 * @return string
 	 */
 	private function render_judged_voting( object $competition, array $settings ): string {
-		$heading = '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Judging', 'photo-competition-manager' ) . '</h2>';
+		$heading = '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . esc_html__( 'Judging', 'photo-competition-manager' ) . '</h2>';
 		$token   = $this->judge_token_from_url();
 		$voter   = $this->ballots->judge_voter( $competition, $token );
 
@@ -499,6 +501,11 @@ class Voting_Shortcode {
 	/**
 	 * Handle token request form submission.
 	 *
+	 * A member who may not enter the competition gets the same generic
+	 * message as anyone else, and no email.
+	 *
+	 * @since 0.4.0 Only a member who may enter gets a link.
+	 *
 	 * @param object $competition Competition object.
 	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.
 	 * @return string Message to display.
@@ -523,9 +530,9 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Find member by email silently.
+		// Find member by email silently. Only a member who may enter gets a link.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member || ! $member->active ) {
+		if ( ! $member || ! ( new Competition_Entry( $this->competitions_repo, $this->members_repo ) )->may_enter( $competition, $member ) ) {
 			// Return success message but don't send email.
 			return $generic_success;
 		}
@@ -610,7 +617,7 @@ class Voting_Shortcode {
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php echo esc_html( $view['heading'] ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php echo esc_html( $view['heading'] ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>
@@ -900,7 +907,7 @@ class Voting_Shortcode {
 
 		?>
 		<div class="photo-comp-voting">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Voting', 'photo-competition-manager' ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>

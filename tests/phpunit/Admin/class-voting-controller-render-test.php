@@ -13,6 +13,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Voting_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -127,6 +128,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	private function seed_competition( array $categories ): int {
 		return $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show',
 				'open_date'  => null,
@@ -260,6 +262,52 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'photo-competition-manager-start-slideshow', $html );
 		$this->assertStringNotContainsString( 'data-competition-slug', $html );
+	}
+
+	/**
+	 * Step durations come from the competition's own settings, not the old
+	 * club defaults, which competition types replaced.
+	 */
+	public function test_render_step_durations_come_from_the_competition(): void {
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'slideshow' => array( 'preview_duration' => 77 ) ) ) );
+		$comp_id = $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'    => 'Spring Show',
+				'slug'     => 'spring-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'slideshow'  => array( 'preview_duration' => 42 ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+			)
+		);
+		$this->competitions->save_workflow( $comp_id, array( 'uploads_closed' => true ) );
+
+		$html = $this->render_html();
+		delete_option( 'photo_comp_default_settings' );
+
+		$this->assertStringContainsString( 'photo-comp-step-duration" value="42"', $html );
+		$this->assertStringNotContainsString( 'value="77"', $html );
 	}
 
 	/**
@@ -421,6 +469,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 		$comp_id   = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Spring Show',
 				'slug'     => 'spring-show',
 				'settings' => array(
@@ -632,6 +681,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	private function seed_judged_competition(): int {
 		$comp_id   = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Judged Show',
 				'slug'     => 'judged-show',
 				'settings' => array(

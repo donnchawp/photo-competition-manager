@@ -14,8 +14,11 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -23,6 +26,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -71,6 +75,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_competition( string $title, string $slug, ?string $open_date = null, ?string $close_date = null ): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => $open_date,
@@ -192,65 +197,212 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * A new competition keeps a copy of the club's categories, even a
-	 * single one, the shape that used to gain "Black & White".
+	 * Replace the site's types with the given ones.
+	 *
+	 * @param array<string, array<string, mixed>> $types Settings by type name.
+	 * @return array<string, int> Type IDs by name.
 	 */
-	public function test_create_competition_copies_the_clubs_categories(): void {
+	private function use_types( array $types ): array {
+		global $wpdb;
+
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+
+		$repo = new Competition_Types_Repository();
+		$ids  = array();
+		foreach ( $types as $name => $settings ) {
+			$ids[ $name ] = (int) $repo->create( $name, $settings );
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Post the create form.
+	 *
+	 * @param array<string, mixed> $extra Extra posted fields.
+	 * @return string Redirect location.
+	 */
+	private function post_create( array $extra = array() ): string {
+		$this->set_request(
+			array_merge(
+				array(
+					'photo_competition_action' => 'create_competition',
+					'competition_title'        => 'Typed Show',
+					'competition_slug'         => 'typed-show',
+					'competition_open_date'    => '',
+					'competition_close_date'   => '',
+				),
+				$extra
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Post the general tab's form.
+	 *
+	 * @param int                  $id    Competition ID.
+	 * @param array<string, mixed> $extra Extra posted fields.
+	 * @return string Redirect location.
+	 */
+	private function post_update( int $id, array $extra = array() ): string {
+		$this->set_request(
+			array_merge(
+				array(
+					'photo_competition_action' => 'update_competition',
+					'competition_id'           => (string) $id,
+					'competition_title'        => 'Typed Show',
+					'competition_slug'         => 'typed-show',
+					'competition_open_date'    => '',
+					'competition_close_date'   => '',
+				),
+				$extra
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * With one type the form has no type field, so the competition takes that type.
+	 */
+	public function test_create_with_one_type_needs_no_type_field(): void {
+		$ids = $this->use_types( array( 'Individual' => array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) ) ) );
+
+		$this->post_create();
+
+		$competition = $this->competitions->find_by_slug( 'typed-show' );
+		$this->assertNotNull( $competition );
+		$this->assertSame( $ids['Individual'], (int) $competition->type_id );
+		$this->assertSame( 'all', $competition->entry_mode );
+	}
+
+	/**
+	 * A new competition keeps its own copy of its type's categories and settings,
+	 * and the club's page links, not the club's categories.
+	 */
+	public function test_create_copies_type_categories_and_settings(): void {
 		$open = array(
 			'slug'  => 'open',
 			'label' => 'Open',
 			'quota' => 2,
 		);
-		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => array( $open ) ) ) );
-		$this->set_request(
+		$this->use_types(
 			array(
-				'photo_competition_action' => 'create_competition',
-				'competition_title'        => 'Open Show',
-				'competition_slug'         => 'open-show',
-				'competition_open_date'    => '',
-				'competition_close_date'   => '',
+				'Individual' => array(
+					'categories' => array( $open ),
+					'voting'     => array( 'score_matrix' => array( 3, 2, 1 ) ),
+				),
 			)
 		);
-		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( array( 'categories' => array( array_merge( $open, array( 'slug' => 'club' ) ) ) ) ) );
 
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
+		$this->post_create();
+
+		$stored = $this->stored_settings( (int) $this->competitions->find_by_slug( 'typed-show' )->id );
+		$this->assertSame( array( $open ), $stored['categories'] );
+		$this->assertSame( array( 3, 2, 1 ), $stored['voting']['score_matrix'] );
+		$this->assertArrayNotHasKey( 'grades', $stored );
+
+		// A copy, not a reference: editing the type afterwards leaves the competition alone.
+		$type_id = (int) $this->competitions->find_by_slug( 'typed-show' )->type_id;
+		( new Competition_Types_Repository() )->update(
+			$type_id,
+			'Individual',
+			array(
+				'categories' => array( array( 'label' => 'Changed', 'slug' => 'changed', 'quota' => 9 ) ),
+				'voting'     => array( 'score_matrix' => array( 9, 9 ) ),
+			),
+			array()
 		);
-
-		$competition = $this->competitions->find_by_slug( 'open-show' );
-		$this->assertSame( array( $open ), $this->stored_settings( (int) $competition->id )['categories'] ?? null );
+		$after = $this->stored_settings( (int) $this->competitions->find_by_slug( 'typed-show' )->id );
+		$this->assertSame( $stored['categories'], $after['categories'] );
+		$this->assertSame( array( 3, 2, 1 ), $after['voting']['score_matrix'] );
 	}
 
 	/**
-	 * A new competition keeps a copy of the built-in categories when the club
-	 * has never saved its own, so later club changes don't alter it.
+	 * With several types, one has to be chosen.
 	 */
-	public function test_create_competition_copies_the_built_in_categories_when_the_club_has_none(): void {
-		delete_option( 'photo_comp_default_settings' );
-		$this->set_request(
+	public function test_create_with_two_types_requires_a_type(): void {
+		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+		$ids  = $this->use_types(
 			array(
-				'photo_competition_action' => 'create_competition',
-				'competition_title'        => 'First Show',
-				'competition_slug'         => 'first-show',
-				'competition_open_date'    => '',
-				'competition_close_date'   => '',
+				'Individual' => $cats,
+				'Team'       => $cats,
 			)
 		);
-		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
 
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
+		$this->post_create();
+		$this->assertNull( $this->competitions->find_by_slug( 'typed-show' ) );
+		$this->assertContains( 'invalid_type', $this->settings_error_codes( 'photo_competition_manager' ) );
+
+		$this->post_create( array( 'competition_type' => (string) $ids['Team'] ) );
+		$this->assertSame( $ids['Team'], (int) $this->competitions->find_by_slug( 'typed-show' )->type_id );
+	}
+
+	/**
+	 * Changing a competition's type before it has entries takes the new type's categories and settings, and keeps its own page links.
+	 */
+	public function test_changing_type_replaces_categories_and_settings_but_keeps_urls(): void {
+		$ids = $this->use_types(
+			array(
+				'Individual' => array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) ),
+				'Team'       => array(
+					'categories' => array( array( 'label' => 'Duo', 'slug' => 'duo', 'quota' => 1 ) ),
+					'voting'     => array( 'score_matrix' => array( 3, 2, 1 ) ),
+				),
+			)
 		);
 
-		$competition = $this->competitions->find_by_slug( 'first-show' );
-		$this->assertSame(
-			array( 'colour', 'black-white' ),
-			wp_list_pluck( $this->stored_settings( (int) $competition->id )['categories'] ?? array(), 'slug' )
+		$this->post_create( array( 'competition_type' => (string) $ids['Individual'] ) );
+		$id = (int) $this->competitions->find_by_slug( 'typed-show' )->id;
+		$this->competitions->update(
+			$id,
+			array( 'settings' => array_merge( $this->stored_settings( $id ), array( 'urls' => array( 'upload_page' => 'https://example.com/own-upload/' ) ) ) )
 		);
+
+		$this->post_update( $id, array( 'competition_type' => (string) $ids['Team'] ) );
+
+		$settings = $this->stored_settings( $id );
+		$this->assertSame( $ids['Team'], (int) $this->competitions->find( $id )->type_id );
+		$this->assertSame( array( 'duo' ), wp_list_pluck( $settings['categories'], 'slug' ) );
+		$this->assertSame( array( 3, 2, 1 ), $settings['voting']['score_matrix'] );
+		$this->assertSame( 'https://example.com/own-upload/', $settings['urls']['upload_page'] );
+		$this->assertContains( 'type_settings_copied', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	/**
+	 * Once a competition has entries its type is fixed.
+	 */
+	public function test_type_cannot_change_once_competition_has_entries(): void {
+		$cats = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+		$ids  = $this->use_types(
+			array(
+				'Individual' => $cats,
+				'Team'       => $cats,
+			)
+		);
+
+		$this->post_create( array( 'competition_type' => (string) $ids['Individual'] ) );
+		$id = (int) $this->competitions->find_by_slug( 'typed-show' )->id;
+		Entry_Fixtures::insert_entry( $id, 'open', 1, array() );
+
+		$this->post_update( $id, array( 'competition_type' => (string) $ids['Team'] ) );
+
+		$this->assertSame( $ids['Individual'], (int) $this->competitions->find( $id )->type_id );
+		$this->assertContains( 'type_locked', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**
@@ -310,6 +462,30 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		// so the message links to its edit screen.
 		$messages = implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_manager' ), 'message' ) );
 		$this->assertMatchesRegularExpression( '/<a href="[^"]*action=edit&(#038;|amp;)?competition=' . $stale_id . '">Stale<\/a>/', $messages );
+	}
+
+	public function test_overlap_error_names_a_grade_title_without_the_placeholder(): void {
+		$this->create_competition( '{grade} Current', 'current', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'October',
+				'competition_slug'         => 'october',
+				'competition_open_date'    => $this->form_date( 10 ),
+				'competition_close_date'   => $this->form_date( 40 ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$messages = implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_manager' ), 'message' ) );
+		$this->assertStringContainsString( 'Current</a>', $messages );
+		$this->assertStringNotContainsString( '{grade}', $messages );
 	}
 
 	/**
@@ -1349,6 +1525,79 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Settings the competition form doesn't show keep their values on save.
+	 */
+	public function test_update_competition_settings_keeps_settings_the_form_leaves_out(): void {
+		$id = $this->create_competition( 'Settings Comp', 'settings-comp' );
+		$this->competitions->update(
+			$id,
+			array(
+				'settings' => array(
+					'categories'      => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 1 ) ),
+					'slideshow'       => array( 'preview_duration' => 42 ),
+					'email_reminders' => array( 'enabled' => false ),
+				),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => '2' ) ),
+				'score_matrix'             => '9, 8, 7',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$settings = $this->stored_settings( $id );
+		$this->assertSame( 2, $settings['categories'][0]['quota'] );
+		$this->assertSame( 42, $settings['slideshow']['preview_duration'] );
+		$this->assertFalse( $settings['email_reminders']['enabled'] );
+		$this->assertArrayNotHasKey( 'grades', $settings );
+	}
+
+	/**
+	 * A competition can't be saved with no categories, and keeps the ones it has.
+	 */
+	public function test_update_competition_settings_refuses_no_categories(): void {
+		$id = $this->create_competition( 'Settings Comp', 'settings-comp' );
+		$this->competitions->update(
+			$id,
+			array( 'settings' => array( 'categories' => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 2 ) ) ) )
+		);
+		$before = $this->settings( $id )['categories'];
+		$this->assertCount( 1, $before );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_competition_settings',
+				'competition_id'           => $id,
+				'categories'               => array(),
+				'score_matrix'             => '9, 8, 7',
+			)
+		);
+		$this->set_nonce( 'photo_competition_update_settings_' . $id, 'photo_competition_nonce' );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'tab=settings', $location );
+		$this->assertContains( 'missing_categories', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertNotContains( 'settings_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( $before, $this->settings( $id )['categories'] );
+	}
+
+	/**
 	 * The settings screen keeps the competition's own size limit, even when
 	 * PHP's is lower. Only the upload page shows the lower one.
 	 */
@@ -1577,6 +1826,13 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'photo_competition_action' => 'update_competition_settings',
 				'competition_id'           => $id,
+				'categories'               => array(
+					array(
+						'label' => 'Colour',
+						'slug'  => 'colour',
+						'quota' => '2',
+					),
+				),
 				'voting_auth_mode'         => $auth_mode,
 			)
 		);
@@ -1644,6 +1900,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_judged_competition(): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Judged Show',
 				'slug'     => 'judged-show',
 				'settings' => array(
@@ -1817,6 +2074,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_send_judge_link_without_a_voting_page_sends_nothing(): void {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'No Page',
 				'slug'     => 'no-page',
 				'settings' => array( 'voting' => array( 'auth_mode' => 'judges' ) ),
@@ -1846,5 +2104,330 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -----------------------------------------------------------------
+	 * Entrants panel.
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Create a competition open for uploads, with an upload page.
+	 *
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @return int Competition ID.
+	 */
+	private function create_entry_competition( string $entry_mode = 'selected' ): int {
+		$id = $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Entry Show',
+				'slug'       => 'entry-show',
+				'entry_mode' => $entry_mode,
+				'settings'   => array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ),
+			)
+		);
+		$this->assertIsInt( $id );
+		return $id;
+	}
+
+	/**
+	 * Create a member.
+	 *
+	 * @param string $name Name; the email is made from it.
+	 * @return int Member ID.
+	 */
+	private function create_member( string $name ): int {
+		$id = ( new Members_Repository() )->create(
+			array(
+				'name'  => $name,
+				'email' => sanitize_title( $name ) . '@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->assertIsInt( $id );
+		return $id;
+	}
+
+	/**
+	 * Post one of the entrants panel's actions.
+	 *
+	 * @param int                  $id     Competition ID.
+	 * @param string               $action Action.
+	 * @param array<string, mixed> $extra  Extra request variables.
+	 * @return string Redirect location.
+	 */
+	private function post_entrants_action( int $id, string $action, array $extra = array() ): string {
+		$this->set_request( array_merge( array( 'photo_competition_action' => $action, 'competition_id' => $id ), $extra ) );
+		$this->set_nonce( 'photo_competition_entrants_' . $id, 'photo_competition_nonce' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_set_entry_mode_to_selected(): void {
+		$id = $this->create_entry_competition( 'all' );
+
+		$location = $this->post_entrants_action( $id, 'set_entry_mode', array( 'entry_mode' => 'selected' ) );
+
+		$this->assertStringContainsString( 'tab=entrants', $location );
+		$this->assertSame( 'selected', $this->competitions->find( $id )->entry_mode );
+		$this->assertContains( 'entry_mode_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_add_entrants_from_the_picker(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		$bob = $this->create_member( 'Bob' );
+		$this->create_member( 'Cat' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann, (string) $bob ) ) );
+
+		$this->assertSame( array( $ann, $bob ), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertCount( 2, tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_add_entrants_while_open_to_all_shows_the_error_once(): void {
+		$id  = $this->create_entry_competition( 'all' );
+		$ann = $this->create_member( 'Ann' );
+		$bob = $this->create_member( 'Bob' );
+
+		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann, (string) $bob ) ) );
+
+		$this->assertSame( array( 'not_selected_mode' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_remove_entrant_with_entries_shows_the_error(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		Entry_Fixtures::insert_entry( $id, 'colour', $ann, array() );
+
+		$this->post_entrants_action( $id, 'remove_entrant', array( 'member_id' => (string) $ann ) );
+
+		$this->assertContains( 'entrant_has_entries', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_remove_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+
+		$this->post_entrants_action( $id, 'remove_entrant', array( 'member_id' => (string) $ann ) );
+
+		$this->assertContains( 'entrant_removed', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_create_member_and_enter_them(): void {
+		$id = $this->create_entry_competition();
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$members = new Members_Repository();
+		$dan     = $members->find_by_email( 'dan@example.com' );
+		$this->assertNotNull( $dan );
+		$this->assertSame( 'Dan Guest', $dan->name );
+		$this->assertSame( array( (int) $dan->id ), ( new Entrants_Repository() )->member_ids( $id ) );
+		// Tagged by the one-type rule.
+		$this->assertSame( array( Type_Fixtures::id() ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( 'dan@example.com', tests_retrieve_phpmailer_instance()->mock_sent[0]['to'][0][0] );
+		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_and_enter_them_tags_them_with_the_competitions_type_on_a_multi_type_site(): void {
+		$id = $this->create_entry_competition();
+		Type_Fixtures::create( 'Juniors' );
+		$type_id = (int) $this->competitions->find( $id )->type_id;
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$members = new Members_Repository();
+		$dan     = $members->find_by_email( 'dan@example.com' );
+		$this->assertNotNull( $dan );
+		$this->assertSame( array( $type_id ), $members->type_ids( (int) $dan->id ) );
+	}
+
+	public function test_create_member_with_an_existing_email_enters_that_member(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Ann Again',
+				'member_email' => 'ANN@example.com',
+				'member_grade' => 'advanced',
+			)
+		);
+
+		$members = new Members_Repository();
+		$this->assertCount( 1, $members->find_all_by_email( 'ann@example.com' ) );
+		$this->assertSame( 'Ann', $members->find( $ann )->name );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertCount( 1, tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertSame( array( 'existing_member_entered' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_with_an_inactive_members_email_enters_no_one(): void {
+		$id      = $this->create_entry_competition();
+		$ann     = $this->create_member( 'Ann' );
+		$members = new Members_Repository();
+		$members->set_active( $ann, false );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Ann',
+				'member_email' => 'ann@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertCount( 1, $members->find_all_by_email( 'ann@example.com' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertSame( array( 'inactive_member' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_with_a_bad_email_shows_the_error(): void {
+		$id = $this->create_entry_competition();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'not-an-email',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertContains( 'invalid_email', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
+	public function test_create_member_after_voting_started_creates_no_one(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		Entry_Fixtures::insert_entry( $id, 'colour', $ann, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
+		$this->assertContains( 'entry_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_while_open_to_all_creates_no_one(): void {
+		$id = $this->create_entry_competition( 'all' );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
+		$this->assertContains( 'not_selected_mode', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_resend_upload_link_to_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		( new Upload_Link_Service() )->send_to_member( $id, $ann );
+		reset_phpmailer_instance();
+
+		// Sent again although one went out moments ago.
+		$this->post_entrants_action( $id, 'send_entrant_upload_link', array( 'member_id' => (string) $ann ) );
+
+		$mailer = tests_retrieve_phpmailer_instance();
+		$this->assertCount( 1, $mailer->mock_sent );
+		$this->assertSame( 'ann@example.com', $mailer->mock_sent[0]['to'][0][0] );
+		$this->assertContains( 'upload_link_sent', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_upload_link_is_only_sent_to_an_entrant(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action( $id, 'send_entrant_upload_link', array( 'member_id' => (string) $ann ) );
+
+		$this->assertSame( array(), tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertContains( 'not_an_entrant', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_entrants_actions_bad_nonce_dies(): void {
+		$id = $this->create_entry_competition();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'set_entry_mode',
+				'competition_id'           => $id,
+				'entry_mode'               => 'all',
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	public function test_multiple_open_notice_shows_grade_titles_without_the_placeholder(): void {
+		$controller = $this->controller;
+		$method     = new \ReflectionMethod( $controller, 'render_multiple_open_notice' );
+		$method->setAccessible( true );
+
+		$html = $method->invoke(
+			$controller,
+			array(
+				(object) array( 'id' => 0, 'title' => '{grade} 2026' ),
+				(object) array( 'id' => 0, 'title' => 'Plain' ),
+			),
+			false
+		);
+
+		$this->assertStringNotContainsString( '{grade}', $html );
+		$this->assertStringContainsString( 'Plain', $html );
 	}
 }

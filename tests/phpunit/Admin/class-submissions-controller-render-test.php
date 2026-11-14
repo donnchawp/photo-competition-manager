@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Submissions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -199,6 +200,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => null,
@@ -552,6 +554,35 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function test_no_upload_link_is_shown_without_an_upload_page(): void {
 		$html = $this->render_one_entry( '' );
 
+		$this->assertStringNotContainsString( 'token=', $html );
+	}
+
+	public function test_no_upload_link_is_shown_for_a_member_who_may_no_longer_enter(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/club-upload/' ) ) ) );
+		$comp_id = $this->seed_competition( 'Autumn Exhibition', 'autumn-exhibition' );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ada,
+				'category'  => 'colour',
+				'filename'  => 'ada-photo.jpg',
+			)
+		);
+		// Ada no longer carries the competition's type.
+		$this->members->set_types( $ada, array() );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'ada-photo.jpg', $html );
 		$this->assertStringNotContainsString( 'token=', $html );
 	}
 }

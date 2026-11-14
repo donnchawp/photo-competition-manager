@@ -34,6 +34,16 @@ class Email_Kinds_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Voting-opened emails go to the competition type's members, and the description says so.
+	 */
+	public function test_voting_opened_description_names_the_competition_types_members() {
+		$this->assertSame(
+			'Sent to the competition type\'s active members when voting opens in a category.',
+			Email_Kinds::get( 'voting_opened' )['description']
+		);
+	}
+
+	/**
 	 * The judge link is a requested email with the judge's link and name.
 	 */
 	public function test_judge_link_kind_declares_tags() {

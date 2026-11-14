@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -109,11 +110,33 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $mails );
 		$this->assertSame( 'jane@example.com', $mails[0]['to'] );
 		$this->assertStringContainsString( 'Your image has been uploaded to confirm-comp in the Colour category.', $mails[0]['message'] );
-		$this->assertStringContainsString( 'You are entering in the beginner grade.', $mails[0]['message'] );
+		$this->assertStringContainsString( 'You are entering in the Beginner grade.', $mails[0]['message'] );
 		$this->assertStringContainsString( 'You have uploaded 1 of 1 images for this category.', $mails[0]['message'] );
 
 		$logs = ( new Logs_Repository() )->find_by_competition( $competition_id, 50, 0, array( 'event_type' => 'submission_confirmed' ) );
 		$this->assertCount( 1, $logs );
+	}
+
+	public function test_member_grade_tag_shows_label_not_slug(): void {
+		update_option( 'photo_comp_email_templates', array( 'submission_confirmed' => array( 'enabled' => true ) ) );
+		$mails = array();
+		add_filter(
+			'wp_mail',
+			function ( $atts ) use ( &$mails ) {
+				$mails[] = $atts;
+				return $atts;
+			}
+		);
+		$competition_id = $this->create_competition( 'label-comp' );
+		$type_id        = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		// Moved directly, so the competition keeps its own categories.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$member_id = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$this->add( Actor::member( $member_id ), $competition_id, $member_id, 'colour', array( 200, 0, 0 ) );
+
+		$this->assertStringContainsString( 'You are entering in the Novice Cup grade.', $mails[0]['message'] );
 	}
 
 	public function test_an_upload_that_isnt_an_image_writes_nothing(): void {
@@ -1211,6 +1234,7 @@ class Entries_Test extends WP_UnitTestCase {
 
 		return (int) $this->competitions_repo->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $slug,
 				'slug'       => $slug,
 				'open_date'  => '2020-01-01 00:00:00',

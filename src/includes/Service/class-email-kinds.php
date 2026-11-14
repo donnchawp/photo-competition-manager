@@ -99,7 +99,7 @@ class Email_Kinds {
 			),
 			'voting_opened'        => array(
 				'label'         => __( 'Voting opened', 'photo-competition-manager' ),
-				'description'   => __( 'Sent to every member when voting opens in a category.', 'photo-competition-manager' ),
+				'description'   => __( 'Sent to the competition type\'s active members when voting opens in a category.', 'photo-competition-manager' ),
 				'notification'  => true,
 				'on_by_default' => false,
 				'subject'       => __( 'Voting is now open for {competition_title}', 'photo-competition-manager' ),

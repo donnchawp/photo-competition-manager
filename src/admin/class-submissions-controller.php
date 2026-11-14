@@ -15,7 +15,9 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 
@@ -539,7 +541,7 @@ class Submissions_Controller {
 		if ( $selected_competition ) {
 			printf(
 				'<h2>%s</h2>',
-				esc_html( $selected_competition->title )
+				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
 			);
 
 			// Add regenerate numbers button.
@@ -723,13 +725,15 @@ class Submissions_Controller {
 	 * @return string
 	 */
 	private function render_submissions_table( int $competition_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
-		// Each member's upload link, the same one their upload link emails carry.
+		// Each member's upload link, the same one their upload link emails carry,
+		// for the members who may still enter: the upload page refuses anyone else's.
 		$upload_links       = new Upload_Link_Service();
 		$member_upload_urls = array();
+		$may_enter          = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members, $upload_links ) )->eligible_member_ids( $selected_competition ) : array();
 
 		foreach ( $submissions as $submission ) {
 			$submission_member_id = (int) $submission->member_id;
-			if ( $selected_competition && ! isset( $member_upload_urls[ $submission_member_id ] ) ) {
+			if ( $selected_competition && ! isset( $member_upload_urls[ $submission_member_id ] ) && in_array( $submission_member_id, $may_enter, true ) ) {
 				$upload_url = $upload_links->upload_url( $selected_competition, $submission_member_id );
 				if ( ! is_wp_error( $upload_url ) ) {
 					$member_upload_urls[ $submission_member_id ] = $upload_url;
