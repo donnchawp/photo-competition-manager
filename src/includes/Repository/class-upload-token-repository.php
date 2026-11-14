@@ -363,7 +363,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Delete a member's upload token for one competition, revoking their link.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param int $member_id      Member ID.
 	 * @param int $competition_id Competition ID.

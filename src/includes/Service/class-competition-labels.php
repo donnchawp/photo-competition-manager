@@ -16,7 +16,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  * A competition type may show a grade under its own name. Recorded results keep
  * the grade's slug, so a name is applied when shown and renaming relabels old results.
  *
- * @since 0.5.0
+ * @since 0.4.0
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -46,7 +46,7 @@ class Competition_Labels {
 	/**
 	 * Constructor.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param Competition_Types_Repository|null $types Types repository.
 	 */
 	public function __construct( ?Competition_Types_Repository $types = null ) {
@@ -56,7 +56,7 @@ class Competition_Labels {
 	/**
 	 * A grade's name for a competition: its type's name, else the club's label, else the slug.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $competition Competition row.
 	 * @param string $grade_slug  Grade slug.
 	 * @return string
@@ -68,7 +68,7 @@ class Competition_Labels {
 	/**
 	 * The club's grades as slug => name for a competition, with its type's renames applied.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $competition Competition row.
 	 * @return array<string,string>
 	 */
@@ -87,7 +87,7 @@ class Competition_Labels {
 	/**
 	 * A grade's name for the admin: "Cup (Advanced)" when the type renames it, else the club's label.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $competition Competition row.
 	 * @param string $grade_slug  Grade slug.
 	 * @return string
@@ -110,7 +110,7 @@ class Competition_Labels {
 	 * A {grade} in the title becomes the recipient's grade name, or, for no recipient or
 	 * one without a grade the competition uses, the names of the grades that hold entries.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object      $competition Competition row.
 	 * @param object|null $recipient   Member (or judge) the title is shown to.
 	 * @return string
@@ -135,7 +135,7 @@ class Competition_Labels {
 	/**
 	 * A competition's title for display to everyone.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $competition Competition row.
 	 * @return string
 	 */

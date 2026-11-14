@@ -16,7 +16,7 @@ use function PhotoCompetitionManager\Support\utc_time;
 /**
  * Repository for competition types, each holding default settings and grade names.
  *
- * @since 0.5.0
+ * @since 0.4.0
  *
  * @package PhotoCompetitionManager\Repository
  */
@@ -25,7 +25,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Create a type.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings for the type's competitions.
 	 * @param array<string,string> $grade_names Grade slug to the name this type shows for it.
@@ -34,12 +34,8 @@ class Competition_Types_Repository extends Abstract_Repository {
 	public function create( string $name, array $settings, array $grade_names = array() ) {
 		global $wpdb;
 
-		$name = sanitize_text_field( $name );
-		if ( '' === $name ) {
-			return $this->missing_name();
-		}
-
-		$valid = $this->validate_settings( $settings );
+		$name  = sanitize_text_field( $name );
+		$valid = $this->validate_type( $name, $settings, 0 );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
 		}
@@ -66,7 +62,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Update a type.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int                  $id          Type ID.
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings.
@@ -76,12 +72,8 @@ class Competition_Types_Repository extends Abstract_Repository {
 	public function update( int $id, string $name, array $settings, array $grade_names ) {
 		global $wpdb;
 
-		$name = sanitize_text_field( $name );
-		if ( '' === $name ) {
-			return $this->missing_name();
-		}
-
-		$valid = $this->validate_settings( $settings );
+		$name  = sanitize_text_field( $name );
+		$valid = $this->validate_type( $name, $settings, $id );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
 		}
@@ -110,7 +102,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Find a type by ID.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $id Type ID.
 	 * @return object|null Row with `settings` and `grade_names` decoded to arrays.
 	 */
@@ -126,7 +118,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * List every type, ordered by name.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return object[]
 	 */
 	public function all(): array {
@@ -141,7 +133,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Count the types.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return int
 	 */
 	public function count(): int {
@@ -154,7 +146,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Whether the club has more than one type, which is when types show.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return bool
 	 */
 	public function has_several(): bool {
@@ -164,7 +156,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * The type, when the club has exactly one.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return object|null Null when there are none or several.
 	 */
 	public function only(): ?object {
@@ -176,10 +168,10 @@ class Competition_Types_Repository extends Abstract_Repository {
 	/**
 	 * Delete a type and its member tags.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $id Type ID.
 	 * @return true|WP_Error `type_in_use` while any competition, archived or not, has the type;
-	 *                       `last_type` for the only type.
+	 *                       `last_type` for the only type. When one type is left, every member is tagged with it.
 	 */
 	public function delete( int $id ) {
 		global $wpdb;
@@ -202,7 +194,40 @@ class Competition_Types_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );
 
+		// With one type every member carries its tag, so members who had none, or only the
+		// deleted type, would otherwise drop out with no tag controls left to fix it.
+		$only = $this->only();
+		if ( $only ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $wpdb->prefix . 'photocomp_member_types', (int) $only->id, $wpdb->prefix . 'photocomp_members' ) );
+		}
+
 		return true;
+	}
+
+	/**
+	 * Validate a type's name and settings.
+	 *
+	 * @param string               $name     Sanitized type name.
+	 * @param array<string, mixed> $settings Settings to validate.
+	 * @param int                  $id       The type being updated, or 0 for a new one.
+	 * @return true|WP_Error `missing_name`, `duplicate_name` or `invalid_settings`.
+	 */
+	private function validate_type( string $name, array $settings, int $id ) {
+		global $wpdb;
+
+		if ( '' === $name ) {
+			return $this->missing_name();
+		}
+
+		// Case-insensitive, as CSV import matches type names.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$taken = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i WHERE LOWER( name ) = LOWER( %s ) AND id <> %d LIMIT 1', $this->table(), $name, $id ) );
+		if ( null !== $taken ) {
+			return new WP_Error( 'duplicate_name', __( 'Another type already has that name.', 'photo-competition-manager' ) );
+		}
+
+		return $this->validate_settings( $settings );
 	}
 
 	/**

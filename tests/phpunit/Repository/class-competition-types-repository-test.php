@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
@@ -82,6 +83,22 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		);
 	}
 
+	/**
+	 * Member fields with the given type tags.
+	 *
+	 * @param string $name     Member name, also used for the email.
+	 * @param int[]  $type_ids Type tags.
+	 * @return array<string, mixed>
+	 */
+	private function member( string $name, array $type_ids ): array {
+		return array(
+			'name'     => $name,
+			'email'    => $name . '@example.com',
+			'grade'    => 'beginner',
+			'type_ids' => $type_ids,
+		);
+	}
+
 	public function test_create_and_find_type_round_trips_settings_and_grade_names() {
 		$id = $this->repository->create( 'Juniors', $this->settings(), array( 'novice' => 'Beginner' ) );
 
@@ -134,6 +151,55 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $this->repository->find( $id ) );
 		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_member_types', $id ) ) );
 		$this->assertNotNull( $this->repository->find( $keep ) );
+	}
+
+	public function test_deleting_down_to_one_type_tags_every_member_with_it() {
+		$members  = new Members_Repository();
+		$keep     = $this->repository->create( 'Keep', $this->settings() );
+		$drop     = $this->repository->create( 'Drop', $this->settings() );
+		$untagged = $members->create( $this->member( 'untagged', array() ) );
+		$dropped  = $members->create( $this->member( 'dropped', array( $drop ) ) );
+		$both     = $members->create( $this->member( 'both', array( $keep, $drop ) ) );
+
+		$this->assertTrue( $this->repository->delete( $drop ) );
+
+		foreach ( array( $untagged, $dropped, $both ) as $member_id ) {
+			$this->assertSame( array( $keep ), $members->type_ids( $member_id ) );
+		}
+	}
+
+	public function test_deleting_one_of_three_types_leaves_untagged_members_untagged() {
+		$members = new Members_Repository();
+		$this->repository->create( 'One', $this->settings() );
+		$this->repository->create( 'Two', $this->settings() );
+		$drop     = $this->repository->create( 'Drop', $this->settings() );
+		$untagged = $members->create( $this->member( 'untagged', array() ) );
+
+		$this->assertTrue( $this->repository->delete( $drop ) );
+
+		$this->assertSame( array(), $members->type_ids( $untagged ) );
+	}
+
+	public function test_create_rejects_a_name_another_type_has() {
+		$this->repository->create( 'Juniors', $this->settings() );
+
+		$result = $this->repository->create( ' juniors ', $this->settings() );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'duplicate_name', $result->get_error_code() );
+		$this->assertSame( 1, $this->repository->count() );
+	}
+
+	public function test_update_rejects_a_name_another_type_has_but_keeps_its_own() {
+		$this->repository->create( 'Juniors', $this->settings() );
+		$id = $this->repository->create( 'Seniors', $this->settings() );
+
+		$result = $this->repository->update( $id, 'JUNIORS', $this->settings(), array() );
+		$this->assertWPError( $result );
+		$this->assertSame( 'duplicate_name', $result->get_error_code() );
+		$this->assertSame( 'Seniors', $this->repository->find( $id )->name );
+
+		$this->assertTrue( $this->repository->update( $id, 'Seniors', $this->settings(), array() ) );
 	}
 
 	public function test_delete_refuses_type_in_use() {

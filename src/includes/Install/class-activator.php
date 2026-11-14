@@ -577,7 +577,7 @@ class Activator {
 	/**
 	 * Add the type, member tag and entrant tables and the competition columns.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @return bool False if the schema is still incomplete, so the step runs again.
 	 */
@@ -626,7 +626,7 @@ class Activator {
 	 * upgrade that died partway is finished: it only touches members without
 	 * the tag and competitions without a type.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @return int|false The type's ID, or false if a step failed and the upgrade must run again.
 	 */
@@ -657,7 +657,7 @@ class Activator {
 	/**
 	 * Insert the Individual type, with the club's settings as its defaults.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param string                           $table      Types table.
 	 * @param array<int, array<string, mixed>> $categories The club's category list.
@@ -694,7 +694,7 @@ class Activator {
 	/**
 	 * Give each competition without categories the club's current list.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param string                           $table      Competitions table.
 	 * @param array<int, array<string, mixed>> $categories The club's category list.

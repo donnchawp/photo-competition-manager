@@ -709,7 +709,7 @@ class Competitions_Controller {
 	/**
 	 * Handle the entrants panel's actions.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param string $action Action from the request.
 	 * @return void
@@ -912,7 +912,7 @@ class Competitions_Controller {
 	/**
 	 * A competition's edit screen URL, on a tab.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $tab            Tab slug.
@@ -1226,7 +1226,7 @@ class Competitions_Controller {
 	/**
 	 * Render the entrants panel: who may enter, and the selected entrants.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param  object $competition Competition data.
 	 * @return string
@@ -1285,7 +1285,7 @@ class Competitions_Controller {
 	 * The "Add entrants" picker's options: active members who aren't entrants,
 	 * those with the competition's type first.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param int         $type_id     The competition's type ID.
 	 * @param int[]       $entrant_ids Current entrants.

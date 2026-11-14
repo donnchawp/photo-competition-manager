@@ -233,7 +233,7 @@ class Competition_Workflow {
 	/**
 	 * Whether any of the competition's categories has started voting.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param object $competition Competition row.
 	 * @return bool

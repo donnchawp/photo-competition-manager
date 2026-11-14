@@ -209,7 +209,7 @@ class Members_Repository extends Abstract_Repository {
 	 * The member gets the types in `$data['type_ids']`. Without that key they get the club's
 	 * only type, when it has exactly one, and no type when it has several.
 	 *
-	 * @since 0.5.0 Tags the member with competition types.
+	 * @since 0.4.0 Tags the member with competition types.
 	 *
 	 * @param array<string, mixed> $data Member data.
 	 * @return int|WP_Error
@@ -357,7 +357,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * The competition types a member is tagged with.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $member_id Member ID.
 	 * @return int[] Type IDs.
 	 */
@@ -373,7 +373,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Every member's tags at once.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return array<int, int[]> Type IDs by member ID; members with no tag are absent.
 	 */
 	public function all_type_ids(): array {
@@ -393,7 +393,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Replace a member's competition type tags. Types that don't exist are ignored.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int   $member_id Member ID.
 	 * @param int[] $type_ids  Type IDs.
 	 * @return void
@@ -429,7 +429,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Add one tag to a member, keeping their others.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $member_id Member ID.
 	 * @param int $type_id   Type ID.
 	 * @return void
@@ -441,7 +441,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Remove one tag from a member, keeping their others.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $member_id Member ID.
 	 * @param int $type_id   Type ID.
 	 * @return void
@@ -453,7 +453,7 @@ class Members_Repository extends Abstract_Repository {
 	/**
 	 * Fetch the active members tagged with a type.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $type_id Type ID.
 	 * @return array<int, object>
 	 */

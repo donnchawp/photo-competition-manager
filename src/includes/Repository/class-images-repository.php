@@ -174,7 +174,7 @@ class Images_Repository extends Abstract_Repository {
 	/**
 	 * The members with entries in a competition.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param int $competition_id Competition ID.
 	 * @return int[] Member IDs.
 	 */

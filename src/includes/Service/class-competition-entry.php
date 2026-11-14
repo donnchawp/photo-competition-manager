@@ -21,7 +21,7 @@ use WP_Error;
  * type, or only its selected entrants. Also changes the entry setting and the
  * entrants, which stop changing once any category's voting has started.
  *
- * @since 0.5.0
+ * @since 0.4.0
  */
 class Competition_Entry {
 

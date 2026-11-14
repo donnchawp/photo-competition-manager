@@ -96,7 +96,7 @@ class Upload_Link_Service {
 	 *
 	 * @since 0.3.0
 	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
-	 * @since 0.5.0 Refuses a member who may not enter, with 'not_an_entrant'.
+	 * @since 0.4.0 Refuses a member who may not enter, with 'not_an_entrant'.
 	 * @param int  $competition_id Competition ID.
 	 * @param int  $member_id      Member ID.
 	 * @param bool $force_send     Force sending even if a recent token exists.
@@ -288,7 +288,7 @@ class Upload_Link_Service {
 	 * Queue submission reminder emails to the active members who may enter a competition.
 	 *
 	 * @since 0.3.0
-	 * @since 0.5.0 Only the members who may enter, not every active member.
+	 * @since 0.4.0 Only the members who may enter, not every active member.
 	 * @param int               $competition_id Competition ID.
 	 * @param Email_Job_Manager $email_jobs     Email job queue.
 	 * @return string|WP_Error Job ID, or why nothing was queued.

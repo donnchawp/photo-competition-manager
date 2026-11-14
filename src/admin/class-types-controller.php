@@ -17,7 +17,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  * Manage competition types: each holds the defaults for its new competitions
  * and its own names for the club's grades.
  *
- * @since 0.5.0
+ * @since 0.4.0
  */
 class Types_Controller {
 

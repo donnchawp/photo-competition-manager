@@ -162,7 +162,7 @@ class Upload_API extends WP_REST_Controller {
 	/**
 	 * Validate upload token permission: the token is valid and its member may enter its competition.
 	 *
-	 * @since 0.5.0 Refuses a member who may not enter, with 'invalid_token' and status 403.
+	 * @since 0.4.0 Refuses a member who may not enter, with 'invalid_token' and status 403.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return bool|WP_Error

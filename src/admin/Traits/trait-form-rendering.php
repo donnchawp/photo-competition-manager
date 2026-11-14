@@ -53,7 +53,7 @@ trait Form_Rendering {
 	 * Enqueue the script that adds and removes category and grade rows and
 	 * animates the progress meter previews.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @return void
 	 */
@@ -81,7 +81,7 @@ trait Form_Rendering {
 	/**
 	 * Types screen URL.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param array<string, string|int> $args Extra query arguments.
 	 * @return string
@@ -221,7 +221,7 @@ trait Form_Rendering {
 	/**
 	 * Queue an outcome as a notice and redirect: its error, or the success message.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param string $group   Settings errors group.
 	 * @param mixed  $result  Outcome; a WP_Error is an error.
 	 * @param string $code    Success notice code.

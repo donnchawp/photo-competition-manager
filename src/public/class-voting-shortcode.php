@@ -504,7 +504,7 @@ class Voting_Shortcode {
 	 * A member who may not enter the competition gets the same generic
 	 * message as anyone else, and no email.
 	 *
-	 * @since 0.5.0 Only a member who may enter gets a link.
+	 * @since 0.4.0 Only a member who may enter gets a link.
 	 *
 	 * @param object $competition Competition object.
 	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.

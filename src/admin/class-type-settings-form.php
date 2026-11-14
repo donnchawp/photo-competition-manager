@@ -15,7 +15,7 @@ use PhotoCompetitionManager\Support\Competition_Settings;
 /**
  * Render the competition-default sections and read them back from a post.
  *
- * @since 0.5.0
+ * @since 0.4.0
  */
 class Type_Settings_Form {
 
@@ -28,7 +28,7 @@ class Type_Settings_Form {
 	 * size, or the slideshow durations a competition's form leaves out, keep
 	 * their current values. The caller verifies the nonce.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param array<string, mixed> $current Current settings, e.g. from Competition_Settings::type_settings().
 	 * @return array<string, mixed>
 	 */
@@ -97,7 +97,7 @@ class Type_Settings_Form {
 	/**
 	 * Render the categories, upload limits, voting and slideshow sections.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param array<string, mixed> $settings The type's settings, from Competition_Settings::type_settings().
 	 * @return string
 	 */

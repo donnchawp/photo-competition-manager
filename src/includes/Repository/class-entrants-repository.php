@@ -14,7 +14,7 @@ use function PhotoCompetitionManager\Support\utc_time;
 /**
  * The members entered in a competition open to selected entrants only.
  *
- * @since 0.5.0
+ * @since 0.4.0
  *
  * @package PhotoCompetitionManager\Repository
  */

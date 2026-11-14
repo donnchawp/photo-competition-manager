@@ -301,7 +301,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * Refuses dates that overlap another competition with a
 	 * 'competition_overlap' error, and a missing type with 'invalid_type'.
 	 *
-	 * @since 0.5.0 Needs a `type_id`, and takes an `entry_mode` ('all' or 'selected', default 'all').
+	 * @since 0.4.0 Needs a `type_id`, and takes an `entry_mode` ('all' or 'selected', default 'all').
 	 *
 	 * @param array<string, mixed> $data Competition data.
 	 * @return int|WP_Error
@@ -386,7 +386,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * has entries with 'type_locked'. A changed type replaces the competition's categories and
 	 * type settings with the new type's, keeping its page links.
 	 *
-	 * @since 0.5.0 Takes `type_id` and `entry_mode`.
+	 * @since 0.4.0 Takes `type_id` and `entry_mode`.
 	 *
 	 * @param int                  $id   Competition ID.
 	 * @param array<string, mixed> $data Updated data.
@@ -496,7 +496,7 @@ class Competitions_Repository extends Abstract_Repository {
 	/**
 	 * Whether a competition has any entries.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @param int $id Competition ID.
 	 * @return bool

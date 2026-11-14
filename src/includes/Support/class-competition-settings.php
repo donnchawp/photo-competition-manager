@@ -21,7 +21,7 @@ class Competition_Settings {
 	/**
 	 * The settings a competition type holds.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @var string[]
 	 */
 	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders' );
@@ -39,7 +39,7 @@ class Competition_Settings {
 	/**
 	 * The slideshow's progress meter styles.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 *
 	 * @var string[]
 	 */
@@ -189,7 +189,7 @@ class Competition_Settings {
 	/**
 	 * The club's settings as stored, without defaults filled in.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @return array<string, mixed>
 	 */
 	public static function stored_club_settings_array(): array {
@@ -199,7 +199,7 @@ class Competition_Settings {
 	/**
 	 * Decode settings JSON, treating empty or invalid JSON as no settings.
 	 *
-	 * @since 0.5.0 Public.
+	 * @since 0.4.0 Public.
 	 * @param string|null $json Settings JSON.
 	 * @return array<string, mixed>
 	 */
@@ -426,7 +426,7 @@ class Competition_Settings {
 	/**
 	 * A type's settings with defaults filled in, for exactly the keys a type holds.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $type Type row, with its settings decoded to an array.
 	 * @return array<string, mixed>
 	 */
@@ -440,7 +440,7 @@ class Competition_Settings {
 	/**
 	 * Validate the settings a type holds.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param array<string, mixed> $settings Settings to validate.
 	 * @return true|WP_Error
 	 */
@@ -457,7 +457,7 @@ class Competition_Settings {
 	 *
 	 * Competitions keep their own copy of the club's page links.
 	 *
-	 * @since 0.5.0
+	 * @since 0.4.0
 	 * @param object $type Type row.
 	 * @return array<string, mixed>
 	 */

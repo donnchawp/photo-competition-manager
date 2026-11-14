@@ -71,7 +71,7 @@ class Members_Controller {
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
-	 * @since 0.5.0 Takes the competition types repository.
+	 * @since 0.4.0 Takes the competition types repository.
 	 *
 	 * @param Competitions_Repository           $competitions Competitions repository.
 	 * @param Members_Repository                $members      Members repository.
