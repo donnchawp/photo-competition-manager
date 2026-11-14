@@ -637,10 +637,10 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $repository->find_by_slug( 'clashing' ) );
 	}
 
-	public function test_overlap_message_names_a_grade_title_without_the_placeholder(): void {
+	public function test_overlap_error_carries_the_competition_in_the_way(): void {
 		$repository = new Competitions_Repository( $GLOBALS['wpdb'] );
 
-		$repository->create(
+		$current = $repository->create(
 			array(
 				'type_id'    => Type_Fixtures::id(),
 				'title'      => '{grade} Current',
@@ -658,7 +658,8 @@ class Competitions_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertStringNotContainsString( '{grade}', $result->get_error_message() );
+		$this->assertSame( 'competition_overlap', $result->get_error_code() );
+		$this->assertSame( $current, (int) $result->get_error_data()['competition']->id );
 	}
 
 	public function test_create_accepts_competition_opening_when_another_closes(): void {

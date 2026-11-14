@@ -3,7 +3,8 @@
  * Competition type add/edit form partial.
  *
  * Reads $data['mode'] ('add' or 'edit'), $data['type'] (edit only: object
- * with id and name, or null when not found), $data['sections_html'] (string:
+ * with id and name, or null when not found), $data['name'] (string: the
+ * name to show), $data['sections_html'] (string:
  * pre-rendered categories, upload, voting and slideshow sections from
  * Type_Settings_Form::render_sections()), $data['grade_rows'] (objects with
  * slug, label, the club's name for the grade, and name, this type's name for
@@ -46,7 +47,7 @@ if ( $is_edit ) {
 }
 
 echo '<p><label for="type_name">' . esc_html__( 'Name', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="text" id="type_name" name="type_name" class="regular-text" required value="' . esc_attr( $is_edit ? $data['type']->name : '' ) . '" /></p>';
+echo '<input type="text" id="type_name" name="type_name" class="regular-text" required value="' . esc_attr( $data['name'] ) . '" /></p>';
 
 echo $data['sections_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 

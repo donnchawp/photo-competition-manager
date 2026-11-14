@@ -290,6 +290,39 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertCount( 2, $images );
 	}
 
+	public function test_entrant_grades_lists_each_grade_with_entries_once(): void {
+		$advanced = $this->members_repo->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'advanced',
+			)
+		);
+		$this->members_repo->create(
+			array(
+				'name'  => 'Ida',
+				'email' => 'ida@example.com',
+				'grade' => 'intermediate',
+			)
+		);
+		foreach ( array( $this->member_id, $this->member_id, $advanced ) as $i => $member_id ) {
+			$this->images_repo->create(
+				array(
+					'competition_id' => $this->competition_id,
+					'member_id'      => $member_id,
+					'category'       => 'colour',
+					'filename'       => 'entry-' . $i . '.jpg',
+				)
+			);
+		}
+
+		$grades = $this->images_repo->entrant_grades( $this->competition_id );
+		sort( $grades );
+
+		$this->assertSame( array( 'advanced', 'beginner' ), $grades );
+		$this->assertSame( array(), $this->images_repo->entrant_grades( $this->competition_id + 1 ) );
+	}
+
 	public function test_count_by_member_category_returns_correct_count(): void {
 		$this->images_repo->create(
 			array(

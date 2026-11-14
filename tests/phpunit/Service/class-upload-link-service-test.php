@@ -486,6 +486,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'no_members', $result->get_error_code() );
+		$this->assertSame( 'No one may enter this competition yet.', $result->get_error_message() );
 	}
 
 	public function test_queued_reminder_for_a_removed_entrant_is_not_sent() {

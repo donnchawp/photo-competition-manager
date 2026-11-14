@@ -92,13 +92,14 @@ class Types_Controller {
 		if ( 'create_type' === $action ) {
 			check_admin_referer( 'photo_competition_type_create', 'photo_competition_type_nonce' );
 
-			$result = $this->types->create(
-				$this->get_post_string( 'type_name' ),
-				$this->form->from_post( Competition_Settings::type_settings( (object) array() ) ),
-				$this->posted_grade_names()
-			);
+			$posted = $this->posted_type( (object) array() );
+			$result = $this->types->create( $posted['name'], $posted['settings'], $posted['grade_names'] );
 
-			$back = is_wp_error( $result ) ? $this->types_url( array( 'type_action' => 'add' ) ) : $this->types_url();
+			$back = $this->types_url();
+			if ( is_wp_error( $result ) ) {
+				$this->keep_draft( 0, $posted );
+				$back = $this->types_url( array( 'type_action' => 'add' ) );
+			}
 
 			$this->notice_and_redirect( self::GROUP, $result, 'type_created', __( 'Competition type added.', 'photo-competition-manager' ), $back );
 		}
@@ -109,23 +110,21 @@ class Types_Controller {
 			check_admin_referer( 'photo_competition_type_update_' . $type_id, 'photo_competition_type_nonce' );
 
 			$type   = $this->types->find( $type_id );
+			$posted = $type ? $this->posted_type( $type ) : array();
 			$result = $type
-				? $this->types->update(
-					$type_id,
-					$this->get_post_string( 'type_name' ),
-					$this->form->from_post( Competition_Settings::type_settings( $type ) ),
-					$this->posted_grade_names()
-				)
+				? $this->types->update( $type_id, $posted['name'], $posted['settings'], $posted['grade_names'] )
 				: new \WP_Error( 'type_not_found', __( 'Competition type not found.', 'photo-competition-manager' ) );
 
-			$back = is_wp_error( $result ) && $type
-				? $this->types_url(
+			$back = $this->types_url();
+			if ( is_wp_error( $result ) && $type ) {
+				$this->keep_draft( $type_id, $posted );
+				$back = $this->types_url(
 					array(
 						'type_action' => 'edit',
 						'type'        => $type_id,
 					)
-				)
-				: $this->types_url();
+				);
+			}
 
 			$this->notice_and_redirect( self::GROUP, $result, 'type_updated', __( 'Competition type updated.', 'photo-competition-manager' ), $back );
 		}
@@ -230,14 +229,19 @@ class Types_Controller {
 	 * @return string
 	 */
 	private function render_form( string $mode, int $type_id ): string {
-		$type = 'edit' === $mode ? $this->types->find( $type_id ) : null;
+		$type  = 'edit' === $mode ? $this->types->find( $type_id ) : null;
+		$draft = $this->take_draft( 'edit' === $mode ? $type_id : 0 );
+
+		$name        = $draft['name'] ?? ( $type ? $type->name : '' );
+		$grade_names = $draft['grade_names'] ?? ( $type ? $type->grade_names : array() );
+		$settings    = $draft['settings'] ?? Competition_Settings::type_settings( $type ?? (object) array() );
 
 		$grade_rows = array();
 		foreach ( Competition_Settings::club_grades() as $grade ) {
 			$grade_rows[] = (object) array(
 				'slug'  => $grade['slug'],
 				'label' => $grade['label'],
-				'name'  => (string) ( $type->grade_names[ $grade['slug'] ] ?? '' ),
+				'name'  => (string) ( $grade_names[ $grade['slug'] ] ?? '' ),
 			);
 		}
 
@@ -246,11 +250,63 @@ class Types_Controller {
 			array(
 				'mode'          => $mode,
 				'type'          => $type,
-				'sections_html' => 'edit' === $mode && ! $type ? '' : $this->form->render_sections( Competition_Settings::type_settings( $type ?? (object) array() ) ),
+				'name'          => $name,
+				'sections_html' => 'edit' === $mode && ! $type ? '' : $this->form->render_sections( $settings ),
 				'grade_rows'    => $grade_rows,
 				'types_url'     => $this->types_url(),
 			)
 		);
+	}
+
+	/**
+	 * The type as the form posted it.
+	 *
+	 * @param object $type The type being edited, or an empty object for a new one.
+	 * @return array{name: string, settings: array<string, mixed>, grade_names: array<string, string>}
+	 */
+	private function posted_type( object $type ): array {
+		return array(
+			'name'        => sanitize_text_field( $this->get_post_string( 'type_name' ) ),
+			'settings'    => $this->form->from_post( Competition_Settings::type_settings( $type ) ),
+			'grade_names' => $this->posted_grade_names(),
+		);
+	}
+
+	/**
+	 * Keep a refused save so the form it goes back to shows what was typed.
+	 *
+	 * @param int                  $type_id The type being edited, or 0 for a new one.
+	 * @param array<string, mixed> $posted  posted_type()'s result.
+	 * @return void
+	 */
+	private function keep_draft( int $type_id, array $posted ): void {
+		set_transient( $this->draft_key(), array( 'type_id' => $type_id ) + $posted, 5 * MINUTE_IN_SECONDS );
+	}
+
+	/**
+	 * Take the current user's refused save for a form, once.
+	 *
+	 * @param int $type_id The type the form edits, or 0 for the add form.
+	 * @return array<string, mixed>|null posted_type()'s shape, or null when there's none for this form.
+	 */
+	private function take_draft( int $type_id ): ?array {
+		$draft = get_transient( $this->draft_key() );
+		if ( ! is_array( $draft ) ) {
+			return null;
+		}
+
+		delete_transient( $this->draft_key() );
+
+		return (int) ( $draft['type_id'] ?? -1 ) === $type_id ? $draft : null;
+	}
+
+	/**
+	 * The transient holding the current user's refused save.
+	 *
+	 * @return string
+	 */
+	private function draft_key(): string {
+		return 'photo_comp_type_draft_' . get_current_user_id();
 	}
 
 	/**

@@ -194,6 +194,27 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The grades of the members with entries in a competition.
+	 *
+	 * @since 0.4.0
+	 * @param int $competition_id Competition ID.
+	 * @return string[] Grade slugs.
+	 */
+	public function entrant_grades( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT m.grade FROM %i i INNER JOIN %i m ON m.id = i.member_id WHERE i.competition_id = %d',
+				$this->table(),
+				$wpdb->prefix . 'photocomp_members',
+				$competition_id
+			)
+		);
+	}
+
+	/**
 	 * Get next random number for a competition category.
 	 *
 	 * @param int    $competition_id Competition ID.

@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -30,6 +31,13 @@ class Competition_Labels {
 	private $types;
 
 	/**
+	 * Images repository.
+	 *
+	 * @var Images_Repository
+	 */
+	private $images;
+
+	/**
 	 * Each type's grade names, by type ID, once looked up.
 	 *
 	 * @var array<int, array<string,string>>
@@ -47,10 +55,12 @@ class Competition_Labels {
 	 * Constructor.
 	 *
 	 * @since 0.4.0
-	 * @param Competition_Types_Repository|null $types Types repository.
+	 * @param Competition_Types_Repository|null $types  Types repository.
+	 * @param Images_Repository|null            $images Images repository.
 	 */
-	public function __construct( ?Competition_Types_Repository $types = null ) {
-		$this->types = $types ?? new Competition_Types_Repository();
+	public function __construct( ?Competition_Types_Repository $types = null, ?Images_Repository $images = null ) {
+		$this->types  = $types ?? new Competition_Types_Repository();
+		$this->images = $images ?? new Images_Repository();
 	}
 
 	/**
@@ -154,19 +164,7 @@ class Competition_Labels {
 		$id = (int) ( $competition->id ?? 0 );
 
 		if ( ! isset( $this->everyone_titles[ $id ] ) ) {
-			global $wpdb;
-
-			// The per-instance cache stands in for the object cache.
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			$used = $id ? $wpdb->get_col(
-				$wpdb->prepare(
-					'SELECT DISTINCT m.grade FROM %i i INNER JOIN %i m ON m.id = i.member_id WHERE i.competition_id = %d',
-					$wpdb->prefix . 'photocomp_images',
-					$wpdb->prefix . 'photocomp_members',
-					$id
-				)
-			) : array();
-
+			$used  = $id ? $this->images->entrant_grades( $id ) : array();
 			$names = array_values( array_intersect_key( $labels, array_flip( (array) $used ) ) );
 
 			$this->everyone_titles[ $id ] = implode( ' / ', $names ? $names : array_values( $labels ) );

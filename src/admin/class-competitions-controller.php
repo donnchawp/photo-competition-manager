@@ -736,6 +736,12 @@ class Competitions_Controller {
 				break;
 
 			case 'add_entrants':
+				// Checked once, so a refusal shows one notice rather than one per member.
+				$can_add = $this->entry->can_add_entrants( $competition );
+				if ( is_wp_error( $can_add ) ) {
+					$this->entrant_notice( $can_add, '', '' );
+					break;
+				}
 				$added = 0;
 				foreach ( array_unique( array_map( 'absint', $this->get_post_array( 'member_ids' ) ) ) as $id ) {
 					$result = $this->entry->add_entrant( $competition, $id );
@@ -752,10 +758,16 @@ class Competitions_Controller {
 					$this->entrant_notice( $can_add, '', '' );
 					break;
 				}
+				$email    = sanitize_email( $this->get_post_string( 'member_email' ) );
+				$existing = $this->members->find_by_email( $email );
+				if ( $existing ) {
+					$this->enter_existing_member( $competition, $existing );
+					break;
+				}
 				$new_id = $this->members->create(
 					array(
 						'name'     => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
-						'email'    => sanitize_email( $this->get_post_string( 'member_email' ) ),
+						'email'    => $email,
 						'grade'    => sanitize_key( $this->get_post_string( 'member_grade' ) ),
 						'type_ids' => array( (int) $competition->type_id ),
 					)
@@ -781,6 +793,34 @@ class Competitions_Controller {
 		}
 
 		$this->redirect_with_settings_errors( $url );
+	}
+
+	/**
+	 * Enter a member whose email was typed into "Add a new member", as if they'd
+	 * been picked. An inactive member isn't entered, since they couldn't upload.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $member      The member holding that email.
+	 * @return void
+	 */
+	private function enter_existing_member( object $competition, object $member ): void {
+		if ( empty( $member->active ) ) {
+			$this->queue_notice(
+				'inactive_member',
+				/* translators: %s: Member name */
+				sprintf( __( '%s is an inactive member. Reactivate them on the Members screen, then add them as an entrant.', 'photo-competition-manager' ), $member->name ),
+				'error'
+			);
+			return;
+		}
+
+		$result = $this->entry->add_entrant( $competition, (int) $member->id );
+		$this->entrant_notice(
+			$result,
+			'existing_member_entered',
+			/* translators: %s: Member name */
+			sprintf( __( '%s is already a member, so they were entered.', 'photo-competition-manager' ), $member->name )
+		);
 	}
 
 	/**

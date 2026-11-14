@@ -310,7 +310,7 @@ class Upload_Link_Service {
 		$member_ids = $this->entry()->eligible_member_ids( $competition );
 
 		if ( empty( $member_ids ) ) {
-			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );
+			return new WP_Error( 'no_members', __( 'No one may enter this competition yet.', 'photo-competition-manager' ) );
 		}
 
 		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {

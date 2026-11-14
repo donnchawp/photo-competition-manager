@@ -9,7 +9,6 @@ namespace PhotoCompetitionManager\Repository;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
@@ -276,6 +275,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * @param string|null $close_date Close date of the range, or null for unbounded.
 	 * @param int         $exclude_id Competition to leave out, e.g. the one being saved.
 	 * @return WP_Error|null Error carrying the other competition as 'competition' data, or null.
+	 *                       The message names it by its raw title; the admin screen relabels it.
 	 */
 	private function overlap_error( ?string $open_date, ?string $close_date, int $exclude_id = 0 ): ?WP_Error {
 		$other = $this->find_overlapping( $open_date, $close_date, $exclude_id );
@@ -289,7 +289,7 @@ class Competitions_Repository extends Abstract_Repository {
 			sprintf(
 				/* translators: %s: title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
-				( new Competition_Labels() )->title_for_everyone( $other )
+				$other->title
 			),
 			array( 'competition' => $other )
 		);

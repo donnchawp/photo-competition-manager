@@ -236,6 +236,103 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( 'Individual', $this->types->find( $this->individual )->name );
 	}
 
+	/**
+	 * Render the types screen for a view.
+	 *
+	 * @param array<string, string> $query Query vars.
+	 * @return string
+	 */
+	private function render_view( array $query ): string {
+		$this->reset_request();
+		$this->set_request( $query );
+
+		ob_start();
+		$this->controller->render();
+
+		return (string) ob_get_clean();
+	}
+
+	public function test_a_refused_add_keeps_what_was_typed_once(): void {
+		$this->post(
+			array(
+				'photo_competition_action' => 'create_type',
+				'type_name'                => 'individual',
+				'categories'               => array(
+					array(
+						'label' => 'Monochrome Prints',
+						'slug'  => 'mono-prints',
+						'quota' => '3',
+					),
+				),
+				'grade_names'              => array( 'advanced' => 'Cup' ),
+			),
+			'photo_competition_type_create'
+		);
+		$this->assertSame( array( 'duplicate_name' ), $this->settings_error_codes( self::GROUP ) );
+
+		$html = $this->render_view( array( 'type_action' => 'add' ) );
+		$this->assertStringContainsString( 'name="type_name" class="regular-text" required value="individual"', $html );
+		$this->assertStringContainsString( 'Monochrome Prints', $html );
+		$this->assertStringContainsString( 'value="Cup"', $html );
+
+		$again = $this->render_view( array( 'type_action' => 'add' ) );
+		$this->assertStringNotContainsString( 'Monochrome Prints', $again );
+	}
+
+	public function test_a_refused_edit_keeps_what_was_typed_for_that_type_only(): void {
+		$other = $this->types->create( 'Panel', array( 'categories' => $this->categories() ) );
+
+		$this->post(
+			array(
+				'photo_competition_action' => 'update_type',
+				'type_id'                  => (string) $this->individual,
+				'type_name'                => 'Panel',
+				'categories'               => array(
+					array(
+						'label' => 'Nature',
+						'slug'  => 'nature',
+						'quota' => '1',
+					),
+				),
+			),
+			'photo_competition_type_update_' . $this->individual
+		);
+		$this->assertSame( array( 'duplicate_name' ), $this->settings_error_codes( self::GROUP ) );
+
+		$wrong = $this->render_view(
+			array(
+				'type_action' => 'edit',
+				'type'        => (string) $other,
+			)
+		);
+		$this->assertStringNotContainsString( 'Nature', $wrong );
+
+		$this->post(
+			array(
+				'photo_competition_action' => 'update_type',
+				'type_id'                  => (string) $this->individual,
+				'type_name'                => 'Panel',
+				'categories'               => array(
+					array(
+						'label' => 'Nature',
+						'slug'  => 'nature',
+						'quota' => '1',
+					),
+				),
+			),
+			'photo_competition_type_update_' . $this->individual
+		);
+		$html = $this->render_view(
+			array(
+				'type_action' => 'edit',
+				'type'        => (string) $this->individual,
+			)
+		);
+		$this->assertStringContainsString( 'required value="Panel"', $html );
+		$this->assertStringContainsString( 'Nature', $html );
+		$this->assertSame( 'Individual', $this->types->find( $this->individual )->name );
+	}
+
 	public function test_edit_type_keeps_settings_the_form_does_not_show(): void {
 		$this->types->update(
 			$this->individual,

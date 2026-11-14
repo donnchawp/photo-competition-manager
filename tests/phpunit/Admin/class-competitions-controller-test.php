@@ -464,6 +464,30 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertMatchesRegularExpression( '/<a href="[^"]*action=edit&(#038;|amp;)?competition=' . $stale_id . '">Stale<\/a>/', $messages );
 	}
 
+	public function test_overlap_error_names_a_grade_title_without_the_placeholder(): void {
+		$this->create_competition( '{grade} Current', 'current', '2020-01-01 00:00:00' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_competition',
+				'competition_title'        => 'October',
+				'competition_slug'         => 'october',
+				'competition_open_date'    => $this->form_date( 10 ),
+				'competition_close_date'   => $this->form_date( 40 ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_create', 'photo_competition_nonce' );
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$messages = implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_manager' ), 'message' ) );
+		$this->assertStringContainsString( 'Current</a>', $messages );
+		$this->assertStringNotContainsString( '{grade}', $messages );
+	}
+
 	/**
 	 * After Close Competition, the next competition can open today. Close
 	 * Competition stores the current time, which is later than the next
@@ -2109,13 +2133,14 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
-	public function test_add_entrants_while_open_to_all_shows_the_error(): void {
+	public function test_add_entrants_while_open_to_all_shows_the_error_once(): void {
 		$id  = $this->create_entry_competition( 'all' );
 		$ann = $this->create_member( 'Ann' );
+		$bob = $this->create_member( 'Bob' );
 
-		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann ) ) );
+		$this->post_entrants_action( $id, 'add_entrants', array( 'member_ids' => array( (string) $ann, (string) $bob ) ) );
 
-		$this->assertContains( 'not_selected_mode', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertSame( array( 'not_selected_mode' ), $this->settings_error_codes( 'photo_competition_manager' ) );
 		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
 	}
 
@@ -2186,6 +2211,50 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$dan     = $members->find_by_email( 'dan@example.com' );
 		$this->assertNotNull( $dan );
 		$this->assertSame( array( $type_id ), $members->type_ids( (int) $dan->id ) );
+	}
+
+	public function test_create_member_with_an_existing_email_enters_that_member(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		reset_phpmailer_instance();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Ann Again',
+				'member_email' => 'ANN@example.com',
+				'member_grade' => 'advanced',
+			)
+		);
+
+		$members = new Members_Repository();
+		$this->assertCount( 1, $members->find_all_by_email( 'ann@example.com' ) );
+		$this->assertSame( 'Ann', $members->find( $ann )->name );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertCount( 1, tests_retrieve_phpmailer_instance()->mock_sent );
+		$this->assertSame( array( 'existing_member_entered' ), $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_create_member_with_an_inactive_members_email_enters_no_one(): void {
+		$id      = $this->create_entry_competition();
+		$ann     = $this->create_member( 'Ann' );
+		$members = new Members_Repository();
+		$members->set_active( $ann, false );
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Ann',
+				'member_email' => 'ann@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertCount( 1, $members->find_all_by_email( 'ann@example.com' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
+		$this->assertSame( array( 'inactive_member' ), $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	public function test_create_member_with_a_bad_email_shows_the_error(): void {
