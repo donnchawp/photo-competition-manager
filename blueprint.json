@@ -1,0 +1,28 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "landingPage": "/wp-admin/admin.php?page=photo-competition-manager",
+  "preferredVersions": {
+    "php": "8.3",
+    "wp": "latest"
+  },
+  "steps": [
+    {
+      "step": "login",
+      "username": "admin"
+    },
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "url",
+        "url": "https://github.com/donnchawp/photo-competition-manager/releases/download/ci-artifacts/main-photo-competition-manager.zip"
+      },
+      "options": {
+        "activate": true
+      }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\nuse PhotoCompetitionManager\\Repository\\Competitions_Repository;\nuse PhotoCompetitionManager\\Repository\\Members_Repository;\nuse PhotoCompetitionManager\\Support\\Competition_Settings;\n\nforeach ( array(\n\t'Upload'  => '[competition_upload]',\n\t'Voting'  => '[competition_voting]',\n\t'Results' => '[competition_results]',\n) as $page_title => $shortcode ) {\n\twp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $page_title, 'post_content' => $shortcode ) );\n}\n\n$members = new Members_Repository();\nforeach ( array(\n\tarray( 'Ann Beginner', 'ann@example.com', 'beginner' ),\n\tarray( 'Bob Intermediate', 'bob@example.com', 'intermediate' ),\n\tarray( 'Cat Advanced', 'cat@example.com', 'advanced' ),\n) as $m ) {\n\t$members->create( array( 'name' => $m[0], 'email' => $m[1], 'grade' => $m[2] ) );\n}\n\n$data = array(\n\t'title'      => 'Test competition',\n\t'slug'       => 'test-competition',\n\t'open_date'  => wp_date( 'Y-m-d' ),\n\t'close_date' => wp_date( 'Y-m-d', time() + 7 * DAY_IN_SECONDS ),\n\t'share_hash' => Competition_Settings::generate_share_hash(),\n);\n\n$types_class = 'PhotoCompetitionManager\\Repository\\Competition_Types_Repository';\nif ( class_exists( $types_class ) ) {\n\t$types            = new $types_class();\n\t$type             = $types->only() ?? $types->all()[0];\n\t$data['type_id']  = (int) $type->id;\n\t$data['settings'] = Competition_Settings::settings_for_new_competition( $type );\n} else {\n\t$data['settings'] = array_merge(\n\t\tarray_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),\n\t\tarray( 'categories' => Competition_Settings::club_categories() )\n\t);\n}\n\n$result = ( new Competitions_Repository() )->create( $data );\nif ( is_wp_error( $result ) ) {\n\terror_log( 'Playground seed: ' . $result->get_error_message() );\n}\n"
+    }
+  ]
+}
