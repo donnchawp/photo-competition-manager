@@ -225,7 +225,7 @@ Yes. Visit **Competitions → Export** to download:
   * Settings keeps only what's club-wide: grades, email, page addresses, the voting form layout and log retention
   * A new competition picks its type and starts with that type's categories and settings. With only one type there's nothing to pick. The type can be changed until the competition has entries, and changing it copies the new type's settings
   * Members are tagged with the types they enter. With one type this happens automatically. With more, the Members screen has a Types column, a type filter and bulk add or remove, CSV import takes a `types` column, and members with no type are flagged
-  * A competition is open to everyone in its type, or to selected entrants only. Add entrants on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go. An entrant added while uploads are open is sent their upload link
+  * A competition is open to everyone in its type, or to selected entrants only. Add entrants on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go. An entrant added while uploads are open is sent their upload link. Who may enter can't change once voting starts or the competition closes
   * Only members who may enter a competition get its upload links and reminders, can use the upload page, or can upload through the REST API. In a selected-entrants competition only entrants can ask for a voting link
   * The Voting Opened email and "Email results to all members" go to the competition type's members
   * Results pages, Top 3, emails and exports show the type's grade names. Admin screens show both, for example "Cup (Advanced)"
