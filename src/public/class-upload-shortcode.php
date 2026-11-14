@@ -12,6 +12,8 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Actor;
@@ -105,6 +107,13 @@ class Upload_Shortcode {
 	private $workflow;
 
 	/**
+	 * Who may enter.
+	 *
+	 * @var Competition_Entry
+	 */
+	private $entry;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes Entries instead of Upload_Handler.
@@ -131,6 +140,7 @@ class Upload_Shortcode {
 		$this->token_repo          = $token_repo ?? new Upload_Token_Repository();
 		$this->email_service       = $email_service ?? new Email_Service();
 		$this->upload_link_service = $upload_link_service ?? new Upload_Link_Service();
+		$this->entry               = new Competition_Entry( $this->competitions_repo, $this->members_repo, $this->upload_link_service );
 	}
 
 	/**
@@ -221,15 +231,23 @@ class Upload_Shortcode {
 		$token_record = null;
 		$member       = null;
 
+		$message = '';
+
 		if ( $token_string ) {
 			$token_record = $this->token_repo->find_valid_token( $token_string );
 			if ( $token_record && (int) $token_record->competition_id === (int) $competition->id ) {
 				$member = $this->members_repo->find( (int) $token_record->member_id );
 			}
+
+			// A member who may no longer enter, such as a removed entrant, is treated as having no link.
+			if ( $member && ! $this->entry->may_enter( $competition, $member ) ) {
+				$token_record = null;
+				$member       = null;
+				$message      = '<p class="error">' . esc_html__( 'This upload link is no longer valid for this competition.', 'photo-competition-manager' ) . '</p>';
+			}
 		}
 
 		// Handle messages from redirects.
-		$message = '';
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Message display only, no actions.
 		if ( isset( $_GET['msg_type'], $_GET['msg_key'], $_GET['msg_time'] ) ) {
 			// Only show messages that are less than 30 seconds old to prevent stale messages.
@@ -500,7 +518,7 @@ class Upload_Shortcode {
 		}
 		?>
 		<div class="photo-comp-upload">
-			<h2><?php echo esc_html( $competition->title ); ?></h2>
+			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for( $competition, $member && $token_record ? $member : null ) ); ?></h2>
 
 			<?php if ( $message ) : ?>
 				<?php echo wp_kses_post( $message ); ?>

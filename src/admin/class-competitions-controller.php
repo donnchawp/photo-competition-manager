@@ -13,11 +13,17 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Ballots;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
@@ -89,6 +95,27 @@ class Competitions_Controller {
 	private $votes;
 
 	/**
+	 * Competition types.
+	 *
+	 * @var Competition_Types_Repository
+	 */
+	private $types;
+
+	/**
+	 * Who may enter.
+	 *
+	 * @var Competition_Entry
+	 */
+	private $entry;
+
+	/**
+	 * Members repository.
+	 *
+	 * @var Members_Repository
+	 */
+	private $members;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.4.0 Takes the Entries module.
@@ -106,6 +133,9 @@ class Competitions_Controller {
 		$this->judges             = new Judges_Repository();
 		$this->competition_judges = new Competition_Judges_Repository();
 		$this->votes              = new Votes_Repository();
+		$this->types              = new Competition_Types_Repository();
+		$this->members            = new Members_Repository();
+		$this->entry              = new Competition_Entry( $this->competitions, $this->members );
 	}
 
 	/**
@@ -129,24 +159,7 @@ class Competitions_Controller {
 			return;
 		}
 
-		wp_enqueue_script(
-			'photo-comp-admin-category-grade',
-			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
-			array(),
-			PHOTO_COMPETITION_MANAGER_VERSION,
-			true
-		);
-
-		wp_localize_script(
-			'photo-comp-admin-category-grade',
-			'photoCompCategoryGrade',
-			array(
-				'labelText'       => __( 'Label', 'photo-competition-manager' ),
-				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
-				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
-				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
-			)
-		);
+		$this->enqueue_category_grade_script();
 
 		wp_enqueue_script(
 			'photo-comp-admin-confirm',
@@ -192,17 +205,17 @@ class Competitions_Controller {
 			$title = sanitize_text_field( $title_raw );
 			$slug  = sanitize_title( $slug_raw );
 
+			// With one type there's no choice to make.
+			$type = $this->types->only() ?? $this->types->find( absint( $this->get_post_string( 'competition_type' ) ) );
+
 			$data = array(
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => $this->parse_date_input( $open_date_raw ),
 				'close_date' => $this->parse_date_input( $close_date_raw ),
-				// Grades belong to the club, so they aren't copied in. The
-				// categories are, so later changes to the club's don't alter it.
-				'settings'   => array_merge(
-					array_diff_key( Competition_Settings::global_settings(), array( 'grades' => true ) ),
-					array( 'categories' => Competition_Settings::club_categories() )
-				),
+				'type_id'    => $type ? (int) $type->id : 0,
+				// The competition keeps its own copy, so later changes to the type don't alter it.
+				'settings'   => $type ? Competition_Settings::settings_for_new_competition( $type ) : array(),
 				'share_hash' => Competition_Settings::generate_share_hash(),
 			);
 
@@ -247,6 +260,12 @@ class Competitions_Controller {
 				'close_date' => $this->close_date_from_form( $competition_id, $this->parse_date_input( $close_date_raw ) ),
 			);
 
+			// Only posted when the club has several types, and not once there are entries.
+			if ( '' !== $this->get_post_string( 'competition_type' ) ) {
+				$data['type_id'] = absint( $this->get_post_string( 'competition_type' ) );
+			}
+
+			$before = $this->competitions->find( $competition_id );
 			$result = $this->link_overlap_error( $this->competitions->update( $competition_id, $data ) );
 
 			if ( is_wp_error( $result ) ) {
@@ -258,6 +277,22 @@ class Competitions_Controller {
 				);
 
 				$this->redirect_with_settings_errors( $this->edit_url( $competition_id ) );
+			}
+
+			if ( $before && isset( $data['type_id'] ) && (int) $data['type_id'] !== (int) $before->type_id ) {
+				$new_type = $this->types->find( (int) $data['type_id'] );
+				if ( $new_type ) {
+					add_settings_error(
+						'photo_competition_manager',
+						'type_settings_copied',
+						sprintf(
+							/* translators: %s: competition type name */
+							__( 'Categories and settings now come from %s.', 'photo-competition-manager' ),
+							$new_type->name
+						),
+						'updated'
+					);
+				}
 			}
 
 			add_settings_error(
@@ -367,7 +402,7 @@ class Competitions_Controller {
 			if ( 'email_judges' === $action ) {
 				$competition = $this->competitions->find( $competition_id );
 				if ( ! $competition || ! Ballots::is_judged( $competition ) ) {
-					$this->judge_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
+					$this->queue_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
 					$this->redirect_with_settings_errors( $this->dashboard_url() );
 				}
 
@@ -531,6 +566,10 @@ class Competitions_Controller {
 			$this->handle_judge_actions( $action );
 		}
 
+		if ( in_array( $action, array( 'set_entry_mode', 'add_entrants', 'add_new_entrant', 'remove_entrant', 'send_entrant_upload_link' ), true ) ) {
+			$this->handle_entrant_actions( $action );
+		}
+
 		if ( 'update_competition_settings' === $action ) {
 			$competition_id = absint( $this->get_post_string( 'competition_id' ) );
 
@@ -539,36 +578,23 @@ class Competitions_Controller {
 			$existing_competition = $this->competitions->find( $competition_id );
 			$existing_settings    = $existing_competition ? Competition_Settings::parse( $existing_competition->settings ) : array();
 
-			$categories = $this->get_post_array( 'categories' );
+			$settings   = ( new Type_Settings_Form() )->from_post( array_intersect_key( $existing_settings, array_flip( Competition_Settings::TYPE_KEYS ) ) );
+			$validation = Competition_Settings::validate_type_settings( $settings );
 
-			$sanitized_categories = array();
-			foreach ( $categories as $category ) {
-				if ( ! isset( $category['label'], $category['slug'], $category['quota'] ) ) {
-					continue;
-				}
-
-				$sanitized_categories[] = array(
-					'label' => sanitize_text_field( $category['label'] ),
-					'slug'  => sanitize_title( $category['slug'] ),
-					'quota' => absint( $category['quota'] ),
+			if ( is_wp_error( $validation ) ) {
+				add_settings_error(
+					'photo_competition_manager',
+					$validation->get_error_code(),
+					$validation->get_error_message(),
+					'error'
 				);
-			}
 
-			$score_matrix_raw = sanitize_text_field( $this->get_post_string( 'score_matrix' ) );
-			$score_matrix     = array_values( array_map( 'intval', array_filter( array_map( 'trim', explode( ',', $score_matrix_raw ) ), 'is_numeric' ) ) );
-
-			if ( empty( $score_matrix ) ) {
-				$score_matrix = array( 9, 8, 7, 6, 5 );
-			}
-
-			$auth_mode_input = sanitize_text_field( $this->get_post_string( 'voting_auth_mode', 'password' ) );
-			if ( ! in_array( $auth_mode_input, Competition_Settings::AUTH_MODES, true ) ) {
-				$auth_mode_input = 'password';
+				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
 			// Votes are tied to who cast them, so who scores can't move between members and judges once any exist.
 			if ( $existing_competition
-				&& Ballots::is_judged( $existing_competition ) !== ( 'judges' === $auth_mode_input )
+				&& Ballots::is_judged( $existing_competition ) !== ( 'judges' === $settings['voting']['auth_mode'] )
 				&& $this->votes->has_votes( $competition_id )
 			) {
 				add_settings_error(
@@ -581,20 +607,11 @@ class Competitions_Controller {
 				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
 			}
 
-			$voting_password       = sanitize_text_field( $this->get_post_string( 'voting_password' ) );
-			$voting_password_clear = isset( $_POST['voting_password_clear'] ) && '1' === $_POST['voting_password_clear'];
-			$click_image_to_zoom   = isset( $_POST['click_image_to_zoom'] ) && '1' === $_POST['click_image_to_zoom'];
+			$voting_password       = $settings['voting']['password'];
+			$voting_password_clear = '1' === $this->get_post_string( 'voting_password_clear' );
 			$voting_ui_type        = sanitize_text_field( $this->get_post_string( 'voting_ui_type', 'buttons' ) );
 			if ( ! in_array( $voting_ui_type, array( 'buttons', 'dropdown' ), true ) ) {
 				$voting_ui_type = 'buttons';
-			}
-
-			$upload_page_url = sanitize_url( $this->get_post_string( 'upload_page_url', '' ) );
-			$voting_page_url = sanitize_url( $this->get_post_string( 'voting_page_url', '' ) );
-
-			$progress_meter_type_input = sanitize_text_field( $this->get_post_string( 'progress_meter_type', 'bar' ) );
-			if ( ! in_array( $progress_meter_type_input, array( 'bar', 'line', 'dots', 'radial' ), true ) ) {
-				$progress_meter_type_input = 'bar';
 			}
 
 			// Store the password if provided, clear if empty or checkbox checked.
@@ -613,52 +630,12 @@ class Competitions_Controller {
 				$hashed_password = $existing_password;
 			}
 
-			$settings = array(
-				'categories'      => $sanitized_categories,
-				'upload'          => array(
-					'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-					'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
-					'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
-					'allowed_formats'  => array( 'jpg', 'jpeg' ),
-				),
-				'voting'          => array(
-					'score_matrix'        => $score_matrix,
-					'auth_mode'           => $auth_mode_input,
-					'password'            => $hashed_password,
-					'click_image_to_zoom' => $click_image_to_zoom,
-					'ui_type'             => $voting_ui_type,
-				),
-				'slideshow'       => array(
-					'progress_meter_type' => $progress_meter_type_input,
-					'preview_duration'    => $existing_settings['slideshow']['preview_duration'] ?? 10,
-					'voting_duration'     => $existing_settings['slideshow']['voting_duration'] ?? 15,
-					'critique_duration'   => $existing_settings['slideshow']['critique_duration'] ?? 0,
-				),
-				'email_reminders' => array(
-					'enabled'                => true,
-					'days_before_open'       => 7,
-					'days_before_close'      => 1,
-					'include_qr_code_voting' => true,
-				),
-				'urls'            => array(
-					'upload_page' => $upload_page_url,
-					'voting_page' => $voting_page_url,
-				),
+			$settings['voting']['password'] = $hashed_password;
+			$settings['voting']['ui_type']  = $voting_ui_type;
+			$settings['urls']               = array(
+				'upload_page' => sanitize_url( $this->get_post_string( 'upload_page_url', '' ) ),
+				'voting_page' => sanitize_url( $this->get_post_string( 'voting_page_url', '' ) ),
 			);
-
-			// Allow empty categories for competitions (they fall back to the club's).
-			$validation = Competition_Settings::validate( $settings, false );
-
-			if ( is_wp_error( $validation ) ) {
-				add_settings_error(
-					'photo_competition_manager',
-					$validation->get_error_code(),
-					$validation->get_error_message(),
-					'error'
-				);
-
-				$this->redirect_with_settings_errors( $this->settings_tab_url( $competition_id ) );
-			}
 
 			$result = $this->competitions->update(
 				$competition_id,
@@ -704,7 +681,7 @@ class Competitions_Controller {
 		$url         = $this->judges_section_url( $competition_id );
 
 		if ( ! $competition || ! Ballots::is_judged( $competition ) ) {
-			$this->judge_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
+			$this->queue_notice( 'judges_not_scoring', __( 'Judges aren\'t scoring this competition.', 'photo-competition-manager' ), 'error' );
 			$this->redirect_with_settings_errors( $url );
 		}
 
@@ -719,7 +696,7 @@ class Competitions_Controller {
 				}
 			}
 
-			$this->judge_notice( 'judges_updated', __( 'Judges updated.', 'photo-competition-manager' ), 'updated' );
+			$this->queue_notice( 'judges_updated', __( 'Judges updated.', 'photo-competition-manager' ), 'updated' );
 			$this->redirect_with_settings_errors( $url );
 		}
 
@@ -742,6 +719,166 @@ class Competitions_Controller {
 	}
 
 	/**
+	 * Handle the entrants panel's actions.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $action Action from the request.
+	 * @return void
+	 */
+	private function handle_entrant_actions( string $action ): void {
+		$competition_id = absint( $this->get_post_string( 'competition_id' ) );
+
+		check_admin_referer( 'photo_competition_entrants_' . $competition_id, 'photo_competition_nonce' );
+
+		$competition = $this->competitions->find( $competition_id );
+		$url         = $this->tab_url( $competition_id, 'entrants' );
+
+		if ( ! $competition ) {
+			$this->queue_notice( 'competition_not_found', __( 'Competition not found.', 'photo-competition-manager' ), 'error' );
+			$this->redirect_with_settings_errors( $this->dashboard_url() );
+		}
+
+		$member_id = absint( $this->get_post_string( 'member_id' ) );
+
+		switch ( $action ) {
+			case 'set_entry_mode':
+				$result = $this->entry->set_mode( $competition, sanitize_key( $this->get_post_string( 'entry_mode' ) ) );
+				$this->entrant_notice( $result, 'entry_mode_updated', __( 'Entry setting saved.', 'photo-competition-manager' ) );
+				break;
+
+			case 'add_entrants':
+				// Checked once, so a refusal shows one notice rather than one per member.
+				$can_add = $this->entry->can_add_entrants( $competition );
+				if ( is_wp_error( $can_add ) ) {
+					$this->entrant_notice( $can_add, '', '' );
+					break;
+				}
+				$added = 0;
+				foreach ( array_unique( array_map( 'absint', $this->get_post_array( 'member_ids' ) ) ) as $id ) {
+					$result = $this->entry->add_entrant( $competition, $id );
+					$added += $this->was_entered( $result ) ? 1 : 0;
+					$this->entrant_notice( $result, '', '' );
+				}
+				$this->entrants_added_notice( $added );
+				break;
+
+			case 'add_new_entrant':
+				// Checked first, so a refused entry leaves no member behind.
+				$can_add = $this->entry->can_add_entrants( $competition );
+				if ( is_wp_error( $can_add ) ) {
+					$this->entrant_notice( $can_add, '', '' );
+					break;
+				}
+				$email    = sanitize_email( $this->get_post_string( 'member_email' ) );
+				$existing = $this->members->find_by_email( $email );
+				if ( $existing ) {
+					$this->enter_existing_member( $competition, $existing );
+					break;
+				}
+				$new_id = $this->members->create(
+					array(
+						'name'     => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
+						'email'    => $email,
+						'grade'    => sanitize_key( $this->get_post_string( 'member_grade' ) ),
+						'type_ids' => array( (int) $competition->type_id ),
+					)
+				);
+				if ( is_wp_error( $new_id ) ) {
+					$this->entrant_notice( $new_id, '', '' );
+					break;
+				}
+				$result = $this->entry->add_entrant( $competition, $new_id );
+				$this->entrant_notice( $result, '', '' );
+				$this->entrants_added_notice( $this->was_entered( $result ) ? 1 : 0 );
+				break;
+
+			case 'remove_entrant':
+				$result = $this->entry->remove_entrant( $competition, $member_id );
+				$this->entrant_notice( $result, 'entrant_removed', __( 'Entrant removed.', 'photo-competition-manager' ) );
+				break;
+
+			case 'send_entrant_upload_link':
+				$result = $this->entry->send_upload_link( $competition, $member_id );
+				$this->entrant_notice( $result, 'upload_link_sent', __( 'Upload link sent.', 'photo-competition-manager' ) );
+				break;
+		}
+
+		$this->redirect_with_settings_errors( $url );
+	}
+
+	/**
+	 * Enter a member whose email was typed into "Add a new member", as if they'd
+	 * been picked. An inactive member isn't entered, since they couldn't upload.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $member      The member holding that email.
+	 * @return void
+	 */
+	private function enter_existing_member( object $competition, object $member ): void {
+		if ( empty( $member->active ) ) {
+			$this->queue_notice(
+				'inactive_member',
+				/* translators: %s: Member name */
+				sprintf( __( '%s is an inactive member. Reactivate them on the Members screen, then add them as an entrant.', 'photo-competition-manager' ), $member->name ),
+				'error'
+			);
+			return;
+		}
+
+		$result = $this->entry->add_entrant( $competition, (int) $member->id );
+		$this->entrant_notice(
+			$result,
+			'existing_member_entered',
+			/* translators: %s: Member name */
+			sprintf( __( '%s is already a member, so they were entered.', 'photo-competition-manager' ), $member->name )
+		);
+	}
+
+	/**
+	 * Queue an entrants action's outcome as a notice: its error, or the success message if given.
+	 *
+	 * @param true|\WP_Error $result  Outcome.
+	 * @param string         $code    Success notice code, or '' for none.
+	 * @param string         $message Success message.
+	 * @return void
+	 */
+	private function entrant_notice( $result, string $code, string $message ): void {
+		if ( is_wp_error( $result ) ) {
+			$this->queue_notice( $result->get_error_code(), $result->get_error_message(), 'error' );
+		} elseif ( '' !== $code ) {
+			$this->queue_notice( $code, $message, 'updated' );
+		}
+	}
+
+	/**
+	 * Whether add_entrant() entered the member, even if their upload link didn't go.
+	 *
+	 * @param true|\WP_Error $result add_entrant()'s outcome.
+	 * @return bool
+	 */
+	private function was_entered( $result ): bool {
+		return true === $result || 'upload_link_not_sent' === $result->get_error_code();
+	}
+
+	/**
+	 * Queue the notice for entrants added, if any were.
+	 *
+	 * @param int $added Entrants added.
+	 * @return void
+	 */
+	private function entrants_added_notice( int $added ): void {
+		if ( $added ) {
+			$this->queue_notice(
+				'entrants_added',
+				/* translators: %d: Entrants added */
+				sprintf( _n( '%d entrant added.', '%d entrants added.', $added, 'photo-competition-manager' ), $added ),
+				'updated'
+			);
+		}
+	}
+
+	/**
 	 * Email judges their links and queue the outcome as a notice.
 	 *
 	 * @since 0.4.0
@@ -752,7 +889,7 @@ class Competitions_Controller {
 	 */
 	private function send_judge_links( object $competition, array $judges ): void {
 		if ( ! $judges ) {
-			$this->judge_notice( 'no_judges_to_email', __( 'There are no judges to email.', 'photo-competition-manager' ), 'error' );
+			$this->queue_notice( 'no_judges_to_email', __( 'There are no judges to email.', 'photo-competition-manager' ), 'error' );
 			return;
 		}
 
@@ -764,7 +901,7 @@ class Competitions_Controller {
 			$link = Judge_Link::url( $competition, $judge->token );
 
 			if ( '' === $link ) {
-				$this->judge_notice( 'judge_link_no_voting_page', __( 'No voting page is set for this competition and no published page has the voting shortcode, so there is no link to send.', 'photo-competition-manager' ), 'error' );
+				$this->queue_notice( 'judge_link_no_voting_page', __( 'No voting page is set for this competition and no published page has the voting shortcode, so there is no link to send.', 'photo-competition-manager' ), 'error' );
 				return;
 			}
 
@@ -789,11 +926,11 @@ class Competitions_Controller {
 		}
 
 		foreach ( $errors as $error ) {
-			$this->judge_notice( 'judge_link_failed', $error, 'error' );
+			$this->queue_notice( 'judge_link_failed', $error, 'error' );
 		}
 
 		if ( $sent ) {
-			$this->judge_notice(
+			$this->queue_notice(
 				'judge_links_sent',
 				/* translators: %d: Judges emailed */
 				sprintf( _n( 'Link sent to %d judge.', 'Links sent to %d judges.', $sent, 'photo-competition-manager' ), $sent ),
@@ -810,7 +947,7 @@ class Competitions_Controller {
 	 * @param string $type    'error' or 'updated'.
 	 * @return void
 	 */
-	private function judge_notice( string $code, string $message, string $type ): void {
+	private function queue_notice( string $code, string $message, string $type ): void {
 		add_settings_error( 'photo_competition_manager', $code, $message, $type );
 	}
 
@@ -821,7 +958,20 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function settings_tab_url( int $competition_id ): string {
-		return add_query_arg( 'tab', 'settings', $this->edit_url( $competition_id ) );
+		return $this->tab_url( $competition_id, 'settings' );
+	}
+
+	/**
+	 * A competition's edit screen URL, on a tab.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $tab            Tab slug.
+	 * @return string
+	 */
+	private function tab_url( int $competition_id, string $tab ): string {
+		return add_query_arg( 'tab', $tab, $this->edit_url( $competition_id ) );
 	}
 
 	/**
@@ -894,7 +1044,7 @@ class Competitions_Controller {
 			sprintf(
 				/* translators: %s: linked title of the overlapping competition */
 				__( 'These dates overlap %s, and only one competition can be open at a time. Change its dates or close it first.', 'photo-competition-manager' ),
-				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( $other->title ) . '</a>'
+				'<a href="' . esc_url( $this->edit_url( (int) $other->id ) ) . '">' . esc_html( ( new Competition_Labels() )->title_for_everyone( $other ) ) . '</a>'
 			),
 			$data
 		);
@@ -964,9 +1114,13 @@ class Competitions_Controller {
 
 		$tabs_html = $this->render_competition_tabs( $competition_id, $current_tab );
 
-		$form_html = 'settings' === $current_tab
-			? $this->render_competition_settings_form( $competition ) . $this->render_judges_panel( $competition )
-			: $this->render_competition_general_form( $competition );
+		if ( 'settings' === $current_tab ) {
+			$form_html = $this->render_competition_settings_form( $competition ) . $this->render_judges_panel( $competition );
+		} elseif ( 'entrants' === $current_tab ) {
+			$form_html = $this->render_entrants_panel( $competition );
+		} else {
+			$form_html = $this->render_competition_general_form( $competition );
+		}
 
 		return $this->render_template(
 			'admin/competitions/edit-screen.php',
@@ -990,6 +1144,7 @@ class Competitions_Controller {
 		$tabs = array(
 			'general'  => __( 'General', 'photo-competition-manager' ),
 			'settings' => __( 'Settings', 'photo-competition-manager' ),
+			'entrants' => __( 'Entrants', 'photo-competition-manager' ),
 		);
 
 		return $this->render_template(
@@ -1009,9 +1164,17 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function render_competition_general_form( object $competition ): string {
+		$types   = $this->types->all();
+		$type    = array_column( $types, null, 'id' )[ (int) $competition->type_id ] ?? null;
+		$several = count( $types ) > 1;
+
 		return $this->render_template(
 			'admin/competitions/general-form.php',
 			array(
+				'types'            => $several ? $types : array(),
+				'type_id'          => (int) $competition->type_id,
+				'type_name'        => $type ? $type->name : '',
+				'type_locked'      => $several && $this->competitions->has_entries( (int) $competition->id ),
 				'competition_id'   => (int) $competition->id,
 				'title'            => $competition->title,
 				'slug'             => $competition->slug,
@@ -1125,6 +1288,133 @@ class Competitions_Controller {
 	}
 
 	/**
+	 * Render the entrants panel: who may enter, and the selected entrants.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param  object $competition Competition data.
+	 * @return string
+	 */
+	private function render_entrants_panel( object $competition ): string {
+		$competition_id = (int) $competition->id;
+		$type           = $this->types->find( (int) $competition->type_id );
+		$selected       = Competition_Entry::is_selected( $competition );
+		$named_type     = $type && $this->types->has_several() ? $type : null;
+
+		$entrants      = array();
+		$member_groups = array();
+
+		if ( $selected ) {
+			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
+			$with_entries = array_flip( ( new Images_Repository() )->member_ids( $competition_id ) );
+
+			foreach ( $this->members->find_many( $entrant_ids ) as $member ) {
+				$entrants[] = (object) array(
+					'id'          => (int) $member->id,
+					'name'        => $member->name,
+					'email'       => $member->email,
+					'active'      => (bool) $member->active,
+					'has_entries' => isset( $with_entries[ (int) $member->id ] ),
+				);
+			}
+			usort(
+				$entrants,
+				function ( $a, $b ) {
+					return strcasecmp( $a->name, $b->name );
+				}
+			);
+
+			$member_groups = $this->entrant_picker_groups( (int) $competition->type_id, $entrant_ids, $named_type );
+		}
+
+		$refusal = $this->entry->change_refusal( $competition );
+
+		return $this->render_template(
+			'admin/competitions/entrants-panel.php',
+			array(
+				'competition_id' => $competition_id,
+				'entry_mode'     => $selected ? 'selected' : 'all',
+				'open_label'     => $named_type
+					/* translators: %s: Competition type name */
+					? sprintf( __( 'Open to everyone in %s', 'photo-competition-manager' ), $named_type->name )
+					: __( 'Open to all members', 'photo-competition-manager' ),
+				'can_change'     => null === $refusal,
+				'locked_message' => $refusal ? $refusal->get_error_message() : '',
+				'uploads_open'   => $this->workflow->is_accepting_uploads( $competition ),
+				'entrants'       => $entrants,
+				'member_groups'  => $member_groups,
+				'grade_options'  => Competition_Settings::grade_labels(),
+			)
+		);
+	}
+
+	/**
+	 * The "Add entrants" picker's options: active members who aren't entrants,
+	 * those with the competition's type first.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $type_id     The competition's type ID.
+	 * @param int[]       $entrant_ids Current entrants.
+	 * @param object|null $named_type  The competition's type when the club has several, to name its group; null for one list.
+	 * @return array<int, array{label: string, members: object[]}> Groups; a group's label is '' when there's only one.
+	 */
+	private function entrant_picker_groups( int $type_id, array $entrant_ids, ?object $named_type ): array {
+		$tagged   = array();
+		$others   = array();
+		$entrants = array_flip( $entrant_ids );
+		$in_type  = array_flip( array_map( 'intval', wp_list_pluck( $this->members->find_by_type( $type_id ), 'id' ) ) );
+
+		foreach ( $this->members->find_active_members() as $member ) {
+			if ( isset( $entrants[ (int) $member->id ] ) ) {
+				continue;
+			}
+
+			$option = (object) array(
+				'id'    => (int) $member->id,
+				'name'  => $member->name,
+				'email' => $member->email,
+			);
+
+			if ( isset( $in_type[ (int) $member->id ] ) ) {
+				$tagged[] = $option;
+			} else {
+				$others[] = $option;
+			}
+		}
+
+		// With one type there's nothing to name, so the members come as one list, the type's first.
+		if ( ! $named_type ) {
+			return array_merge( $tagged, $others )
+				? array(
+					array(
+						'label'   => '',
+						'members' => array_merge( $tagged, $others ),
+					),
+				)
+				: array();
+		}
+
+		return array_values(
+			array_filter(
+				array(
+					array(
+						'label'   => $named_type->name,
+						'members' => $tagged,
+					),
+					array(
+						'label'   => __( 'Other members', 'photo-competition-manager' ),
+						'members' => $others,
+					),
+				),
+				function ( $group ) {
+					return ! empty( $group['members'] );
+				}
+			)
+		);
+	}
+
+	/**
 	 * Render category field row.
 	 *
 	 * @param  int   $index    Category index.
@@ -1181,7 +1471,8 @@ class Competitions_Controller {
 			);
 		}
 
-		$rows = array();
+		$rows   = array();
+		$labels = new Competition_Labels();
 		foreach ( $competitions as $competition ) {
 			$is_archived = ! empty( $competition->deleted_at );
 			$comp_id     = (int) $competition->id;
@@ -1321,7 +1612,7 @@ class Competitions_Controller {
 			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
 			$rows[] = array(
-				'title'              => $competition->title,
+				'title'              => $labels->title_for_everyone( $competition ),
 				'opens'              => $this->format_datetime( $competition->open_date ),
 				'closes'             => $this->format_datetime( $competition->close_date ),
 				'last_updated'       => $this->format_datetime( $last_updated_raw ),
@@ -1357,10 +1648,13 @@ class Competitions_Controller {
 	 * @return string
 	 */
 	private function render_create_form(): string {
+		$types = $this->types->all();
+
 		return $this->render_template(
 			'admin/competitions/create-form.php',
 			array(
 				'label_format' => $this->get_ui_date_label(),
+				'types'        => count( $types ) > 1 ? $types : array(),
 			)
 		);
 	}

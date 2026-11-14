@@ -8,7 +8,9 @@
 namespace PhotoCompetitionManager\Tests\API;
 
 use PhotoCompetitionManager\API\Upload_API;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -55,6 +57,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	private function request_for_member( bool $active ): WP_REST_Request {
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -345,5 +348,86 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$request->set_body( wp_json_encode( array( 'changes' => $changes ) ) );
 
 		return $request;
+	}
+
+	/**
+	 * A token for a member of an Individual competition, one of two types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return array{0: WP_REST_Request, 1: int, 2: int} Quota request, competition ID and member ID.
+	 */
+	private function two_type_request( string $entry_mode, array $types ): array {
+		Type_Fixtures::clear();
+		$type_ids       = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => $type_ids['Individual'],
+				'title'      => 'Upload Comp',
+				'slug'       => 'upload-comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'entry_mode' => $entry_mode,
+			)
+		);
+		$member_id      = (int) ( new Members_Repository() )->create(
+			array(
+				'name'     => 'Uploader',
+				'email'    => 'uploader@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+
+		$request = new WP_REST_Request( 'GET', '/photo-comp/v1/upload/quota' );
+		$request->set_param( 'token', ( new Upload_Token_Repository() )->find_or_create( $member_id, $competition_id )->token );
+
+		return array( $request, $competition_id, $member_id );
+	}
+
+	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
+		list( $request, $competition_id, $member_id ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+		$entrants                                     = new Entrants_Repository();
+		$entrants->add( $competition_id, $member_id );
+		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
+
+		$entrants->remove( $competition_id, $member_id );
+		$result = ( new Upload_API() )->validate_token_permission( $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_token', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+	}
+
+	public function test_a_member_without_the_competitions_type_is_refused(): void {
+		list( $request ) = $this->two_type_request( 'all', array( 'Team' ) );
+
+		$result = ( new Upload_API() )->validate_token_permission( $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_token', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+	}
+
+	public function test_a_non_entrants_batch_upload_is_forbidden(): void {
+		list( $request ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+
+		$response = rest_do_request( $this->batch_request( $request->get_param( 'token' ) ) );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 'invalid_token', $response->get_data()['code'] );
+	}
+
+	public function test_a_member_with_the_competitions_type_is_permitted(): void {
+		list( $request ) = $this->two_type_request( 'all', array( 'Individual' ) );
+
+		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
 	}
 }

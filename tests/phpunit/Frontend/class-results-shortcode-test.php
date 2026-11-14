@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Results_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -40,6 +41,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Results Comp',
 				'slug'      => 'results-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -182,6 +184,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
 		$competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Next Month',
 				'slug'      => 'next-month',
 				'open_date' => '2020-02-01 00:00:00',
@@ -211,6 +214,21 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
 
 		$this->assertStringContainsString( 'Club Starters', $html );
+	}
+
+	/**
+	 * A type that renames a grade shows its name on the public results.
+	 */
+	public function test_results_page_shows_type_grade_names(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		// The type is locked once a competition has entries, so set it directly.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( 'Novice Cup', $html );
+		$this->assertStringNotContainsString( '>Beginner<', $html );
 	}
 
 	/**

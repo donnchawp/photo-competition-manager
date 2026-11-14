@@ -29,6 +29,15 @@ document.addEventListener('DOMContentLoaded', function() {
 		});
 	}
 
+	// Show/hide type selector based on bulk action
+	const typeSelector = document.getElementById('bulk-type-selector');
+	if (bulkAction && typeSelector) {
+		bulkAction.addEventListener('change', function() {
+			const needsType = bulkAction.value === 'bulk_add_type' || bulkAction.value === 'bulk_remove_type';
+			typeSelector.style.display = needsType ? 'inline-block' : 'none';
+		});
+	}
+
 	// Form validation
 	const bulkForm = document.getElementById('bulk-members-form');
 	if (bulkForm) {
@@ -43,6 +52,11 @@ document.addEventListener('DOMContentLoaded', function() {
 			if (checked.length === 0) {
 				e.preventDefault();
 				alert(photoCompMembersAdmin.selectOneMember);
+				return false;
+			}
+			if ((action === 'bulk_add_type' || action === 'bulk_remove_type') && !typeSelector.value) {
+				e.preventDefault();
+				alert(photoCompMembersAdmin.selectType);
 				return false;
 			}
 			if (action === 'bulk_update_grade') {

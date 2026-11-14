@@ -18,6 +18,8 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Entry;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
@@ -425,7 +427,6 @@ class Voting_Controller {
 		}
 
 		$active_settings = Competition_Settings::parse( $active_competition->settings );
-		$global_settings = Competition_Settings::global_settings();
 
 		// Check that required pages are configured.
 		$voting_page  = Competition_Settings::page_url( 'voting_page', $active_competition );
@@ -465,7 +466,7 @@ class Voting_Controller {
 
 			if ( $open_competition_id !== (int) $active_competition->id ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-				echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => $open['competition']->title ) );
+				echo $this->render_template( 'admin/voting/notice-voting-open-elsewhere.php', array( 'title' => ( new Competition_Labels() )->title_for_everyone( $open['competition'] ) ) );
 			}
 		}
 
@@ -552,10 +553,10 @@ class Voting_Controller {
 
 		if ( $all_complete && ! $voting_open_globally ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_competition_complete( $active_competition, $all_categories, $global_settings, $results_page, $top3_page );
+			echo $this->render_competition_complete( $active_competition, $all_categories, $active_settings, $results_page, $top3_page );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_workflow_steps( $active_category_data, $global_settings, count( $all_categories ) );
+			echo $this->render_workflow_steps( $active_category_data, $active_settings, count( $all_categories ) );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -621,7 +622,11 @@ class Voting_Controller {
 
 
 	/**
-	 * Queue voting opened notifications to all active members.
+	 * Queue voting opened notifications to the active members carrying the competition's type.
+	 *
+	 * With emailed voting links the recipients are those who may enter, as only they can
+	 * ask for a link. With the voting password it isn't narrowed to a selected competition's
+	 * entrants: anyone of the type may vote with the password.
 	 *
 	 * When members would be told but there's no voting page to link, nothing
 	 * is queued and the page warns that they weren't emailed.
@@ -653,8 +658,14 @@ class Voting_Controller {
 			return null;
 		}
 
+		// With emailed links only those who may enter can ask for one; with a password anyone of the type can vote.
+		$token_mode = 'token' === ( Competition_Settings::parse( $competition->settings )['voting']['auth_mode'] ?? 'password' );
+		$recipients = $token_mode
+			? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition )
+			: $this->members->find_by_type( (int) $competition->type_id );
+
 		$member_ids = array();
-		foreach ( $this->members->all( 10000, true ) as $member ) {
+		foreach ( $recipients as $member ) {
 			if ( ! empty( $member->email ) ) {
 				$member_ids[] = (int) $member->id;
 			}
@@ -767,11 +778,11 @@ class Voting_Controller {
 	 * Replaces the old render_category_control_panel() method.
 	 *
 	 * @param array $category_data    Category data array with competition, settings, etc.
-	 * @param array $global_settings  Global default settings.
+	 * @param array $settings         The competition's settings.
 	 * @param int   $total_categories Total number of categories (for single-category heading).
 	 * @return string
 	 */
-	private function render_workflow_steps( array $category_data, array $global_settings, int $total_categories = 1 ): string {
+	private function render_workflow_steps( array $category_data, array $settings, int $total_categories = 1 ): string {
 		$competition    = $category_data['competition'];
 		$category       = $category_data['category'];
 		$image_count    = $category_data['image_count'];
@@ -780,10 +791,10 @@ class Voting_Controller {
 		$current_step   = $category_data['current_step'] ?? 1;
 		$comp_id        = (int) $competition->id;
 
-		// Duration defaults from global settings.
-		$preview_duration  = $global_settings['slideshow']['preview_duration'] ?? 10;
-		$voting_duration   = $global_settings['slideshow']['voting_duration'] ?? 15;
-		$critique_duration = $global_settings['slideshow']['critique_duration'] ?? 0;
+		// Duration defaults from the competition's settings.
+		$preview_duration  = $settings['slideshow']['preview_duration'] ?? 10;
+		$voting_duration   = $settings['slideshow']['voting_duration'] ?? 15;
+		$critique_duration = $settings['slideshow']['critique_duration'] ?? 0;
 
 		// Why the workflow can't start, and why Open Voting is disabled.
 		// Only the previewed step shows the Open Voting button.
@@ -941,17 +952,17 @@ class Voting_Controller {
 	 *
 	 * @param object $competition       Competition object.
 	 * @param array  $all_categories    All category data.
-	 * @param array  $global_settings   Global settings.
+	 * @param array  $settings          The competition's settings.
 	 * @param string $results_url       The results page URL.
 	 * @param string $top3_url          The top 3 page URL.
 	 * @return string
 	 */
-	private function render_competition_complete( object $competition, array $all_categories, array $global_settings, string $results_url, string $top3_url ): string {
+	private function render_competition_complete( object $competition, array $all_categories, array $settings, string $results_url, string $top3_url ): string {
 		$results_visible = $this->workflow->results_published( $competition );
 
 		// Duration defaults for replay.
-		$slideshow_replay_duration = $global_settings['slideshow']['voting_duration'] ?? 15;
-		$critique_replay_duration  = $global_settings['slideshow']['critique_duration'] ?? 0;
+		$slideshow_replay_duration = $settings['slideshow']['voting_duration'] ?? 15;
+		$critique_replay_duration  = $settings['slideshow']['critique_duration'] ?? 0;
 
 		$show_results_url = wp_nonce_url(
 			add_query_arg(

@@ -54,7 +54,10 @@ class Plugin {
 	 * @return void
 	 */
 	public function bootstrap(): void {
-		\PhotoCompetitionManager\Install\Activator::maybe_upgrade();
+		// At init, not now: upgrades read settings whose defaults are translated, and
+		// translating before init logs a notice. Priority 0 runs them before anything
+		// else hooked to init or later reads the tables they change.
+		add_action( 'init', array( \PhotoCompetitionManager\Install\Activator::class, 'maybe_upgrade' ), 0 );
 
 		$this->admin->register();
 		$this->frontend->register();

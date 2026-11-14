@@ -4,10 +4,11 @@
  *
  * Reads $data['show_count'] (bool), $data['filtered_count'] (int),
  * $data['total_count'] (int), $data['grade_options'] (array<string,string> of
- * grade slug => label), and $data['rows']: array of row objects, each
+ * grade slug => label), $data['type_options'] (array<int,string> of type ID
+ * => name; empty unless the club has several types), and $data['rows']: array of row objects, each
  * pre-formatted by the controller with: member_id, name, email, grade_label,
  * status_label, joined, edit_link, delete_url, show_send_email, send_url,
- * upload_url.
+ * upload_url, types_label.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -40,6 +41,10 @@ echo '<option value="-1">' . esc_html__( 'Bulk Actions', 'photo-competition-mana
 echo '<option value="bulk_activate">' . esc_html__( 'Activate', 'photo-competition-manager' ) . '</option>';
 echo '<option value="bulk_deactivate">' . esc_html__( 'Deactivate', 'photo-competition-manager' ) . '</option>';
 echo '<option value="bulk_update_grade">' . esc_html__( 'Update Grade', 'photo-competition-manager' ) . '</option>';
+if ( $data['type_options'] ) {
+	echo '<option value="bulk_add_type">' . esc_html__( 'Add to type', 'photo-competition-manager' ) . '</option>';
+	echo '<option value="bulk_remove_type">' . esc_html__( 'Remove from type', 'photo-competition-manager' ) . '</option>';
+}
 echo '</select>';
 
 echo ' <select name="bulk_grade" id="bulk-grade-selector" style="display:none;">';
@@ -48,6 +53,15 @@ foreach ( $data['grade_options'] as $grade_value => $grade_label ) {
 	echo '<option value="' . esc_attr( $grade_value ) . '">' . esc_html( $grade_label ) . '</option>';
 }
 echo '</select>';
+
+if ( $data['type_options'] ) {
+	echo ' <select name="bulk_type" id="bulk-type-selector" style="display:none;">';
+	echo '<option value="">' . esc_html__( 'Select Type...', 'photo-competition-manager' ) . '</option>';
+	foreach ( $data['type_options'] as $type_id => $type_name ) {
+		echo '<option value="' . esc_attr( $type_id ) . '">' . esc_html( $type_name ) . '</option>';
+	}
+	echo '</select>';
+}
 
 echo ' <button type="submit" class="button action">' . esc_html__( 'Apply', 'photo-competition-manager' ) . '</button>';
 echo '</div>';
@@ -59,6 +73,9 @@ echo '<td class="check-column"><input type="checkbox" id="cb-select-all-1" /></t
 echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
+if ( $data['type_options'] ) {
+	echo '<th>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</th>';
+}
 echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Joined', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
@@ -71,6 +88,9 @@ foreach ( $data['rows'] as $member_row ) {
 	echo '<td>' . esc_html( $member_row->name ) . '</td>';
 	echo '<td>' . esc_html( $member_row->email ) . '</td>';
 	echo '<td>' . esc_html( $member_row->grade_label ) . '</td>';
+	if ( $data['type_options'] ) {
+		echo '<td>' . esc_html( $member_row->types_label ) . '</td>';
+	}
 	echo '<td>' . esc_html( $member_row->status_label ) . '</td>';
 	echo '<td>' . esc_html( $member_row->joined ) . '</td>';
 

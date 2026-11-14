@@ -2,7 +2,7 @@
 /**
  * Import-members-from-CSV form partial for the admin members page.
  *
- * Reads no $data keys.
+ * Reads $data['show_types'] (bool): whether the club has several types.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -43,6 +43,10 @@ echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inact
 echo '<br />';
 echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New members need one. Leave it blank to keep an existing member\'s grade.', 'photo-competition-manager' );
 echo '<br />';
+if ( $data['show_types'] ) {
+	echo esc_html__( 'Types: optional column of competition type names separated by semicolons. It replaces the member\'s types. Leave it out to keep an existing member\'s types; new members get none.', 'photo-competition-manager' );
+	echo '<br />';
+}
 echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';
 echo '</p>';
 

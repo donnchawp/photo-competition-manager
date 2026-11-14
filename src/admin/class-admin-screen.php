@@ -61,6 +61,13 @@ class Admin_Screen {
 	private $settings_controller;
 
 	/**
+	 * Competition types controller.
+	 *
+	 * @var Types_Controller
+	 */
+	private $types_controller;
+
+	/**
 	 * Export screen.
 	 *
 	 * @var Export_Screen
@@ -117,6 +124,7 @@ class Admin_Screen {
 		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
 		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images, $deps->members, $deps->email_job_manager );
 		$this->settings_controller        = new Settings_Controller( $deps->members );
+		$this->types_controller           = new Types_Controller( new \PhotoCompetitionManager\Repository\Competition_Types_Repository() );
 		$this->export_screen              = new Export_Screen();
 		$this->results_controller         = new Results_Controller(
 			$deps->competitions,
@@ -149,6 +157,7 @@ class Admin_Screen {
 		$this->submissions_controller->register();
 		$this->voting_controller->register();
 		$this->settings_controller->register();
+		$this->types_controller->register();
 		$this->export_screen->register();
 		$this->results_controller->register();
 		$this->setup_wizard_controller->register();
@@ -242,6 +251,15 @@ class Admin_Screen {
 			'manage_photo_competitions',
 			'photo-competition-manager-settings',
 			array( $this->settings_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Competition Types', 'photo-competition-manager' ),
+			__( 'Competition Types', 'photo-competition-manager' ),
+			'manage_photo_competitions',
+			'photo-competition-manager-types',
+			array( $this->types_controller, 'render' )
 		);
 
 		add_submenu_page(

@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Log_Retention;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
@@ -340,8 +341,9 @@ class Logs_Controller {
 	private function render_logs_table( array $logs, array $competitions ): string {
 		// Build competition lookup.
 		$comp_lookup = array();
+		$labels      = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
-			$comp_lookup[ (int) $comp->id ] = $comp->title;
+			$comp_lookup[ (int) $comp->id ] = $labels->title_for_everyone( $comp );
 		}
 
 		// Pre-format each row so the partial only reads $data; helper calls
@@ -447,8 +449,9 @@ class Logs_Controller {
 		// Get all competitions for lookup.
 		$competitions = $this->competitions->all( 100, false, false );
 		$comp_lookup  = array();
+		$labels       = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
-			$comp_lookup[ (int) $comp->id ] = $comp->title;
+			$comp_lookup[ (int) $comp->id ] = $labels->title_for_everyone( $comp );
 		}
 
 		// Set headers for CSV download.

@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Settings_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Log_Retention;
@@ -167,29 +169,6 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Renaming a grade keeps its slug, so its members still hold it.
 	 */
-	public function test_score_matrix_with_a_non_number_is_stored_as_a_list(): void {
-		$this->set_request(
-			array(
-				'photo_competition_action' => 'update_global_settings',
-				'categories'               => array(
-					array(
-						'label' => 'Colour',
-						'slug'  => 'colour',
-						'quota' => '1',
-					),
-				),
-				'grades'                   => $this->default_grade_rows(),
-				'score_matrix'             => '10, x, 8',
-			)
-		);
-		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
-
-		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
-
-		$stored = json_decode( get_option( 'photo_comp_default_settings' ), true );
-		$this->assertSame( array( 10, 8 ), $stored['voting']['score_matrix'] );
-	}
-
 	public function test_renaming_a_grade_keeps_its_slug(): void {
 		$member = $this->create_member( 'Ann Advanced', 'advanced' );
 
@@ -319,6 +298,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$competitions = new Competitions_Repository();
 		$id           = $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'    => 'Old Comp',
 				'slug'     => 'old-comp',
 				'settings' => array(
@@ -420,64 +400,98 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array( 'settings_saved' ), $this->settings_error_codes( 'photo_competition_settings' ) );
 	}
 
+	/**
+	 * Competition defaults belong to types now, so Settings neither saves
+	 * them on a type nor changes the old copies in the club option.
+	 */
+	public function test_settings_save_no_longer_touches_competition_defaults(): void {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+
+		$types   = new Competition_Types_Repository();
+		$type_id = $types->create(
+			'Individual',
+			array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => 1,
+					),
+				),
+				'voting'     => array(
+					'score_matrix' => array( 3, 2, 1 ),
+					'auth_mode'    => 'token',
+				),
+			)
+		);
+		$before = $types->find( $type_id )->settings;
+
+		$old_club = array(
+			'categories' => array(
+				array(
+					'label' => 'Old',
+					'slug'  => 'old',
+					'quota' => 1,
+				),
+			),
+			'voting'     => array(
+				'score_matrix' => array( 7, 6 ),
+				'auth_mode'    => 'password',
+			),
+			'slideshow'  => array( 'preview_duration' => 30 ),
+		);
+		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $old_club ) );
+
+		$this->save_grades(
+			$this->default_grade_rows(),
+			array(
+				'voting_auth_mode'    => 'judges',
+				'score_matrix'        => '10, 9',
+				'voting_password'     => 'new',
+				'click_image_to_zoom' => '1',
+				'max_file_size_mb'    => '9',
+				'preview_duration'    => '5',
+				'voting_ui_type'      => 'dropdown',
+				'email_from_name'     => 'Camera Club',
+			)
+		);
+
+		$this->assertSame( array( 'settings_saved' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+		$this->assertSame( $before, $types->find( $type_id )->settings );
+
+		$saved = json_decode( (string) get_option( 'photo_comp_default_settings' ), true );
+		foreach ( array( 'categories', 'voting', 'slideshow' ) as $key ) {
+			$this->assertSame( $old_club[ $key ], $saved[ $key ], "Club option key {$key} changed." );
+		}
+		$this->assertArrayNotHasKey( 'upload', $saved );
+		$this->assertSame( 'Camera Club', $saved['email']['from_name'] );
+		$this->assertSame( 'dropdown', get_option( 'photo_comp_voting_ui_type' ) );
+	}
+
+	/**
+	 * Settings saves without any category posted.
+	 */
+	public function test_settings_save_without_categories(): void {
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_global_settings',
+				'grades'                   => $this->default_grade_rows(),
+			)
+		);
+		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+
+		$this->assertSame( array( 'settings_saved' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+	}
+
 	public function test_logs_can_be_kept_forever(): void {
 		update_option( Log_Retention::OPTION, 12 );
 
 		$this->save_log_retention( 'forever', '12' );
 
 		$this->assertSame( 0, Log_Retention::months() );
-	}
-
-	/**
-	 * Judges can be the club's default for who scores.
-	 */
-	public function test_who_scores_can_default_to_judges(): void {
-		$this->set_request(
-			array(
-				'photo_competition_action' => 'update_global_settings',
-				'categories'               => array(
-					array(
-						'label' => 'Colour',
-						'slug'  => 'colour',
-						'quota' => '1',
-					),
-				),
-				'grades'                   => $this->default_grade_rows(),
-				'voting_auth_mode'         => 'judges',
-			)
-		);
-		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
-
-		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
-
-		$saved = json_decode( (string) get_option( 'photo_comp_default_settings' ), true );
-		$this->assertSame( 'judges', $saved['voting']['auth_mode'] );
-	}
-
-	/**
-	 * An unknown choice for who scores falls back to the voting password.
-	 */
-	public function test_an_unknown_who_scores_falls_back_to_password(): void {
-		$this->set_request(
-			array(
-				'photo_competition_action' => 'update_global_settings',
-				'categories'               => array(
-					array(
-						'label' => 'Colour',
-						'slug'  => 'colour',
-						'quota' => '1',
-					),
-				),
-				'grades'                   => $this->default_grade_rows(),
-				'voting_auth_mode'         => 'robots',
-			)
-		);
-		$this->set_nonce( 'photo_competition_global_settings', 'photo_competition_nonce' );
-
-		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
-
-		$saved = json_decode( (string) get_option( 'photo_comp_default_settings' ), true );
-		$this->assertSame( 'password', $saved['voting']['auth_mode'] );
 	}
 
 	/**

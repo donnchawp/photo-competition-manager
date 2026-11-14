@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Logs_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Service\Log_Retention;
@@ -135,6 +136,7 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	private function seed_competition( string $title, ?string $created_at = null ): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => sanitize_title( $title ),
 				// A past, closed range never overlaps the other seeded competitions.

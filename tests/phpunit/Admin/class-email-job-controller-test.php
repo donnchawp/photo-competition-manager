@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Email_Job_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -47,6 +48,7 @@ class Email_Job_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show',
 				'open_date'  => null,

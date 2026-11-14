@@ -19,6 +19,14 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * The settings a competition type holds.
+	 *
+	 * @since 0.4.0
+	 * @var string[]
+	 */
+	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders' );
+
+	/**
 	 * How voters prove who they are: the club's voting password, a member's
 	 * voting link, or an external judge's link.
 	 *
@@ -27,6 +35,15 @@ class Competition_Settings {
 	 * @var string[]
 	 */
 	public const AUTH_MODES = array( 'password', 'token', 'judges' );
+
+	/**
+	 * The slideshow's progress meter styles.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const METER_TYPES = array( 'bar', 'line', 'dots', 'radial' );
 
 	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
@@ -170,12 +187,23 @@ class Competition_Settings {
 	}
 
 	/**
+	 * The club's settings as stored, without defaults filled in.
+	 *
+	 * @since 0.4.0
+	 * @return array<string, mixed>
+	 */
+	public static function stored_club_settings_array(): array {
+		return self::decode( self::stored_club_settings() );
+	}
+
+	/**
 	 * Decode settings JSON, treating empty or invalid JSON as no settings.
 	 *
+	 * @since 0.4.0 Public.
 	 * @param string|null $json Settings JSON.
 	 * @return array<string, mixed>
 	 */
-	private static function decode( ?string $json ): array {
+	public static function decode( ?string $json ): array {
 		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
 
 		return is_array( $decoded ) ? $decoded : array();
@@ -325,8 +353,7 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
-			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
-			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
+			if ( ! in_array( $settings['slideshow']['progress_meter_type'], self::METER_TYPES, true ) ) {
 				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
 			}
 		}
@@ -341,7 +368,7 @@ class Competition_Settings {
 	 * @param array<string, mixed> $settings Club settings to validate.
 	 * @return true|WP_Error
 	 */
-	private static function validate_grades( array $settings ) {
+	public static function validate_grades( array $settings ) {
 		if ( ! isset( $settings['grades'] ) || ! is_array( $settings['grades'] ) ) {
 			return new WP_Error( 'invalid_grades', __( 'Grades must be an array.', 'photo-competition-manager' ) );
 		}
@@ -394,6 +421,51 @@ class Competition_Settings {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A type's settings with defaults filled in, for exactly the keys a type holds.
+	 *
+	 * @since 0.4.0
+	 * @param object $type Type row, with its settings decoded to an array.
+	 * @return array<string, mixed>
+	 */
+	public static function type_settings( object $type ): array {
+		$stored = is_array( $type->settings ?? null ) ? $type->settings : array();
+		$merged = self::merge_recursive( self::defaults(), $stored );
+
+		return array_intersect_key( $merged, array_flip( self::TYPE_KEYS ) );
+	}
+
+	/**
+	 * Validate the settings a type holds.
+	 *
+	 * @since 0.4.0
+	 * @param array<string, mixed> $settings Settings to validate.
+	 * @return true|WP_Error
+	 */
+	public static function validate_type_settings( array $settings ) {
+		if ( isset( $settings['categories'] ) && is_array( $settings['categories'] ) && empty( $settings['categories'] ) ) {
+			return new WP_Error( 'missing_categories', __( 'At least one category is required.', 'photo-competition-manager' ) );
+		}
+
+		return self::validate( $settings, false );
+	}
+
+	/**
+	 * The settings a new competition of a type starts with.
+	 *
+	 * Competitions keep their own copy of the club's page links.
+	 *
+	 * @since 0.4.0
+	 * @param object $type Type row.
+	 * @return array<string, mixed>
+	 */
+	public static function settings_for_new_competition( object $type ): array {
+		$settings         = self::type_settings( $type );
+		$settings['urls'] = self::global_settings()['urls'] ?? array();
+
+		return $settings;
 	}
 
 	/**

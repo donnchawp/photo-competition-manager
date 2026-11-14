@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Results_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -125,6 +126,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		return $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Spring Show',
 					'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 					// A past, closed range is clock-independent and never overlaps,
@@ -437,6 +439,61 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'job_id=email_job_', $location );
+	}
+
+	/**
+	 * The results link to all members goes only to the active members of the competition's type.
+	 */
+	public function test_send_results_all_goes_only_to_members_of_the_competitions_type(): void {
+		$other_type = Type_Fixtures::create( 'Juniors' );
+		$own_type   = Type_Fixtures::id();
+
+		$id = $this->create_competition(
+			array(
+				'type_id'    => $own_type,
+				'share_hash' => 'def456hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		Workflow_Fixtures::publish_results( $id );
+
+		$inside  = (int) $this->members->create(
+			array(
+				'name'     => 'Inside',
+				'email'    => 'inside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $own_type ),
+			)
+		);
+		$outside = (int) $this->members->create(
+			array(
+				'name'     => 'Outside',
+				'email'    => 'outside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $other_type ),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertContains( $inside, array_map( 'intval', $job['member_ids'] ) );
+		$this->assertNotContains( $outside, array_map( 'intval', $job['member_ids'] ) );
 	}
 
 	/**

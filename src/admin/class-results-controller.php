@@ -12,10 +12,12 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Entries;
@@ -303,7 +305,7 @@ class Results_Controller {
 			if ( 'send_results_committee' === $action ) {
 				$recipients = $this->members->find_committee_members();
 			} else {
-				$recipients = $this->members->find_active_members();
+				$recipients = $this->members->find_by_type( (int) $competition->type_id );
 			}
 
 			$member_ids = array();
@@ -424,6 +426,7 @@ class Results_Controller {
 
 		// Competition selector options.
 		$competition_options = array();
+		$labels              = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
 			$url = add_query_arg(
 				array(
@@ -436,7 +439,7 @@ class Results_Controller {
 			$competition_options[] = array(
 				'url'      => $url,
 				'selected' => ( (int) $comp->id === (int) $competition->id ),
-				'title'    => $comp->title,
+				'title'    => $labels->title_for_everyone( $comp ),
 			);
 		}
 
@@ -540,9 +543,23 @@ class Results_Controller {
 			);
 		}
 
+		$send_all_confirm = __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' );
+		$types            = new Competition_Types_Repository();
+		if ( $types->has_several() ) {
+			$type = $types->find( (int) $competition->type_id );
+			if ( $type ) {
+				$send_all_confirm = sprintf(
+					/* translators: %s: competition type name */
+					__( 'This will send the results link to all active members of %s. Continue?', 'photo-competition-manager' ),
+					$type->name
+				);
+			}
+		}
+
 		return $this->render_template(
 			'admin/results/overview.php',
 			array(
+				'send_all_confirm'     => $send_all_confirm,
 				'competition_options'  => $competition_options,
 				'summary_cards_html'   => $summary_cards_html,
 				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),
@@ -641,6 +658,7 @@ class Results_Controller {
 	 */
 	private function render_results_table( object $competition, string $category, array $groups ): string {
 		$grade_tables = array();
+		$labels       = new Competition_Labels();
 
 		foreach ( $groups as $group ) {
 			$rows = array();
@@ -672,7 +690,7 @@ class Results_Controller {
 			}
 
 			$grade_tables[] = array(
-				'label' => $group['label'],
+				'label' => $group['ungraded'] ? $group['label'] : $labels->admin_grade_label( $competition, $group['slug'] ),
 				'rows'  => $rows,
 			);
 		}
@@ -730,7 +748,7 @@ class Results_Controller {
 				'image_url'      => $image_url,
 				'member_name'    => $member ? $member->name : __( 'Unknown', 'photo-competition-manager' ),
 				'member_email'   => ( $member && ! empty( $member->email ) ) ? $member->email : '',
-				'member_grade'   => $member ? $member->grade : '',
+				'member_grade'   => $member ? ( new Competition_Labels() )->admin_grade_label( $competition, (string) $member->grade ) : '',
 				'has_member'     => (bool) $member,
 				'category_label' => $category_label,
 				'image_number'   => $image->random_number,
@@ -799,6 +817,7 @@ class Results_Controller {
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
+		$title             = ( new Competition_Labels() )->title_for_everyone( $competition );
 		$rows_by_grade     = array_fill_keys( array_column( Competition_Settings::club_grades(), 'slug' ), array() );
 		$rows_by_grade[''] = array();
 
@@ -812,7 +831,7 @@ class Results_Controller {
 					$member = $entry['member'];
 
 					$rows_by_grade[ $group['slug'] ][] = array(
-						$competition->title,
+						$title,
 						$group['label'],
 						$category_label,
 						$entry['position'],

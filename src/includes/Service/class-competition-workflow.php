@@ -231,6 +231,24 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Whether any of the competition's categories has started voting.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public function has_any_voting_started( object $competition ): bool {
+		foreach ( $this->category_slugs( $competition ) as $category_slug ) {
+			if ( $this->has_voting_started( $competition, $category_slug ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Whether a category is accepting votes: its stage takes votes, and the
 	 * competition is inside its dates.
 	 *

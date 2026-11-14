@@ -58,6 +58,13 @@ class Upload_Link_Service {
 	private $workflow;
 
 	/**
+	 * Who may enter, built on first use since it uses this service too.
+	 *
+	 * @var Competition_Entry|null
+	 */
+	private $entry;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Upload_Token_Repository|null $token_repo        Token repository.
@@ -89,10 +96,11 @@ class Upload_Link_Service {
 	 *
 	 * @since 0.3.0
 	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
+	 * @since 0.4.0 Refuses a member who may not enter, with 'not_an_entrant'.
 	 * @param int  $competition_id Competition ID.
 	 * @param int  $member_id      Member ID.
 	 * @param bool $force_send     Force sending even if a recent token exists.
-	 * @return bool|WP_Error True on success, WP_Error on hard failure, 'no_upload_page' when no upload page can be found.
+	 * @return bool|WP_Error True on success, WP_Error on hard failure, 'no_upload_page' when no upload page can be found, 'not_an_entrant' when the member may not enter.
 	 */
 	public function send_to_member( int $competition_id, int $member_id, $force_send = false ) {
 		$competition = $this->competitions_repo->find( $competition_id );
@@ -135,7 +143,7 @@ class Upload_Link_Service {
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
 	 * @param bool   $force_send  Force sending even if a recent token exists.
-	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 * @return bool|WP_Error True on success, WP_Error on failure: 'not_an_entrant' when the member may not enter.
 	 */
 	private function send_link( object $competition, object $member, bool $force_send ) {
 		$competition_id = (int) $competition->id;
@@ -147,6 +155,10 @@ class Upload_Link_Service {
 
 		if ( empty( $member->email ) ) {
 			return new WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
+		}
+
+		if ( ! $this->entry()->may_enter( $competition, $member ) ) {
+			return new WP_Error( 'not_an_entrant', __( 'This member may not enter this competition.', 'photo-competition-manager' ) );
 		}
 
 		// Rate-limit: if an email was sent recently, skip unless forced.
@@ -200,6 +212,9 @@ class Upload_Link_Service {
 
 	/**
 	 * Email an upload link by member email without leaking existence (no enumeration).
+	 *
+	 * A member who may not enter is sent nothing, with the same success, so it
+	 * doesn't say who has entered.
 	 *
 	 * @since 0.3.0
 	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
@@ -270,9 +285,10 @@ class Upload_Link_Service {
 	}
 
 	/**
-	 * Queue submission reminder emails to all active members for a competition.
+	 * Queue submission reminder emails to the active members who may enter a competition.
 	 *
 	 * @since 0.3.0
+	 * @since 0.4.0 Only the members who may enter, not every active member.
 	 * @param int               $competition_id Competition ID.
 	 * @param Email_Job_Manager $email_jobs     Email job queue.
 	 * @return string|WP_Error Job ID, or why nothing was queued.
@@ -291,15 +307,10 @@ class Upload_Link_Service {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 
-		$member_ids = array();
-		foreach ( $this->members_repo->find_active_members() as $member ) {
-			if ( ! empty( $member->email ) ) {
-				$member_ids[] = (int) $member->id;
-			}
-		}
+		$member_ids = $this->entry()->eligible_member_ids( $competition );
 
 		if ( empty( $member_ids ) ) {
-			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );
+			return new WP_Error( 'no_members', __( 'No one may enter this competition yet.', 'photo-competition-manager' ) );
 		}
 
 		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
@@ -307,6 +318,19 @@ class Upload_Link_Service {
 		}
 
 		return $email_jobs->queue( 'upload_reminder', $competition_id, $member_ids );
+	}
+
+	/**
+	 * Who may enter.
+	 *
+	 * @return Competition_Entry
+	 */
+	private function entry(): Competition_Entry {
+		if ( ! $this->entry ) {
+			$this->entry = new Competition_Entry( $this->competitions_repo, $this->members_repo, $this );
+		}
+
+		return $this->entry;
 	}
 
 	/**

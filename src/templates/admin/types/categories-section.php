@@ -1,10 +1,10 @@
 <?php
 /**
- * Categories section partial for the admin settings page.
+ * Categories section partial for the competition type form.
  *
  * Reads $data['category_rows_html'] (string): pre-rendered category row
  * markup, one row per configured category, produced by
- * Settings_Controller::render_category_field().
+ * Type_Settings_Form::render_categories_section().
  *
  * @package PhotoCompetitionManager
  */

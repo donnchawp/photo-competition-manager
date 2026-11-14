@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -53,6 +54,7 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		return (int) $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Workflow ' . $n,
 					'slug'       => 'workflow-' . $n,
 					'open_date'  => utc_time( -DAY_IN_SECONDS ),
@@ -94,6 +96,16 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->is_accepting_uploads( $competition ) );
 		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, $this->workflow->stage( $competition, 'colour' ) );
 		$this->assertFalse( $this->workflow->is_accepting_votes( $competition, 'colour' ) );
+	}
+
+	public function test_any_voting_started_once_one_category_is_past_previewed(): void {
+		$id = $this->ready_to_open( 'mono' );
+
+		$this->assertFalse( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
+
+		$this->workflow->open_voting( $id, 'mono' );
+
+		$this->assertTrue( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
 	}
 
 	public function test_closing_uploads_is_saved(): void {
