@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
 // One nonce field per form, without wp_nonce_field()'s id, which would repeat on the page.
 $nonce_field = '<input type="hidden" name="photo_competition_nonce" value="' . esc_attr( wp_create_nonce( 'photo_competition_judges_' . $data['competition_id'] ) ) . '" />';
 
-echo '<div class="card" style="max-width: 720px; padding: 16px;">';
+echo '<div class="card" id="photo-comp-judges" style="max-width: 720px; padding: 16px;">';
 echo '<h3>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</h3>';
 
 if ( empty( $data['judges'] ) ) {

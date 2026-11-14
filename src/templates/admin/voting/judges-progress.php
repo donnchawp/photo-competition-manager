@@ -14,9 +14,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// The heading sits inside .inside, as on the page's other cards, which gives it the card's padding.
 echo '<div class="postbox photo-comp-judges-progress">';
-echo '<div class="postbox-header"><h2 class="hndle">' . esc_html__( 'Judge progress', 'photo-competition-manager' ) . '</h2></div>';
 echo '<div class="inside">';
+echo '<h2>' . esc_html__( 'Judge progress', 'photo-competition-manager' ) . '</h2>';
 echo '<table class="widefat striped"><tbody>';
 foreach ( $data['judges'] as $judge ) {
 	echo '<tr>';
