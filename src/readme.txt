@@ -215,7 +215,7 @@ Yes. Visit **Competitions → Export** to download:
   * A new Judges screen keeps each judge's name and email. Judges aren't members and get none of the member emails
   * Pick a competition's judges on its Settings tab. Each judge gets a private link, which you can email to them with the new Judge link email or copy and open on the night. It works only while the judge is picked and a category is open
   * Judges score every image in the open category from the competition's score list, and an image's total is the sum of their scores
-  * Members can't vote in a judged competition. They don't get the Voting Opened email, and the upload email leaves out the voting page
+  * Members can't vote in a judged competition. They don't get the Voting Opened email, and the upload email's new `{voting_info}` tag is left empty. A customised upload email that names the voting page in its own words still does, so before running a judged competition replace that text with `{voting_info}`
   * The detailed results email shows only an image's total and position in a judged competition. Admins can still see each judge's score on the Results screen and in the votes CSV, where each judge is named
   * Voting Controls shows which judges have scored the open category
   * Deleting a judge, or erasing them with Tools > Erase Personal Data, removes their name and email and every log entry about them. Their scores still count
