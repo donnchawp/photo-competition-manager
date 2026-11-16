@@ -368,6 +368,16 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertTrue( $data['interclub']['enabled'] );
 	}
 
+	public function test_the_upload_script_knows_a_panels_entered_places_left(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		// Without it the script refuses every entered image in an interclub batch.
+		$this->assertSame( 1, $this->upload_script_data()['quotas']['colour']['entered_remaining'] ?? null );
+	}
+
 	public function test_a_club_sees_each_images_photographer_and_its_substitutes(): void {
 		$this->make_interclub( 1, 1 );
 		$_GET['token'] = $this->issue_token( true );

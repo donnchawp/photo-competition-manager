@@ -577,7 +577,7 @@ class Upload_Shortcode {
 					$categories_data[ $cat['slug'] ] = array(
 						'label'       => $cat['label'],
 						'quota'       => $cat['quota'],
-						'substitutes' => $interclub['enabled'] ? (int) $interclub['substitutes'] : 0,
+						'substitutes' => Competition_Settings::substitutes( $settings ),
 					);
 				}
 
@@ -740,16 +740,6 @@ class Upload_Shortcode {
 						);
 					}
 
-					$quotas_js = array();
-					foreach ( $available_categories as $cat ) {
-						$quotas_js[ $cat['slug'] ] = array(
-							'current'               => $cat['current'],
-							'quota'                 => $cat['quota'],
-							'remaining'             => $cat['remaining'],
-							'substitutes_remaining' => $cat['substitutes_remaining'],
-						);
-					}
-
 					// Localize upload data.
 					wp_localize_script(
 						'photo-comp-drag-drop-upload',
@@ -759,12 +749,12 @@ class Upload_Shortcode {
 							'apiUrl'         => esc_url_raw( rest_url() ),
 							'nonce'          => wp_create_nonce( 'wp_rest' ),
 							'categories'     => $categories_js,
-							'quotas'         => $quotas_js,
+							'quotas'         => array_column( $available_categories, null, 'slug' ),
 							'maxFileSize'    => $max_file_size,
 							'allowedFormats' => $constraints['allowed_formats'],
 							'interclub'      => array(
 								'enabled'     => (bool) $interclub['enabled'],
-								'substitutes' => $interclub['enabled'] ? (int) $interclub['substitutes'] : 0,
+								'substitutes' => Competition_Settings::substitutes( $settings ),
 							),
 						)
 					);

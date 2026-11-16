@@ -261,26 +261,18 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		// Get category assignments from request parameters.
-		$assignments = $request->get_param( 'assignments' );
+		// Each file's category, then its interclub details, keyed alike.
+		$assignments   = $this->file_map( $request, 'assignments' );
+		$photographers = $this->file_map( $request, 'photographers' );
+		$substitutes   = $this->file_map( $request, 'substitutes' );
 
-		if ( empty( $assignments ) || ! is_array( $assignments ) ) {
-			// Try to get from body params as well.
-			$body_params = $request->get_body_params();
-			$assignments = isset( $body_params['assignments'] ) ? $body_params['assignments'] : array();
-		}
-
-		if ( empty( $assignments ) || ! is_array( $assignments ) ) {
+		if ( empty( $assignments ) ) {
 			return new WP_Error(
 				'invalid_assignments',
 				__( 'Category assignments are required.', 'photo-competition-manager' ),
 				array( 'status' => 400 )
 			);
 		}
-
-		// Interclub details, keyed like the assignments.
-		$photographers = $this->file_map( $request, 'photographers' );
-		$substitutes   = $this->file_map( $request, 'substitutes' );
 
 		// Get uploaded files.
 		$files = $request->get_file_params();
@@ -316,7 +308,6 @@ class Upload_API extends WP_REST_Controller {
 		// substitutes apart, since a panel has places for each.
 		$batch_category_counts = array();
 		foreach ( $assignments as $file_key => $category ) {
-			$category = sanitize_text_field( $category );
 			if ( ! empty( $category ) ) {
 				$kind = empty( $substitutes[ $file_key ] ) ? 'entered' : 'substitutes';
 
@@ -367,7 +358,7 @@ class Upload_API extends WP_REST_Controller {
 		// Process each file.
 		foreach ( $files as $file_key => $file ) {
 			// Get category assignment for this file.
-			$category = isset( $assignments[ $file_key ] ) ? sanitize_text_field( $assignments[ $file_key ] ) : '';
+			$category = $assignments[ $file_key ] ?? '';
 
 			if ( empty( $category ) ) {
 				$results[ $file_key ] = array(
@@ -418,7 +409,7 @@ class Upload_API extends WP_REST_Controller {
 	}
 
 	/**
-	 * A per-file request field, such as the photographers, keyed by file key.
+	 * A per-file request field, such as the category assignments, keyed by file key.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @param string          $name    Field name.
