@@ -322,7 +322,7 @@ class Entries {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			$removed = $this->remove_entry( $competition, $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
@@ -475,7 +475,7 @@ class Entries {
 			'failed'    => 0,
 		);
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			if ( empty( $entry->original_attachment_id ) ) {
 				continue;
 			}
@@ -542,7 +542,7 @@ class Entries {
 		$settings = Competition_Settings::parse( $competition->settings );
 
 		// The member's entries in this competition: the only ones they can move, and what quota counts.
-		$entries = array_column( $this->images_repo->find_by_competition( $competition_id, null, $member_id ), null, 'id' );
+		$entries = array_column( $this->images_repo->find_uploads( $competition_id, null, $member_id ), null, 'id' );
 		$counts  = array_count_values( array_column( $entries, 'category' ) );
 		$moves   = array();
 
@@ -701,7 +701,7 @@ class Entries {
 			return array();
 		}
 
-		$entries = $this->images_repo->find_by_competition( $competition_id, null, $member_id );
+		$entries = $this->images_repo->find_uploads( $competition_id, null, $member_id );
 
 		foreach ( $entries as $entry ) {
 			$entry->urls = $this->urls( $competition, $entry );

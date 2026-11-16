@@ -40,6 +40,20 @@ _Avoid_: Submission, image (for the record)
 A member who may enter a competition. A competition is either open to everyone in its type, where every active member tagged with the type is an entrant, or for selected entrants only, where an admin picks them. In a selected-entrants competition an admin can add and remove entrants, and both stop once voting starts. If uploads are open, a new entrant is sent their upload link. An entrant can be removed only if they have no entries, and removing one revokes their link. An admin can create a member and enter them in one step. Only entrants get upload links and reminders, and only entrants can upload, on the upload page or through the API. In a competition open to everyone only active members of the type can ask for a voting link; in a selected-entrants one only entrants can. When voting opens, the "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter (the entrants, in a selected-entrants competition) when voting links are emailed. Emailing the results link to all members goes to the type's active members.
 _Avoid_: Participant, contestant
 
+**Interclub competition**:
+A competition whose type says its entrants are clubs. Each club is a member with an email address that logs in and uploads like anyone else. A club enters a panel in each category: as many entries as the category's quota, plus up to the type's number of substitutes. Every entry names its photographer, and the type can limit how many entries in a panel one photographer may have (0 for no limit). Only the panel counts towards that limit; substitutes don't. The type's interclub settings are copied into each new competition like its other settings, and only the type form changes them.
+_Avoid_: Team competition, "club" on its own (the club is whoever runs the site)
+
+**Panel**:
+A club's entries in one category of an interclub competition.
+
+**Photographer**:
+The free-text name of whoever took an entry's image, typed by the club. It is shown on the entry in results and never to judges. Names that differ only in case or surrounding spaces are the same photographer.
+_Avoid_: Author (the rules' word), member (the club is the member)
+
+**Entry status**:
+Whether an entry competes. An entered entry is voted on, judged and ranked. A substitute waits to replace a disqualified entry in its panel, and an admin can promote it only before voting opens. A disqualified entry is out of the competition: it leaves the ballot and the results, but the club still sees it. Every entry from before interclub competitions is entered. Disqualifying a whole club is the organiser's decision, not the plugin's.
+
 **Original**:
 The full-size file a member uploaded for an entry, kept in the media library for export until an admin discards it. Discarding originals leaves the entries in place. WordPress also keeps a 2560px `-scaled` copy of a larger original as its attached file; that copy isn't the original, and export uses the full-size file.
 

@@ -222,7 +222,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'category_has_votes', $result->get_error_code() );
 		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/late-entry-comp/colour/jane-doe*' ) );
-		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+		$this->assertCount( 1, $this->images_repo->find_uploads( $competition_id ) );
 		$this->assertSame(
 			array(),
 			get_posts(
@@ -262,7 +262,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'voting_started', $result->get_error_code() );
 		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/unvoted-comp/colour/jane-doe*' ) );
-		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+		$this->assertCount( 1, $this->images_repo->find_uploads( $competition_id ) );
 	}
 
 	public function test_a_category_thats_voting_and_has_votes_says_voting_has_started(): void {
@@ -899,6 +899,24 @@ class Entries_Test extends WP_UnitTestCase {
 			$this->assertFileDoesNotExist( $file );
 		}
 		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/gone-comp' );
+	}
+
+	public function test_removing_a_competitions_entries_removes_its_substitutes_and_disqualified_images(): void {
+		global $wpdb;
+		$competition_id = $this->create_competition( 'gone-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_ids      = array();
+		foreach ( array( 'substitute', 'disqualified' ) as $i => $status ) {
+			$entry_ids[] = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, $i, 0 ) );
+			// No public way to set a status yet: the upload form and admin screen come later.
+			$wpdb->update( $wpdb->prefix . 'photocomp_images', array( 'entry_status' => $status ), array( 'id' => end( $entry_ids ) ) );
+		}
+
+		$this->assertTrue( $this->entries->remove_competition_entries( Actor::admin(), $competition_id ) );
+
+		foreach ( $entry_ids as $entry_id ) {
+			$this->assertNull( $this->images_repo->find( $entry_id ) );
+		}
 	}
 
 	public function test_removing_a_competitions_entries_leaves_other_competitions_alone(): void {

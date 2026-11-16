@@ -701,7 +701,7 @@ class Voting_Shortcode {
 				$category_label = array_column( $categories, 'label', 'slug' )[ $category ] ?? $category;
 
 				// Get images for this category in randomized order to prevent identification across categories.
-				$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+				$images = $this->images_repo->find_entered( (int) $competition->id, $category );
 				$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 				if ( empty( $images ) ) {
@@ -928,7 +928,7 @@ class Voting_Shortcode {
 				<?php foreach ( $voting_categories as $category_data ) : ?>
 					<?php
 					$category_slug = $category_data['slug'];
-					$images        = $this->images_repo->find_by_competition( (int) $competition->id, $category_slug );
+					$images        = $this->images_repo->find_entered( (int) $competition->id, $category_slug );
 					$images        = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category_slug );
 
 					if ( empty( $images ) ) {

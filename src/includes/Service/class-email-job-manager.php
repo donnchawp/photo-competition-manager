@@ -196,7 +196,7 @@ class Email_Job_Manager {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
-		// Collect all members who submitted images.
+		// Collect every member who uploaded, including a club whose images were all disqualified.
 		$member_ids = array();
 		foreach ( $categories as $category ) {
 			$category_slug = $category['slug'] ?? '';
@@ -204,7 +204,7 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			$images = $this->images->find_by_competition( $competition_id, $category_slug );
+			$images = $this->images->find_uploads( $competition_id, $category_slug );
 			foreach ( $images as $image ) {
 				$member_ids[ $image->member_id ] = true;
 			}

@@ -24,7 +24,7 @@ class Competition_Settings {
 	 * @since 0.4.0
 	 * @var string[]
 	 */
-	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders' );
+	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders', 'interclub' );
 
 	/**
 	 * How voters prove who they are: the club's voting password, a member's
@@ -126,6 +126,13 @@ class Competition_Settings {
 				'days_before_open'       => 7,
 				'days_before_close'      => 1,
 				'include_qr_code_voting' => true,
+			),
+			// Entrants are clubs, each entering a panel of images per category.
+			// A panel's size is its category's quota.
+			'interclub'       => array(
+				'enabled'            => false,
+				'substitutes'        => 0, // Extra images per panel that can replace a disqualified one.
+				'photographer_limit' => 0, // Most images by one photographer in a panel; 0 for no limit.
 			),
 			'urls'            => array(
 				'upload_page' => '',
@@ -349,6 +356,12 @@ class Competition_Settings {
 			$valid_ui_types = array( 'default', 'buttons', 'dropdown' );
 			if ( ! in_array( $settings['voting']['ui_type'], $valid_ui_types, true ) ) {
 				return new WP_Error( 'invalid_voting_ui_type', __( 'Voting UI type must be "default", "buttons", or "dropdown".', 'photo-competition-manager' ) );
+			}
+		}
+
+		foreach ( array( 'substitutes', 'photographer_limit' ) as $key ) {
+			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < 0 ) ) {
+				return new WP_Error( 'invalid_interclub', __( 'Substitutes and the most images per photographer must be whole numbers, 0 or more.', 'photo-competition-manager' ) );
 			}
 		}
 

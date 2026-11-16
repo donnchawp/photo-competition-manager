@@ -657,7 +657,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->shortcode->render( array() );
 
 		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
-		$this->assertSame( array(), ( new Images_Repository() )->find_by_competition( $this->competition_id ) );
+		$this->assertSame( array(), ( new Images_Repository() )->find_uploads( $this->competition_id ) );
 	}
 
 	public function test_a_member_without_the_competitions_type_is_refused_on_the_page(): void {

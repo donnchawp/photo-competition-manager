@@ -222,7 +222,7 @@ final class Ballots {
 			return new WP_Error( 'voting_closed', __( 'Voting is not open for this category.', 'photo-competition-manager' ) );
 		}
 
-		$entries = array_column( $this->images->find_by_competition( (int) $competition->id, $category ), 'id' );
+		$entries = array_column( $this->images->find_entered( (int) $competition->id, $category ), 'id' );
 		$scores  = array_filter(
 			array_intersect_key( $scores, array_flip( array_map( 'intval', $entries ) ) ),
 			fn( $score ) => ! is_scalar( $score ) || '' !== trim( (string) $score )

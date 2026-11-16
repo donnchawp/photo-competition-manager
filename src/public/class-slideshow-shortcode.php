@@ -115,7 +115,7 @@ class Slideshow_Shortcode {
 		}
 
 		// Get images for this category in randomized order to prevent identification across categories.
-		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$images = $this->images_repo->find_entered( (int) $competition->id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 		$image_data = $this->slides( $competition, $images );
@@ -236,7 +236,7 @@ class Slideshow_Shortcode {
 		}
 
 		// Get images for this category in randomized order to prevent identification across categories.
-		$images = $this->images_repo->find_by_competition( $competition_id, $category );
+		$images = $this->images_repo->find_entered( $competition_id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
 		$image_data = $this->slides( $competition, $images );

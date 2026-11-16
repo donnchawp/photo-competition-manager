@@ -36,7 +36,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 10;
+	const DB_VERSION = 11;
 
 	/**
 	 * Option holding the installed data version.
@@ -128,6 +128,14 @@ class Activator {
 		// A member has one voting token per category, and asking for a link
 		// again renews it. Old tables never got the unique key that says so.
 		if ( $installed < 6 && ! self::make_voting_tokens_unique() ) {
+			return;
+		}
+
+		// An image has a photographer and an entry status, so a club can
+		// upload substitutes and an admin can disqualify an image. Existing
+		// images take the column defaults: entered, with no photographer.
+		// Before step 7, because recording results reads images by status.
+		if ( $installed < 11 && ! self::add_entry_status_schema() ) {
 			return;
 		}
 
@@ -619,6 +627,31 @@ class Activator {
 	}
 
 	/**
+	 * Add the photographer and entry status columns to the images table.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if a column is still missing, so the step runs again.
+	 */
+	private static function add_entry_status_schema(): bool {
+		global $wpdb;
+
+		$images = $wpdb->prefix . 'photocomp_images';
+
+		if ( ! self::column_exists( $images, 'photographer' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN photographer VARCHAR(191) NOT NULL DEFAULT ''", $images ) );
+		}
+
+		if ( ! self::column_exists( $images, 'entry_status' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN entry_status VARCHAR(20) NOT NULL DEFAULT 'entered'", $images ) );
+		}
+
+		return self::column_exists( $images, 'photographer' ) && self::column_exists( $images, 'entry_status' );
+	}
+
+	/**
 	 * Create the one type every existing competition and member gets.
 	 *
 	 * Its competition defaults are the club's settings. A site that already
@@ -1030,6 +1063,8 @@ class Activator {
 			filename VARCHAR(191) NOT NULL,
 			random_number BIGINT UNSIGNED NOT NULL,
 			original_attachment_id BIGINT UNSIGNED NULL,
+			photographer VARCHAR(191) NOT NULL DEFAULT '',
+			entry_status VARCHAR(20) NOT NULL DEFAULT 'entered',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),

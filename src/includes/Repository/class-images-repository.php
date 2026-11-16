@@ -20,14 +20,54 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Images_Repository extends Abstract_Repository {
 
 	/**
-	 * Find all images for a competition.
+	 * Entry statuses an image can have. Only entered images compete: they're
+	 * voted on, judged and ranked. A substitute waits to replace a
+	 * disqualified image, and a disqualified image is out of the competition.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const ENTRY_STATUSES = array( 'entered', 'substitute', 'disqualified' );
+
+	/**
+	 * Find a competition's entered images: the ones voted on, judged and ranked.
+	 *
+	 * @since 0.4.0 Was find_by_competition(), which also returned substitutes and disqualified images. find_uploads() has them.
 	 *
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
 	 * @param int|null    $member_id      Optional member filter.
 	 * @return array<int, object>
 	 */
-	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+	public function find_entered( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, true );
+	}
+
+	/**
+	 * Find every image uploaded to a competition, whatever its entry status.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @return array<int, object>
+	 */
+	public function find_uploads( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, false );
+	}
+
+	/**
+	 * Query a competition's images.
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @param bool        $entered_only   Whether to leave out substitutes and disqualified images.
+	 * @return array<int, object>
+	 */
+	private function query_competition( int $competition_id, ?string $category, ?int $member_id, bool $entered_only ): array {
 		global $wpdb;
 
 		if ( $competition_id <= 0 ) {
@@ -36,6 +76,10 @@ class Images_Repository extends Abstract_Repository {
 
 		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
+
+		if ( $entered_only ) {
+			$query .= " AND entry_status = 'entered'";
+		}
 
 		if ( null !== $category ) {
 			$query         .= ' AND category = %s';
@@ -156,7 +200,7 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Whether a competition's category has any images.
+	 * Whether a competition's category has any entered images.
 	 *
 	 * @since 0.4.0
 	 *
@@ -168,7 +212,7 @@ class Images_Repository extends Abstract_Repository {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s LIMIT 1', $this->table(), $competition_id, $category ) );
+		return null !== $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM %i WHERE competition_id = %d AND category = %s AND entry_status = 'entered' LIMIT 1", $this->table(), $competition_id, $category ) );
 	}
 
 	/**
@@ -355,6 +399,11 @@ class Images_Repository extends Abstract_Repository {
 
 		$original_attachment_id = isset( $data['original_attachment_id'] ) ? absint( $data['original_attachment_id'] ) : null;
 
+		$entry_status = $data['entry_status'] ?? 'entered';
+		if ( ! in_array( $entry_status, self::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
 		$payload = array(
 			'competition_id'         => $competition_id,
 			'member_id'              => $member_id,
@@ -362,11 +411,13 @@ class Images_Repository extends Abstract_Repository {
 			'filename'               => $filename,
 			'random_number'          => $random_number,
 			'original_attachment_id' => $original_attachment_id,
+			'photographer'           => isset( $data['photographer'] ) ? mb_substr( sanitize_text_field( $data['photographer'] ), 0, 191 ) : '',
+			'entry_status'           => $entry_status,
 			'created_at'             => utc_time(),
 			'updated_at'             => utc_time(),
 		);
 
-		$format = array( '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s' );
+		$format = array( '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert( $this->table(), $payload, $format );

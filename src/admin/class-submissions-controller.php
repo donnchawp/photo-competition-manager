@@ -517,7 +517,7 @@ class Submissions_Controller {
 		$scores_data = array();
 		if ( $competition_id ) {
 			$member_filter = $member_id > 0 ? $member_id : null;
-			$submissions   = $this->images->find_by_competition( $competition_id, null, $member_filter );
+			$submissions   = $this->images->find_uploads( $competition_id, null, $member_filter );
 
 			// Sort submissions by member name.
 			usort(
