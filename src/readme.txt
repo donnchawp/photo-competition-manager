@@ -160,7 +160,7 @@ Yes. Visit **Competitions → Export** to download:
 
 = 0.4.0 (unreleased) =
 * **Before you upgrade**
-  * Back up the database first. The update runs ten database upgrades (versions 1 to 10) on the first request after it's installed.
+  * Back up the database first. The update runs eleven database upgrades (versions 1 to 11) on the first request after it's installed.
   * The upgrade puts every competition into a new competition type called "Individual", which holds the club's current categories and upload, voting and slideshow settings. Every member is tagged with it and every competition stays open to all members, so nothing changes until you add a second type. Those settings move from Settings to the new Competition Types screen.
   * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
   * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
@@ -231,6 +231,15 @@ Yes. Visit **Competitions → Export** to download:
   * Results pages, Top 3, emails and exports show the type's grade names. Admin screens show both, for example "Cup (Advanced)"
   * A competition title can include `{grade}`, for example "SACC {grade} 2026". Each entrant sees their own grade's name on their upload page and in their emails, and everywhere else shows the grade names joined, for example "SACC Cup / SACC Shield 2026"
   * The Upload Confirmation email's `{member_grade}` shows the grade's name instead of its slug
+
+* **Interclub competitions**
+  * A competition type can make its entrants clubs: tick "Entrants are clubs" on the type. Each club enters a panel of images in each category, and a panel holds as many images as the category's quota
+  * Every image in an interclub competition names its photographer. The upload page, drag-and-drop upload, the REST API and the admin upload form all ask for it
+  * A type can take substitutes, extra images that can replace a disqualified one, and can limit how many images one photographer has in a panel. Substitutes don't count towards that limit, and names match ignoring case and surrounding spaces
+  * The upload page lists each image's photographer and marks its substitutes. When a panel has all its entries but room for a substitute, it says so and points to the Substitute box
+  * On the Submissions screen an admin can disqualify an entry, promote a substitute, reinstate a disqualified entry, or make an entry a substitute. A disqualified entry leaves the ballot and the results, and its votes stay but no longer count. The club still sees it on its upload page
+  * An entry can be disqualified until the competition's results are recorded. The other changes follow the rules for adding an entry: only before the category's voting starts, while it has no votes, and within the panel's rules. Every change is logged
+  * Existing entries are entered, with no photographer
 
 * **Results**
   * Tied entries share a position in the results email
