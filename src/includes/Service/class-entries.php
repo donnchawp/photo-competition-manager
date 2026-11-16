@@ -261,7 +261,7 @@ class Entries {
 				'original_attachment_id' => $attachment_id,
 				'photographer'           => $photographer,
 				'entry_status'           => $entry_status,
-			)
+			) + ( $interclub['enabled'] ? array( 'random_number' => $this->images_repo->open_number_slot( $competition_id, $category ) ) : array() )
 		);
 
 		if ( is_wp_error( $entry_id ) ) {
@@ -388,6 +388,53 @@ class Entries {
 		);
 
 		return true;
+	}
+
+	/**
+	 * Renumber a competition's entries in a random order, so the numbers don't follow the order they were uploaded in.
+	 *
+	 * An interclub competition's images each get their own number within their category; otherwise
+	 * each member gets one number for all their images. Only an admin may do this, and not once
+	 * any category's voting has started.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor          Who is renumbering.
+	 * @param int   $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function regenerate_numbers( Actor $actor, int $competition_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
+		}
+
+		// Voters, judges and results already know the entries by their numbers.
+		if ( $this->workflow->has_any_voting_started( $competition ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started, so the numbers can\'t change. Reset the competition\'s voting first.', 'photo-competition-manager' ) );
+		}
+
+		if ( self::numbers_each_image( $competition ) ) {
+			return $this->images_repo->regenerate_image_numbers( $competition_id );
+		}
+
+		return $this->images_repo->regenerate_member_numbers( $competition_id );
+	}
+
+	/**
+	 * Whether a competition numbers each image, within its category, rather than each member.
+	 *
+	 * An interclub competition does, so a club's images don't share a number that shows they're the same club's.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	private static function numbers_each_image( object $competition ): bool {
+		return Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
 	}
 
 	/**
@@ -673,6 +720,11 @@ class Entries {
 
 		if ( $competition ) {
 			$this->delete_files( $competition, $entry->category, $entry->filename, (int) $entry->original_attachment_id );
+
+			// Close the gap, unless the category has been voted on: then its numbers are known.
+			if ( self::numbers_each_image( $competition ) && ! $this->workflow->has_voting_started( $competition, (string) $entry->category ) && ! $this->votes_repo->has_votes_in_category( (int) $competition->id, (string) $entry->category ) ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, (int) $entry->random_number );
+			}
 		} else {
 			// Without its competition there's no folder to look in, but the original is in the media library.
 			$this->delete_original( (int) $entry->competition_id, (int) $entry->original_attachment_id );
@@ -1093,10 +1145,25 @@ class Entries {
 			return $new_filename;
 		}
 
+		// A number of its own in the new category, taken before the entry arrives so it isn't counted
+		// there twice. Neither category has votes, or the move would have been refused.
+		$numbered = self::numbers_each_image( $competition );
+		$number   = $numbered ? $this->images_repo->open_number_slot( (int) $competition->id, $new_category ) : 0;
+
 		$result = $this->images_repo->update_category( (int) $entry->id, $new_category, $new_filename );
 		if ( is_wp_error( $result ) ) {
+			if ( $numbered ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, $new_category, $number );
+			}
 			$this->move_back( $competition, $entry, $new_category, $new_filename );
 			return $result;
+		}
+
+		if ( $numbered ) {
+			// Read afresh: an earlier move in the same batch may have closed a gap below it.
+			$old_number = (int) $this->images_repo->find( (int) $entry->id )->random_number;
+			$this->images_repo->update_number( (int) $entry->id, $number );
+			$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $old_number );
 		}
 
 		return $new_filename;

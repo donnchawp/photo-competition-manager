@@ -1006,6 +1006,125 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann', true ) );
 	}
 
+	/**
+	 * Each category's numbers, smallest first.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<string, int[]>
+	 */
+	private function numbers_by_category( int $competition_id ): array {
+		$numbers = array();
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $image ) {
+			$numbers[ $image->category ][] = (int) $image->random_number;
+		}
+		foreach ( $numbers as $category => $list ) {
+			sort( $list );
+			$numbers[ $category ] = $list;
+		}
+		ksort( $numbers );
+
+		return $numbers;
+	}
+
+	public function test_each_image_in_an_interclub_category_gets_its_own_number(): void {
+		$competition_id = $this->create_interclub_competition( 'numbers-comp', 2 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$bandon_id      = $this->create_member( 'Bandon Camera Club', 'bandon@example.com' );
+		$this->add_to_panel( $competition_id, $lee_id, 'Ann' );
+		$this->add_to_panel( $competition_id, $lee_id, 'Bob' );
+		$this->add_to_panel( $competition_id, $bandon_id, 'Cat' );
+		$this->add_to_panel( $competition_id, $lee_id, 'Dan', false, 'mono' );
+
+		$this->assertSame(
+			array(
+				'colour' => array( 1, 2, 3 ),
+				'mono'   => array( 1 ),
+			),
+			$this->numbers_by_category( $competition_id )
+		);
+	}
+
+	public function test_interclub_numbers_stay_1_to_n_when_an_image_moves_or_is_removed(): void {
+		$competition_id = $this->create_interclub_competition( 'numbers-move-comp', 3 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		foreach ( array( 'Ann', 'Bob', 'Cat' ) as $photographer ) {
+			$this->add_to_panel( $competition_id, $lee_id, $photographer );
+		}
+		$this->add_to_panel( $competition_id, $lee_id, 'Dan', false, 'mono' );
+
+		// Each time the image numbered 1 leaves, so the others must close the gap.
+		$this->assertTrue( $this->entries->change_categories( Actor::member( $lee_id ), $competition_id, $lee_id, array( $this->numbered( $competition_id, 'colour', 1 ) => 'mono' ) ) );
+		$this->assertTrue( $this->entries->remove( Actor::member( $lee_id ), $competition_id, $this->numbered( $competition_id, 'colour', 1 ) ) );
+
+		$this->assertSame(
+			array(
+				'colour' => array( 1 ),
+				'mono'   => array( 1, 2 ),
+			),
+			$this->numbers_by_category( $competition_id )
+		);
+	}
+
+	/**
+	 * The ID of the image with a given number in a category.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param int    $number         Its number.
+	 * @return int
+	 */
+	private function numbered( int $competition_id, string $category, int $number ): int {
+		foreach ( $this->images_repo->find_uploads( $competition_id, $category ) as $image ) {
+			if ( $number === (int) $image->random_number ) {
+				return (int) $image->id;
+			}
+		}
+
+		$this->fail( "No image numbered {$number} in {$category}." );
+	}
+
+	public function test_renumbering_an_interclub_competition_gives_every_image_its_own_number(): void {
+		$competition_id = $this->create_interclub_competition( 'renumber-comp', 2 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$bandon_id      = $this->create_member( 'Bandon Camera Club', 'bandon@example.com' );
+		$this->seed_entry( $competition_id, $lee_id );
+		$this->seed_entry( $competition_id, $lee_id, 'substitute' );
+		$this->seed_entry( $competition_id, $bandon_id );
+
+		$this->assertTrue( $this->entries->regenerate_numbers( Actor::admin(), $competition_id ) );
+
+		$numbers = array_map( 'intval', array_column( $this->images_repo->find_uploads( $competition_id ), 'random_number' ) );
+		sort( $numbers );
+		$this->assertSame( array( 1, 2, 3 ), $numbers );
+	}
+
+	public function test_numbers_cant_be_regenerated_once_voting_has_started(): void {
+		$competition_id = $this->create_interclub_competition( 'renumber-voting-comp', 2 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $lee_id );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$result = $this->entries->regenerate_numbers( Actor::admin(), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 1, (int) $this->images_repo->find( $entry_id )->random_number );
+	}
+
+	public function test_renumbering_an_individual_competition_keeps_one_number_per_member(): void {
+		$competition_id = $this->create_competition( 'renumber-members-comp', 2 );
+		$ann_id         = $this->create_member( 'Ann', 'ann@example.com' );
+		$bob_id         = $this->create_member( 'Bob', 'bob@example.com' );
+		$this->seed_entry( $competition_id, $ann_id );
+		$this->seed_entry( $competition_id, $ann_id );
+		$this->seed_entry( $competition_id, $bob_id );
+
+		$this->assertTrue( $this->entries->regenerate_numbers( Actor::admin(), $competition_id ) );
+
+		$this->assertCount( 1, array_unique( array_column( $this->images_repo->find_uploads( $competition_id, null, $ann_id ), 'random_number' ) ) );
+		$this->assertCount( 2, array_unique( array_column( $this->images_repo->find_uploads( $competition_id ), 'random_number' ) ) );
+	}
+
 	public function test_a_disqualified_image_frees_its_place_in_the_panel(): void {
 		$competition_id = $this->create_interclub_competition( 'dq-comp', 1, 0, 1 );
 		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );

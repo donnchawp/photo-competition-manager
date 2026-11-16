@@ -198,7 +198,7 @@ class Submissions_Controller {
 				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
-			$result = $this->images->regenerate_member_numbers( $competition_id );
+			$result = $this->entries->regenerate_numbers( Actor::admin(), $competition_id );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -604,6 +604,9 @@ class Submissions_Controller {
 
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
 
+		// The members who may enter: the type's members, or the competition's selected entrants.
+		$eligible = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $selected_competition ) : array();
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
@@ -615,7 +618,7 @@ class Submissions_Controller {
 
 			// Add regenerate numbers button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_regenerate_numbers_form( $competition_id );
+			echo $this->render_regenerate_numbers_form( $competition_id, Competition_Settings::parse( $selected_competition->settings )['interclub']['enabled'] );
 
 			// Add delete original images button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -676,8 +679,17 @@ class Submissions_Controller {
 						);
 					}
 
+					// The members who may enter, then anyone else who has entries, such as a member deactivated since.
+					$entrants = $eligible;
+					$listed   = array_flip( array_map( 'intval', wp_list_pluck( $eligible, 'id' ) ) );
+					foreach ( array_unique( array_map( 'intval', array_column( $submissions, 'member_id' ) ) ) as $entered_id ) {
+						if ( ! isset( $listed[ $entered_id ] ) && isset( $member_map[ $entered_id ] ) ) {
+							$entrants[]            = $member_map[ $entered_id ];
+							$listed[ $entered_id ] = true;
+						}
+					}
 					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-					echo $this->render_submission_status( $categories, $member_id, $members, $member_counts, $upload_tracking, $voting_tracking );
+					echo $this->render_submission_status( $categories, $member_id, $entrants, $member_counts, $upload_tracking, $voting_tracking );
 				}
 			}
 		}
@@ -690,7 +702,7 @@ class Submissions_Controller {
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup );
+		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, array_map( 'intval', wp_list_pluck( $eligible, 'id' ) ) );
 
 		echo '</div>';
 	}
@@ -719,13 +731,17 @@ class Submissions_Controller {
 	/**
 	 * Render the regenerate-random-numbers form.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int  $competition_id Competition ID.
+	 * @param bool $interclub      Whether the competition numbers each image rather than each member.
 	 * @return string
 	 */
-	private function render_regenerate_numbers_form( int $competition_id ): string {
+	private function render_regenerate_numbers_form( int $competition_id, bool $interclub ): string {
 		return $this->render_template(
 			'admin/submissions/regenerate-numbers-form.php',
-			array( 'competition_id' => $competition_id )
+			array(
+				'competition_id' => $competition_id,
+				'interclub'      => $interclub,
+			)
 		);
 	}
 
@@ -798,14 +814,14 @@ class Submissions_Controller {
 	 * @param array             $scores_data          Score/vote-count data indexed by image id.
 	 * @param object|null       $selected_competition Currently selected competition, if any.
 	 * @param array<int,object> $competition_lookup   Competitions indexed by competition id.
+	 * @param int[]             $may_enter            IDs of the members who may enter the selected competition.
 	 * @return string
 	 */
-	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
+	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup, array $may_enter ): string {
 		// Each member's upload link, the same one their upload link emails carry,
 		// for the members who may still enter: the upload page refuses anyone else's.
 		$upload_links       = new Upload_Link_Service();
 		$member_upload_urls = array();
-		$may_enter          = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members, $upload_links ) )->eligible_member_ids( $selected_competition ) : array();
 
 		foreach ( $submissions as $submission ) {
 			$submission_member_id = (int) $submission->member_id;

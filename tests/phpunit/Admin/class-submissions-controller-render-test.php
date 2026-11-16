@@ -634,6 +634,38 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array( 'entered', 'disqualified' ), $offered[1] );
 	}
 
+	public function test_the_summary_lists_the_members_who_may_enter_and_any_others_with_entries(): void {
+		$comp_id = $this->seed_competition( 'Selected Show', 'selected-show' );
+		$this->competitions->update( $comp_id, array( 'entry_mode' => 'selected' ) );
+		$entrant = $this->seed_member( 'Ada Entrant', 'ada@example.com' );
+		$this->seed_member( 'Bob Outsider', 'bob@example.com' );
+		$former  = $this->seed_member( 'Cat Former', 'cat@example.com' );
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $comp_id, $entrant );
+		// Cat entered, then was taken off the entrants.
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $former,
+				'filename'  => 'cat.jpg',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$summary = substr( $html, (int) strpos( $html, 'Submission Status' ) );
+		$this->assertStringContainsString( '<strong>Ada Entrant</strong>', $summary );
+		$this->assertStringContainsString( '<strong>Cat Former</strong>', $summary );
+		$this->assertStringNotContainsString( 'Bob Outsider</strong>', $summary );
+	}
+
 	public function test_a_members_upload_link_uses_the_competitions_upload_page(): void {
 		$html = $this->render_one_entry( 'https://example.com/club-upload/' );
 

@@ -353,6 +353,102 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Make room for a new image's number at a random place among a category's numbers.
+	 *
+	 * The category's numbers run from 1 to however many images it has. A random place among
+	 * them, up to one past the end, is picked, and the numbers from there up move along by one.
+	 * Putting each new image in a random place keeps the numbers in a random order, so they
+	 * don't show who uploaded which image. Used for an interclub competition, where every image
+	 * has its own number.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int The new image's number.
+	 */
+	public function open_number_slot( int $competition_id, string $category ): int {
+		global $wpdb;
+
+		$number = wp_rand( 1, count( $this->find_uploads( $competition_id, $category ) ) + 1 );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET random_number = random_number + 1 WHERE competition_id = %d AND category = %s AND random_number >= %d', $this->table(), $competition_id, $category, $number ) );
+
+		return $number;
+	}
+
+	/**
+	 * Close the gap an image's number leaves when it leaves a category: the numbers above it move down by one.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param int    $number         The number that left.
+	 * @return void
+	 */
+	public function close_number_slot( int $competition_id, string $category, int $number ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET random_number = random_number - 1 WHERE competition_id = %d AND category = %s AND random_number > %d', $this->table(), $competition_id, $category, $number ) );
+	}
+
+	/**
+	 * Set an image's number.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $id     Image ID.
+	 * @param int $number Its number.
+	 * @return void
+	 */
+	public function update_number( int $id, int $number ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->table(),
+			array(
+				'random_number' => $number,
+				'updated_at'    => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%d', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
+	 * Give every image its own number within its category, 1 to the number of images there, in a random order.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function regenerate_image_numbers( int $competition_id ) {
+		$by_category = array();
+		foreach ( $this->find_uploads( $competition_id ) as $image ) {
+			$by_category[ $image->category ][] = (int) $image->id;
+		}
+		if ( empty( $by_category ) ) {
+			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'photo-competition-manager' ) );
+		}
+
+		foreach ( $by_category as $image_ids ) {
+			shuffle( $image_ids );
+
+			foreach ( $image_ids as $index => $image_id ) {
+				$this->update_number( $image_id, $index + 1 );
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Regenerate random numbers for all members in a competition.
 	 *
 	 * Assigns new sequential numbers (1, 2, 3...) to members randomly,
