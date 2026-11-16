@@ -66,7 +66,7 @@ foreach ( $data['rows'] as $row ) {
 	if ( $data['interclub'] ) {
 		// The field and its button belong to this row's photographer form after the table, so Enter saves this row.
 		$photographer_form = 'photo-comp-photographer-form-' . $row->image_id;
-		echo '<td><input type="text" class="regular-text" maxlength="191" form="' . esc_attr( $photographer_form ) . '" name="photographer" value="' . esc_attr( $row->photographer ) . '" aria-label="' . esc_attr__( 'Photographer', 'photo-competition-manager' ) . '" />';
+		echo '<td><input type="text" class="photo-comp-photographer-field" maxlength="191" form="' . esc_attr( $photographer_form ) . '" name="photographer" value="' . esc_attr( $row->photographer ) . '" aria-label="' . esc_attr__( 'Photographer', 'photo-competition-manager' ) . '" />';
 		echo ' <button type="submit" class="button button-small" form="' . esc_attr( $photographer_form ) . '">' . esc_html__( 'Save', 'photo-competition-manager' ) . '</button></td>';
 	}
 
