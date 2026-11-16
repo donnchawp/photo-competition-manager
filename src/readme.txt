@@ -173,6 +173,7 @@ Yes. Visit **Competitions → Export** to download:
   * Setting an open competition's close date to today in the edit form closes it when you save, and saving the form without changing the day keeps the time it closed
   * Competitions use the club's grade list, and the club's categories when they have none of their own
   * Voting Controls, Results and Submissions act on the current competition
+  * Archived competitions offer only what works on them: Restore, Reset Voting and Delete. Edit and Generate Results Link, which ended in "Competition not found", and the greyed Send Upload Emails are gone
 
 * **Uploads and entries**
   * The upload page says why an upload or delete was refused, instead of "Upload failed. Please try again."
@@ -196,6 +197,7 @@ Yes. Visit **Competitions → Export** to download:
   * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
   * A drag-and-drop batch's summary is green only when every image went in. A batch where nothing went in says "No images were uploaded." as an error, a mixed batch shows as a notice, and screen readers announce the outcome and any upload error
   * Success and error messages on the upload, voting and results pages use darker text, so they're easier to read
+  * The Submissions screen shows the submitted photos first, then the Submission Status table. With no submissions, the notice comes first and the table still shows who has opened their upload link
 
 * **Voting**
   * A ballot counts only the category's images, and each voter gets one ballot
@@ -250,6 +252,7 @@ Yes. Visit **Competitions → Export** to download:
   * Tied entries share a position in the results email
   * The results CSV is ranked within each grade and category
   * The votes CSV gives each voter who voted with a link their own row, labelled by their link ("Token #5"). Before, they all shared one blank row and some of their votes were lost
+  * The votes CSV gives each of a member's images in a category its own column, named with its file, such as "Image #7a (sunset.jpg)". Before, only one of them had a column and the other's votes were missing. The voting page and slideshow list a member's images in the same order as the CSV
   * The results and Top 3 pages show the latest published results, without vote counts
   * The results table stacks into cards on mobile
   * The detailed results email uses the email template system
