@@ -253,7 +253,7 @@ class Export_Screen {
 			return;
 		}
 
-		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_by_competition( $competition_id ) );
+		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_uploads( $competition_id ) );
 
 		$competition = $this->competitions_repository->find( $competition_id );
 		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
@@ -395,7 +395,7 @@ class Export_Screen {
 			return;
 		}
 
-		$images = $this->images_repository->find_by_competition( $competition_id );
+		$images = $this->images_repository->find_uploads( $competition_id );
 		if ( empty( $images ) ) {
 			return;
 		}

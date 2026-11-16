@@ -545,6 +545,43 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		return (string) ob_get_clean();
 	}
 
+	public function test_the_summary_counts_only_a_members_entered_images_against_the_quota(): void {
+		$comp_id   = $this->seed_competition(
+			'Interclub',
+			'interclub',
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+					'quota' => 2,
+				),
+			)
+		);
+		$member_id = $this->seed_member( 'Lee Camera Club', 'lee@example.com' );
+		foreach ( array( 'entered', 'substitute', 'disqualified' ) as $status ) {
+			$this->seed_image(
+				$comp_id,
+				array(
+					'member_id'    => $member_id,
+					'filename'     => $status . '.jpg',
+					'entry_status' => $status,
+				)
+			);
+		}
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '#font-weight: bold;">1/2</td>#', $html );
+	}
+
 	public function test_a_members_upload_link_uses_the_competitions_upload_page(): void {
 		$html = $this->render_one_entry( 'https://example.com/club-upload/' );
 

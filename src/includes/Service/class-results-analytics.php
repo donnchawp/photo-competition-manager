@@ -109,7 +109,7 @@ class Results_Analytics {
 				continue;
 			}
 
-			$images = $this->images->find_by_competition( $competition_id, $category_slug );
+			$images = $this->images->find_entered( $competition_id, $category_slug );
 			$votes  = $this->votes->find_by_competition( $competition_id, $category_slug );
 
 			$category_images = count( $images );
@@ -161,7 +161,7 @@ class Results_Analytics {
 	 * }
 	 */
 	public function get_category_breakdown( int $competition_id, string $category ): array {
-		$images = $this->images->find_by_competition( $competition_id, $category );
+		$images = $this->images->find_entered( $competition_id, $category );
 		$votes  = $this->votes->find_by_competition( $competition_id, $category );
 
 		$image_count = count( $images );

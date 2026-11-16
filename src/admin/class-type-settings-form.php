@@ -1,6 +1,6 @@
 <?php
 /**
- * The competition-default sections of a form: categories, upload limits, voting and slideshow.
+ * The competition-default sections of a form: categories, upload limits, voting, slideshow and interclub.
  *
  * @package PhotoCompetitionManager\Admin
  */
@@ -91,11 +91,21 @@ class Type_Settings_Form {
 			)
 		);
 
+		// Only the type form has this section. The competition form leaves it
+		// out, and its unticked checkbox must not turn interclub off.
+		if ( '1' === $this->get_post_string( 'interclub_section' ) ) {
+			$settings['interclub'] = array(
+				'enabled'            => '1' === $this->get_post_string( 'interclub_enabled' ),
+				'substitutes'        => max( 0, (int) $this->get_post_string( 'interclub_substitutes', '0' ) ),
+				'photographer_limit' => max( 0, (int) $this->get_post_string( 'interclub_photographer_limit', '0' ) ),
+			);
+		}
+
 		return $settings;
 	}
 
 	/**
-	 * Render the categories, upload limits, voting and slideshow sections.
+	 * Render the categories, upload limits, voting, slideshow and interclub sections.
 	 *
 	 * @since 0.4.0
 	 * @param array<string, mixed> $settings The type's settings, from Competition_Settings::type_settings().
@@ -105,7 +115,8 @@ class Type_Settings_Form {
 		return $this->render_categories_section( $settings['categories'] )
 			. $this->render_upload_constraints_section( $settings['upload'] )
 			. $this->render_voting_section( $settings['voting'] )
-			. $this->render_slideshow_section( $settings['slideshow'] );
+			. $this->render_slideshow_section( $settings['slideshow'] )
+			. $this->render_template( 'admin/types/interclub-section.php', $settings['interclub'] );
 	}
 
 	/**

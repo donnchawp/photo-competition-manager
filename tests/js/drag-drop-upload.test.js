@@ -437,6 +437,127 @@ describe( 'drag-and-drop upload', () => {
 		expect( liveRegion().firstElementChild ).toBe( summary() );
 	} );
 
+	describe( 'in an interclub competition', () => {
+		const quotas = window.photoCompUpload.quotas;
+
+		beforeEach( () => {
+			window.photoCompUpload.interclub = { enabled: true, substitutes: 2 };
+			window.photoCompUpload.quotas = { colour: { current: 0, quota: 3, remaining: 5, entered_remaining: 3, substitutes_remaining: 2 } };
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		afterEach( () => {
+			delete window.photoCompUpload.interclub;
+			window.photoCompUpload.quotas = quotas;
+		} );
+
+		/**
+		 * Pick files and wait for each one's preview.
+		 *
+		 * @param {string[]} names The file names.
+		 */
+		async function pickAndPreview( names ) {
+			pickFiles( names );
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+				await settle();
+			}
+		}
+
+		/**
+		 * Type a photographer's name for the nth image.
+		 *
+		 * @param {number} index The image's place in the selection.
+		 * @param {string} name  The name.
+		 */
+		function typePhotographer( index, name ) {
+			const input = document.querySelectorAll( '.photo-comp-photographer-input' )[ index ];
+			input.value = name;
+			input.dispatchEvent( new Event( 'input' ) );
+		}
+
+		it( 'keeps Upload All off until every image has a photographer', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg' ] );
+			const button = document.querySelector( '.photo-comp-upload-all-btn' );
+
+			typePhotographer( 0, 'Ann Murphy' );
+			typePhotographer( 1, '   ' );
+			expect( button.disabled ).toBe( true );
+
+			typePhotographer( 1, 'Bob Byrne' );
+			expect( button.disabled ).toBe( false );
+		} );
+
+		it( "sends each image's photographer and whether it's a substitute", async () => {
+			await pickAndPreview( [ 'one.jpg' ] );
+			typePhotographer( 0, 'Ann Murphy' );
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			document.querySelector( '.photo-comp-upload-all-btn' ).click();
+			await settle();
+
+			expect( FakeXhr.requests[ 0 ].body.get( 'photographers[file_0]' ) ).toBe( 'Ann Murphy' );
+			expect( FakeXhr.requests[ 0 ].body.get( 'substitutes[file_0]' ) ).toBe( '1' );
+		} );
+	} );
+
+	describe( 'with a full panel and a substitute place left', () => {
+		const quotas = window.photoCompUpload.quotas;
+
+		beforeEach( () => {
+			window.photoCompUpload.interclub = { enabled: true, substitutes: 1 };
+			window.photoCompUpload.quotas = { colour: { current: 1, quota: 1, remaining: 1, entered_remaining: 0, substitutes_remaining: 1 } };
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		afterEach( () => {
+			delete window.photoCompUpload.interclub;
+			window.photoCompUpload.quotas = quotas;
+		} );
+
+		it( 'takes the image only as a substitute', async () => {
+			pickFiles( [ 'one.jpg' ] );
+			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-photographer-input' ); i++ ) {
+				await settle();
+			}
+			const input = document.querySelector( '.photo-comp-photographer-input' );
+			input.value = 'Ann Murphy';
+			input.dispatchEvent( new Event( 'input' ) );
+			const button = document.querySelector( '.photo-comp-upload-all-btn' );
+			expect( button.disabled ).toBe( true );
+
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			expect( button.disabled ).toBe( false );
+		} );
+
+		it( 'says only a substitute place is left, until the image is a substitute', async () => {
+			pickFiles( [ 'one.jpg' ] );
+			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-substitute-checkbox' ); i++ ) {
+				await settle();
+			}
+			const warning = () => document.querySelector( '.photo-comp-quota-warning' );
+			expect( warning().textContent ).toBe( 'The Colour panel has all its entries, but has room for 1 substitute. Tick Substitute on an image to add it as one.' );
+
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			expect( warning() ).toBeNull();
+		} );
+	} );
+
+	it( 'asks for no photographer in an individual competition', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		expect( document.querySelector( '.photo-comp-photographer-input' ) ).toBeNull();
+	} );
+
 	describe( 'on a copy of the page cached before it had the live region', () => {
 		beforeEach( () => {
 			renderPage( false );

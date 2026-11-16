@@ -415,7 +415,7 @@ class Voting_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $open_competitions, true );
 
-		$images = $this->images->find_by_competition( (int) $active_competition->id );
+		$images = $this->images->find_entered( (int) $active_competition->id );
 
 		// Check every entrant has a grade from the club's list.
 		$members_without_grades = $this->check_ungraded_entrants( $images );

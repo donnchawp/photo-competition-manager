@@ -222,7 +222,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'category_has_votes', $result->get_error_code() );
 		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/late-entry-comp/colour/jane-doe*' ) );
-		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+		$this->assertCount( 1, $this->images_repo->find_uploads( $competition_id ) );
 		$this->assertSame(
 			array(),
 			get_posts(
@@ -262,7 +262,7 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'voting_started', $result->get_error_code() );
 		$this->assertSame( array(), glob( wp_upload_dir()['basedir'] . '/competitions/unvoted-comp/colour/jane-doe*' ) );
-		$this->assertCount( 1, $this->images_repo->find_by_competition( $competition_id ) );
+		$this->assertCount( 1, $this->images_repo->find_uploads( $competition_id ) );
 	}
 
 	public function test_a_category_thats_voting_and_has_votes_says_voting_has_started(): void {
@@ -750,7 +750,6 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( 1, $status['colour']['remaining'] );
 		$this->assertSame( 0, $status['mono']['current'] );
 		$this->assertSame( 2, $status['mono']['remaining'] );
-		$this->assertSame( 1, $this->entries->get_category_count( $competition_id, $member_id, 'colour' ) );
 	}
 
 	public function test_a_members_entries_come_with_their_urls(): void {
@@ -879,6 +878,202 @@ class Entries_Test extends WP_UnitTestCase {
 		}
 	}
 
+	/**
+	 * Create an open interclub competition with colour and mono panels.
+	 *
+	 * @param string $slug               Competition slug.
+	 * @param int    $quota              Images in each panel.
+	 * @param int    $substitutes        Substitutes allowed beside each panel.
+	 * @param int    $photographer_limit Most images per photographer in a panel; 0 for no limit.
+	 * @return int Competition ID.
+	 */
+	private function create_interclub_competition( string $slug, int $quota, int $substitutes = 0, int $photographer_limit = 0 ): int {
+		return $this->create_competition(
+			$slug,
+			$quota,
+			null,
+			array(
+				'enabled'            => true,
+				'substitutes'        => $substitutes,
+				'photographer_limit' => $photographer_limit,
+			)
+		);
+	}
+
+	/**
+	 * Try to add a club's image to a panel.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $club_id        The club's member ID.
+	 * @param string $photographer   Photographer's name.
+	 * @param bool   $substitute     Whether it's a substitute.
+	 * @param string $category       Category slug.
+	 * @return int|\WP_Error Entry ID, or why it was refused.
+	 */
+	private function add_to_panel( int $competition_id, int $club_id, string $photographer, bool $substitute = false, string $category = 'colour' ) {
+		static $shade = 0;
+		++$shade;
+
+		return $this->entries->add(
+			Actor::member( $club_id ),
+			$competition_id,
+			$club_id,
+			$category,
+			$this->photo( array( $shade % 256, 100, 50 ) ),
+			array(
+				'photographer' => $photographer,
+				'substitute'   => $substitute,
+			)
+		);
+	}
+
+	public function test_a_club_enters_up_to_its_panel_and_no_more(): void {
+		$competition_id = $this->create_interclub_competition( 'panel-comp', 2 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann' ) );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Bob' ) );
+
+		$result = $this->add_to_panel( $competition_id, $club_id, 'Cal' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'quota_exceeded', $result->get_error_code() );
+	}
+
+	public function test_a_club_uploads_up_to_its_substitutes_beside_a_full_panel(): void {
+		$competition_id = $this->create_interclub_competition( 'subs-comp', 1, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann' ) );
+		$substitute_id = $this->add_to_panel( $competition_id, $club_id, 'Bob', true );
+		$this->assertIsInt( $substitute_id );
+
+		$result = $this->add_to_panel( $competition_id, $club_id, 'Cal', true );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'substitutes_full', $result->get_error_code() );
+		$substitute = $this->images_repo->find( $substitute_id );
+		$this->assertSame( 'substitute', $substitute->entry_status );
+		$this->assertSame( 'Bob', $substitute->photographer );
+	}
+
+	public function test_a_substitute_is_refused_without_substitutes_in_the_type(): void {
+		$competition_id = $this->create_interclub_competition( 'no-subs-comp', 2 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+
+		$result = $this->add_to_panel( $competition_id, $club_id, 'Ann', true );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_substitutes', $result->get_error_code() );
+	}
+
+	public function test_an_individual_competition_takes_no_substitutes(): void {
+		$competition_id = $this->create_competition( 'individual-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+
+		$result = $this->add_to_panel( $competition_id, $member_id, 'Jane Doe', true );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_substitutes', $result->get_error_code() );
+	}
+
+	public function test_a_club_entry_needs_a_photographer(): void {
+		$competition_id = $this->create_interclub_competition( 'named-comp', 2 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+
+		$result = $this->add_to_panel( $competition_id, $club_id, '   ' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'photographer_missing', $result->get_error_code() );
+	}
+
+	public function test_a_photographer_cant_have_more_images_in_a_panel_than_the_limit(): void {
+		$competition_id = $this->create_interclub_competition( 'limit-comp', 5, 0, 2 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann Murphy' ) );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, ' ann murphy ' ) );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann Murphy', false, 'mono' ) );
+
+		$result = $this->add_to_panel( $competition_id, $club_id, 'ANN MURPHY' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'photographer_limit', $result->get_error_code() );
+	}
+
+	public function test_a_photographers_substitutes_dont_count_towards_the_limit(): void {
+		$competition_id = $this->create_interclub_competition( 'limit-subs-comp', 5, 2, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann' ) );
+
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann', true ) );
+	}
+
+	public function test_a_disqualified_image_frees_its_place_in_the_panel(): void {
+		$competition_id = $this->create_interclub_competition( 'dq-comp', 1, 0, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $club_id,
+				'category'       => 'colour',
+				'filename'       => 'disqualified.jpg',
+				'photographer'   => 'Ann',
+				'entry_status'   => 'disqualified',
+			)
+		);
+
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann' ) );
+	}
+
+	public function test_moving_an_image_cant_break_the_photographer_limit(): void {
+		$competition_id = $this->create_interclub_competition( 'move-limit-comp', 3, 0, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$colour         = $this->add_to_panel( $competition_id, $club_id, 'Ann' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann', false, 'mono' ) );
+
+		$result = $this->entries->change_categories( Actor::member( $club_id ), $competition_id, $club_id, array( $colour => 'mono' ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'photographer_limit', $result->get_error_code() );
+	}
+
+	public function test_a_disqualified_image_takes_no_place_when_an_entry_moves_in(): void {
+		$competition_id = $this->create_competition( 'move-dq-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$mono           = $this->add( Actor::member( $member_id ), $competition_id, $member_id, 'mono', array( 0, 0, 200 ) );
+		$this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'disqualified.jpg',
+				'entry_status'   => 'disqualified',
+			)
+		);
+
+		$this->assertTrue( $this->entries->change_categories( Actor::member( $member_id ), $competition_id, $member_id, array( $mono => 'colour' ) ) );
+	}
+
+	public function test_quota_status_counts_a_panel_and_its_substitutes_apart(): void {
+		$competition_id = $this->create_interclub_competition( 'status-comp', 2, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->assertIsInt( $this->add_to_panel( $competition_id, $club_id, 'Ann' ) );
+		$this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $club_id,
+				'category'       => 'colour',
+				'filename'       => 'disqualified.jpg',
+				'entry_status'   => 'disqualified',
+			)
+		);
+
+		$status = $this->entries->get_quota_status( $this->competitions_repo->find( $competition_id ), $club_id )['colour'];
+
+		$this->assertSame( 1, $status['current'] );
+		$this->assertSame( 2, $status['remaining'] );
+		$this->assertSame( 1, $status['entered_remaining'] );
+		$this->assertSame( 1, $status['substitutes_remaining'] );
+	}
+
 	public function test_an_admin_removes_a_competitions_entries_and_its_folder(): void {
 		$competition_id = $this->create_competition( 'gone-comp' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );
@@ -899,6 +1094,24 @@ class Entries_Test extends WP_UnitTestCase {
 			$this->assertFileDoesNotExist( $file );
 		}
 		$this->assertDirectoryDoesNotExist( wp_upload_dir()['basedir'] . '/competitions/gone-comp' );
+	}
+
+	public function test_removing_a_competitions_entries_removes_its_substitutes_and_disqualified_images(): void {
+		global $wpdb;
+		$competition_id = $this->create_competition( 'gone-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_ids      = array();
+		foreach ( array( 'substitute', 'disqualified' ) as $i => $status ) {
+			$entry_ids[] = $this->add( Actor::admin(), $competition_id, $member_id, 'colour', array( 200, $i, 0 ) );
+			// No public way to set a status yet: the upload form and admin screen come later.
+			$wpdb->update( $wpdb->prefix . 'photocomp_images', array( 'entry_status' => $status ), array( 'id' => end( $entry_ids ) ) );
+		}
+
+		$this->assertTrue( $this->entries->remove_competition_entries( Actor::admin(), $competition_id ) );
+
+		foreach ( $entry_ids as $entry_id ) {
+			$this->assertNull( $this->images_repo->find( $entry_id ) );
+		}
 	}
 
 	public function test_removing_a_competitions_entries_leaves_other_competitions_alone(): void {
@@ -1227,9 +1440,10 @@ class Entries_Test extends WP_UnitTestCase {
 	 * @param string      $slug       Competition slug.
 	 * @param int         $quota      Images allowed per member in each category.
 	 * @param string|null $close_date Close date, or null to leave it open.
+	 * @param array        $interclub  The competition's interclub settings, or none for an individual competition.
 	 * @return int Competition ID.
 	 */
-	private function create_competition( string $slug, int $quota = 1, ?string $close_date = null ): int {
+	private function create_competition( string $slug, int $quota = 1, ?string $close_date = null, array $interclub = array() ): int {
 		$this->slugs[] = $slug;
 
 		return (int) $this->competitions_repo->create(
@@ -1240,6 +1454,11 @@ class Entries_Test extends WP_UnitTestCase {
 				'open_date'  => '2020-01-01 00:00:00',
 				'close_date' => $close_date,
 				'settings'   => array(
+					'interclub'  => $interclub + array(
+						'enabled'            => ! empty( $interclub ),
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
 					'categories' => array(
 						array(
 							'slug'  => 'colour',

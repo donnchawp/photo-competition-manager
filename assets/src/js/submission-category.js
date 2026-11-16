@@ -25,21 +25,27 @@ document.addEventListener('DOMContentLoaded', () => {
 	const categories = config.categories || {};
 
 	/**
-	 * Count submissions per category with current selections.
+	 * Count entries per category with current selections: entered ones and
+	 * substitutes apart. A disqualified entry takes no place.
 	 */
 	function getCategoryCounts() {
 		const counts = {};
 
-		// Initialize counts
 		Object.keys(categories).forEach((slug) => {
-			counts[slug] = 0;
+			counts[slug] = { entered: 0, substitutes: 0 };
 		});
 
-		// Count based on current dropdown values
 		categorySelects.forEach((select) => {
 			const category = select.value;
-			if (category && counts.hasOwnProperty(category)) {
-				counts[category]++;
+			const entryStatus = select.dataset.entryStatus || 'entered';
+			if (!category || !counts.hasOwnProperty(category) || entryStatus === 'disqualified') {
+				return;
+			}
+
+			if (entryStatus === 'substitute') {
+				counts[category].substitutes++;
+			} else {
+				counts[category].entered++;
 			}
 		});
 
@@ -54,18 +60,31 @@ document.addEventListener('DOMContentLoaded', () => {
 		const errors = [];
 
 		Object.keys(counts).forEach((slug) => {
-			const count = counts[slug];
+			const { entered, substitutes } = counts[slug];
 			const quota = categories[slug]?.quota || 1;
+			const substituteLimit = categories[slug]?.substitutes || 0;
 			const label = categories[slug]?.label || slug;
 
-			if (count > quota) {
+			if (entered > quota) {
 				errors.push(
 					sprintf(
 						/* translators: 1: category name, 2: entries in the category, 3: the category's quota */
 						__('%1$s: %2$d/%3$d (over quota)', 'photo-competition-manager'),
 						label,
-						count,
+						entered,
 						quota
+					)
+				);
+			}
+
+			if (substitutes > substituteLimit) {
+				errors.push(
+					sprintf(
+						/* translators: 1: category name, 2: substitutes in the category, 3: substitutes it takes */
+						__('%1$s: %2$d/%3$d substitutes (over the limit)', 'photo-competition-manager'),
+						label,
+						substitutes,
+						substituteLimit
 					)
 				);
 			}

@@ -4,7 +4,8 @@
  *
  * Reads $data['competition_id'] (int), $data['members'] (array of member
  * objects), $data['categories'] (array of category config arrays with
- * 'slug'/'label' keys).
+ * 'slug'/'label' keys), $data['interclub'] (the competition's interclub
+ * settings: 'enabled', 'substitutes').
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -58,6 +59,21 @@ foreach ( $data['categories'] as $category_option ) {
 echo '</select>';
 echo '</td>';
 echo '</tr>';
+
+// An interclub entry's photographer, and whether it's a substitute.
+if ( $data['interclub']['enabled'] ) {
+	echo '<tr>';
+	echo '<th scope="row"><label for="admin-upload-photographer">' . esc_html__( 'Photographer', 'photo-competition-manager' ) . '</label></th>';
+	echo '<td><input type="text" name="photographer" id="admin-upload-photographer" class="regular-text" maxlength="191" required /></td>';
+	echo '</tr>';
+
+	if ( $data['interclub']['substitutes'] > 0 ) {
+		echo '<tr>';
+		echo '<th scope="row">' . esc_html__( 'Substitute', 'photo-competition-manager' ) . '</th>';
+		echo '<td><label><input type="checkbox" name="substitute" value="1" /> ' . esc_html__( 'This is a substitute', 'photo-competition-manager' ) . '</label></td>';
+		echo '</tr>';
+	}
+}
 
 // File upload.
 echo '<tr>';

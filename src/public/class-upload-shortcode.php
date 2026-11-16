@@ -35,16 +35,20 @@ class Upload_Shortcode {
 	 * @var array<string, string>
 	 */
 	private const UPLOAD_REFUSALS = array(
-		'quota_exceeded'     => 'quota_exceeded',
-		'competition_closed' => 'uploads_closed',
-		'category_has_votes' => 'category_has_votes',
-		'voting_started'     => 'voting_started',
-		'invalid_category'   => 'invalid_category',
-		'file_too_large'     => 'file_too_large',
-		'invalid_format'     => 'wrong_file_type',
-		'invalid_file'       => 'wrong_file_type',
-		'invalid_mime'       => 'wrong_file_type',
-		'invalid_image'      => 'invalid_image',
+		'quota_exceeded'       => 'quota_exceeded',
+		'competition_closed'   => 'uploads_closed',
+		'category_has_votes'   => 'category_has_votes',
+		'voting_started'       => 'voting_started',
+		'invalid_category'     => 'invalid_category',
+		'file_too_large'       => 'file_too_large',
+		'invalid_format'       => 'wrong_file_type',
+		'invalid_file'         => 'wrong_file_type',
+		'invalid_mime'         => 'wrong_file_type',
+		'invalid_image'        => 'invalid_image',
+		'photographer_missing' => 'photographer_missing',
+		'no_substitutes'       => 'no_substitutes',
+		'substitutes_full'     => 'substitutes_full',
+		'photographer_limit'   => 'photographer_limit',
 	);
 
 	/**
@@ -290,7 +294,13 @@ class Upload_Shortcode {
 			$category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- $_FILES cannot be sanitized; validated in Entries::add().
 			$image_file = isset( $_FILES['image'] ) ? $_FILES['image'] : null;
-			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file );
+			$details    = array(
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
+				'photographer' => isset( $_POST['photographer'] ) ? sanitize_text_field( wp_unslash( $_POST['photographer'] ) ) : '',
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
+				'substitute'   => ! empty( $_POST['substitute'] ),
+			);
+			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file, $details, Competition_Settings::substitutes( $settings ) > 0 );
 		}
 
 		// Handle deletion with token (redirects, doesn't return).
@@ -342,9 +352,11 @@ class Upload_Shortcode {
 	 * @param int        $member_id      Member ID.
 	 * @param string     $category       Selected category (sanitized).
 	 * @param array|null $image_file     Uploaded file array from $_FILES or null.
+	 * @param array      $details        Interclub details, as Entries::add() takes them.
+	 * @param bool       $takes_substitutes Whether the competition's panels take substitutes.
 	 * @return void Redirects after processing.
 	 */
-	private function handle_token_upload( int $competition_id, int $member_id, string $category, $image_file ): void {
+	private function handle_token_upload( int $competition_id, int $member_id, string $category, $image_file, array $details, bool $takes_substitutes ): void {
 		if ( empty( $category ) ) {
 			$this->redirect_with_message( 'error', 'category_missing' );
 			return;
@@ -357,10 +369,17 @@ class Upload_Shortcode {
 		}
 
 		// Process upload.
-		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file );
+		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file, $details );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', self::UPLOAD_REFUSALS[ $result->get_error_code() ] ?? 'upload_failed' );
+			$key = self::UPLOAD_REFUSALS[ $result->get_error_code() ] ?? 'upload_failed';
+
+			// A full panel may still take this image as a substitute.
+			if ( 'quota_exceeded' === $key && $takes_substitutes && empty( $details['substitute'] ) ) {
+				$key = 'entries_full';
+			}
+
+			$this->redirect_with_message( 'error', $key );
 			return;
 		}
 
@@ -413,23 +432,28 @@ class Upload_Shortcode {
 	 */
 	private function message_text( string $key ): ?string {
 		$messages = array(
-			'upload_success'     => __( 'Image uploaded successfully!', 'photo-competition-manager' ),
-			'delete_success'     => __( 'Image deleted successfully.', 'photo-competition-manager' ),
-			'category_missing'   => __( 'Please select a category.', 'photo-competition-manager' ),
-			'image_missing'      => __( 'Please select an image to upload.', 'photo-competition-manager' ),
-			'invalid_deletion'   => __( 'Invalid deletion request.', 'photo-competition-manager' ),
-			'upload_failed'      => __( 'Upload failed. Please try again.', 'photo-competition-manager' ),
-			'delete_failed'      => __( 'Failed to delete image. Please try again.', 'photo-competition-manager' ),
-			'quota_exceeded'     => __( 'You\'ve already uploaded the maximum number of images for this category.', 'photo-competition-manager' ),
-			'uploads_closed'     => __( 'This competition isn\'t accepting uploads right now.', 'photo-competition-manager' ),
-			'category_has_votes' => __( 'This category already has votes, so it can\'t take new entries.', 'photo-competition-manager' ),
-			'voting_started'     => __( 'Voting has started in this category, so it can\'t take new entries.', 'photo-competition-manager' ),
-			'invalid_category'   => __( 'That category isn\'t part of this competition.', 'photo-competition-manager' ),
-			'file_too_large'     => __( 'That image is too big. Check the size limit under the upload form.', 'photo-competition-manager' ),
-			'wrong_file_type'    => __( 'That file type isn\'t allowed. Check the formats listed under the upload form.', 'photo-competition-manager' ),
-			'invalid_image'      => __( 'That file isn\'t a valid image.', 'photo-competition-manager' ),
-			'deleting_closed'    => __( 'Images can\'t be deleted now that uploads have closed.', 'photo-competition-manager' ),
-			'entry_not_found'    => __( 'That image wasn\'t found. It may already have been deleted.', 'photo-competition-manager' ),
+			'upload_success'       => __( 'Image uploaded successfully!', 'photo-competition-manager' ),
+			'delete_success'       => __( 'Image deleted successfully.', 'photo-competition-manager' ),
+			'category_missing'     => __( 'Please select a category.', 'photo-competition-manager' ),
+			'image_missing'        => __( 'Please select an image to upload.', 'photo-competition-manager' ),
+			'invalid_deletion'     => __( 'Invalid deletion request.', 'photo-competition-manager' ),
+			'upload_failed'        => __( 'Upload failed. Please try again.', 'photo-competition-manager' ),
+			'delete_failed'        => __( 'Failed to delete image. Please try again.', 'photo-competition-manager' ),
+			'quota_exceeded'       => __( 'You\'ve already uploaded the maximum number of images for this category.', 'photo-competition-manager' ),
+			'uploads_closed'       => __( 'This competition isn\'t accepting uploads right now.', 'photo-competition-manager' ),
+			'category_has_votes'   => __( 'This category already has votes, so it can\'t take new entries.', 'photo-competition-manager' ),
+			'voting_started'       => __( 'Voting has started in this category, so it can\'t take new entries.', 'photo-competition-manager' ),
+			'invalid_category'     => __( 'That category isn\'t part of this competition.', 'photo-competition-manager' ),
+			'file_too_large'       => __( 'That image is too big. Check the size limit under the upload form.', 'photo-competition-manager' ),
+			'wrong_file_type'      => __( 'That file type isn\'t allowed. Check the formats listed under the upload form.', 'photo-competition-manager' ),
+			'invalid_image'        => __( 'That file isn\'t a valid image.', 'photo-competition-manager' ),
+			'deleting_closed'      => __( 'Images can\'t be deleted now that uploads have closed.', 'photo-competition-manager' ),
+			'entry_not_found'      => __( 'That image wasn\'t found. It may already have been deleted.', 'photo-competition-manager' ),
+			'photographer_missing' => __( 'Please give the photographer\'s name.', 'photo-competition-manager' ),
+			'no_substitutes'       => __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ),
+			'substitutes_full'     => __( 'This panel already has all its substitutes.', 'photo-competition-manager' ),
+			'entries_full'         => __( 'This panel has all its entries. To add this image as a substitute, tick “This is a substitute” and upload it again.', 'photo-competition-manager' ),
+			'photographer_limit'   => __( 'That photographer already has as many images in this panel as they\'re allowed. Substitutes don\'t count.', 'photo-competition-manager' ),
 		);
 
 		return $messages[ $key ] ?? null;
@@ -487,33 +511,18 @@ class Upload_Shortcode {
 		$constraints   = Competition_Settings::get_upload_constraints( $settings );
 		$max_file_size = Competition_Settings::enforced_max_file_size( $constraints );
 
-		// Get existing submissions and filter categories if member is authenticated.
+		// The member's entries, and the categories with a place left: an interclub panel's substitutes included.
 		$submissions          = array();
 		$available_categories = array();
+		$interclub            = $settings['interclub'];
 
 		if ( $member && $token_record ) {
 			$submissions = $this->entries->get_member_entries( (int) $competition->id, (int) $member->id );
 
-			// Group submissions by category for quota checking.
-			$submissions_by_category = array();
-			foreach ( $submissions as $submission ) {
-				if ( ! isset( $submissions_by_category[ $submission->category ] ) ) {
-					$submissions_by_category[ $submission->category ] = array();
+			foreach ( $this->entries->get_quota_status( $competition, (int) $member->id ) as $status ) {
+				if ( $status['remaining'] > 0 ) {
+					$available_categories[] = $status;
 				}
-				$submissions_by_category[ $submission->category ][] = $submission;
-			}
-
-			// Filter categories to only show those with remaining quota.
-			foreach ( $categories as $cat ) {
-				$count = isset( $submissions_by_category[ $cat['slug'] ] ) ? count( $submissions_by_category[ $cat['slug'] ] ) : 0;
-				if ( $count < $cat['quota'] ) {
-					$available_categories[] = array_merge( $cat, array( 'current' => $count ) );
-				}
-			}
-		} else {
-			// If no member logged in, show all categories.
-			foreach ( $categories as $cat ) {
-				$available_categories[] = array_merge( $cat, array( 'current' => 0 ) );
 			}
 		}
 		?>
@@ -575,8 +584,9 @@ class Upload_Shortcode {
 				$categories_data = array();
 				foreach ( $categories as $cat ) {
 					$categories_data[ $cat['slug'] ] = array(
-						'label' => $cat['label'],
-						'quota' => $cat['quota'],
+						'label'       => $cat['label'],
+						'quota'       => $cat['quota'],
+						'substitutes' => Competition_Settings::substitutes( $settings ),
 					);
 				}
 
@@ -648,6 +658,16 @@ class Upload_Shortcode {
 											<?php esc_html_e( 'Delete', 'photo-competition-manager' ); ?>
 										</button>
 									</form>
+									<?php if ( $interclub['enabled'] ) : ?>
+										<p class="submission-photographer">
+											<?php echo esc_html( $image->photographer ); ?>
+											<?php if ( 'substitute' === $image->entry_status ) : ?>
+												<span class="submission-status"><?php esc_html_e( 'Substitute', 'photo-competition-manager' ); ?></span>
+											<?php elseif ( 'disqualified' === $image->entry_status ) : ?>
+												<span class="submission-status"><?php esc_html_e( 'Disqualified', 'photo-competition-manager' ); ?></span>
+											<?php endif; ?>
+										</p>
+									<?php endif; ?>
 									<div class="submission-category">
 										<label for="category-<?php echo esc_attr( $image->id ); ?>">
 											<?php esc_html_e( 'Category:', 'photo-competition-manager' ); ?>
@@ -657,6 +677,7 @@ class Upload_Shortcode {
 											class="submission-category-select"
 											data-submission-id="<?php echo esc_attr( $image->id ); ?>"
 											data-original-category="<?php echo esc_attr( $image->category ); ?>"
+											data-entry-status="<?php echo esc_attr( $image->entry_status ); ?>"
 										>
 											<?php foreach ( $categories as $cat ) : ?>
 												<option
@@ -728,15 +749,6 @@ class Upload_Shortcode {
 						);
 					}
 
-					$quotas_js = array();
-					foreach ( $available_categories as $cat ) {
-						$quotas_js[ $cat['slug'] ] = array(
-							'current'   => $cat['current'],
-							'quota'     => $cat['quota'],
-							'remaining' => $cat['quota'] - $cat['current'],
-						);
-					}
-
 					// Localize upload data.
 					wp_localize_script(
 						'photo-comp-drag-drop-upload',
@@ -746,9 +758,13 @@ class Upload_Shortcode {
 							'apiUrl'         => esc_url_raw( rest_url() ),
 							'nonce'          => wp_create_nonce( 'wp_rest' ),
 							'categories'     => $categories_js,
-							'quotas'         => $quotas_js,
+							'quotas'         => array_column( $available_categories, null, 'slug' ),
 							'maxFileSize'    => $max_file_size,
 							'allowedFormats' => $constraints['allowed_formats'],
+							'interclub'      => array(
+								'enabled'     => (bool) $interclub['enabled'],
+								'substitutes' => Competition_Settings::substitutes( $settings ),
+							),
 						)
 					);
 
@@ -771,7 +787,7 @@ class Upload_Shortcode {
 							<?php if ( 1 === count( $available_categories ) ) : ?>
 								<?php
 								$single_category = $available_categories[0];
-								$remaining       = $single_category['quota'] - $single_category['current'];
+								$remaining       = $single_category['remaining'];
 								?>
 								<p>
 									<label>
@@ -782,10 +798,10 @@ class Upload_Shortcode {
 										<?php
 										echo esc_html(
 											sprintf(
-												/* translators: 1: remaining slots, 2: total quota */
+												/* translators: 1: remaining slots, 2: total places */
 												__( '(%1$d of %2$d remaining)', 'photo-competition-manager' ),
 												$remaining,
-												$single_category['quota']
+												$single_category['current'] + $remaining
 											)
 										);
 										?>
@@ -803,14 +819,13 @@ class Upload_Shortcode {
 										<?php foreach ( $available_categories as $cat ) : ?>
 											<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
 												<?php
-												$remaining = $cat['quota'] - $cat['current'];
 												echo esc_html(
 													sprintf(
-														/* translators: 1: category label, 2: remaining slots, 3: total quota */
+														/* translators: 1: category label, 2: remaining slots, 3: total places */
 														__( '%1$s (%2$d of %3$d remaining)', 'photo-competition-manager' ),
 														$cat['label'],
-														$remaining,
-														$cat['quota']
+														$cat['remaining'],
+														$cat['current'] + $cat['remaining']
 													)
 												);
 												?>
@@ -845,6 +860,24 @@ class Upload_Shortcode {
 									?>
 								</small>
 							</p>
+
+							<?php if ( $interclub['enabled'] ) : ?>
+								<p>
+									<label for="photographer">
+										<?php esc_html_e( 'Photographer:', 'photo-competition-manager' ); ?>
+										<span class="required">*</span>
+									</label>
+									<input type="text" id="photographer" name="photographer" maxlength="191" required />
+								</p>
+								<?php if ( $interclub['substitutes'] > 0 ) : ?>
+									<p>
+										<label>
+											<input type="checkbox" name="substitute" value="1" />
+											<?php esc_html_e( 'This is a substitute', 'photo-competition-manager' ); ?>
+										</label>
+									</p>
+								<?php endif; ?>
+							<?php endif; ?>
 
 							<p>
 								<button type="submit" name="photo_competition_upload" class="button">

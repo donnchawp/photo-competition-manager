@@ -17,6 +17,8 @@ class DragDropUpload {
 		);
 		this.maxFileSize = config.maxFileSize || 10 * 1024 * 1024; // 10MB default
 		this.allowedFormats = config.allowedFormats || ['jpg', 'jpeg', 'png'];
+		// In an interclub competition each image names its photographer and may be a substitute.
+		this.interclub = config.interclub || { enabled: false, substitutes: 0 };
 		this.selectedFiles = [];
 
 		this.init();
@@ -142,6 +144,8 @@ class DragDropUpload {
 				file: file,
 				category: '',
 				preview: null,
+				photographer: '',
+				substitute: false,
 			};
 
 			this.selectedFiles.push(fileData);
@@ -242,6 +246,9 @@ class DragDropUpload {
 		fileInfo.textContent = this.formatFileSize(fileData.file.size);
 
 		controls.appendChild(categorySelect);
+		if (this.interclub.enabled) {
+			controls.appendChild(this.createInterclubFields(fileData));
+		}
 		controls.appendChild(fileInfo);
 		controls.appendChild(removeButton);
 
@@ -249,6 +256,47 @@ class DragDropUpload {
 		item.appendChild(controls);
 
 		this.previewGrid.appendChild(item);
+	}
+
+	/**
+	 * Build an image's photographer field, and its substitute box when the panel takes substitutes.
+	 *
+	 * @param {Object} fileData The selected file.
+	 * @return {HTMLElement} The fields.
+	 */
+	createInterclubFields(fileData) {
+		const container = document.createElement('div');
+		container.className = 'photo-comp-interclub-fields';
+
+		const nameLabel = document.createElement('label');
+		nameLabel.append(__('Photographer:', 'photo-competition-manager'), ' ');
+		const nameInput = document.createElement('input');
+		nameInput.type = 'text';
+		nameInput.className = 'photo-comp-photographer-input';
+		nameInput.maxLength = 191;
+		nameInput.required = true;
+		nameInput.addEventListener('input', (e) => {
+			fileData.photographer = e.target.value.trim();
+			this.updateUploadButton();
+		});
+		nameLabel.appendChild(nameInput);
+		container.appendChild(nameLabel);
+
+		if (this.interclub.substitutes > 0) {
+			const substituteLabel = document.createElement('label');
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.className = 'photo-comp-substitute-checkbox';
+			checkbox.addEventListener('change', (e) => {
+				fileData.substitute = e.target.checked;
+				this.updateUploadButton();
+				this.updateQuotaWarning();
+			});
+			substituteLabel.append(checkbox, ' ', __('Substitute', 'photo-competition-manager'));
+			container.appendChild(substituteLabel);
+		}
+
+		return container;
 	}
 
 	createCategorySelect(fileData) {
@@ -351,7 +399,7 @@ class DragDropUpload {
 	 * @return {string} The text, or an empty string.
 	 */
 	remainingText(cat) {
-		if (this.quotas[cat.slug].quota <= 1) {
+		if (this.quotas[cat.slug].quota <= 1 && !(this.interclub.substitutes > 0)) {
 			return '';
 		}
 
@@ -421,13 +469,11 @@ class DragDropUpload {
 			existingWarning.remove();
 		}
 
-		if (!this.validateQuotas()) {
+		const problem = this.quotaProblem();
+		if (problem) {
 			const warning = document.createElement('div');
 			warning.className = 'photo-comp-quota-warning';
-			warning.textContent = __(
-				'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
-				'photo-competition-manager'
-			);
+			warning.textContent = problem;
 			this.previewGrid.parentNode.insertBefore(warning, this.previewGrid);
 		}
 	}
@@ -489,9 +535,10 @@ class DragDropUpload {
 		}
 
 		const allCategoriesAssigned = this.selectedFiles.every((f) => f.category !== '');
+		const allPhotographersNamed = !this.interclub.enabled || this.selectedFiles.every((f) => f.photographer !== '');
 		const quotaValid = this.validateQuotas();
 
-		if (allCategoriesAssigned && this.selectedFiles.length > 0 && quotaValid) {
+		if (allCategoriesAssigned && allPhotographersNamed && this.selectedFiles.length > 0 && quotaValid) {
 			this.uploadButton.disabled = false;
 		} else {
 			this.uploadButton.disabled = true;
@@ -499,23 +546,86 @@ class DragDropUpload {
 	}
 
 	validateQuotas() {
-		// Count files per category.
-		const categoryCount = {};
+		return this.quotaProblem() === '';
+	}
+
+	/**
+	 * What's wrong with the selection's categories, if anything.
+	 *
+	 * @return {string} The warning to show, or an empty string.
+	 */
+	quotaProblem() {
+		const tooMany = __(
+			'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
+			'photo-competition-manager'
+		);
+
+		// Count files per category, and in an interclub panel its entries and substitutes apart.
+		const counts = {};
 		this.selectedFiles.forEach((fileData) => {
 			if (fileData.category) {
-				categoryCount[fileData.category] = (categoryCount[fileData.category] || 0) + 1;
+				const count = (counts[fileData.category] ||= { all: 0, entered: 0, substitutes: 0 });
+				++count.all;
+				++count[fileData.substitute ? 'substitutes' : 'entered'];
 			}
 		});
 
-		// Check if any category exceeds quota.
-		for (const [category, count] of Object.entries(categoryCount)) {
+		for (const [category, count] of Object.entries(counts)) {
 			const quota = this.quotas[category];
-			if (!quota || count > quota.remaining) {
-				return false;
+			if (!quota || count.all > quota.remaining) {
+				return tooMany;
+			}
+
+			if (!this.interclub.enabled) {
+				continue;
+			}
+
+			const label = this.categories.find((cat) => cat.slug === category)?.label ?? category;
+
+			if (count.entered > quota.entered_remaining) {
+				if (0 === quota.entered_remaining) {
+					return sprintf(
+						/* translators: 1: category label, 2: substitutes the panel still takes. */
+						_n(
+							'The %1$s panel has all its entries, but has room for %2$d substitute. Tick Substitute on an image to add it as one.',
+							'The %1$s panel has all its entries, but has room for %2$d substitutes. Tick Substitute on an image to add it as one.',
+							quota.substitutes_remaining,
+							'photo-competition-manager'
+						),
+						label,
+						quota.substitutes_remaining
+					);
+				}
+
+				return sprintf(
+					/* translators: 1: category label, 2: entries the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more entry.',
+						'The %1$s panel has room for %2$d more entries.',
+						quota.entered_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.entered_remaining
+				);
+			}
+
+			if (count.substitutes > quota.substitutes_remaining) {
+				return sprintf(
+					/* translators: 1: category label, 2: substitutes the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more substitute.',
+						'The %1$s panel has room for %2$d more substitutes.',
+						quota.substitutes_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.substitutes_remaining
+				);
 			}
 		}
 
-		return true;
+		return '';
 	}
 
 	async uploadAll() {
@@ -588,7 +698,12 @@ class DragDropUpload {
 		// The images that went in are entries now, so they leave the selection and use up their quota.
 		// Upload All can then only send the images that didn't go in.
 		entered.forEach((fileData) => {
-			this.quotas[fileData.category].remaining -= 1;
+			const quota = this.quotas[fileData.category];
+			quota.remaining -= 1;
+			const kind = fileData.substitute ? 'substitutes_remaining' : 'entered_remaining';
+			if (typeof quota[kind] === 'number') {
+				quota[kind] -= 1;
+			}
 			this.removeFile(fileData.id);
 		});
 		this.uploadButton.textContent = __('Upload All', 'photo-competition-manager');
@@ -611,6 +726,10 @@ class DragDropUpload {
 		const formData = new FormData();
 		formData.append('file_0', fileData.file);
 		formData.append('assignments[file_0]', fileData.category);
+		if (this.interclub.enabled) {
+			formData.append('photographers[file_0]', fileData.photographer);
+			formData.append('substitutes[file_0]', fileData.substitute ? '1' : '');
+		}
 
 		return new Promise((resolve) => {
 			const xhr = new XMLHttpRequest();

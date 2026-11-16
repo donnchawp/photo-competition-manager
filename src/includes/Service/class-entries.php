@@ -115,16 +115,22 @@ class Entries {
 	 * A member may add only their own entries, and only while the competition accepts uploads.
 	 * An admin may add for any member at any time. Both are held to the category's quota, and
 	 * neither can add to a category whose voting has started (its stage is past Previewed), or that
-	 * already has votes.
+	 * already has votes. In an interclub competition the entry needs its photographer's name and
+	 * is held to the panel's rules: see panel_error().
+	 *
+	 * @since 0.4.0 Takes the entry's details.
 	 *
 	 * @param Actor                $actor          Who is adding the entry.
 	 * @param int                  $competition_id Competition ID.
 	 * @param int                  $member_id      The member the entry belongs to.
 	 * @param string               $category       Category slug.
 	 * @param array<string, mixed> $file           Uploaded file from $_FILES.
+	 * @param array<string, mixed> $details        Interclub details: `photographer` (string) and
+	 *                                             `substitute` (bool). An individual competition
+	 *                                             ignores the photographer and takes no substitutes.
 	 * @return int|WP_Error Entry ID on success, WP_Error on failure.
 	 */
-	public function add( Actor $actor, int $competition_id, int $member_id, string $category, array $file ) {
+	public function add( Actor $actor, int $competition_id, int $member_id, string $category, array $file, array $details = array() ) {
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
@@ -169,10 +175,33 @@ class Entries {
 			return $voted;
 		}
 
-		$current_count = $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
+		$interclub    = $settings['interclub'];
+		$entry_status = empty( $details['substitute'] ) ? 'entered' : 'substitute';
+		$photographer = $interclub['enabled'] ? sanitize_text_field( (string) ( $details['photographer'] ?? '' ) ) : '';
+
+		if ( 'substitute' === $entry_status && Competition_Settings::substitutes( $settings ) < 1 ) {
+			return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
+		}
+
+		if ( $interclub['enabled'] && '' === $photographer ) {
+			return new WP_Error( 'photographer_missing', __( 'Please give the photographer\'s name.', 'photo-competition-manager' ) );
+		}
+
+		$panel         = $this->images_repo->find_in_panels( $competition_id, $category, $member_id );
+		$current_count = count( $panel );
 		$quota         = $category_config['quota'] ?? 1;
 
-		if ( $current_count >= $quota ) {
+		if ( $interclub['enabled'] ) {
+			$panel[] = (object) array(
+				'entry_status' => $entry_status,
+				'photographer' => $photographer,
+			);
+
+			$refused = $this->panel_error( $settings, $category_config, $panel );
+			if ( $refused ) {
+				return $refused;
+			}
+		} elseif ( $current_count >= $quota ) {
 			return new WP_Error(
 				'quota_exceeded',
 				sprintf(
@@ -230,6 +259,8 @@ class Entries {
 				'category'               => $category,
 				'filename'               => $filename,
 				'original_attachment_id' => $attachment_id,
+				'photographer'           => $photographer,
+				'entry_status'           => $entry_status,
 			)
 		);
 
@@ -322,7 +353,7 @@ class Entries {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			$removed = $this->remove_entry( $competition, $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
@@ -475,7 +506,7 @@ class Entries {
 			'failed'    => 0,
 		);
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			if ( empty( $entry->original_attachment_id ) ) {
 				continue;
 			}
@@ -542,8 +573,7 @@ class Entries {
 		$settings = Competition_Settings::parse( $competition->settings );
 
 		// The member's entries in this competition: the only ones they can move, and what quota counts.
-		$entries = array_column( $this->images_repo->find_by_competition( $competition_id, null, $member_id ), null, 'id' );
-		$counts  = array_count_values( array_column( $entries, 'category' ) );
+		$entries = array_column( $this->images_repo->find_uploads( $competition_id, null, $member_id ), null, 'id' );
 		$moves   = array();
 
 		foreach ( $changes as $entry_id => $new_category ) {
@@ -568,8 +598,6 @@ class Entries {
 			}
 
 			$moves[] = array( $entry, $new_category );
-			--$counts[ $entry->category ];
-			$counts[ $new_category ] = ( $counts[ $new_category ] ?? 0 ) + 1;
 		}
 
 		if ( $actor->is_admin() ) {
@@ -599,15 +627,21 @@ class Entries {
 
 			$category_config = Competition_Settings::find_category( $settings, $new_category );
 			$quota           = $category_config['quota'] ?? 1;
+			$panel           = $this->panel_after_moves( $entries, $moves, $new_category );
 
-			if ( $counts[ $new_category ] > $quota ) {
+			if ( $settings['interclub']['enabled'] ) {
+				$refused = $this->panel_error( $settings, $category_config, $panel );
+				if ( $refused ) {
+					return $refused;
+				}
+			} elseif ( count( $panel ) > $quota ) {
 				return new WP_Error(
 					'quota_exceeded',
 					sprintf(
 						/* translators: 1: category label, 2: number of entries, 3: quota limit */
 						__( 'That would leave %1$s with %2$d entries, but the limit is %3$d.', 'photo-competition-manager' ),
 						$category_config['label'],
-						$counts[ $new_category ],
+						count( $panel ),
 						$quota
 					)
 				);
@@ -631,6 +665,113 @@ class Entries {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A category's panel once the given moves are made.
+	 *
+	 * @param array<int, object>                      $entries  The member's uploads, keyed by ID.
+	 * @param array<int, array{0: object, 1: string}> $moves Each entry and the category it moves to.
+	 * @param string                                  $category Category slug.
+	 * @return array<int, object> Image records, without disqualified ones.
+	 */
+	private function panel_after_moves( array $entries, array $moves, string $category ): array {
+		$moving_to = array();
+		foreach ( $moves as list( $entry, $new_category ) ) {
+			$moving_to[ (int) $entry->id ] = $new_category;
+		}
+
+		$panel = array();
+		foreach ( $entries as $id => $entry ) {
+			if ( 'disqualified' !== $entry->entry_status && ( $moving_to[ (int) $id ] ?? $entry->category ) === $category ) {
+				$panel[] = $entry;
+			}
+		}
+
+		return $panel;
+	}
+
+	/**
+	 * The refusal for an interclub panel that breaks its rules, if it breaks one.
+	 *
+	 * A panel holds at most the category's quota of entered images, and at
+	 * most the type's number of substitutes. No photographer may have more
+	 * entered images in it than the type's limit, when it has one; their
+	 * substitutes don't count. Photographers' names are compared ignoring
+	 * case and surrounding spaces.
+	 *
+	 * @param array<string, mixed> $settings        Competition settings.
+	 * @param array<string, mixed> $category_config The panel's category.
+	 * @param array<int, object>   $panel           The panel's images, with `entry_status` and `photographer`, as it would be.
+	 * @return WP_Error|null
+	 */
+	private function panel_error( array $settings, array $category_config, array $panel ): ?WP_Error {
+		$quota       = (int) ( $category_config['quota'] ?? 1 );
+		$substitutes = Competition_Settings::substitutes( $settings );
+		$limit       = (int) $settings['interclub']['photographer_limit'];
+
+		$entered       = 0;
+		$substituting  = 0;
+		$photographers = array();
+		foreach ( $panel as $image ) {
+			if ( 'substitute' === $image->entry_status ) {
+				++$substituting;
+				continue;
+			}
+
+			++$entered;
+			$name                   = mb_strtolower( trim( (string) $image->photographer ) );
+			$photographers[ $name ] = array(
+				'name'  => trim( (string) $image->photographer ),
+				'count' => ( $photographers[ $name ]['count'] ?? 0 ) + 1,
+			);
+		}
+
+		if ( $entered > $quota ) {
+			$message = sprintf(
+				/* translators: 1: category label, 2: images the panel takes, 3: images it would have */
+				__( 'The %1$s panel takes %2$d image(s), and that would give it %3$d.', 'photo-competition-manager' ),
+				$category_config['label'],
+				$quota,
+				$entered
+			);
+			if ( $substitutes > 0 ) {
+				$message .= ' ' . __( 'A substitute doesn\'t count towards that.', 'photo-competition-manager' );
+			}
+
+			return new WP_Error( 'quota_exceeded', $message );
+		}
+
+		if ( $substituting > $substitutes ) {
+			return new WP_Error(
+				'substitutes_full',
+				sprintf(
+					/* translators: 1: category label, 2: substitutes the panel takes */
+					__( 'The %1$s panel already has its %2$d substitute(s).', 'photo-competition-manager' ),
+					$category_config['label'],
+					$substitutes
+				)
+			);
+		}
+
+		if ( $limit > 0 ) {
+			foreach ( $photographers as $photographer ) {
+				if ( $photographer['count'] > $limit ) {
+					return new WP_Error(
+						'photographer_limit',
+						sprintf(
+							/* translators: 1: photographer's name, 2: category label, 3: most images per photographer */
+							__( '%1$s can have at most %3$d image(s) in the %2$s panel. Substitutes don\'t count.', 'photo-competition-manager' ),
+							$photographer['name'],
+							$category_config['label'],
+							$limit
+						)
+					);
+				}
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -701,7 +842,7 @@ class Entries {
 			return array();
 		}
 
-		$entries = $this->images_repo->find_by_competition( $competition_id, null, $member_id );
+		$entries = $this->images_repo->find_uploads( $competition_id, null, $member_id );
 
 		foreach ( $entries as $entry ) {
 			$entry->urls = $this->urls( $competition, $entry );
@@ -838,40 +979,54 @@ class Entries {
 	/**
 	 * Get a member's quota status for every category in a competition.
 	 *
+	 * A disqualified image takes no place. In an interclub competition a
+	 * panel also takes the type's number of substitutes, so `remaining`
+	 * counts both, and `entered_remaining` and `substitutes_remaining` say
+	 * which. In an individual competition there are no substitutes.
+	 *
+	 * @since 0.4.0 Leaves out disqualified images, and gives entered and substitute places apart.
+	 *
 	 * @param object $competition Competition record.
 	 * @param int    $member_id   Member ID.
-	 * @return array<string, array{label: string, slug: string, current: int, quota: int, remaining: int}> Keyed by category slug.
+	 * @return array<string, array{label: string, slug: string, current: int, quota: int, remaining: int, entered_remaining: int, substitutes_remaining: int}> Keyed by category slug.
 	 */
 	public function get_quota_status( object $competition, int $member_id ): array {
-		$settings = Competition_Settings::parse( $competition->settings );
+		$settings    = Competition_Settings::parse( $competition->settings );
+		$substitutes = Competition_Settings::substitutes( $settings );
+
+		// One query for every category.
+		$panels = array();
+		foreach ( $this->images_repo->find_in_panels( (int) $competition->id, null, $member_id ) as $image ) {
+			$panels[ $image->category ][] = $image;
+		}
 
 		$quota_status = array();
 		foreach ( Competition_Settings::get_categories( $settings ) as $cat ) {
-			$current = $this->images_repo->count_by_member_category( (int) $competition->id, $member_id, $cat['slug'] );
-			$quota   = $cat['quota'] ?? 1;
+			$panel        = $panels[ $cat['slug'] ] ?? array();
+			$substituting = count(
+				array_filter(
+					$panel,
+					static function ( object $image ): bool {
+						return 'substitute' === $image->entry_status;
+					}
+				)
+			);
+			$quota        = (int) ( $cat['quota'] ?? 1 );
+			$entered_left = max( 0, $quota - ( count( $panel ) - $substituting ) );
+			$subs_left    = max( 0, $substitutes - $substituting );
 
 			$quota_status[ $cat['slug'] ] = array(
-				'label'     => $cat['label'],
-				'slug'      => $cat['slug'],
-				'current'   => $current,
-				'quota'     => $quota,
-				'remaining' => max( 0, $quota - $current ),
+				'label'                 => $cat['label'],
+				'slug'                  => $cat['slug'],
+				'current'               => count( $panel ),
+				'quota'                 => $quota,
+				'remaining'             => $entered_left + $subs_left,
+				'entered_remaining'     => $entered_left,
+				'substitutes_remaining' => $subs_left,
 			);
 		}
 
 		return $quota_status;
-	}
-
-	/**
-	 * Get how many entries a member has in a category.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $category       Category slug.
-	 * @return int
-	 */
-	public function get_category_count( int $competition_id, int $member_id, string $category ): int {
-		return $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
 	}
 
 	/**

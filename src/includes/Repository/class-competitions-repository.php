@@ -623,7 +623,7 @@ class Competitions_Repository extends Abstract_Repository {
 			return new WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( ( new Images_Repository() )->find_by_competition( $id ) ) {
+		if ( ( new Images_Repository() )->find_uploads( $id ) ) {
 			return new WP_Error( 'has_entries', __( 'This competition still has entries. Remove them before deleting it.', 'photo-competition-manager' ) );
 		}
 

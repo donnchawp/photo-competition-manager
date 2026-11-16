@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
+use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
  * Manage submissions viewing page.
@@ -427,8 +428,12 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
+					$details = array(
+						'photographer' => isset( $_POST['photographer'] ) ? sanitize_text_field( wp_unslash( $_POST['photographer'] ) ) : '',
+						'substitute'   => ! empty( $_POST['substitute'] ),
+					);
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Entries::add().
-					$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
+					$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ), $details );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(
@@ -517,7 +522,7 @@ class Submissions_Controller {
 		$scores_data = array();
 		if ( $competition_id ) {
 			$member_filter = $member_id > 0 ? $member_id : null;
-			$submissions   = $this->images->find_by_competition( $competition_id, null, $member_filter );
+			$submissions   = $this->images->find_uploads( $competition_id, null, $member_filter );
 
 			// Sort submissions by member name.
 			usort(
@@ -563,7 +568,7 @@ class Submissions_Controller {
 
 			// Add admin upload form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_admin_upload_form( $competition_id, $members, $categories );
+			echo $this->render_admin_upload_form( $competition_id, $members, $categories, Competition_Settings::parse( $selected_competition->settings )['interclub'] );
 		}
 
 		// Add quota/status summary section.
@@ -573,9 +578,13 @@ class Submissions_Controller {
 				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
 
 				if ( ! empty( $categories ) ) {
-					// Build submission counts by member and category.
+					// Count each member's entered images by category: substitutes and disqualified images take no place in the quota.
 					$member_counts = array();
 					foreach ( $submissions as $submission ) {
+						if ( 'entered' !== $submission->entry_status ) {
+							continue;
+						}
+
 						$mid = (int) $submission->member_id;
 						$cat = (string) $submission->category;
 
@@ -675,15 +684,17 @@ class Submissions_Controller {
 	 * @param int               $competition_id Competition ID.
 	 * @param array<int,object> $members        All members.
 	 * @param array<int,array>  $categories     Category config for the competition.
+	 * @param array             $interclub      The competition's interclub settings.
 	 * @return string
 	 */
-	private function render_admin_upload_form( int $competition_id, array $members, array $categories ): string {
+	private function render_admin_upload_form( int $competition_id, array $members, array $categories, array $interclub ): string {
 		return $this->render_template(
 			'admin/submissions/admin-upload-form.php',
 			array(
 				'competition_id' => $competition_id,
 				'members'        => $members,
 				'categories'     => $categories,
+				'interclub'      => $interclub,
 			)
 		);
 	}

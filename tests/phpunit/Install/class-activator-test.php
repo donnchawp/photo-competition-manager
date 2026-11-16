@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Install;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
@@ -614,7 +615,7 @@ class Activator_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), preg_grep( '/^(CREATE|ALTER|DESCRIBE)/i', $this->ddl ) );
 		$this->assertSame( "{$wpdb->prefix}photocomp_judges", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_judges" ) ) );
-		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_9_adds_the_judge_column_to_an_old_votes_table_and_keeps_its_votes(): void {
@@ -637,7 +638,7 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertNotEmpty( $wpdb->get_results( "SHOW COLUMNS FROM {$this->shadowed} LIKE 'judge_id'" ) );
 		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed}" ) );
 		$this->assertSame( 1, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->shadowed} WHERE judge_id IS NULL" ) );
-		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_10_adds_type_tables_and_columns(): void {
@@ -654,7 +655,7 @@ class Activator_Test extends WP_UnitTestCase {
 		foreach ( array( 'competition_types', 'member_types', 'entrants' ) as $table ) {
 			$this->assertSame( "{$wpdb->prefix}photocomp_{$table}", $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', "{$wpdb->prefix}photocomp_{$table}" ) ), $table );
 		}
-		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_creates_one_type_from_club_settings(): void {
@@ -688,7 +689,7 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 'open', $settings['categories'][0]['slug'] );
 		$this->assertSame( $club['voting']['score_matrix'], $settings['voting']['score_matrix'] );
 		$this->assertSame( $club['upload'], $settings['upload'] );
-		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_tags_every_member_and_sets_every_competition(): void {
@@ -747,6 +748,58 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( (int) $this->types()[0]->id, Activator::create_default_type() );
 	}
 
+	public function test_upgrade_to_11_keeps_existing_images_in_their_competitions(): void {
+		global $wpdb;
+		$this->shadow_v10_images_table();
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'member_id'      => 1,
+				'competition_id' => 1,
+				'category'       => 'colour',
+				'filename'       => 'old.jpg',
+				'random_number'  => 1,
+			)
+		);
+		update_option( 'photo_comp_db_version', 10 );
+
+		Activator::maybe_upgrade();
+
+		$images = ( new Images_Repository() )->find_entered( 1 );
+		$this->assertCount( 1, $images );
+		$this->assertSame( 'entered', $images[0]->entry_status );
+		$this->assertSame( '', $images[0]->photographer );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	/**
+	 * Hide the images table behind a temporary one shaped as version 10 left
+	 * it, without the photographer and entry status. The upgrade's ALTER
+	 * TABLE runs for real, but only the temporary table changes.
+	 */
+	private function shadow_v10_images_table(): void {
+		global $wpdb;
+
+		$this->shadowed = $wpdb->prefix . 'photocomp_images';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				member_id BIGINT UNSIGNED NOT NULL,
+				competition_id BIGINT UNSIGNED NOT NULL,
+				category VARCHAR(100) NOT NULL,
+				filename VARCHAR(191) NOT NULL,
+				random_number BIGINT UNSIGNED NOT NULL,
+				original_attachment_id BIGINT UNSIGNED NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				KEY competition (competition_id),
+				KEY member (member_id),
+				KEY original_attachment (original_attachment_id)
+			) {$wpdb->get_charset_collate()}"
+		);
+	}
+
 	/**
 	 * Insert a member row.
 	 *
@@ -792,7 +845,7 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $this->types() );
 		$this->assertSame( 1, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = %d AND type_id = %d', $wpdb->prefix . 'photocomp_member_types', $member, $type_id ) ) );
 		$this->assertSame( $type_id, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT type_id FROM %i WHERE id = %d', ( new Competitions_Repository() )->table(), $comp ) ) );
-		$this->assertSame( 10, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	/**
@@ -960,7 +1013,8 @@ class Activator_Test extends WP_UnitTestCase {
 
 	/**
 	 * Hide the images table behind one shaped as version 6 left it, with the
-	 * score column nothing read.
+	 * score column nothing read. It has version 11's columns too: the test
+	 * swallows ALTER TABLE, and step 11 adds them before step 7 runs.
 	 */
 	private function shadow_v6_images_table(): void {
 		global $wpdb;
@@ -976,6 +1030,8 @@ class Activator_Test extends WP_UnitTestCase {
 				random_number BIGINT UNSIGNED NOT NULL,
 				score INT NULL,
 				original_attachment_id BIGINT UNSIGNED NULL,
+				photographer VARCHAR(191) NOT NULL DEFAULT '',
+				entry_status VARCHAR(20) NOT NULL DEFAULT 'entered',
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				updated_at DATETIME NULL,
 				PRIMARY KEY  (id)

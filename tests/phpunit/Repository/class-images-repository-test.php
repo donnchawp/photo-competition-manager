@@ -180,7 +180,7 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertNull( $image );
 	}
 
-	public function test_find_by_competition_retrieves_all_images(): void {
+	public function test_find_entered_retrieves_all_images(): void {
 		$this->images_repo->create(
 			array(
 				'competition_id' => $this->competition_id,
@@ -199,13 +199,13 @@ class Images_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$images = $this->images_repo->find_by_competition( $this->competition_id );
+		$images = $this->images_repo->find_entered( $this->competition_id );
 
 		$this->assertIsArray( $images );
 		$this->assertCount( 2, $images );
 	}
 
-	public function test_find_by_competition_filters_by_category(): void {
+	public function test_find_entered_filters_by_category(): void {
 		$this->images_repo->create(
 			array(
 				'competition_id' => $this->competition_id,
@@ -224,14 +224,14 @@ class Images_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$images = $this->images_repo->find_by_competition( $this->competition_id, 'colour' );
+		$images = $this->images_repo->find_entered( $this->competition_id, 'colour' );
 
 		$this->assertIsArray( $images );
 		$this->assertCount( 1, $images );
 		$this->assertEquals( 'colour', $images[0]->category );
 	}
 
-	public function test_find_by_competition_filters_by_member(): void {
+	public function test_find_entered_filters_by_member(): void {
 		$member2_id = $this->members_repo->create(
 			array(
 				'name'  => 'Test User 2',
@@ -258,7 +258,7 @@ class Images_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$images = $this->images_repo->find_by_competition( $this->competition_id, null, $this->member_id );
+		$images = $this->images_repo->find_entered( $this->competition_id, null, $this->member_id );
 
 		$this->assertIsArray( $images );
 		$this->assertCount( 1, $images );
@@ -288,6 +288,105 @@ class Images_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertIsArray( $images );
 		$this->assertCount( 2, $images );
+	}
+
+	/**
+	 * Create one image of each entry status in the colour category.
+	 *
+	 * @return array<string, int> Image IDs keyed by entry status.
+	 */
+	private function create_one_of_each_status(): array {
+		$ids = array();
+		foreach ( array( 'entered', 'substitute', 'disqualified' ) as $status ) {
+			$ids[ $status ] = $this->images_repo->create(
+				array(
+					'competition_id' => $this->competition_id,
+					'member_id'      => $this->member_id,
+					'category'       => 'colour',
+					'filename'       => $status . '.jpg',
+					'photographer'   => 'Photographer ' . $status,
+					'entry_status'   => $status,
+				)
+			);
+		}
+
+		return $ids;
+	}
+
+	public function test_substitutes_and_disqualified_images_are_not_in_the_competition(): void {
+		$ids = $this->create_one_of_each_status();
+
+		$this->assertSame( array( $ids['entered'] ), array_map( 'intval', array_column( $this->images_repo->find_entered( $this->competition_id ), 'id' ) ) );
+		$this->assertSame( array( $ids['entered'] ), array_map( 'intval', array_column( $this->images_repo->find_entered( $this->competition_id, 'colour', $this->member_id ), 'id' ) ) );
+	}
+
+	public function test_a_category_with_only_substitutes_and_disqualified_images_has_no_images(): void {
+		foreach ( array( 'substitute', 'disqualified' ) as $status ) {
+			$this->images_repo->create(
+				array(
+					'competition_id' => $this->competition_id,
+					'member_id'      => $this->member_id,
+					'category'       => 'colour',
+					'filename'       => $status . '.jpg',
+					'entry_status'   => $status,
+				)
+			);
+		}
+
+		$this->assertFalse( $this->images_repo->has_images( $this->competition_id, 'colour' ) );
+	}
+
+	public function test_uploads_include_every_entry_status_with_its_photographer(): void {
+		$ids = $this->create_one_of_each_status();
+
+		$uploads = array_column( $this->images_repo->find_uploads( $this->competition_id, 'colour', $this->member_id ), null, 'id' );
+
+		$this->assertCount( 3, $uploads );
+		foreach ( $ids as $status => $id ) {
+			$this->assertSame( $status, $uploads[ $id ]->entry_status );
+			$this->assertSame( 'Photographer ' . $status, $uploads[ $id ]->photographer );
+		}
+	}
+
+	public function test_a_panel_holds_entered_images_and_substitutes_but_not_disqualified_ones(): void {
+		$ids = $this->create_one_of_each_status();
+
+		$panel = array_map( 'intval', array_column( $this->images_repo->find_in_panels( $this->competition_id, 'colour', $this->member_id ), 'id' ) );
+
+		sort( $panel );
+		$this->assertSame( array( $ids['entered'], $ids['substitute'] ), $panel );
+	}
+
+	public function test_an_image_without_a_status_is_entered_with_no_photographer(): void {
+		$id = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'plain.jpg',
+			)
+		);
+
+		$image = $this->images_repo->find( $id );
+
+		$this->assertSame( 'entered', $image->entry_status );
+		$this->assertSame( '', $image->photographer );
+	}
+
+	public function test_create_rejects_an_unknown_entry_status(): void {
+		$result = $this->images_repo->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $this->member_id,
+				'category'       => 'colour',
+				'filename'       => 'odd.jpg',
+				'entry_status'   => 'withdrawn',
+			)
+		);
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_entry_status', $result->get_error_code() );
+		$this->assertSame( array(), $this->images_repo->find_uploads( $this->competition_id ) );
 	}
 
 	public function test_entrant_grades_lists_each_grade_with_entries_once(): void {

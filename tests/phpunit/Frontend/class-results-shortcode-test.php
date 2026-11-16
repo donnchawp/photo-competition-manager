@@ -292,7 +292,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function test_recorded_results_are_shown_after_every_entry_is_removed(): void {
 		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
-		$image = ( new Images_Repository() )->find_by_competition( $this->competition_id )[0];
+		$image = ( new Images_Repository() )->find_entered( $this->competition_id )[0];
 
 		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $image->id );
 		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );

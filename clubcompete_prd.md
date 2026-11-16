@@ -31,6 +31,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 | **Competition Management** | Create and manage competitions (e.g., “October 2024”). Define open/close dates and categories. Grades are set once for the club, in Settings, and every competition uses them. |
 | **Competition Types** | The club defines kinds of competition (e.g. Individual, Juniors), each with its own categories, default settings and grade display names. Every competition belongs to one type. |
 | **Entrants** | Members are tagged with the types they belong to. A competition is open to everyone in its type or to selected entrants only. |
+| **Interclub Competitions** | A type can say its entrants are clubs. Each club enters a panel of images per category, with optional substitutes and a per-photographer limit, and results add up club totals. |
 | **Member Management** | Maintain a separate list of members (not WordPress users). Admins can add/edit members and upload on their behalf. |
 | **Image Upload** | Members can upload a set number of images in defined categories (e.g. Colour, Black & White). Images validated, resized, renamed automatically. |
 | **Voting System** | Voting opens manually or at a defined time. Members can vote via a mobile-friendly page or QR code link. |
@@ -83,6 +84,13 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 - Only those who may enter receive upload links and reminders, and only they can upload, through the upload page or the API.
 - In a competition open to everyone only active members of the type can ask for a voting link; in a selected-entrants one only entrants can. The "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter when voting links are emailed. Emailing the results link to all members goes to the type's active members.
 - Changing a competition's type before it has entries replaces its categories and type settings with the new type's, keeping its page links. A competition always keeps at least one category.
+
+### 4.1c Interclub Competitions
+- A type's **interclub** settings: *Entrants are clubs* (off by default), *Substitutes per panel* (0 = none) and *Most images per photographer in a panel* (0 = no limit). A panel's size is each category's quota. Only the type form changes them; competitions copy them like other type settings.
+- A club is a member with an email address. It logs in and uploads like any member.
+- Every entry has a free-text **photographer** name and an **entry status**: entered, substitute or disqualified. Only entered entries are voted on, judged and ranked. Existing entries are entered, with no photographer.
+- Planned: the upload form asks for the photographer and marks substitutes; the per-photographer limit counts the panel only. An admin disqualifies an entry and, before voting opens, promotes a substitute (refused if it breaks the photographer limit). Disqualifying a whole club is left to the organiser.
+- Planned: results show each entry's score and photographer, club totals per panel and overall, ranked within each grade (ties share a place, 1, 1, 2). A club that skipped a panel is listed without an overall place.
 
 ### 4.2 Member & Image Upload
 - Members are managed internally (custom table).

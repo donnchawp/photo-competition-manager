@@ -97,6 +97,57 @@ class Type_Settings_Form_Test extends WP_UnitTestCase {
 		$this->assertSame( Competition_Settings::TYPE_KEYS, array_keys( $settings ) );
 	}
 
+	public function test_the_type_form_saves_its_interclub_section(): void {
+		$settings = $this->parse(
+			array(
+				'interclub_section'            => '1',
+				'interclub_enabled'            => '1',
+				'interclub_substitutes'        => '2',
+				'interclub_photographer_limit' => '2',
+			)
+		);
+
+		$this->assertSame(
+			array(
+				'enabled'            => true,
+				'substitutes'        => 2,
+				'photographer_limit' => 2,
+			),
+			$settings['interclub']
+		);
+	}
+
+	public function test_unticking_entrants_are_clubs_turns_interclub_off(): void {
+		$_POST   = array(
+			'interclub_section'            => '1',
+			'interclub_substitutes'        => '2',
+			'interclub_photographer_limit' => '0',
+		);
+		$current = Competition_Settings::type_settings( (object) array() );
+
+		$current['interclub']['enabled'] = true;
+
+		$settings = ( new Type_Settings_Form() )->from_post( $current );
+
+		$this->assertFalse( $settings['interclub']['enabled'] );
+	}
+
+	public function test_a_form_without_the_interclub_section_keeps_the_interclub_settings(): void {
+		// The competition edit form posts the other sections but not this one.
+		$_POST   = array( 'score_matrix' => '9, 8, 7' );
+		$current = Competition_Settings::type_settings( (object) array() );
+
+		$current['interclub'] = array(
+			'enabled'            => true,
+			'substitutes'        => 2,
+			'photographer_limit' => 2,
+		);
+
+		$settings = ( new Type_Settings_Form() )->from_post( $current );
+
+		$this->assertSame( $current['interclub'], $settings['interclub'] );
+	}
+
 	public function test_render_sections_leaves_out_the_voting_ui_type(): void {
 		$html = ( new Type_Settings_Form() )->render_sections( Competition_Settings::type_settings( (object) array() ) );
 

@@ -266,7 +266,7 @@ class Results_Ranking {
 		}
 
 		$images = array();
-		foreach ( $this->images->find_by_competition( $competition_id, $category ) as $image ) {
+		foreach ( $this->images->find_entered( $competition_id, $category ) as $image ) {
 			$images[ (int) $image->id ] = $image;
 		}
 
@@ -352,7 +352,7 @@ class Results_Ranking {
 	 * @return array<int, array{slug: string, label: string, ungraded: bool, entries: array<int, array{position: int, image: object, member: object|null, total_score: int, vote_count: int, recorded: bool}>}>
 	 */
 	private function rank_live( int $competition_id, string $category ): array {
-		$images = $this->images->find_by_competition( $competition_id, $category );
+		$images = $this->images->find_entered( $competition_id, $category );
 		if ( empty( $images ) ) {
 			return array();
 		}

@@ -201,6 +201,29 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( 1, $job['total_count'] );
 	}
 
+	public function test_queue_results_includes_an_entrant_whose_only_image_was_disqualified(): void {
+		$member_id = (int) $this->members->create(
+			array(
+				'name'  => 'Disqualified Club',
+				'email' => 'out@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'out.jpg',
+				'entry_status'   => 'disqualified',
+			)
+		);
+
+		$job = $this->manager->get_job( $this->manager->queue_results( $this->competition_id ) );
+
+		$this->assertSame( array( $member_id ), array_map( 'intval', $job['member_ids'] ) );
+	}
+
 	public function test_results_batch_loads_each_category_results_once(): void {
 		$this->seed_entrant( 'one@example.com' );
 		$this->seed_entrant( 'two@example.com' );
@@ -361,7 +384,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->add_entry( $member_id );
 		Workflow_Fixtures::publish_results( $this->competition_id );
 
-		$removed = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[0];
+		$removed = $this->images->find_entered( $this->competition_id, 'colour', $member_id )[0];
 		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $removed->id );
 		$this->manager->process_batch( $this->manager->queue_results( $this->competition_id ) );
 
@@ -401,7 +424,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	 * @param string $voter     Voter name.
 	 */
 	private function vote_for( int $member_id, int $score, int $entry = 0, string $voter = 'Judge' ): void {
-		$image = $this->images->find_by_competition( $this->competition_id, 'colour', $member_id )[ $entry ];
+		$image = $this->images->find_entered( $this->competition_id, 'colour', $member_id )[ $entry ];
 		( new Votes_Repository() )->create( $this->competition_id, 'colour', $voter, (int) $image->id, $score );
 	}
 

@@ -333,6 +333,54 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertEquals( 'invalid_voting_ui_type', $result->get_error_code() );
 	}
 
+	public function test_a_type_saved_before_interclub_settings_is_an_individual_competition(): void {
+		$type = (object) array( 'settings' => array( 'categories' => Competition_Settings::defaults()['categories'] ) );
+
+		$this->assertFalse( Competition_Settings::type_settings( $type )['interclub']['enabled'] );
+	}
+
+	public function test_a_competition_takes_substitutes_only_while_interclub_is_on(): void {
+		$settings              = Competition_Settings::defaults();
+		$settings['interclub'] = array(
+			'enabled'            => true,
+			'substitutes'        => 2,
+			'photographer_limit' => 0,
+		);
+		$this->assertSame( 2, Competition_Settings::substitutes( $settings ) );
+
+		// Switching interclub off keeps the number for switching it back on.
+		$settings['interclub']['enabled'] = false;
+		$this->assertSame( 0, Competition_Settings::substitutes( $settings ) );
+	}
+
+	/**
+	 * @dataProvider invalid_interclub_numbers
+	 *
+	 * @param string $key   Interclub setting.
+	 * @param mixed  $value Its invalid value.
+	 */
+	public function test_validate_type_settings_rejects_an_invalid_interclub_number( string $key, $value ): void {
+		$settings                      = Competition_Settings::type_settings( (object) array() );
+		$settings['interclub'][ $key ] = $value;
+
+		$result = Competition_Settings::validate_type_settings( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_interclub', $result->get_error_code() );
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: mixed}>
+	 */
+	public function invalid_interclub_numbers(): array {
+		return array(
+			'negative substitutes'          => array( 'substitutes', -1 ),
+			'non-numeric substitutes'       => array( 'substitutes', 'two' ),
+			'negative photographer limit'   => array( 'photographer_limit', -2 ),
+			'fractional photographer limit' => array( 'photographer_limit', 1.5 ),
+		);
+	}
+
 	public function test_validate_rejects_non_string_voting_password(): void {
 		$settings                       = Competition_Settings::defaults();
 		$settings['voting']['password'] = array( 'not-a-string' );
