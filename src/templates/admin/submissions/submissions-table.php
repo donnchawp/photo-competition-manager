@@ -83,8 +83,7 @@ foreach ( $data['rows'] as $row ) {
 	// The buttons belong to the status form after the table, since forms can't nest.
 	echo '<td class="photo-comp-entry-status">' . esc_html( $row->status_label );
 	foreach ( $row->status_actions as $status_action ) {
-		$confirm = '' !== $status_action['confirm'] ? ' photo-comp-disqualify" data-confirm="' . esc_attr( $status_action['confirm'] ) : '';
-		echo ' <button type="submit" class="button button-small' . $confirm . '" form="photo-comp-entry-status-form" name="entry_status[' . esc_attr( $row->image_id ) . ']" value="' . esc_attr( $status_action['status'] ) . '">' . esc_html( $status_action['label'] ) . '</button>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $confirm is a fixed class and an esc_attr()ed prompt.
+		echo ' <button type="submit" class="button button-small photo-comp-entry-status-button" data-confirm="' . esc_attr( $status_action['confirm'] ) . '" form="photo-comp-entry-status-form" name="entry_status[' . esc_attr( $row->image_id ) . ']" value="' . esc_attr( $status_action['status'] ) . '">' . esc_html( $status_action['label'] ) . '</button>';
 	}
 	echo '</td>';
 	echo '<td>' . esc_html( $row->formatted_created_at ) . '</td>';

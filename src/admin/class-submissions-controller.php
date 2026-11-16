@@ -154,7 +154,7 @@ class Submissions_Controller {
 				});
 			}
 			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals') || e.target.classList.contains('photo-comp-disqualify')) {
+				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals') || e.target.classList.contains('photo-comp-entry-status-button')) {
 					var confirmMessage = e.target.getAttribute('data-confirm');
 					if (confirmMessage && !confirm(confirmMessage)) {
 						e.preventDefault();

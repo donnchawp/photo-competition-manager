@@ -298,19 +298,11 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	public function remove( Actor $actor, int $competition_id, int $entry_id ) {
-		$entry = $this->images_repo->find( $entry_id );
-		if ( ! $entry ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		$found = $this->find_competition_entry( $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
 		}
-
-		if ( (int) $entry->competition_id !== $competition_id ) {
-			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
-		}
-
-		$competition = $this->competitions_repo->find( $competition_id, true );
-		if ( ! $competition ) {
-			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
-		}
+		list( $competition, $entry ) = $found;
 
 		if ( ! $actor->is_admin() ) {
 			if ( ! $actor->is_member( (int) $entry->member_id ) ) {
@@ -328,6 +320,31 @@ class Entries {
 		}
 
 		return $this->remove_entry( $competition, $entry );
+	}
+
+	/**
+	 * An entry and the competition it must belong to.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @param int $entry_id       Entry ID.
+	 * @return array{0: object, 1: object}|WP_Error The competition and the entry.
+	 */
+	private function find_competition_entry( int $competition_id, int $entry_id ) {
+		$entry = $this->images_repo->find( $entry_id );
+		if ( ! $entry ) {
+			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( (int) $entry->competition_id !== $competition_id ) {
+			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		return array( $competition, $entry );
 	}
 
 	/**
@@ -353,22 +370,18 @@ class Entries {
 			return new WP_Error( 'not_authorized', __( 'Only an admin can change an entry\'s status.', 'photo-competition-manager' ) );
 		}
 
-		$entry = $this->images_repo->find( $entry_id );
-		if ( ! $entry ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		$found = $this->find_competition_entry( $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
 		}
-
-		if ( (int) $entry->competition_id !== $competition_id ) {
-			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
-		}
-
-		$competition = $this->competitions_repo->find( $competition_id, true );
-		if ( ! $competition ) {
-			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
-		}
+		list( $competition, $entry ) = $found;
 
 		if ( $entry_status === $entry->entry_status ) {
 			return true;
+		}
+
+		if ( ! in_array( $entry_status, Images_Repository::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
 		}
 
 		$refused = $this->status_phase_error( $competition, $entry, $entry_status ) ?? $this->status_panel_error( $competition, $entry, $entry_status );
@@ -435,10 +448,6 @@ class Entries {
 	 * @return WP_Error|null
 	 */
 	private function status_phase_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
-		if ( ! in_array( $entry_status, Images_Repository::ENTRY_STATUSES, true ) ) {
-			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
-		}
-
 		if ( $this->workflow->reads_recorded_results( $competition ) ) {
 			return new WP_Error( 'results_recorded', __( 'This competition\'s results are recorded, so its entries can\'t change status. Hide its results first.', 'photo-competition-manager' ) );
 		}
@@ -447,10 +456,8 @@ class Entries {
 			return null;
 		}
 
-		if ( 'substitute' === $entry_status ) {
-			if ( Competition_Settings::substitutes( Competition_Settings::parse( $competition->settings ) ) < 1 ) {
-				return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
-			}
+		if ( 'substitute' === $entry_status && Competition_Settings::substitutes( Competition_Settings::parse( $competition->settings ) ) < 1 ) {
+			return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
 		}
 
 		if ( $this->workflow->has_voting_started( $competition, (string) $entry->category ) ) {
