@@ -331,6 +331,192 @@ class Entries {
 	}
 
 	/**
+	 * Change an entry's status: disqualify it, promote a substitute, or bring a disqualified entry back.
+	 *
+	 * Only an admin may do this, and only until the competition's results are recorded. An entry
+	 * can be disqualified at any time before then, even after its category has votes: its votes
+	 * stay but no longer count. Any other change puts the entry on its category's ballot or among
+	 * its substitutes, so it follows the rules for adding one: the category's voting mustn't have
+	 * started and it mustn't have votes, and the panel's rules must hold (see panel_error()), or
+	 * in an individual competition the category's quota.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor  $actor          Who is changing it.
+	 * @param int    $competition_id Competition the entry must belong to.
+	 * @param int    $entry_id       Entry ID.
+	 * @param string $entry_status   The new status: entered, substitute or disqualified.
+	 * @return true|WP_Error
+	 */
+	public function set_entry_status( Actor $actor, int $competition_id, int $entry_id, string $entry_status ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change an entry\'s status.', 'photo-competition-manager' ) );
+		}
+
+		$entry = $this->images_repo->find( $entry_id );
+		if ( ! $entry ) {
+			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( (int) $entry->competition_id !== $competition_id ) {
+			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( $entry_status === $entry->entry_status ) {
+			return true;
+		}
+
+		$refused = $this->status_phase_error( $competition, $entry, $entry_status ) ?? $this->status_panel_error( $competition, $entry, $entry_status );
+		if ( $refused ) {
+			return $refused;
+		}
+
+		$updated = $this->images_repo->update_entry_status( $entry_id, $entry_status );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		( new Event_Logger() )->log(
+			$competition_id,
+			'entry_status_changed',
+			'upload',
+			sprintf(
+				/* translators: 1: entry ID, 2: old status, 3: new status */
+				__( 'Entry #%1$d changed from %2$s to %3$s.', 'photo-competition-manager' ),
+				$entry_id,
+				$entry->entry_status,
+				$entry_status
+			),
+			array(
+				'entry_id' => $entry_id,
+				'from'     => $entry->entry_status,
+				'to'       => $entry_status,
+			)
+		);
+
+		return true;
+	}
+
+	/**
+	 * The statuses an admin may move an entry to as the competition stands, in the order of
+	 * Images_Repository::ENTRY_STATUSES.
+	 *
+	 * Only the competition's phase and type decide them. The panel's rules are checked when the
+	 * status changes, so a status listed here can still be refused.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $entry       Entry row.
+	 * @return string[]
+	 */
+	public function entry_status_options( object $competition, object $entry ): array {
+		$options = array();
+		foreach ( Images_Repository::ENTRY_STATUSES as $entry_status ) {
+			if ( $entry_status !== $entry->entry_status && null === $this->status_phase_error( $competition, $entry, $entry_status ) ) {
+				$options[] = $entry_status;
+			}
+		}
+
+		return $options;
+	}
+
+	/**
+	 * The refusal for a status change that the competition's phase or type rules out, if it does.
+	 *
+	 * @param object $competition  Competition row.
+	 * @param object $entry        Entry row.
+	 * @param string $entry_status The new status.
+	 * @return WP_Error|null
+	 */
+	private function status_phase_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
+		if ( ! in_array( $entry_status, Images_Repository::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
+		if ( $this->workflow->reads_recorded_results( $competition ) ) {
+			return new WP_Error( 'results_recorded', __( 'This competition\'s results are recorded, so its entries can\'t change status. Hide its results first.', 'photo-competition-manager' ) );
+		}
+
+		if ( 'disqualified' === $entry_status ) {
+			return null;
+		}
+
+		if ( 'substitute' === $entry_status ) {
+			$interclub = Competition_Settings::parse( $competition->settings )['interclub'];
+			if ( ! $interclub['enabled'] || $interclub['substitutes'] < 1 ) {
+				return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
+			}
+		}
+
+		if ( $this->workflow->has_voting_started( $competition, (string) $entry->category ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so its entries are fixed. Reset the category first.', 'photo-competition-manager' ) );
+		}
+
+		return $this->voted_category_error( (int) $competition->id, (string) $entry->category );
+	}
+
+	/**
+	 * The refusal for a status change that would break the entry's panel or quota, if it would.
+	 *
+	 * Disqualifying never does.
+	 *
+	 * @param object $competition  Competition row.
+	 * @param object $entry        Entry row.
+	 * @param string $entry_status The new status.
+	 * @return WP_Error|null
+	 */
+	private function status_panel_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
+		if ( 'disqualified' === $entry_status ) {
+			return null;
+		}
+
+		$settings        = Competition_Settings::parse( $competition->settings );
+		$category_config = Competition_Settings::find_category( $settings, (string) $entry->category );
+		if ( ! $category_config ) {
+			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
+		}
+
+		$panel = array_values(
+			array_filter(
+				$this->panel( (int) $competition->id, (int) $entry->member_id, (string) $entry->category ),
+				static function ( object $image ) use ( $entry ): bool {
+					return (int) $image->id !== (int) $entry->id;
+				}
+			)
+		);
+
+		if ( $settings['interclub']['enabled'] ) {
+			$panel[] = (object) array(
+				'entry_status' => $entry_status,
+				'photographer' => $entry->photographer,
+			);
+
+			return $this->panel_error( $settings, $category_config, $panel );
+		}
+
+		$quota = (int) ( $category_config['quota'] ?? 1 );
+		if ( count( $panel ) >= $quota ) {
+			return new WP_Error(
+				'quota_exceeded',
+				sprintf(
+					/* translators: 1: category label, 2: quota */
+					__( 'This member already has the maximum of %2$d image(s) in %1$s.', 'photo-competition-manager' ),
+					$category_config['label'],
+					$quota
+				)
+			);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Remove every entry in a competition, then the competition's folder.
 	 *
 	 * Only an admin may do this, at any phase. It stops at the first row that won't delete,

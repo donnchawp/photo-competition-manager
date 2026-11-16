@@ -154,7 +154,7 @@ class Submissions_Controller {
 				});
 			}
 			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals')) {
+				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals') || e.target.classList.contains('photo-comp-disqualify')) {
 					var confirmMessage = e.target.getAttribute('data-confirm');
 					if (confirmMessage && !confirm(confirmMessage)) {
 						e.preventDefault();
@@ -378,6 +378,54 @@ class Submissions_Controller {
 					array(
 						'page'           => 'photo-competition-manager-submissions',
 						'competition_id' => $competition_id,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+		}
+
+		if ( 'change_entry_status' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'photo_competition_entry_status_' . $competition_id );
+
+			// Each row's buttons post entry_status[<image ID>] = <new status>; only the pressed one is sent.
+			$changes      = isset( $_POST['entry_status'] ) && is_array( $_POST['entry_status'] ) ? wp_unslash( $_POST['entry_status'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The key is absint()ed and the value sanitize_key()ed below.
+			$image_id     = absint( (string) key( $changes ) );
+			$entry_status = sanitize_key( (string) current( $changes ) );
+
+			$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $image_id, $entry_status );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_submissions',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_submissions',
+					'entry_status_changed',
+					sprintf(
+						/* translators: %s: the entry's new status, such as Disqualified */
+						__( 'The entry is now %s.', 'photo-competition-manager' ),
+						self::status_label( $entry_status )
+					),
+					'updated'
+				);
+			}
+
+			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
+
+			$this->redirect_with_settings_errors(
+				add_query_arg(
+					array_filter(
+						array(
+							'page'           => 'photo-competition-manager-submissions',
+							'competition_id' => $competition_id,
+							'member_id'      => $member_id,
+						)
 					),
 					admin_url( 'admin.php' )
 				)
@@ -626,7 +674,7 @@ class Submissions_Controller {
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_submissions_table( $competition_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup );
+		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup );
 
 		echo '</div>';
 	}
@@ -728,6 +776,7 @@ class Submissions_Controller {
 	 * Render the submissions table (with its wrapping bulk-delete form).
 	 *
 	 * @param int               $competition_id       Competition ID.
+	 * @param int               $member_id            The member the list is filtered to, or 0.
 	 * @param array<int,object> $submissions          Submission records for the competition.
 	 * @param array<int,object> $member_map           Members indexed by member id.
 	 * @param array             $scores_data          Score/vote-count data indexed by image id.
@@ -735,7 +784,7 @@ class Submissions_Controller {
 	 * @param array<int,object> $competition_lookup   Competitions indexed by competition id.
 	 * @return string
 	 */
-	private function render_submissions_table( int $competition_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
+	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
 		// Each member's upload link, the same one their upload link emails carry,
 		// for the members who may still enter: the upload page refuses anyone else's.
 		$upload_links       = new Upload_Link_Service();
@@ -754,6 +803,9 @@ class Submissions_Controller {
 
 		$current_member_id = null;
 		$rows              = array();
+		$interclub         = $selected_competition && Competition_Settings::parse( $selected_competition->settings )['interclub']['enabled'];
+		// The changes allowed depend only on an entry's category and status, so work them out once for each.
+		$status_actions = array();
 
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
@@ -787,6 +839,11 @@ class Submissions_Controller {
 				$vote_count  = $score_info['vote_count'];
 			}
 
+			$status_key = $submission->category . ':' . $submission->entry_status;
+			if ( ! isset( $status_actions[ $status_key ] ) ) {
+				$status_actions[ $status_key ] = $current_competition ? $this->status_actions( $current_competition, $submission ) : array();
+			}
+
 			$rows[] = (object) array(
 				'image_id'             => $image_id,
 				'member_name'          => $member_name,
@@ -800,6 +857,9 @@ class Submissions_Controller {
 				'total_score'          => $total_score,
 				'vote_count'           => $vote_count,
 				'formatted_created_at' => $this->format_datetime( $submission->created_at ),
+				'photographer'         => (string) $submission->photographer,
+				'status_label'         => self::status_label( (string) $submission->entry_status ),
+				'status_actions'       => $status_actions[ $status_key ],
 			);
 		}
 
@@ -807,8 +867,54 @@ class Submissions_Controller {
 			'admin/submissions/submissions-table.php',
 			array(
 				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'interclub'      => $interclub,
 				'rows'           => $rows,
 			)
 		);
+	}
+
+	/**
+	 * The buttons that change an entry's status, as the competition stands.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $entry       Entry row.
+	 * @return array<int, array{status: string, label: string, confirm: string}>
+	 */
+	private function status_actions( object $competition, object $entry ): array {
+		$actions = array();
+		foreach ( $this->entries->entry_status_options( $competition, $entry ) as $entry_status ) {
+			if ( 'disqualified' === $entry_status ) {
+				$label = __( 'Disqualify', 'photo-competition-manager' );
+			} elseif ( 'entered' === $entry_status ) {
+				$label = 'substitute' === $entry->entry_status ? __( 'Promote', 'photo-competition-manager' ) : __( 'Reinstate', 'photo-competition-manager' );
+			} else {
+				$label = 'entered' === $entry->entry_status ? __( 'Make substitute', 'photo-competition-manager' ) : __( 'Reinstate as substitute', 'photo-competition-manager' );
+			}
+
+			$actions[] = array(
+				'status'  => $entry_status,
+				'label'   => $label,
+				'confirm' => 'disqualified' === $entry_status ? __( 'Disqualify this entry? Once its category has votes, it can\'t be brought back without clearing them.', 'photo-competition-manager' ) : '',
+			);
+		}
+
+		return $actions;
+	}
+
+	/**
+	 * An entry status's name, as admins see it.
+	 *
+	 * @param string $entry_status Entry status.
+	 * @return string
+	 */
+	private static function status_label( string $entry_status ): string {
+		$labels = array(
+			'entered'      => __( 'Entered', 'photo-competition-manager' ),
+			'substitute'   => __( 'Substitute', 'photo-competition-manager' ),
+			'disqualified' => __( 'Disqualified', 'photo-competition-manager' ),
+		);
+
+		return $labels[ $entry_status ] ?? $entry_status;
 	}
 }

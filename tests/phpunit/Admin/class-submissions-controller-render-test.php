@@ -125,18 +125,20 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		}
 
 		// Normalize non-deterministic auto-increment member IDs, scoped to the
-		// member filter dropdown's <option value="..."> and the row checkbox
+		// member filter dropdown's <option value="..."> and the status form's member_id; the row checkbox
 		// values are image IDs, not member IDs, so no collision there.
 		foreach ( $member_ids as $id ) {
 			$id_pattern = preg_quote( (string) $id, '/' );
 			$html       = preg_replace( '/<option value="' . $id_pattern . '"/', '<option value="ID"', $html );
+			$html       = preg_replace( '/name="member_id" value="' . $id_pattern . '"/', 'name="member_id" value="ID"', $html );
 		}
 
 		// Normalize non-deterministic auto-increment image (submission) IDs,
-		// scoped to the row checkbox value attribute.
+		// scoped to the row checkbox value and the status buttons' names.
 		foreach ( $image_ids as $id ) {
 			$id_pattern = preg_quote( (string) $id, '/' );
 			$html       = preg_replace( '/name="image_ids\[\]" value="' . $id_pattern . '"/', 'name="image_ids[]" value="ID"', $html );
+			$html       = preg_replace( '/name="entry_status\[' . $id_pattern . '\]"/', 'name="entry_status[ID]"', $html );
 		}
 
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
@@ -580,6 +582,56 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertMatchesRegularExpression( '#font-weight: bold;">1/2</td>#', $html );
+	}
+
+	public function test_each_entry_shows_its_photographer_and_the_status_changes_it_allows(): void {
+		$comp_id    = (int) $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => null,
+				'close_date' => null,
+				'settings'   => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 1,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		$member_id  = $this->seed_member( 'Lee Camera Club', 'lee@example.com' );
+		$substitute = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id'    => $member_id,
+				'filename'     => 'substitute.jpg',
+				'photographer' => 'Bob Byrne',
+				'entry_status' => 'substitute',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<td>Bob Byrne</td>', $html );
+		preg_match_all( '#name="entry_status\[' . $substitute . '\]" value="([a-z]+)"#', $html, $offered );
+		$this->assertSame( array( 'entered', 'disqualified' ), $offered[1] );
 	}
 
 	public function test_a_members_upload_link_uses_the_competitions_upload_page(): void {

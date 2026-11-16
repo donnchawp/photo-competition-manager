@@ -1415,6 +1415,201 @@ class Entries_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Record an entry straight into the repository, without its files.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param string $entry_status   Entry status.
+	 * @param string $photographer   Photographer's name.
+	 * @return int Entry ID.
+	 */
+	private function seed_entry( int $competition_id, int $member_id, string $entry_status = 'entered', string $photographer = 'Ann' ): int {
+		static $count = 0;
+		++$count;
+
+		return (int) $this->images_repo->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'seeded-' . $count . '.jpg',
+				'photographer'   => $photographer,
+				'entry_status'   => $entry_status,
+			)
+		);
+	}
+
+	public function test_an_admin_disqualifies_an_entry_and_it_leaves_the_competition(): void {
+		$competition_id = $this->create_competition( 'dq-admin-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'disqualified' ) );
+
+		$this->assertSame( array(), $this->images_repo->find_entered( $competition_id ) );
+		$this->assertSame( 'disqualified', $this->images_repo->find( $entry_id )->entry_status );
+	}
+
+	public function test_an_entry_can_be_disqualified_after_its_category_has_votes(): void {
+		$competition_id = $this->create_competition( 'dq-voted-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+		( new Votes_Repository() )->create_anonymous( $competition_id, 'colour', 111, $entry_id, 5 );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'disqualified' ) );
+	}
+
+	public function test_no_entry_changes_status_once_results_are_published(): void {
+		$competition_id = $this->create_competition( 'dq-published-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'disqualified' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'results_recorded', $result->get_error_code() );
+		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
+	}
+
+	public function test_promoting_a_substitute_fills_a_disqualified_entrys_place(): void {
+		$competition_id = $this->create_interclub_competition( 'promote-comp', 1, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entered        = $this->seed_entry( $competition_id, $club_id );
+		$substitute     = $this->seed_entry( $competition_id, $club_id, 'substitute', 'Bob' );
+
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $entered, 'disqualified' ) );
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $substitute, 'entered' ) );
+
+		$this->assertSame( array( $substitute ), array_map( 'intval', array_column( $this->images_repo->find_entered( $competition_id ), 'id' ) ) );
+	}
+
+	public function test_a_substitute_cant_be_promoted_into_a_full_panel(): void {
+		$competition_id = $this->create_interclub_competition( 'promote-full-comp', 1, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->seed_entry( $competition_id, $club_id );
+		$substitute = $this->seed_entry( $competition_id, $club_id, 'substitute', 'Bob' );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $substitute, 'entered' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'quota_exceeded', $result->get_error_code() );
+		$this->assertSame( 'substitute', $this->images_repo->find( $substitute )->entry_status );
+	}
+
+	public function test_a_substitute_cant_be_promoted_past_the_photographer_limit(): void {
+		$competition_id = $this->create_interclub_competition( 'promote-limit-comp', 2, 1, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->seed_entry( $competition_id, $club_id, 'entered', 'Ann' );
+		$substitute = $this->seed_entry( $competition_id, $club_id, 'substitute', ' ann ' );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $substitute, 'entered' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'photographer_limit', $result->get_error_code() );
+	}
+
+	/**
+	 * @return array<string, array{0: bool, 1: string}>
+	 */
+	public function provide_started_categories(): array {
+		return array(
+			'voting has started'       => array( true, 'voting_started' ),
+			'it was reset, with votes' => array( false, 'category_has_votes' ),
+		);
+	}
+
+	/**
+	 * @dataProvider provide_started_categories
+	 *
+	 * @param bool   $started Whether the category's voting has started, rather than reset with its votes kept.
+	 * @param string $code    The refusal.
+	 */
+	public function test_a_substitute_cant_be_promoted_once_its_category_is_voted_on( bool $started, string $code ): void {
+		$competition_id = $this->create_interclub_competition( 'promote-voted-comp', 2, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entered        = $this->seed_entry( $competition_id, $club_id );
+		$substitute     = $this->seed_entry( $competition_id, $club_id, 'substitute', 'Bob' );
+		if ( $started ) {
+			Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		} else {
+			( new Votes_Repository() )->create_anonymous( $competition_id, 'colour', 111, $entered, 5 );
+		}
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $substitute, 'entered' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( $code, $result->get_error_code() );
+	}
+
+	public function test_a_disqualified_entry_is_reinstated_only_while_its_category_has_room(): void {
+		$competition_id = $this->create_competition( 'reinstate-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$first          = $this->seed_entry( $competition_id, $member_id );
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $first, 'disqualified' ) );
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $first, 'entered' ) );
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $first, 'disqualified' ) );
+		$this->seed_entry( $competition_id, $member_id );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $first, 'entered' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'quota_exceeded', $result->get_error_code() );
+	}
+
+	public function test_an_individual_competitions_entry_cant_become_a_substitute(): void {
+		$competition_id = $this->create_competition( 'no-sub-comp', 2 );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'substitute' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_substitutes', $result->get_error_code() );
+	}
+
+	public function test_only_an_admin_changes_an_entrys_status(): void {
+		$competition_id = $this->create_competition( 'member-dq-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+
+		$result = $this->entries->set_entry_status( Actor::member( $member_id ), $competition_id, $entry_id, 'disqualified' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
+	}
+
+	public function test_an_entry_changes_status_only_in_its_own_competition(): void {
+		$competition_id = $this->create_competition( 'own-dq-comp' );
+		$other_id       = $this->create_competition( 'other-dq-comp', 1, '2020-06-01 00:00:00' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $other_id, $member_id );
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'disqualified' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_competition', $result->get_error_code() );
+		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
+	}
+
+	public function test_an_entrys_status_options_follow_its_competitions_phase(): void {
+		$competition_id = $this->create_interclub_competition( 'options-comp', 2, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entered        = $this->seed_entry( $competition_id, $club_id );
+		$substitute     = $this->seed_entry( $competition_id, $club_id, 'substitute' );
+
+		$this->assertSame( array( 'substitute', 'disqualified' ), $this->entries->entry_status_options( $this->competitions_repo->find( $competition_id ), $this->images_repo->find( $entered ) ) );
+
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_DONE );
+		$this->assertSame( array( 'disqualified' ), $this->entries->entry_status_options( $this->competitions_repo->find( $competition_id ), $this->images_repo->find( $substitute ) ) );
+
+		Workflow_Fixtures::publish_results( $competition_id );
+		$this->assertSame( array(), $this->entries->entry_status_options( $this->competitions_repo->find( $competition_id ), $this->images_repo->find( $entered ) ) );
+	}
+
+	/**
 	 * Filter for wp_delete_file that refuses to delete originals.
 	 *
 	 * @param string $file Path about to be deleted.
