@@ -144,6 +144,171 @@ class Results_Ranking {
 	}
 
 	/**
+	 * Rank an interclub competition's clubs within each of the club's grades.
+	 *
+	 * A club's panel total is the sum of its entries' total scores in that category, and its
+	 * total adds up its panels. Both are ranked within the grade with dense positions (1, 1, 2).
+	 * A club needs a panel in every category that any club in its grade entered to get a total
+	 * and a place; one that skipped a panel is listed after the placed clubs. The scores come
+	 * from rank_category(), so recorded results stay recorded. Ungraded entries, and entries of
+	 * a club deleted since, are left out. Clubs with the same place are in name order.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int                       $competition_id Competition ID.
+	 * @param array<string, array>|null $rankings       Each category's rank_category() groups, keyed by slug, when the
+	 *                                                  caller has them already; any category missing is ranked here.
+	 * @return array<int, array{slug: string, label: string, clubs: array<int, array{member: object, panels: array<string, array{total: int, position: int}|null>, total: int|null, position: int|null}>}>
+	 *         Panels are keyed by category slug, in the competition's order, null for a skipped one.
+	 */
+	public function rank_clubs( int $competition_id, ?array $rankings = null ): array {
+		$competition = $this->competitions->find( $competition_id, true );
+		if ( ! $competition ) {
+			return array();
+		}
+
+		$categories = array_column( Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ) ), 'slug' );
+
+		// Each grade's clubs, with each club's total score in each category it entered.
+		$grades = array();
+		foreach ( $this->empty_groups() as $key => $group ) {
+			if ( ! $group['ungraded'] ) {
+				$grades[ $key ] = array(
+					'slug'  => $group['slug'],
+					'label' => $group['label'],
+					'clubs' => array(),
+				);
+			}
+		}
+
+		foreach ( $categories as $category ) {
+			foreach ( $rankings[ $category ] ?? $this->rank_category( $competition_id, $category ) as $group ) {
+				if ( $group['ungraded'] ) {
+					continue;
+				}
+
+				$key = 'grade:' . $group['slug'];
+				if ( ! isset( $grades[ $key ] ) ) {
+					$grades[ $key ] = array(
+						'slug'  => $group['slug'],
+						'clubs' => array(),
+					);
+				}
+				$grades[ $key ]['label'] = $group['label'];
+
+				foreach ( $group['entries'] as $entry ) {
+					if ( ! $entry['member'] ) {
+						continue;
+					}
+
+					$club_id = (int) $entry['member']->id;
+					$club    = $grades[ $key ]['clubs'][ $club_id ] ?? array(
+						'member' => $entry['member'],
+						'scores' => array(),
+					);
+
+					$club['scores'][ $category ]         = ( $club['scores'][ $category ] ?? 0 ) + $entry['total_score'];
+					$grades[ $key ]['clubs'][ $club_id ] = $club;
+				}
+			}
+		}
+
+		$ranked = array();
+		foreach ( $grades as $grade ) {
+			if ( empty( $grade['clubs'] ) ) {
+				continue;
+			}
+
+			$ranked[] = array(
+				'slug'  => $grade['slug'],
+				'label' => $grade['label'],
+				'clubs' => $this->rank_grade_clubs( $grade['clubs'], $categories ),
+			);
+		}
+
+		return $ranked;
+	}
+
+	/**
+	 * Rank one grade's clubs by panel and overall.
+	 *
+	 * @param array<int, array{member: object, scores: array<string, int>}> $clubs      Clubs keyed by member ID, with their score in each category they entered.
+	 * @param string[]                                                      $categories The competition's category slugs, in order.
+	 * @return array<int, array{member: object, panels: array<string, array{total: int, position: int}|null>, total: int|null, position: int|null}>
+	 */
+	private function rank_grade_clubs( array $clubs, array $categories ): array {
+		$entered = array();
+		foreach ( $categories as $category ) {
+			$totals = array();
+			foreach ( $clubs as $club_id => $club ) {
+				if ( isset( $club['scores'][ $category ] ) ) {
+					$totals[ $club_id ] = $club['scores'][ $category ];
+				}
+			}
+
+			if ( $totals ) {
+				$entered[ $category ] = self::dense_positions( $totals );
+			}
+		}
+
+		$overall = array();
+		foreach ( $clubs as $club_id => $club ) {
+			if ( ! array_diff_key( $entered, $club['scores'] ) ) {
+				$overall[ $club_id ] = array_sum( $club['scores'] );
+			}
+		}
+		$places = self::dense_positions( $overall );
+
+		$ranked = array();
+		foreach ( $clubs as $club_id => $club ) {
+			$panels = array();
+			foreach ( $categories as $category ) {
+				$panels[ $category ] = isset( $club['scores'][ $category ] )
+					? array(
+						'total'    => $club['scores'][ $category ],
+						'position' => $entered[ $category ][ $club_id ],
+					)
+					: null;
+			}
+
+			$ranked[] = array(
+				'member'   => $club['member'],
+				'panels'   => $panels,
+				'total'    => $overall[ $club_id ] ?? null,
+				'position' => $places[ $club_id ] ?? null,
+			);
+		}
+
+		usort(
+			$ranked,
+			static function ( array $a, array $b ): int {
+				return array( null === $a['position'], $a['position'], $a['member']->name ) <=> array( null === $b['position'], $b['position'], $b['member']->name );
+			}
+		);
+
+		return $ranked;
+	}
+
+	/**
+	 * Dense positions for totals: the highest is 1, ties share one, and the next total takes the next.
+	 *
+	 * @param array<int, int> $totals Totals keyed by ID.
+	 * @return array<int, int> Positions keyed by the same IDs.
+	 */
+	private static function dense_positions( array $totals ): array {
+		$distinct = array_values( array_unique( $totals ) );
+		rsort( $distinct );
+		$positions = array_flip( $distinct );
+
+		return array_map(
+			static function ( int $total ) use ( $positions ): int {
+				return $positions[ $total ] + 1;
+			},
+			$totals
+		);
+	}
+
+	/**
 	 * Record a competition's results as they are now, when they're published.
 	 *
 	 * The record is replaced, unless the competition has closed: then a

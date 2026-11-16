@@ -185,7 +185,12 @@ class Member_Export {
 			$fields      = $this->competition_fields( $competition, (string) $entry->category ) + array(
 				__( 'Entry ID', 'photo-competition-manager' ) => $entry->id,
 				__( 'Uploaded', 'photo-competition-manager' ) => $entry->created_at,
+				__( 'Status', 'photo-competition-manager' ) => Images_Repository::entry_status_label( (string) $entry->entry_status ),
 			);
+
+			if ( '' !== (string) $entry->photographer ) {
+				$fields[ __( 'Photographer', 'photo-competition-manager' ) ] = $entry->photographer;
+			}
 
 			$image = $competition ? $entries->urls( $competition, $entry )['full'] : '';
 			if ( '' !== $image ) {

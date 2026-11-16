@@ -1594,6 +1594,54 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
 	}
 
+	public function test_an_admin_corrects_or_clears_a_photographers_name_after_results_are_published(): void {
+		$competition_id = $this->create_interclub_competition( 'rename-comp', 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $club_id, 'entered', 'Anne Murphy' );
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$this->assertTrue( $this->entries->set_photographer( Actor::admin(), $competition_id, $entry_id, '  Ann Murphy ' ) );
+		$this->assertSame( 'Ann Murphy', $this->images_repo->find( $entry_id )->photographer );
+
+		$this->assertTrue( $this->entries->set_photographer( Actor::admin(), $competition_id, $entry_id, '' ) );
+		$this->assertSame( '', $this->images_repo->find( $entry_id )->photographer );
+	}
+
+	public function test_entries_without_a_photographer_dont_count_towards_the_limit(): void {
+		$competition_id = $this->create_interclub_competition( 'cleared-names-comp', 3, 1, 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->seed_entry( $competition_id, $club_id, 'entered', '' );
+		$this->seed_entry( $competition_id, $club_id, 'entered', '' );
+		$substitute = $this->seed_entry( $competition_id, $club_id, 'substitute', '' );
+
+		$this->assertTrue( $this->entries->set_entry_status( Actor::admin(), $competition_id, $substitute, 'entered' ) );
+	}
+
+	public function test_only_an_admin_changes_a_photographers_name(): void {
+		$competition_id = $this->create_interclub_competition( 'rename-member-comp', 1 );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $club_id, 'entered', 'Anne Murphy' );
+
+		$result = $this->entries->set_photographer( Actor::member( $club_id ), $competition_id, $entry_id, 'Someone Else' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_authorized', $result->get_error_code() );
+		$this->assertSame( 'Anne Murphy', $this->images_repo->find( $entry_id )->photographer );
+	}
+
+	public function test_a_photographers_name_changes_only_in_its_own_competition(): void {
+		$competition_id = $this->create_interclub_competition( 'rename-own-comp', 1 );
+		$other_id       = $this->create_competition( 'rename-other-comp', 1, '2020-06-01 00:00:00' );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entry_id       = $this->seed_entry( $other_id, $club_id, 'entered', 'Anne Murphy' );
+
+		$result = $this->entries->set_photographer( Actor::admin(), $competition_id, $entry_id, 'Someone Else' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_competition', $result->get_error_code() );
+		$this->assertSame( 'Anne Murphy', $this->images_repo->find( $entry_id )->photographer );
+	}
+
 	public function test_an_entrys_status_options_follow_its_competitions_phase(): void {
 		$competition_id = $this->create_interclub_competition( 'options-comp', 2, 1 );
 		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );

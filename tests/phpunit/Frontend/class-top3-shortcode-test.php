@@ -94,6 +94,49 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'votes)', $html );
 	}
 
+	public function test_an_interclub_podium_shows_the_photographer_and_club(): void {
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => '2019-01-01 00:00:00',
+				'close_date' => '2019-02-01 00:00:00',
+				'settings'   => array(
+					'interclub'  => array( 'enabled' => true ),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		$club_id        = (int) ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Lee Camera Club',
+				'email' => 'lee@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $club_id,
+				'category'       => 'colour',
+				'filename'       => 'lee-colour.jpg',
+				'photographer'   => 'Ann Murphy',
+			)
+		);
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		$this->assertStringContainsString( '<div class="member-name">Ann Murphy — Lee Camera Club</div>', $html );
+	}
+
 	/**
 	 * Results night when next month's competition was created early: with
 	 * no competition named, the page shows the competition whose results

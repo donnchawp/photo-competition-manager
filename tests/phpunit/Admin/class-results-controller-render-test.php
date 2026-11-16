@@ -656,6 +656,55 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'notice-warning', $html );
 	}
 
+	public function test_an_interclub_competition_shows_its_club_standings_and_photographers(): void {
+		$comp_id = $this->seed_competition(
+			'Interclub',
+			'interclub',
+			array(
+				'settings' => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		foreach ( array( 'Lee Camera Club' => array( 'Ann Murphy', 9, 1 ), 'Bandon Camera Club' => array( 'Bob Byrne', 4, 2 ) ) as $club => list( $photographer, $score, $number ) ) {
+			$image_id = $this->seed_image(
+				$comp_id,
+				array(
+					'member_id'     => $this->seed_member( $club, sanitize_title( $club ) . '@example.com' ),
+					'photographer'  => $photographer,
+					'random_number' => $number,
+				)
+			);
+			$this->votes->create_anonymous( $comp_id, 'colour', 100 + $number, $image_id, $score );
+		}
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		preg_match_all( '#<tr class="club-standing"><td><strong>(\d+|—)</strong></td><td>([^<]+)</td><td>(\d+) \((\d+)\)</td><td><strong>(\d+|—)</strong></td></tr>#u', $html, $rows, PREG_SET_ORDER );
+		$this->assertSame(
+			array( array( '1', 'Lee Camera Club', '9', '1', '9' ), array( '2', 'Bandon Camera Club', '4', '2', '4' ) ),
+			array_map( static fn( array $row ): array => array_slice( $row, 1 ), $rows )
+		);
+		$this->assertStringContainsString( '<td>Ann Murphy</td>', $html );
+	}
+
 	public function test_render_leaves_a_removed_ungraded_entry_out_of_the_warning(): void {
 		$comp_id = $this->seed_competition( 'Recorded Show', 'recorded-show' );
 		$orphan  = $this->seed_image( $comp_id, array( 'member_id' => 999999 ) );

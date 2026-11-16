@@ -31,6 +31,36 @@ class Images_Repository extends Abstract_Repository {
 	public const ENTRY_STATUSES = array( 'entered', 'substitute', 'disqualified' );
 
 	/**
+	 * A photographer's name as it's stored: cleaned of tags and extra spaces, and cut to the column's 191 characters.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $photographer Photographer's name as given.
+	 * @return string
+	 */
+	public static function clean_photographer( string $photographer ): string {
+		return mb_substr( sanitize_text_field( $photographer ), 0, 191 );
+	}
+
+	/**
+	 * An entry status's name, as people see it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $entry_status One of ENTRY_STATUSES.
+	 * @return string
+	 */
+	public static function entry_status_label( string $entry_status ): string {
+		$labels = array(
+			'entered'      => __( 'Entered', 'photo-competition-manager' ),
+			'substitute'   => __( 'Substitute', 'photo-competition-manager' ),
+			'disqualified' => __( 'Disqualified', 'photo-competition-manager' ),
+		);
+
+		return $labels[ $entry_status ] ?? $entry_status;
+	}
+
+	/**
 	 * Find a competition's entered images: the ones voted on, judged and ranked.
 	 *
 	 * @since 0.4.0 Was find_by_competition(), which also returned substitutes and disqualified images. find_uploads() has them.
@@ -411,7 +441,7 @@ class Images_Repository extends Abstract_Repository {
 			'filename'               => $filename,
 			'random_number'          => $random_number,
 			'original_attachment_id' => $original_attachment_id,
-			'photographer'           => isset( $data['photographer'] ) ? mb_substr( sanitize_text_field( $data['photographer'] ), 0, 191 ) : '',
+			'photographer'           => isset( $data['photographer'] ) ? self::clean_photographer( (string) $data['photographer'] ) : '',
 			'entry_status'           => $entry_status,
 			'created_at'             => utc_time(),
 			'updated_at'             => utc_time(),
@@ -467,6 +497,37 @@ class Images_Repository extends Abstract_Repository {
 
 		if ( false === $updated ) {
 			return new WP_Error( 'db_update_failed', __( 'Could not update image category.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Set an image's photographer, cleaned and cut to the column's 191 characters.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $id           Image ID.
+	 * @param string $photographer Photographer's name, or '' for none.
+	 * @return true|WP_Error
+	 */
+	public function update_photographer( int $id, string $photographer ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'photographer' => self::clean_photographer( $photographer ),
+				'updated_at'   => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s photographer.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		return true;

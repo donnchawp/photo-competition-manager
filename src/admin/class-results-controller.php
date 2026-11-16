@@ -563,6 +563,7 @@ class Results_Controller {
 				'competition_options'  => $competition_options,
 				'summary_cards_html'   => $summary_cards_html,
 				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),
+				'club_standings_html'  => $settings['interclub']['enabled'] ? $this->render_club_standings( $competition, $categories, $rankings ) : '',
 				'category_tabs'        => $category_tabs,
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
@@ -649,6 +650,47 @@ class Results_Controller {
 	}
 
 	/**
+	 * Render an interclub competition's club standings, or '' when no club has a ranked entry.
+	 *
+	 * @param object               $competition Competition record.
+	 * @param array<int, array>    $categories  Category definitions.
+	 * @param array<string, array> $rankings    Category slug => Results_Ranking::rank_category() groups.
+	 * @return string
+	 */
+	private function render_club_standings( object $competition, array $categories, array $rankings ): string {
+		$labels = new Competition_Labels();
+		$grades = array();
+		foreach ( $this->ranking->rank_clubs( (int) $competition->id, $rankings ) as $grade ) {
+			$grades[] = array(
+				'label' => $labels->admin_grade_label( $competition, $grade['slug'] ),
+				'clubs' => array_map(
+					static function ( array $club ): array {
+						return array(
+							'name'     => $club['member']->name,
+							'panels'   => $club['panels'],
+							'total'    => $club['total'],
+							'position' => $club['position'],
+						);
+					},
+					$grade['clubs']
+				),
+			);
+		}
+
+		if ( ! $grades ) {
+			return '';
+		}
+
+		return $this->render_template(
+			'admin/results/club-standings.php',
+			array(
+				'categories' => $categories,
+				'grades'     => $grades,
+			)
+		);
+	}
+
+	/**
 	 * Render results table grouped by grade.
 	 *
 	 * @param object            $competition Competition record.
@@ -659,6 +701,7 @@ class Results_Controller {
 	private function render_results_table( object $competition, string $category, array $groups ): string {
 		$grade_tables = array();
 		$labels       = new Competition_Labels();
+		$interclub    = Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
 
 		foreach ( $groups as $group ) {
 			$rows = array();
@@ -679,13 +722,14 @@ class Results_Controller {
 				) : '';
 
 				$rows[] = array(
-					'rank'        => $entry['position'],
-					'image_url'   => $image ? $this->entries->urls( $competition, $image )['thumb'] : '',
-					'member_name' => $member ? $member->name : null,
-					'total_score' => $entry['total_score'],
-					'vote_count'  => $entry['vote_count'],
-					'detail_url'  => $detail_url,
-					'recorded'    => $entry['recorded'],
+					'rank'         => $entry['position'],
+					'image_url'    => $image ? $this->entries->urls( $competition, $image )['thumb'] : '',
+					'member_name'  => $member ? $member->name : null,
+					'photographer' => $image ? (string) $image->photographer : '',
+					'total_score'  => $entry['total_score'],
+					'vote_count'   => $entry['vote_count'],
+					'detail_url'   => $detail_url,
+					'recorded'     => $entry['recorded'],
 				);
 			}
 
@@ -695,7 +739,13 @@ class Results_Controller {
 			);
 		}
 
-		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+		return $this->render_template(
+			'admin/results/results-table.php',
+			array(
+				'grade_tables' => $grade_tables,
+				'interclub'    => $interclub,
+			)
+		);
 	}
 
 	/**
@@ -801,18 +851,13 @@ class Results_Controller {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
-		$rows = array(
-			array(
-				'Competition',
-				'Grade',
-				'Category',
-				'Rank',
-				'Image Number',
-				'Member Name',
-				'Member Email',
-				'Score',
-				'Vote Count',
-				'Filename',
+		// Only an interclub competition's entries have photographers.
+		$interclub = $settings['interclub']['enabled'];
+		$rows      = array(
+			array_merge(
+				array( 'Competition', 'Grade', 'Category', 'Rank', 'Image Number', 'Member Name' ),
+				$interclub ? array( 'Photographer' ) : array(),
+				array( 'Member Email', 'Score', 'Vote Count', 'Filename' )
 			),
 		);
 
@@ -830,17 +875,22 @@ class Results_Controller {
 					$image  = $entry['image'];
 					$member = $entry['member'];
 
-					$rows_by_grade[ $group['slug'] ][] = array(
-						$title,
-						$group['label'],
-						$category_label,
-						$entry['position'],
-						$image ? $image->random_number : '',
-						$this->export_member_name( $entry ),
-						$member ? $member->email : '',
-						number_format( $entry['total_score'], 0 ),
-						$entry['vote_count'],
-						$image ? $image->filename : '',
+					$rows_by_grade[ $group['slug'] ][] = array_merge(
+						array(
+							$title,
+							$group['label'],
+							$category_label,
+							$entry['position'],
+							$image ? $image->random_number : '',
+							$this->export_member_name( $entry ),
+						),
+						$interclub ? array( $image ? (string) $image->photographer : '' ) : array(),
+						array(
+							$member ? $member->email : '',
+							number_format( $entry['total_score'], 0 ),
+							$entry['vote_count'],
+							$image ? $image->filename : '',
+						)
 					);
 				}
 			}

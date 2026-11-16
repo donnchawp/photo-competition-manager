@@ -177,9 +177,58 @@ class Results_Shortcode {
 			);
 		}
 
+		$interclub     = $settings['interclub']['enabled'];
+		$name_header   = $interclub ? __( 'Photographer — Club', 'photo-competition-manager' ) : __( 'Member', 'photo-competition-manager' );
+		$club_rankings = $interclub && ! $hide_names ? $this->ranking->rank_clubs( (int) $competition->id, $rankings ) : array();
+		$labels        = new Competition_Labels();
+
 		?>
 		<div class="photo-comp-results">
 			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+
+			<?php if ( $club_rankings ) : ?>
+				<div class="results-category-section results-club-standings">
+					<h3><?php esc_html_e( 'Club results', 'photo-competition-manager' ); ?></h3>
+					<?php foreach ( $club_rankings as $grade_clubs ) : ?>
+						<div class="results-grade-section">
+							<h4><?php echo esc_html( $grade_clubs['label'] ); ?></h4>
+							<div class="results-table">
+								<table>
+									<thead>
+										<tr>
+											<th><?php esc_html_e( 'Position', 'photo-competition-manager' ); ?></th>
+											<th><?php esc_html_e( 'Club', 'photo-competition-manager' ); ?></th>
+											<?php foreach ( $categories as $category_config ) : ?>
+												<th><?php echo esc_html( $category_config['label'] ); ?></th>
+											<?php endforeach; ?>
+											<th><?php esc_html_e( 'Total', 'photo-competition-manager' ); ?></th>
+										</tr>
+									</thead>
+									<tbody>
+										<?php foreach ( $grade_clubs['clubs'] as $club ) : ?>
+											<tr class="club-standing">
+												<td class="position"><?php echo esc_html( null === $club['position'] ? '—' : (string) $club['position'] ); ?></td>
+												<td class="club-name" data-label="<?php esc_attr_e( 'Club', 'photo-competition-manager' ); ?>"><?php echo esc_html( $club['member']->name ); ?></td>
+												<?php foreach ( $categories as $category_config ) : ?>
+													<?php $panel = $club['panels'][ $category_config['slug'] ] ?? null; ?>
+													<td class="panel-total" data-label="<?php echo esc_attr( $category_config['label'] ); ?>">
+														<?php if ( $panel ) : ?>
+															<?php echo esc_html( number_format( $panel['total'], 0 ) ); ?> <span class="panel-position">(<?php echo esc_html( (string) $panel['position'] ); ?>)</span>
+														<?php else : ?>
+															—
+														<?php endif; ?>
+													</td>
+												<?php endforeach; ?>
+												<td class="club-total" data-label="<?php esc_attr_e( 'Total', 'photo-competition-manager' ); ?>"><?php echo esc_html( null === $club['total'] ? '—' : number_format( $club['total'], 0 ) ); ?></td>
+											</tr>
+										<?php endforeach; ?>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
 
 			<?php foreach ( $categories as $category_config ) : ?>
 				<?php
@@ -206,7 +255,7 @@ class Results_Shortcode {
 													<th><?php esc_html_e( 'Position', 'photo-competition-manager' ); ?></th>
 													<th><?php esc_html_e( 'Image', 'photo-competition-manager' ); ?></th>
 													<?php if ( ! $hide_names ) : ?>
-														<th><?php esc_html_e( 'Member', 'photo-competition-manager' ); ?></th>
+														<th><?php echo esc_html( $name_header ); ?></th>
 													<?php endif; ?>
 													<th><?php esc_html_e( 'Score', 'photo-competition-manager' ); ?></th>
 												</tr>
@@ -242,7 +291,7 @@ class Results_Shortcode {
 															<?php endif; ?>
 														</td>
 														<?php if ( ! $hide_names ) : ?>
-															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member ? $member->name : __( 'Former member', 'photo-competition-manager' ) ); ?></td>
+															<td class="member-name" data-label="<?php echo esc_attr( $name_header ); ?>"><?php echo esc_html( $labels->entry_by( $competition, $image, $member ) ); ?></td>
 														<?php endif; ?>
 														<td class="score" data-label="<?php esc_attr_e( 'Score', 'photo-competition-manager' ); ?>"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
 													</tr>

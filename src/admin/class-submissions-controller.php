@@ -384,6 +384,35 @@ class Submissions_Controller {
 			);
 		}
 
+		if ( 'change_photographer' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'photo_competition_photographer_' . $competition_id );
+
+			$image_id     = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
+			$photographer = isset( $_POST['photographer'] ) ? sanitize_text_field( wp_unslash( $_POST['photographer'] ) ) : '';
+
+			$result = $this->entries->set_photographer( Actor::admin(), $competition_id, $image_id, $photographer );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error(
+					'photo_competition_submissions',
+					$result->get_error_code(),
+					$result->get_error_message(),
+					'error'
+				);
+			} else {
+				add_settings_error(
+					'photo_competition_submissions',
+					'photographer_changed',
+					__( 'Photographer saved.', 'photo-competition-manager' ),
+					'updated'
+				);
+			}
+
+			$this->redirect_after_entry_change( $competition_id );
+		}
+
 		if ( 'change_entry_status' === $action ) {
 			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
@@ -410,26 +439,13 @@ class Submissions_Controller {
 					sprintf(
 						/* translators: %s: the entry's new status, such as Disqualified */
 						__( 'The entry is now %s.', 'photo-competition-manager' ),
-						self::status_label( $entry_status )
+						Images_Repository::entry_status_label( $entry_status )
 					),
 					'updated'
 				);
 			}
 
-			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
-
-			$this->redirect_with_settings_errors(
-				add_query_arg(
-					array_filter(
-						array(
-							'page'           => 'photo-competition-manager-submissions',
-							'competition_id' => $competition_id,
-							'member_id'      => $member_id,
-						)
-					),
-					admin_url( 'admin.php' )
-				)
-			);
+			$this->redirect_after_entry_change( $competition_id );
 		}
 
 		if ( 'admin_upload' === $action ) {
@@ -858,7 +874,7 @@ class Submissions_Controller {
 				'vote_count'           => $vote_count,
 				'formatted_created_at' => $this->format_datetime( $submission->created_at ),
 				'photographer'         => (string) $submission->photographer,
-				'status_label'         => self::status_label( (string) $submission->entry_status ),
+				'status_label'         => Images_Repository::entry_status_label( (string) $submission->entry_status ),
 				'status_actions'       => $status_actions[ $status_key ],
 			);
 		}
@@ -870,6 +886,30 @@ class Submissions_Controller {
 				'member_id'      => $member_id,
 				'interclub'      => $interclub,
 				'rows'           => $rows,
+			)
+		);
+	}
+
+	/**
+	 * Go back to the Submissions list an entry was changed from, with its member filter.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return void
+	 */
+	private function redirect_after_entry_change( int $competition_id ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The caller checked the nonce.
+		$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
+
+		$this->redirect_with_settings_errors(
+			add_query_arg(
+				array_filter(
+					array(
+						'page'           => 'photo-competition-manager-submissions',
+						'competition_id' => $competition_id,
+						'member_id'      => $member_id,
+					)
+				),
+				admin_url( 'admin.php' )
 			)
 		);
 	}
@@ -900,21 +940,5 @@ class Submissions_Controller {
 		}
 
 		return $actions;
-	}
-
-	/**
-	 * An entry status's name, as admins see it.
-	 *
-	 * @param string $entry_status Entry status.
-	 * @return string
-	 */
-	private static function status_label( string $entry_status ): string {
-		$labels = array(
-			'entered'      => __( 'Entered', 'photo-competition-manager' ),
-			'substitute'   => __( 'Substitute', 'photo-competition-manager' ),
-			'disqualified' => __( 'Disqualified', 'photo-competition-manager' ),
-		);
-
-		return $labels[ $entry_status ] ?? $entry_status;
 	}
 }

@@ -585,6 +585,28 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( 'entered', $this->images->find( $image_id )->entry_status );
 	}
 
+	public function test_an_admin_saves_an_entrys_photographer_from_the_submissions_screen(): void {
+		$image_id = $this->seed_image( $this->competition_id, array( 'photographer' => 'Anne Murphy' ) );
+		$this->set_request(
+			array(
+				'action'         => 'change_photographer',
+				'competition_id' => $this->competition_id,
+				'image_id'       => $image_id,
+				'photographer'   => 'Ann Murphy',
+			)
+		);
+		$this->set_nonce( 'photo_competition_photographer_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'photographer_changed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'Ann Murphy', $this->images->find( $image_id )->photographer );
+	}
+
 	public function test_a_status_change_without_a_nonce_dies(): void {
 		$image_id = $this->seed_image( $this->competition_id );
 		$this->set_request(

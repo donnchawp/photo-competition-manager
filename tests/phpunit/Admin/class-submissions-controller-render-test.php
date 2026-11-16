@@ -629,7 +629,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->controller->render();
 		$html = (string) ob_get_clean();
 
-		$this->assertStringContainsString( '<td>Bob Byrne</td>', $html );
+		$this->assertStringContainsString( 'form="photo-comp-photographer-form-' . $substitute . '" name="photographer" value="Bob Byrne"', $html );
 		preg_match_all( '#name="entry_status\[' . $substitute . '\]" value="([a-z]+)"#', $html, $offered );
 		$this->assertSame( array( 'entered', 'disqualified' ), $offered[1] );
 	}

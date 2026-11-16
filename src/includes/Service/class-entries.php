@@ -349,23 +349,11 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	public function set_entry_status( Actor $actor, int $competition_id, int $entry_id, string $entry_status ) {
-		if ( ! $actor->is_admin() ) {
-			return new WP_Error( 'not_authorized', __( 'Only an admin can change an entry\'s status.', 'photo-competition-manager' ) );
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
 		}
-
-		$entry = $this->images_repo->find( $entry_id );
-		if ( ! $entry ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
-		}
-
-		if ( (int) $entry->competition_id !== $competition_id ) {
-			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
-		}
-
-		$competition = $this->competitions_repo->find( $competition_id, true );
-		if ( ! $competition ) {
-			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
-		}
+		list( $entry, $competition ) = $found;
 
 		if ( $entry_status === $entry->entry_status ) {
 			return true;
@@ -400,6 +388,81 @@ class Entries {
 		);
 
 		return true;
+	}
+
+	/**
+	 * Correct or clear an entry's photographer.
+	 *
+	 * Only an admin may do this, at any time, even after results are recorded: results read the
+	 * name from the entry, so this is how a photographer's name is corrected or removed. It isn't
+	 * held to the panel's photographer limit. The change is logged without either name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor  $actor          Who is changing it.
+	 * @param int    $competition_id Competition the entry must belong to.
+	 * @param int    $entry_id       Entry ID.
+	 * @param string $photographer   The photographer's name, or '' to clear it.
+	 * @return true|WP_Error
+	 */
+	public function set_photographer( Actor $actor, int $competition_id, int $entry_id, string $photographer ) {
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
+		}
+
+		if ( Images_Repository::clean_photographer( $photographer ) === (string) $found[0]->photographer ) {
+			return true;
+		}
+
+		$updated = $this->images_repo->update_photographer( $entry_id, $photographer );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		( new Event_Logger() )->log(
+			$competition_id,
+			'photographer_changed',
+			'upload',
+			sprintf(
+				/* translators: %d: entry ID */
+				__( 'Entry #%d\'s photographer was changed.', 'photo-competition-manager' ),
+				$entry_id
+			),
+			array( 'entry_id' => $entry_id )
+		);
+
+		return true;
+	}
+
+	/**
+	 * An entry and its competition, for a change only an admin may make.
+	 *
+	 * @param Actor $actor          Who is making the change.
+	 * @param int   $competition_id Competition the entry must belong to.
+	 * @param int   $entry_id       Entry ID.
+	 * @return array{0: object, 1: object}|WP_Error The entry and its competition.
+	 */
+	private function entry_for_admin( Actor $actor, int $competition_id, int $entry_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		$entry = $this->images_repo->find( $entry_id );
+		if ( ! $entry ) {
+			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( (int) $entry->competition_id !== $competition_id ) {
+			return new WP_Error( 'invalid_competition', __( 'Image does not belong to this competition.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
+		}
+
+		return array( $entry, $competition );
 	}
 
 	/**
@@ -938,7 +1001,12 @@ class Entries {
 			}
 
 			++$entered;
-			$name                   = mb_strtolower( trim( (string) $image->photographer ) );
+			$name = mb_strtolower( trim( (string) $image->photographer ) );
+			if ( '' === $name ) {
+				// An admin can clear a name, and an entry from before interclub has none.
+				continue;
+			}
+
 			$photographers[ $name ] = array(
 				'name'  => trim( (string) $image->photographer ),
 				'count' => ( $photographers[ $name ]['count'] ?? 0 ) + 1,
