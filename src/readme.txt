@@ -169,16 +169,16 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 
 == Screenshots ==
 
-1. Competition dashboard with status tracking, settings tabs, and quick actions
-2. Member management interface with bulk CSV import and grade assignments
-3. Voting controls for opening/closing categories and managing tokens
-4. Setup wizard for one-click page creation with pre-configured shortcodes
-5. Email template editor with merge tags and preview functionality
-6. Responsive top-3 podium display showcasing winners with scores
-7. Full results table with category filtering and member information
-8. Mobile-optimized voting interface with image gallery
-9. Submission tracking showing upload status and quota enforcement
-10. Export screen for downloading competition data and statistics
+1. A judge scoring a category with their private link
+2. The results page, ranked within each category and grade
+3. The top 3 in each grade
+4. A member's upload page, with their entries and drag-and-drop upload
+5. Voting Controls taking a category through the club night, with each judge's progress
+6. The competitions dashboard
+7. The Members screen, with each member's grade and competition types
+8. A competition type's interclub rules and its own names for the club's grades
+9. Club standings in an interclub competition
+10. The Results screen, with category statistics, CSV export and a share link
 
 == Changelog ==
 
