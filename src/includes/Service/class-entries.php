@@ -448,7 +448,12 @@ class Entries {
 	 * @return WP_Error|null
 	 */
 	private function status_phase_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
-		if ( $this->workflow->reads_recorded_results( $competition ) ) {
+		// Hiding results reopens a competition's entries only until it closes; after that, only a later close date does.
+		if ( $this->workflow->has_closed( $competition ) ) {
+			return new WP_Error( 'results_recorded', __( 'This competition has closed, so its entries can\'t change status. To change one, move its close date into the future first.', 'photo-competition-manager' ) );
+		}
+
+		if ( $this->workflow->results_published( $competition ) ) {
 			return new WP_Error( 'results_recorded', __( 'This competition\'s results are recorded, so its entries can\'t change status. Hide its results first.', 'photo-competition-manager' ) );
 		}
 

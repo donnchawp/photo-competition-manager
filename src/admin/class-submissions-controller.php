@@ -394,31 +394,17 @@ class Submissions_Controller {
 			$image_id     = absint( (string) key( $changes ) );
 			$entry_status = sanitize_key( (string) current( $changes ) );
 
-			$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $image_id, $entry_status );
-
-			if ( is_wp_error( $result ) ) {
-				add_settings_error(
-					'photo_competition_submissions',
-					$result->get_error_code(),
-					$result->get_error_message(),
-					'error'
-				);
-			} else {
-				add_settings_error(
-					'photo_competition_submissions',
-					'entry_status_changed',
-					sprintf(
-						/* translators: %s: the entry's new status, such as Disqualified */
-						__( 'The entry is now %s.', 'photo-competition-manager' ),
-						self::status_label( $entry_status )
-					),
-					'updated'
-				);
-			}
-
 			$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
 
-			$this->redirect_with_settings_errors(
+			$this->notice_and_redirect(
+				'photo_competition_submissions',
+				$this->entries->set_entry_status( Actor::admin(), $competition_id, $image_id, $entry_status ),
+				'entry_status_changed',
+				sprintf(
+					/* translators: %s: the entry's new status, such as Disqualified */
+					__( 'The entry is now %s.', 'photo-competition-manager' ),
+					self::status_label( $entry_status )
+				),
 				add_query_arg(
 					array_filter(
 						array(
