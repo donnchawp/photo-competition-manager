@@ -93,10 +93,13 @@ foreach ( $data['rows'] as $row ) {
 		}
 	}
 
-	if ( $row['is_open'] && ! $row['is_archived'] ) {
-		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
-	} else {
-		$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+	// An archived competition never takes upload emails, so its row doesn't mention them.
+	if ( ! $row['is_archived'] ) {
+		if ( $row['is_open'] ) {
+			$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+		} else {
+			$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+		}
 	}
 
 	if ( '' !== $row['email_judges_url'] ) {
