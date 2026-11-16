@@ -304,19 +304,22 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
+		$settings = Competition_Settings::parse( $competition->settings );
+
 		// Count files per category in this batch to validate quotas upfront: entries and
-		// substitutes apart, since a panel has places for each.
+		// substitutes apart, since a panel has places for each. Where there are no
+		// substitute places, a file sent as one counts as an entry, and adding it says why it's refused.
+		$takes_substitutes     = Competition_Settings::substitutes( $settings ) > 0;
 		$batch_category_counts = array();
 		foreach ( $assignments as $file_key => $category ) {
 			if ( ! empty( $category ) ) {
-				$kind = empty( $substitutes[ $file_key ] ) ? 'entered' : 'substitutes';
+				$kind = $takes_substitutes && ! empty( $substitutes[ $file_key ] ) ? 'substitutes' : 'entered';
 
 				$batch_category_counts[ $category ][ $kind ] = ( $batch_category_counts[ $category ][ $kind ] ?? 0 ) + 1;
 			}
 		}
 
 		// Validate quotas for all categories in batch before processing any files.
-		$settings     = Competition_Settings::parse( $competition->settings );
 		$quota_status = $this->entries->get_quota_status( $competition, $member_id );
 
 		foreach ( $batch_category_counts as $category => $batch_counts ) {
