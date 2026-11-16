@@ -5,11 +5,11 @@
  * Reads $data['views'] (array<int, array{label: string, count: int, url:
  * string, is_current: bool}>): the Active/Archived view-switcher links.
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
- * string, last_updated: string, edit_url: string (unused when archived), is_archived: bool,
+ * string, last_updated: string, edit_url: string (empty when archived; Restore is the way back), is_archived: bool,
  * toggle_uploads_url: string, uploads_closed: bool, reopen_refusal: string
  * (why uploads can't reopen; empty when they can), is_open: bool,
  * send_email_url: string, email_judges_url: string (empty unless judges
- * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string (unused when archived),
+ * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string (empty when archived),
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
@@ -76,11 +76,12 @@ foreach ( $data['rows'] as $row ) {
 
 	$actions = array();
 
-	// The edit screen can't open an archived competition; Restore is the way back.
-	if ( ! $row['is_archived'] ) {
+	if ( '' !== $row['edit_url'] ) {
 		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['edit_url'] ), esc_html__( 'Edit', 'photo-competition-manager' ) );
+	}
 
-		// Toggle uploads action.
+	// Toggle uploads action.
+	if ( ! $row['is_archived'] ) {
 		$toggle_label = $row['uploads_closed']
 			? __( 'Open Uploads', 'photo-competition-manager' )
 			: __( 'Close Uploads', 'photo-competition-manager' );
@@ -113,8 +114,8 @@ foreach ( $data['rows'] as $row ) {
 		);
 	}
 
-	// Generate Results Link action. Like Edit, it can't find an archived competition.
-	if ( ! $row['is_archived'] ) {
+	// Generate Results Link action.
+	if ( '' !== $row['generate_link_url'] ) {
 		$actions[] = sprintf(
 			'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
 			esc_url( $row['generate_link_url'] ),
