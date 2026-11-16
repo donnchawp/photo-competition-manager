@@ -110,7 +110,7 @@ class Results_Analytics {
 			}
 
 			$images = $this->images->find_entered( $competition_id, $category_slug );
-			$votes  = $this->votes->find_by_competition( $competition_id, $category_slug );
+			$votes  = $this->entered_votes( $images, $this->votes->find_by_competition( $competition_id, $category_slug ) );
 
 			$category_images = count( $images );
 			$category_votes  = count( $votes );
@@ -147,6 +147,26 @@ class Results_Analytics {
 	}
 
 	/**
+	 * The votes cast on the given images. A disqualified image keeps its votes, but they no longer count.
+	 *
+	 * @param array<int, object> $images Image records.
+	 * @param array<int, object> $votes  Vote records.
+	 * @return array<int, object>
+	 */
+	private function entered_votes( array $images, array $votes ): array {
+		$image_ids = array_flip( array_map( 'intval', array_column( $images, 'id' ) ) );
+
+		return array_values(
+			array_filter(
+				$votes,
+				static function ( object $vote ) use ( $image_ids ): bool {
+					return isset( $image_ids[ (int) $vote->image_id ] );
+				}
+			)
+		);
+	}
+
+	/**
 	 * Get detailed category breakdown.
 	 *
 	 * @param int    $competition_id Competition ID.
@@ -162,7 +182,7 @@ class Results_Analytics {
 	 */
 	public function get_category_breakdown( int $competition_id, string $category ): array {
 		$images = $this->images->find_entered( $competition_id, $category );
-		$votes  = $this->votes->find_by_competition( $competition_id, $category );
+		$votes  = $this->entered_votes( $images, $this->votes->find_by_competition( $competition_id, $category ) );
 
 		$image_count = count( $images );
 		$vote_count  = count( $votes );
@@ -191,8 +211,7 @@ class Results_Analytics {
 		$max_score     = max( $scores );
 
 		// Calculate participation rate (images with votes / total images).
-		$averages           = $this->votes->calculate_averages( $competition_id, $category );
-		$images_with_votes  = count( $averages );
+		$images_with_votes  = count( array_unique( array_column( $votes, 'image_id' ) ) );
 		$participation_rate = $image_count > 0 ? ( $images_with_votes / $image_count ) * 100 : 0.0;
 
 		return array(

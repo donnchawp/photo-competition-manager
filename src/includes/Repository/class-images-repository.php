@@ -489,6 +489,41 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Set an image's entry status.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $id           Image ID.
+	 * @param string $entry_status One of ENTRY_STATUSES.
+	 * @return true|WP_Error
+	 */
+	public function update_entry_status( int $id, string $entry_status ) {
+		global $wpdb;
+
+		if ( ! in_array( $entry_status, self::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'entry_status' => $entry_status,
+				'updated_at'   => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s status.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Delete an image record.
 	 *
 	 * Also deletes any votes associated with the image. Its recorded results

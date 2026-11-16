@@ -253,7 +253,8 @@ class Export_Screen {
 			return;
 		}
 
-		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_uploads( $competition_id ) );
+		// Votes on a disqualified entry don't count, and a substitute has none.
+		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_entered( $competition_id ) );
 
 		$competition = $this->competitions_repository->find( $competition_id );
 		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
