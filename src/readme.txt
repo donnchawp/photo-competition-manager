@@ -17,18 +17,23 @@ Photo Competition Manager provides everything photography clubs need to run prof
 **Core Features**
 
 * **Member Management** – Maintain active rosters, assign grades, track member status, and bulk import/update via CSV
-* **Competition Setup** – Create competitions with custom categories, submission quotas, and scoring matrices, with results grouped by the club's grades
+* **Competition Setup** – Create competitions from a competition type, which brings its own categories, submission quotas and scoring, with results grouped by the club's grades
 * **Secure Submissions** – Members upload via magic-link authentication with automatic file validation, resizing, and quota enforcement
-* **Flexible Voting** – Token-based member voting, password-protected public voting, and full-screen slideshow mode for in-person club nights
+* **Flexible Voting** – Members vote with emailed voting links or a shared password, or external judges score the images with their own private links. A full-screen slideshow shows the images on club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
 * **Email Notifications** – Automated emails for upload confirmations, voting invitations, results announcements, and custom templates with merge tags
 * **Setup Wizard** – One-click page creation for upload, voting, results, and top-3 displays with pre-configured shortcodes
 
 **Advanced Capabilities**
 
+* **Competition Types** – Run different kinds of competition side by side, such as the monthly club competition and an annual cup. Each type has its own categories, default settings and names for the club's grades. A competition is open to everyone in its type, or only to the entrants you pick
+* **External Judging** – Let invited judges score a competition instead of the members. Judges get a private link, Voting Controls shows who has scored, and each image's total is the sum of the judges' scores
+* **Interclub Competitions** – Make a type's entrants clubs. Each club enters a panel of images per category with each photographer named, with optional substitutes and a limit per photographer. Admins can disqualify entries and promote substitutes, and the results rank the clubs in each grade
 * **Voting Controls** – Open/close voting by category, manage voter tokens, track submission and voting status per competition
 * **Results Analytics** – View score distributions, voting participation, and competition statistics from the admin dashboard
-* **Export Tools** – Export competition results, voting data, and member lists to CSV for archiving or external reporting
+* **Recorded Results** – Results are fixed when they're published or the competition closes, so deleting a member or changing a grade later doesn't rewrite past competitions
+* **Export Tools** – Export results, votes and the list of entrants to CSV, and download the original images as a ZIP
+* **Privacy Tools** – Members and judges are covered by WordPress's Export Personal Data and Erase Personal Data tools, the privacy policy guide gets suggested text, and you choose how long logs are kept
 * **Repository Pattern** – All data stored in dedicated database tables for performance, portability, and clean separation from WordPress content
 
 **Five Shortcodes, Unlimited Possibilities**
@@ -48,24 +53,26 @@ Perfect for photography clubs, camera clubs, photo societies, and any organizati
 1. Install via the Plugins screen on your WordPress site.
 2. Activate the plugin through **Plugins → Installed Plugins**
 3. Navigate to **Competitions → Setup Wizard** to auto-create pages with shortcodes
-4. Go to **Competitions → Settings** to configure default categories, grades, and scoring
-5. Add your members via **Competitions → Members** (supports bulk CSV import)
-6. Create your first competition and start accepting submissions!
+4. Go to **Competitions → Settings** to set the club's grades, email and page addresses
+5. Go to **Competitions → Competition Types** to set the categories, quotas and scoring. The plugin starts with one type, "Individual". Add more only if you run different kinds of competition
+6. Add your members via **Competitions → Members** (supports bulk CSV import)
+7. Create your first competition and start accepting submissions!
 
 **Manual Page Setup**
 
 If you prefer manual control, create pages with these shortcodes:
 
 * `[competition_upload]` – Member submission form
-* `[competition_voting]` – Voting interface (token-based or password-protected)
+* `[competition_voting]` – Voting interface (voting links, password, or judges' links)
 * `[competition_slideshow]` – Full-screen slideshow for in-person voting
 * `[competition_results]` – Complete results table
 * `[competition_top3]` – Podium-style top 3 display
 
 **Shortcode Attributes**
 
-* `competition="slug"` – Target a specific competition (all shortcodes)
-* `category="slug"` – Filter by category (voting and slideshow only)
+* `competition="slug"` – Show a specific competition (results, top 3 and slideshow). The upload and voting pages always use the open competition
+* `category="slug"` – The category to show (slideshow, where it's required)
+* `hide_names="1"` – Leave out member names, and in interclub competitions the photographers, clubs and club standings (results only)
 
 **Building From Source**
 
@@ -94,10 +101,22 @@ Members receive a magic-link email with a unique upload URL. No passwords or log
 
 = Can I customize the voting system? =
 
-Yes! Choose between three voting modes:
-1. **Token-based** – Each member gets a unique voting link via email
-2. **Password-protected** – Share a single password with all voters
-3. **Slideshow mode** – Full-screen presentation for in-person voting at club meetings
+Yes. Each competition picks who scores it on its Settings tab:
+1. **Voting links** – Members enter their email address on the voting page and get their own voting link
+2. **Password** – Share a single password with all voters, for example at a club meeting while the slideshow runs
+3. **Judges** – Invited judges score every image with their own private links, and members can't vote
+
+= How does external judging work? =
+
+Add the judges on **Competitions → Judges**. They aren't members and get none of the member emails. On the competition's Settings tab, set "Who scores" to Judges and pick its judges. Each judge has a private link, which you can email with the Judge link email or open on the night. A judge scores every image in the open category from the competition's score list, and Voting Controls shows which judges have scored. An image's total is the sum of the judges' scores.
+
+= What are competition types? =
+
+A competition type holds a kind of competition's categories, default upload, voting and slideshow settings, and its own names for the club's grades, for example "Cup" for Advanced. Every site starts with one type, "Individual", and with one type there's nothing to choose. Add types on **Competitions → Competition Types** when you run more than one kind of competition. Members are tagged with the types they enter, and a competition is open to everyone in its type or only to the entrants you add on its Entrants tab.
+
+= Can clubs compete against each other? =
+
+Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a member and enters a panel of images in each category, naming the photographer of every image. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
 
 = How do email notifications work? =
 
@@ -113,19 +132,19 @@ Emails going to many members (upload links, voting opened, results, and results 
 
 = Can I customize categories and grades per competition? =
 
-Categories, yes. Set default categories, quotas, and scoring matrices in **Competitions → Settings**, and each competition can override them on its Settings tab without affecting future competitions.
+Categories, yes. Set the default categories, quotas, and scoring for each competition type in **Competitions → Competition Types**. A new competition starts with its type's, and can override them on its Settings tab without affecting future competitions.
 
-Grades are set once for the club in **Competitions → Settings**, and every competition uses them. Renaming a grade renames it in every competition's results, past ones included.
+Grades are set once for the club in **Competitions → Settings**, and every competition uses them. A competition type can give them its own names. Renaming a grade renames it in every competition's results, past ones included.
 
 = What if someone loses their magic link or voting token? =
 
-**For uploads:** Regenerate the member's upload link from **Competitions → Members** → Edit Member → "Send Upload Link"
+**For uploads:** Use the Upload Link action on the member's row in **Competitions → Members** to copy their link or send it again.
 
-**For voting:** From **Competitions → Voting Controls**, close and reopen the voting category to generate fresh token links for all members.
+**For voting:** The member enters their email address on the voting page again. The new link replaces the earlier one.
 
 = Can I hide member names in the results? =
 
-Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names.
+Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names. In an interclub competition it also leaves out the photographers, clubs and club standings.
 
 = Does it work on mobile devices? =
 
@@ -133,15 +152,20 @@ Yes! All shortcodes are fully responsive and tested on mobile devices. The top-3
 
 = Where do uploaded images get stored? =
 
-Images are stored in `/wp-content/uploads/competitions/{competition-slug}/{category-slug}/`. The plugin automatically creates thumbnails and validates uploads. All paths are secure and inaccessible without proper authentication.
+Images are stored in `/wp-content/uploads/competitions/{competition-slug}/{category-slug}/`. The plugin validates uploads and makes resized copies and thumbnails. The resized copies lose the photographer's name from their EXIF, IPTC and XMP data, The voting page and slideshow load images by entry ID, so the file name, which includes the member's name, never reaches voters. The originals keep their data.
 
 = Can I export competition data? =
 
 Yes. Visit **Competitions → Export** to download:
-* Full competition results (CSV)
-* Voting data and statistics (CSV)
-* Member lists (CSV)
-* All exports include timestamps and are formatted for Excel/Google Sheets
+* The votes (CSV), with a row for each voter
+* The members who uploaded, with their image IDs (CSV)
+* The original images (ZIP), optionally deleting them afterwards to save space
+
+The Results screen also downloads a competition's results as a CSV.
+
+= How does the plugin handle members' personal data? =
+
+Members and judges are included in **Tools → Export Personal Data** and **Tools → Erase Personal Data**. Erasing a member deletes their record, entries, links and log entries, and their votes still count without their name. **Settings → Privacy → Policy Guide** has suggested text saying what the club holds and why. Choose how long logs are kept in **Competitions → Settings**. By default they're kept forever.
 
 == Screenshots ==
 
