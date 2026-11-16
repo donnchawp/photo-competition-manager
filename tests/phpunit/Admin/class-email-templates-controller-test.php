@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Email_Templates_Controller;
+use PhotoCompetitionManager\Service\Email_Kinds;
+use PhotoCompetitionManager\Service\Email_Service;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Email_Templates_Controller
@@ -66,6 +68,193 @@ class Email_Templates_Controller_Test extends Admin_Controller_Test_Case {
 
 		$saved = get_option( 'photo_comp_email_templates' );
 		$this->assertSame( 'Voting is open', $saved['voting_opened']['subject'] );
+	}
+
+	/**
+	 * The form as the browser posts it when nothing has been changed: every
+	 * kind's default, with the editor's paragraphs turned back into blank lines
+	 * and the browser's line endings, and each notification's switch as it stands.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private function unchanged_form(): array {
+		$form = array();
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$form[ $kind ] = array(
+				'subject' => $definition['subject'],
+				'body'    => $this->editor_posted_body( $definition['body'] ),
+			);
+			if ( $definition['notification'] && $definition['on_by_default'] ) {
+				$form[ $kind ]['enabled'] = '1';
+			}
+		}
+		return $form;
+	}
+
+	/**
+	 * Post the Email Templates form.
+	 *
+	 * @param array<string, array<string, string>> $form Posted templates.
+	 */
+	private function save_form( array $form ): void {
+		$this->become_editor();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'save_email_templates',
+				'templates'                => $form,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_templates' );
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+	}
+
+	/**
+	 * Saved template text, by kind.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function saved_text(): array {
+		$text = array();
+		foreach ( (array) get_option( 'photo_comp_email_templates', array() ) as $kind => $saved ) {
+			$saved = array_intersect_key( $saved, array_flip( array( 'subject', 'body' ) ) );
+			if ( $saved ) {
+				$text[ $kind ] = $saved;
+			}
+		}
+		return $text;
+	}
+
+	public function test_saving_without_changes_stores_no_template_text(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), $this->saved_text() );
+	}
+
+	public function test_editing_one_body_stores_only_that_kinds_text(): void {
+		$form                            = $this->unchanged_form();
+		$form['voting_link']['body']     = 'Dear {member_name}, vote at {voting_link}';
+		$this->save_form( $form );
+
+		$this->assertSame(
+			array(
+				'voting_link' => array(
+					'subject' => Email_Kinds::get( 'voting_link' )['subject'],
+					'body'    => 'Dear {member_name}, vote at {voting_link}',
+				),
+			),
+			$this->saved_text()
+		);
+		$service = new Email_Service();
+		$this->assertSame( Email_Kinds::get( 'upload_reminder' )['body'], $service->get_template( 'upload_reminder' )['body'] );
+	}
+
+	public function test_switching_a_notification_off_stores_only_the_switch(): void {
+		$form = $this->unchanged_form();
+		$form['voting_opened']['enabled'] = '1';
+		$this->save_form( $form );
+		$this->assertTrue( ( new Email_Service() )->is_template_enabled( 'voting_opened' ) );
+
+		unset( $form['voting_opened']['enabled'] );
+		$this->save_form( $form );
+
+		$this->assertSame( array( 'enabled' => false ), get_option( 'photo_comp_email_templates' )['voting_opened'] );
+		$this->assertFalse( ( new Email_Service() )->is_template_enabled( 'voting_opened' ) );
+	}
+
+	public function test_a_requested_email_stores_no_switch(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertArrayNotHasKey( 'upload_reminder', get_option( 'photo_comp_email_templates' ) );
+	}
+
+	public function test_saving_a_template_identical_to_its_default_removes_its_stored_copy(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'upload_reminder' => array(
+					'subject' => 'Old subject',
+					'body'    => 'Old body',
+				),
+			)
+		);
+
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), $this->saved_text() );
+		$this->assertSame( Email_Kinds::get( 'upload_reminder' )['subject'], ( new Email_Service() )->get_template( 'upload_reminder' )['subject'] );
+	}
+
+	public function test_a_kind_the_plugin_doesnt_have_is_not_stored(): void {
+		$form              = $this->unchanged_form();
+		$form['no_such']   = array(
+			'subject' => 'Hello',
+			'body'    => 'World',
+		);
+		$this->save_form( $form );
+
+		$this->assertArrayNotHasKey( 'no_such', (array) get_option( 'photo_comp_email_templates' ) );
+	}
+
+	public function test_saving_without_changes_stores_no_switch_left_at_its_default(): void {
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array(), get_option( 'photo_comp_email_templates' ) );
+	}
+
+	public function test_a_stored_switch_is_kept_when_set_back_to_its_default(): void {
+		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
+
+		$this->save_form( $this->unchanged_form() );
+
+		$this->assertSame( array( 'enabled' => false ), get_option( 'photo_comp_email_templates' )['voting_opened'] );
+	}
+
+	public function test_a_kind_missing_from_the_post_keeps_what_was_stored(): void {
+		$stored = array(
+			'voting_opened' => array(
+				'enabled' => true,
+				'subject' => 'Voting is open',
+				'body'    => 'Go vote.',
+			),
+		);
+		update_option( 'photo_comp_email_templates', $stored );
+
+		$form = $this->unchanged_form();
+		unset( $form['voting_opened'] );
+		$this->save_form( $form );
+
+		$this->assertSame( $stored['voting_opened'], get_option( 'photo_comp_email_templates' )['voting_opened'] );
+	}
+
+	public function test_an_emptied_subject_or_body_is_saved_as_the_default(): void {
+		$form                           = $this->unchanged_form();
+		$form['voting_link']['subject'] = '';
+		$form['results_published']['body'] = '';
+		$this->save_form( $form );
+
+		$this->assertSame( array(), $this->saved_text() );
+	}
+
+	public function test_a_button_label_with_a_quote_is_unchanged_when_posted_without_entities(): void {
+		$translate = static function ( $translation, $text ) {
+			return 'Vote now' === $text ? "Don't wait, vote" : $translation;
+		};
+		$locale = static function () {
+			return 'xx_QUOTE';
+		};
+		add_filter( 'gettext', $translate, 10, 2 );
+		// Kinds are built once per locale, so this one is built with the filter.
+		add_filter( 'determine_locale', $locale );
+
+		$form = $this->unchanged_form();
+		// The editor posts the quote as a plain character, not as the default's entity.
+		$this->assertStringContainsString( 'Don&#039;t wait, vote', $form['voting_link']['body'] );
+		$form['voting_link']['body'] = str_replace( '&#039;', "'", $form['voting_link']['body'] );
+		$this->save_form( $form );
+		remove_filter( 'gettext', $translate, 10 );
+		remove_filter( 'determine_locale', $locale );
+
+		$this->assertSame( array(), $this->saved_text() );
 	}
 
 	public function test_editor_can_render_page(): void {

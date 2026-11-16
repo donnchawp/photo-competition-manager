@@ -19,6 +19,33 @@ use WP_Error;
 class Competition_Settings {
 
 	/**
+	 * The settings a competition type holds.
+	 *
+	 * @since 0.4.0
+	 * @var string[]
+	 */
+	public const TYPE_KEYS = array( 'categories', 'upload', 'voting', 'slideshow', 'email_reminders', 'interclub' );
+
+	/**
+	 * How voters prove who they are: the club's voting password, a member's
+	 * voting link, or an external judge's link.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const AUTH_MODES = array( 'password', 'token', 'judges' );
+
+	/**
+	 * The slideshow's progress meter styles.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const METER_TYPES = array( 'bar', 'line', 'dots', 'radial' );
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -82,7 +109,7 @@ class Competition_Settings {
 			),
 			'voting'          => array(
 				'score_matrix'        => array( 9, 8, 7, 6, 5 ),
-				'auth_mode'           => 'password', // 'password' or 'token' (email magic links).
+				'auth_mode'           => 'password', // 'password', 'token' (email magic links) or 'judges' (external judges score it).
 				'password'            => '',
 				'click_image_to_zoom' => false, // Whether images are clickable to open full-size in voting form.
 				'ui_type'             => 'default',
@@ -99,6 +126,13 @@ class Competition_Settings {
 				'days_before_open'       => 7,
 				'days_before_close'      => 1,
 				'include_qr_code_voting' => true,
+			),
+			// Entrants are clubs, each entering a panel of images per category.
+			// A panel's size is its category's quota.
+			'interclub'       => array(
+				'enabled'            => false,
+				'substitutes'        => 0, // Extra images per panel that can replace a disqualified one.
+				'photographer_limit' => 0, // Most images by one photographer in a panel; 0 for no limit.
 			),
 			'urls'            => array(
 				'upload_page' => '',
@@ -127,13 +161,7 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function parse( ?string $json ): array {
-		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
-
-		if ( ! is_array( $decoded ) ) {
-			$decoded = array();
-		}
-
-		$merged = self::merge_with_defaults( $decoded );
+		$merged = self::merge_with_defaults( self::decode( $json ) );
 
 		// Auto-detect page URLs if not set.
 		$merged = self::auto_detect_page_urls( $merged );
@@ -151,9 +179,41 @@ class Competition_Settings {
 	 * @return array<string, mixed>
 	 */
 	public static function global_settings(): array {
+		return self::parse( self::stored_club_settings() );
+	}
+
+	/**
+	 * The club's settings JSON as stored in the site options.
+	 *
+	 * @return string
+	 */
+	private static function stored_club_settings(): string {
 		$saved = get_option( 'photo_comp_default_settings', '' );
 
-		return self::parse( is_string( $saved ) ? $saved : '' );
+		return is_string( $saved ) ? $saved : '';
+	}
+
+	/**
+	 * The club's settings as stored, without defaults filled in.
+	 *
+	 * @since 0.4.0
+	 * @return array<string, mixed>
+	 */
+	public static function stored_club_settings_array(): array {
+		return self::decode( self::stored_club_settings() );
+	}
+
+	/**
+	 * Decode settings JSON, treating empty or invalid JSON as no settings.
+	 *
+	 * @since 0.4.0 Public.
+	 * @param string|null $json Settings JSON.
+	 * @return array<string, mixed>
+	 */
+	public static function decode( ?string $json ): array {
+		$decoded = ( ! empty( $json ) ) ? json_decode( $json, true ) : array();
+
+		return is_array( $decoded ) ? $decoded : array();
 	}
 
 	/**
@@ -287,9 +347,8 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['voting']['auth_mode'] ) ) {
-			$valid_modes = array( 'password', 'token' );
-			if ( ! in_array( $settings['voting']['auth_mode'], $valid_modes, true ) ) {
-				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be either "password" or "token".', 'photo-competition-manager' ) );
+			if ( ! in_array( $settings['voting']['auth_mode'], self::AUTH_MODES, true ) ) {
+				return new WP_Error( 'invalid_auth_mode', __( 'Voting auth mode must be "password", "token" or "judges".', 'photo-competition-manager' ) );
 			}
 		}
 
@@ -300,9 +359,14 @@ class Competition_Settings {
 			}
 		}
 
+		foreach ( array( 'substitutes', 'photographer_limit' ) as $key ) {
+			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < 0 ) ) {
+				return new WP_Error( 'invalid_interclub', __( 'Substitutes and the most images per photographer must be whole numbers, 0 or more.', 'photo-competition-manager' ) );
+			}
+		}
+
 		if ( isset( $settings['slideshow']['progress_meter_type'] ) ) {
-			$valid_meter_types = array( 'bar', 'line', 'dots', 'radial' );
-			if ( ! in_array( $settings['slideshow']['progress_meter_type'], $valid_meter_types, true ) ) {
+			if ( ! in_array( $settings['slideshow']['progress_meter_type'], self::METER_TYPES, true ) ) {
 				return new WP_Error( 'invalid_meter_type', __( 'Progress meter type must be "bar", "line", "dots", or "radial".', 'photo-competition-manager' ) );
 			}
 		}
@@ -317,7 +381,7 @@ class Competition_Settings {
 	 * @param array<string, mixed> $settings Club settings to validate.
 	 * @return true|WP_Error
 	 */
-	private static function validate_grades( array $settings ) {
+	public static function validate_grades( array $settings ) {
 		if ( ! isset( $settings['grades'] ) || ! is_array( $settings['grades'] ) ) {
 			return new WP_Error( 'invalid_grades', __( 'Grades must be an array.', 'photo-competition-manager' ) );
 		}
@@ -370,6 +434,51 @@ class Competition_Settings {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A type's settings with defaults filled in, for exactly the keys a type holds.
+	 *
+	 * @since 0.4.0
+	 * @param object $type Type row, with its settings decoded to an array.
+	 * @return array<string, mixed>
+	 */
+	public static function type_settings( object $type ): array {
+		$stored = is_array( $type->settings ?? null ) ? $type->settings : array();
+		$merged = self::merge_recursive( self::defaults(), $stored );
+
+		return array_intersect_key( $merged, array_flip( self::TYPE_KEYS ) );
+	}
+
+	/**
+	 * Validate the settings a type holds.
+	 *
+	 * @since 0.4.0
+	 * @param array<string, mixed> $settings Settings to validate.
+	 * @return true|WP_Error
+	 */
+	public static function validate_type_settings( array $settings ) {
+		if ( isset( $settings['categories'] ) && is_array( $settings['categories'] ) && empty( $settings['categories'] ) ) {
+			return new WP_Error( 'missing_categories', __( 'At least one category is required.', 'photo-competition-manager' ) );
+		}
+
+		return self::validate( $settings, false );
+	}
+
+	/**
+	 * The settings a new competition of a type starts with.
+	 *
+	 * Competitions keep their own copy of the club's page links.
+	 *
+	 * @since 0.4.0
+	 * @param object $type Type row.
+	 * @return array<string, mixed>
+	 */
+	public static function settings_for_new_competition( object $type ): array {
+		$settings         = self::type_settings( $type );
+		$settings['urls'] = self::global_settings()['urls'] ?? array();
+
+		return $settings;
 	}
 
 	/**
@@ -431,6 +540,16 @@ class Competition_Settings {
 	 */
 	public static function club_grades(): array {
 		return self::global_settings()['grades'] ?? self::defaults()['grades'];
+	}
+
+	/**
+	 * The club's grades as slug => label.
+	 *
+	 * @since 0.4.0
+	 * @return array<string, string>
+	 */
+	public static function grade_labels(): array {
+		return array_column( self::club_grades(), 'label', 'slug' );
 	}
 
 	/**
@@ -528,6 +647,19 @@ class Competition_Settings {
 	}
 
 	/**
+	 * How many substitutes each panel takes: none unless it's an interclub
+	 * competition, whatever number the type keeps for when it is.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $settings Parsed settings.
+	 * @return int
+	 */
+	public static function substitutes( array $settings ): int {
+		return empty( $settings['interclub']['enabled'] ) ? 0 : (int) $settings['interclub']['substitutes'];
+	}
+
+	/**
 	 * Get upload constraints from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.
@@ -535,6 +667,72 @@ class Competition_Settings {
 	 */
 	public static function get_upload_constraints( array $settings ): array {
 		return $settings['upload'] ?? self::defaults()['upload'];
+	}
+
+	/**
+	 * The per-file upload limit that's really enforced: the lowest of the
+	 * competition's limit, upload_max_filesize and post_max_size. PHP
+	 * refuses a bigger file before WordPress sees it.
+	 *
+	 * Reads PHP's settings directly, not wp_max_upload_size(), which
+	 * multisite caps at the network's upload limit and the site's space
+	 * quota. The plugin applies neither.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $upload_constraints Upload constraints from get_upload_constraints().
+	 * @return int The limit, in bytes.
+	 */
+	public static function enforced_max_file_size( array $upload_constraints ): int {
+		$competition_limit = (int) ( $upload_constraints['max_file_size_mb'] ?? self::defaults()['upload']['max_file_size_mb'] ) * MB_IN_BYTES;
+		$php_limit         = self::php_upload_limit( (string) ini_get( 'upload_max_filesize' ), (string) ini_get( 'post_max_size' ) );
+
+		/**
+		 * Filters the server's per-file upload limit. Lower it when something in
+		 * front of PHP, such as a proxy, refuses smaller files than PHP would.
+		 * Raising it above PHP's limit makes the upload page promise a size
+		 * PHP will refuse.
+		 *
+		 * @since 0.4.0
+		 *
+		 * @param int $server_limit The lower of PHP's upload_max_filesize and post_max_size, in bytes. 0 or less is no limit.
+		 */
+		$server_limit = (int) apply_filters( 'photo_competition_manager_server_upload_limit', $php_limit );
+
+		return self::lowest_limit( $competition_limit, $server_limit );
+	}
+
+	/**
+	 * The largest file PHP accepts in an upload: the lower of upload_max_filesize
+	 * and post_max_size, ignoring either when it's 0 or less (no limit).
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $upload_max_filesize PHP's upload_max_filesize, such as "8M".
+	 * @param string $post_max_size       PHP's post_max_size, such as "8M".
+	 * @return int The limit, in bytes, or 0 when there is none.
+	 */
+	public static function php_upload_limit( string $upload_max_filesize, string $post_max_size ): int {
+		return self::lowest_limit( wp_convert_hr_to_bytes( $upload_max_filesize ), wp_convert_hr_to_bytes( $post_max_size ) );
+	}
+
+	/**
+	 * The lowest of some size limits, ignoring any of 0 or less, which PHP reads as no limit.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int ...$limits Limits, in bytes.
+	 * @return int The lowest limit, or 0 when there is none.
+	 */
+	private static function lowest_limit( int ...$limits ): int {
+		$limits = array_filter(
+			$limits,
+			static function ( int $limit ): bool {
+				return $limit > 0;
+			}
+		);
+
+		return $limits ? min( $limits ) : 0;
 	}
 
 	/**
@@ -587,6 +785,61 @@ class Competition_Settings {
 		}
 
 		return $settings;
+	}
+
+	/**
+	 * The URL of a competition's voting, upload, results or top 3 page.
+	 *
+	 * Every email with a page link, the Members screen and the reminder job
+	 * use this, so a competition always gets the same link. It takes the
+	 * competition's own setting, then the club's, then a published page
+	 * containing the page's shortcode. It reads the stored settings rather
+	 * than parse(), which fills in a shortcode page before the club's
+	 * setting gets a say.
+	 *
+	 * @since 0.4.0
+	 * @param string      $page        'voting_page', 'upload_page', 'results_page' or 'top3_page'.
+	 * @param object|null $competition Competition row, or null for the club's page.
+	 * @return string The page URL, or '' when no page can be found.
+	 */
+	public static function page_url( string $page, ?object $competition = null ): string {
+		$url = $competition ? self::stored_page_url( $competition->settings ?? '', $page ) : '';
+
+		if ( '' === $url ) {
+			$url = self::stored_page_url( self::stored_club_settings(), $page );
+		}
+
+		if ( '' === $url && isset( self::PAGE_SHORTCODES[ $page ] ) ) {
+			$url = self::find_page_url_with_shortcode( self::PAGE_SHORTCODES[ $page ] );
+		}
+
+		if ( 'upload_page' === $page ) {
+			/**
+			 * Filters the upload page URL that members' upload links are built on.
+			 *
+			 * @since 0.3.0
+			 * @since 0.4.0 Runs on every upload link, and may be passed ''.
+			 *
+			 * @param string      $url         Upload page URL, or '' when none was found.
+			 * @param object|null $competition Competition row.
+			 */
+			$url = (string) apply_filters( 'photo_competition_manager_upload_page_url', $url, $competition );
+		}
+
+		return $url;
+	}
+
+	/**
+	 * A page URL as stored in settings JSON, before any shortcode page is filled in.
+	 *
+	 * @param string|null $json Settings JSON.
+	 * @param string      $page Settings URL key.
+	 * @return string The stored URL, or ''.
+	 */
+	private static function stored_page_url( ?string $json, string $page ): string {
+		$url = self::decode( $json )['urls'][ $page ] ?? '';
+
+		return is_string( $url ) ? $url : '';
 	}
 
 	/**

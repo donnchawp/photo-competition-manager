@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use WP_Error;
@@ -86,6 +87,7 @@ class Export_Screen {
 	 * @return void
 	 */
 	public function render(): void {
+		$labels = new Competition_Labels();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Export Data', 'photo-competition-manager' ); ?></h1>
@@ -109,7 +111,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -140,7 +142,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -171,7 +173,7 @@ class Export_Screen {
 										printf(
 											'<option value="%d">%s</option>',
 											(int) $competition->id,
-											esc_html( $competition->title )
+											esc_html( $labels->title_for_everyone( $competition ) )
 										);
 									}
 									?>
@@ -235,9 +237,7 @@ class Export_Screen {
 	/**
 	 * Export votes for a competition to a CSV file, separated by category.
 	 *
-	 * Columns are aligned across all categories using the member's random_number.
-	 * If a member didn't upload to a category, their column shows 0 for all voters.
-	 * This ensures consistent column positions for spreadsheet calculations.
+	 * The rows come from votes_csv_rows().
 	 *
 	 * @return void
 	 */
@@ -253,35 +253,8 @@ class Export_Screen {
 			return;
 		}
 
-		// Get all images for this competition.
-		$images = $this->images_repository->find_by_competition( $competition_id );
-
-		// Build mappings for alignment across categories.
-		$image_map              = array(); // image_id => random_number.
-		$all_random_numbers     = array(); // All unique random_numbers in competition.
-		$random_to_image_by_cat = array(); // category => random_number => image_id.
-
-		foreach ( $images as $image ) {
-			$image_id      = (int) $image->id;
-			$random_number = (int) $image->random_number;
-			$category      = $image->category;
-
-			$image_map[ $image_id ] = $random_number;
-
-			// Track all unique random_numbers.
-			if ( ! in_array( $random_number, $all_random_numbers, true ) ) {
-				$all_random_numbers[] = $random_number;
-			}
-
-			// Map random_number to image_id per category.
-			if ( ! isset( $random_to_image_by_cat[ $category ] ) ) {
-				$random_to_image_by_cat[ $category ] = array();
-			}
-			$random_to_image_by_cat[ $category ][ $random_number ] = $image_id;
-		}
-
-		// Sort random numbers for consistent column order.
-		sort( $all_random_numbers, SORT_NUMERIC );
+		// Votes on a disqualified entry don't count, and a substitute has none.
+		$rows = $this->votes_csv_rows( $votes, $this->images_repository->find_entered( $competition_id ) );
 
 		$competition = $this->competitions_repository->find( $competition_id );
 		$filename    = 'votes-' . ( $competition ? $competition->slug : $competition_id ) . '.csv';
@@ -290,72 +263,132 @@ class Export_Screen {
 		header( 'Content-Disposition: attachment; filename=' . $filename );
 
 		$output = fopen( 'php://output', 'w' );
-
-		// Group votes by category, then by voter, then by image_id.
-		// Skip votes for images that no longer exist.
-		$votes_by_category = array();
-		foreach ( $votes as $vote ) {
-			$image_id = (int) $vote->image_id;
-
-			// Skip votes for deleted/non-existent images.
-			if ( ! isset( $image_map[ $image_id ] ) ) {
-				continue;
-			}
-
-			$category = $vote->category;
-
-			if ( ! isset( $votes_by_category[ $category ] ) ) {
-				$votes_by_category[ $category ] = array();
-			}
-			if ( ! isset( $votes_by_category[ $category ][ $vote->voter_name ] ) ) {
-				$votes_by_category[ $category ][ $vote->voter_name ] = array();
-			}
-
-			// Store vote keyed by image_id.
-			$votes_by_category[ $category ][ $vote->voter_name ][ $image_id ] = $vote->score;
-		}
-
-		// Write each category as a separate section.
-		foreach ( $votes_by_category as $category => $votes_by_voter ) {
-			// Write category header.
-			fputcsv( $output, sanitize_csv_row( array( 'Category: ' . $category ) ) );
-
-			// Write column header with ALL random numbers (aligned across categories).
-			$header = array( 'Voter' );
-			foreach ( $all_random_numbers as $random_number ) {
-				$header[] = 'Image #' . $random_number;
-			}
-			fputcsv( $output, sanitize_csv_row( $header ) );
-
-			// Write rows for this category, with votes in random_number order.
-			ksort( $votes_by_voter ); // Sort voters alphabetically.
-			foreach ( $votes_by_voter as $voter => $voter_votes ) {
-				$row = array( $voter );
-				foreach ( $all_random_numbers as $random_number ) {
-					// Check if this random_number has an image in this category.
-					$image_id_for_random = $random_to_image_by_cat[ $category ][ $random_number ] ?? null;
-
-					if ( null === $image_id_for_random ) {
-						// Member didn't upload to this category - show 0.
-						$row[] = 0;
-					} elseif ( isset( $voter_votes[ $image_id_for_random ] ) ) {
-						// Voter voted for this image.
-						$row[] = (int) $voter_votes[ $image_id_for_random ];
-					} else {
-						// Image exists but voter didn't vote for it.
-						$row[] = '';
-					}
-				}
-				fputcsv( $output, sanitize_csv_row( $row ) );
-			}
-
-			// Add blank line between categories.
-			fputcsv( $output, array( '' ) );
+		foreach ( $rows as $row ) {
+			fputcsv( $output, sanitize_csv_row( $row ) );
 		}
 
 		// phpcs:ignore
 		fclose( $output );
 		exit;
+	}
+
+	/**
+	 * The votes CSV's rows, one section per category.
+	 *
+	 * Columns are aligned across all categories using the entries' random_number: a member's one
+	 * number, or in an interclub competition each image's number within its category. A number
+	 * with more than one image in a category gets a column per image (Image #7a, Image #7b),
+	 * in image ID order, and each category's header names the file in those columns. If a
+	 * column has no entry in a category, it shows 0 for all voters.
+	 * Votes for entries that no longer exist are left out.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object[] $votes  The competition's votes.
+	 * @param object[] $images The competition's entries.
+	 * @return array<int, array<int, int|string>> Rows, not yet made safe for a spreadsheet.
+	 */
+	public function votes_csv_rows( array $votes, array $images ): array {
+		// Each image is filed under its category and number, in image ID order. A member enters
+		// every image under their one number, so a number can hold more than one image in a category.
+		usort( $images, static fn( $a, $b ) => (int) $a->id <=> (int) $b->id );
+		$image_ids_by_cat = array(); // category => random_number => image IDs.
+		$filename_by_id   = array(); // image_id => filename, for the images still entered.
+		$widths           = array(); // random_number => columns: its most images in one category.
+		foreach ( $images as $image ) {
+			$random_number = (int) $image->random_number;
+
+			$image_ids_by_cat[ $image->category ][ $random_number ][] = (int) $image->id;
+			$filename_by_id[ (int) $image->id ]                       = (string) ( $image->filename ?? '' );
+			$widths[ $random_number ]                                 = max( $widths[ $random_number ] ?? 0, count( $image_ids_by_cat[ $image->category ][ $random_number ] ) );
+		}
+		ksort( $widths, SORT_NUMERIC );
+
+		// A number with more than one image in a category gets a column per image in every
+		// category, so the columns line up: Image #7, or Image #7a and Image #7b. A split column's
+		// header names its file in each category, since voting shows both images as #7.
+		$columns = array();
+		foreach ( $widths as $random_number => $width ) {
+			for ( $slot = 0; $slot < $width; $slot++ ) {
+				$columns[] = array(
+					'number' => $random_number,
+					'slot'   => $slot,
+					'suffix' => $width > 1 ? chr( ord( 'a' ) + $slot ) : '',
+				);
+			}
+		}
+
+		// Group votes by category, then by voter, then by image_id.
+		// Skip votes for images that no longer exist.
+		$votes_by_category = array();
+		$voter_labels      = array();
+		$labels            = $this->votes_repository->voter_labels( $votes );
+		foreach ( $votes as $key => $vote ) {
+			$image_id = (int) $vote->image_id;
+
+			// Skip votes for deleted/non-existent images.
+			if ( ! isset( $filename_by_id[ $image_id ] ) ) {
+				continue;
+			}
+
+			$category = $vote->category;
+			// A judge's vote is keyed by judge ID, so judges never share a column.
+			$voter                  = empty( $vote->judge_id ) ? $labels[ $key ] : 'judge:' . (int) $vote->judge_id;
+			$voter_labels[ $voter ] = $labels[ $key ];
+
+			if ( ! isset( $votes_by_category[ $category ] ) ) {
+				$votes_by_category[ $category ] = array();
+			}
+			if ( ! isset( $votes_by_category[ $category ][ $voter ] ) ) {
+				$votes_by_category[ $category ][ $voter ] = array();
+			}
+
+			// Store vote keyed by image_id.
+			$votes_by_category[ $category ][ $voter ][ $image_id ] = $vote->score;
+		}
+
+		// Each category is a separate section.
+		$rows = array();
+		foreach ( $votes_by_category as $category => $votes_by_voter ) {
+			// Category header.
+			$rows[] = array( 'Category: ' . $category );
+
+			// The same columns in every category.
+			$header = array( 'Voter' );
+			foreach ( $columns as $column ) {
+				$label    = 'Image #' . $column['number'] . $column['suffix'];
+				$image_id = $image_ids_by_cat[ $category ][ $column['number'] ][ $column['slot'] ] ?? null;
+				$filename = null === $image_id ? '' : $filename_by_id[ $image_id ];
+				$header[] = '' !== $column['suffix'] && '' !== $filename ? $label . ' (' . $filename . ')' : $label;
+			}
+			$rows[] = $header;
+
+			// Rows for this category, with votes in random_number order.
+			ksort( $votes_by_voter ); // Sort voters alphabetically.
+			foreach ( $votes_by_voter as $voter => $voter_votes ) {
+				$row = array( $voter_labels[ $voter ] ?? $voter );
+				foreach ( $columns as $column ) {
+					$image_id = $image_ids_by_cat[ $category ][ $column['number'] ][ $column['slot'] ] ?? null;
+
+					if ( null === $image_id ) {
+						// Member didn't upload to this category - show 0.
+						$row[] = 0;
+					} elseif ( isset( $voter_votes[ $image_id ] ) ) {
+						// Voter voted for this image.
+						$row[] = (int) $voter_votes[ $image_id ];
+					} else {
+						// Image exists but voter didn't vote for it.
+						$row[] = '';
+					}
+				}
+				$rows[] = $row;
+			}
+
+			// Blank line between categories.
+			$rows[] = array( '' );
+		}
+
+		return $rows;
 	}
 
 	/**
@@ -370,7 +403,7 @@ class Export_Screen {
 			return;
 		}
 
-		$images = $this->images_repository->find_by_competition( $competition_id );
+		$images = $this->images_repository->find_uploads( $competition_id );
 		if ( empty( $images ) ) {
 			return;
 		}

@@ -8,15 +8,23 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Voting_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
+
+require_once dirname( __DIR__ ) . '/Admin/class-redirect-exception.php';
 
 /**
  * Deactivated members must not receive voting links or reach the ballot.
@@ -80,9 +88,24 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 				return $atts;
 			}
 		);
+		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-competition-manager-voting-validation', 'voting-validation.js', array(), '1', true );
+	}
+
+	/**
+	 * Redirect interceptor: stop before the exit that follows a cast ballot.
+	 *
+	 * @param string $location Redirect target.
+	 * @throws Redirect_Exception Always, carrying the location.
+	 */
+	public function throw_on_redirect( $location ) {
+		throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness; location captured, not output.
 	}
 
 	public function tearDown(): void {
+		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -97,6 +120,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$competitions      = new Competitions_Repository();
 		$competition_id    = $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Token Comp',
 				'slug'      => 'token-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -192,14 +216,14 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return $this->shortcode->render();
 	}
 
-	private function issue_token( int $member_id ): string {
+	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS ): string {
 		$token_string = bin2hex( random_bytes( 32 ) );
-		$this->tokens->create(
+		$this->tokens->renew(
 			$member_id,
 			(int) $this->competition->id,
 			'colour',
 			hash( 'sha256', $token_string ),
-			gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS )
+			gmdate( 'Y-m-d H:i:s', time() + $expires )
 		);
 		return $token_string;
 	}
@@ -228,11 +252,11 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Submit a ballot with a token.
+	 * Post a ballot with a token, the way template_redirect sees it.
 	 *
 	 * @param string             $token_string Voting token.
 	 * @param int|array<int,int> $votes        Image ID to score 9, or image ID => score.
-	 * @return string Rendered output.
+	 * @return string The redirect target when the ballot is cast or already cast, otherwise the rendered page.
 	 */
 	private function submit_vote( string $token_string, $votes ): string {
 		$nonce = wp_create_nonce( 'photo_competition_vote_with_token' );
@@ -242,6 +266,12 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_POST['photo_competition_vote_nonce']    = $nonce;
 		$_REQUEST['photo_competition_vote_nonce'] = $nonce;
 		$_POST['votes']                           = is_array( $votes ) ? array_map( 'strval', $votes ) : array( $votes => '9' );
+
+		try {
+			$this->shortcode->handle_ballot();
+		} catch ( Redirect_Exception $e ) {
+			return $e->getMessage();
+		}
 
 		return $this->shortcode->render();
 	}
@@ -283,19 +313,25 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertDoesNotMatchRegularExpression( '/\{[a-z_]+\}/', $this->last_mail['subject'] . $this->last_mail['message'] );
 	}
 
-	public function test_voting_link_falls_back_to_the_built_in_email_when_its_template_is_off(): void {
+	public function test_voting_link_with_nothing_saved_sends_the_email_the_screen_shows(): void {
+		$this->make_member( 'mary@example.com', true, 'Mary Murphy' );
+
+		$this->request_token( 'mary@example.com' );
+
+		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'You asked to vote in Token Comp.', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'token=', $this->last_mail['message'] );
+	}
+
+	public function test_voting_link_sends_its_saved_template_even_when_saved_switched_off(): void {
 		update_option(
 			'photo_comp_email_templates',
 			array(
-				'voting_link'   => array(
+				'voting_link' => array(
 					'enabled' => false,
-					'subject' => 'Ignored subject',
-					'body'    => 'Ignored body',
-				),
-				'voting_opened' => array(
-					'enabled' => true,
-					'subject' => 'Voting is now open for {competition_title}',
-					'body'    => '<p>Hi {member_name}, voting closes on {close_date}.</p>',
+					'subject' => 'Saved subject',
+					'body'    => 'Saved body for {member_name}',
 				),
 			)
 		);
@@ -304,10 +340,8 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->request_token( 'mary@example.com' );
 
 		$this->assertSame( 1, $this->mail_count );
-		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
-		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
-		$this->assertStringContainsString( 'This link will expire in 1 hour and can only be used once.', $this->last_mail['message'] );
-		$this->assertStringNotContainsString( 'Ignored', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'Saved subject', $this->last_mail['subject'] );
+		$this->assertStringContainsString( 'Saved body for Mary Murphy', $this->last_mail['message'] );
 	}
 
 	public function test_voting_link_is_logged_under_the_members_name(): void {
@@ -317,7 +351,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$logs = ( new Logs_Repository() )->find_by_competition( (int) $this->competition->id, 50, 0, array( 'event_type' => 'voting_link' ) );
 		$this->assertCount( 1, $logs );
-		$this->assertSame( 'Sent voting link email to Mary Murphy', $logs[0]->description );
+		$this->assertSame( 'Email sent to Mary Murphy: Voting link', $logs[0]->description );
 		$this->assertSame( 'mary@example.com', json_decode( $logs[0]->metadata, true )['email'] );
 	}
 
@@ -331,6 +365,166 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
 	}
 
+	/**
+	 * Give the competition under test's type (Individual) a second type (Team), and add a member of the given types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return int Member ID.
+	 */
+	private function two_type_member( string $entry_mode, array $types ): int {
+		// The competition has entries, so it keeps its type; a second type joins it.
+		$type_ids = array(
+			'Individual' => (int) $this->competition->type_id,
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$this->assertTrue( ( new Competitions_Repository() )->update( (int) $this->competition->id, array( 'entry_mode' => $entry_mode ) ) );
+		$this->competition = ( new Competitions_Repository() )->find( (int) $this->competition->id );
+
+		return (int) $this->members->create(
+			array(
+				'name'     => 'Voter',
+				'email'    => 'voter@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+	}
+
+	public function test_non_entrant_cannot_request_voting_link_in_selected_competition(): void {
+		$member_id = $this->two_type_member( 'selected', array( 'Individual' ) );
+
+		$message = $this->request_token( 'voter@example.com' );
+
+		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_an_entrant_can_request_a_voting_link_in_selected_competition(): void {
+		$member_id = $this->two_type_member( 'selected', array( 'Team' ) );
+		( new Entrants_Repository() )->add( (int) $this->competition->id, $member_id );
+
+		$this->request_token( 'voter@example.com' );
+
+		$this->assertSame( 1, $this->mail_count );
+	}
+
+	public function test_a_member_without_the_type_cannot_request_a_voting_link(): void {
+		$member_id = $this->two_type_member( 'all', array( 'Team' ) );
+
+		$message = $this->request_token( 'voter@example.com' );
+
+		$this->assertStringContainsString( 'class="success"', $message );
+		$this->assertSame( 0, $this->mail_count );
+		$this->assertFalse( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_a_member_with_the_type_can_request_a_voting_link(): void {
+		$this->two_type_member( 'all', array( 'Individual' ) );
+
+		$this->request_token( 'voter@example.com' );
+
+		$this->assertSame( 1, $this->mail_count );
+	}
+
+	/**
+	 * Asking again renews the member's one token: the new link works and the
+	 * first one doesn't.
+	 *
+	 * @dataProvider ages_of_a_first_link
+	 *
+	 * @param int $age How long ago the first link was sent.
+	 */
+	public function test_a_member_who_asks_again_gets_a_working_link_on_their_one_token( int $age ): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$first       = $this->link_from_last_mail();
+		$first_token = $this->tokens->find_valid_token( hash( 'sha256', $first ) );
+		$this->age_tokens( $age );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'class="success"', $message );
+		$this->assertSame( 2, $this->mail_count );
+		$renewed = $this->tokens->find_valid_token( hash( 'sha256', $this->link_from_last_mail() ) );
+		$this->assertSame( $first_token->id, $renewed->id );
+		$this->assertNull( $this->tokens->find_valid_token( hash( 'sha256', $first ) ) );
+	}
+
+	/**
+	 * How long ago a member's first link was sent when they ask again.
+	 *
+	 * @return array<string, array<int>>
+	 */
+	public function ages_of_a_first_link(): array {
+		return array(
+			'after five minutes' => array( 6 * MINUTE_IN_SECONDS ),
+			'after it expired'   => array( 2 * HOUR_IN_SECONDS ),
+		);
+	}
+
+	public function test_a_member_who_voted_is_told_so_by_the_renewed_link(): void {
+		$permalink = $this->view_page();
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$_POST = array();
+		$_GET  = array();
+		$this->request_token( 'active@example.com' );
+
+		$location = $this->submit_vote( $this->link_from_last_mail(), $this->make_image() );
+
+		$this->assertSame( add_query_arg( 'ballot', 'already_cast', $permalink ), $location );
+		$this->assertSame( 1, $this->vote_count() );
+	}
+
+	public function test_a_request_within_five_minutes_of_a_renewal_sends_nothing(): void {
+		$this->make_member( 'active@example.com', true );
+		$this->request_token( 'active@example.com' );
+		$this->age_tokens( 6 * MINUTE_IN_SECONDS );
+		$this->request_token( 'active@example.com' );
+
+		$message = $this->request_token( 'active@example.com' );
+
+		$this->assertStringContainsString( 'If this email is registered, you will receive a voting link shortly.', $message );
+		$this->assertSame( 2, $this->mail_count );
+	}
+
+	/**
+	 * Age every voting token, as if it was sent that long ago.
+	 *
+	 * @param int $seconds How long ago the tokens were sent.
+	 */
+	private function age_tokens( int $seconds ): void {
+		global $wpdb;
+
+		$wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET created_at = created_at - INTERVAL %d SECOND, expires_at = expires_at - INTERVAL %d SECOND',
+				$wpdb->prefix . 'photocomp_voting_tokens',
+				$seconds,
+				$seconds
+			)
+		);
+	}
+
+	/**
+	 * The raw token in the voting link of the last email sent.
+	 *
+	 * @return string
+	 */
+	private function link_from_last_mail(): string {
+		$this->assertSame( 1, preg_match( '/token=([0-9a-f]{64})/', $this->last_mail['message'], $matches ) );
+		return $matches[1];
+	}
+
 	public function test_active_member_token_opens_ballot(): void {
 		$this->make_image();
 		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
@@ -339,6 +533,15 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'id="voting-form"', $output );
 		$this->assertStringNotContainsString( 'token-request-section', $output );
+	}
+
+	public function test_the_voting_page_loads_the_validation_script_translations(): void {
+		$this->make_image();
+		$_GET['token'] = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+
+		$this->shortcode->render();
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-competition-manager-voting-validation']->textdomain );
 	}
 
 	public function test_an_entry_whose_image_is_missing_shows_as_unavailable_on_the_ballot(): void {
@@ -351,84 +554,111 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<img', $output );
 	}
 
+	public function test_voting_grid_has_no_member_slug_in_markup(): void {
+		$this->set_permalink_structure( '/%postname%/' );
+		$member   = $this->make_member( 'jane@example.com', true, 'Jane Murphy' );
+		$entry_id = (int) ( new Images_Repository() )->create(
+			array(
+				'competition_id' => (int) $this->competition->id,
+				'member_id'      => $member,
+				'category'       => 'colour',
+				'filename'       => 'jane-murphy-colour.jpg',
+			)
+		);
+		$folder = wp_upload_dir()['basedir'] . '/competitions/token-comp/colour';
+		wp_mkdir_p( $folder );
+		$files = array( $folder . '/jane-murphy-colour.jpg', $folder . '/jane-murphy-colour-thumb.jpg' );
+		foreach ( $files as $file ) {
+			file_put_contents( $file, 'img' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		}
+		$_GET['token'] = $this->issue_token( $member );
+
+		$html = $this->shortcode->render();
+
+		foreach ( $files as $file ) {
+			wp_delete_file( $file );
+		}
+		$this->assertStringContainsString( '/photocomp-image/' . $entry_id . '/', $html );
+		$this->assertStringNotContainsString( 'jane-murphy', $html );
+	}
+
 	public function test_inactive_member_token_falls_back_to_request_form(): void {
 		$_GET['token'] = $this->issue_token( $this->make_member( 'inactive@example.com', false ) );
 
 		$this->assertStringContainsString( 'token-request-section', $this->shortcode->render() );
 	}
 
-	public function test_active_member_token_records_vote(): void {
-		$image_id = $this->make_image();
+	public function test_a_cast_ballot_redirects_to_the_thank_you_page(): void {
+		$permalink = $this->view_page();
+		$token     = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 
-		$this->submit_vote( $this->issue_token( $this->make_member( 'active@example.com', true ) ), $image_id );
+		$location = $this->submit_vote( $token, $this->make_image() );
 
+		$this->assertSame( add_query_arg( 'ballot', 'cast', $permalink ), $location );
 		$this->assertSame( 1, $this->vote_count() );
+
+		$_POST          = array();
+		$_GET['ballot'] = 'cast';
+		$page           = $this->shortcode->render();
+		$this->assertStringContainsString( 'Thank you for voting! Your votes have been recorded anonymously.', $page );
+		$this->assertStringNotContainsString( 'already been recorded', $page );
 	}
 
-	public function test_token_vote_ignores_images_from_another_category(): void {
-		$colour_id = $this->make_image( 'colour' );
-		$mono_id   = $this->make_image( 'mono' );
-
-		$this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$colour_id => 9,
-				$mono_id   => 8,
-			)
-		);
-
-		$votes = ( new Votes_Repository() )->find_by_competition( (int) $this->competition->id );
-		$this->assertSame( array( $colour_id ), array_map( 'intval', array_column( $votes, 'image_id' ) ) );
-	}
-
-	public function test_token_ballot_for_every_image_is_accepted(): void {
-		$first  = $this->make_image( 'colour' );
+	public function test_a_refused_ballot_shows_why_and_keeps_the_voters_scores(): void {
+		$first  = $this->make_image();
 		$second = $this->add_entry( 'colour' );
 
-		$output = $this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$first  => 9,
-				$second => 8,
-			)
-		);
+		$page = $this->submit_vote( $this->issue_token( $this->make_member( 'active@example.com', true ) ), array( $second => 8 ) );
 
-		$this->assertStringContainsString( 'Thank you for voting!', $output );
-		$this->assertSame( 2, $this->vote_count() );
-	}
-
-	public function test_token_ballot_padded_with_another_category_is_rejected(): void {
-		$this->add_entry( 'colour' );
-
-		$output = $this->submit_vote(
-			$this->issue_token( $this->make_member( 'active@example.com', true ) ),
-			array(
-				$this->make_image( 'colour' ) => 9,
-				$this->make_image( 'mono' )   => 8,
-			)
-		);
-
-		$this->assertStringContainsString( 'You have voted for 1 of 2 images.', $output );
+		$this->assertSame( 1, substr_count( $page, 'You have voted for 1 of 2 images.' ) );
+		$this->assertMatchesRegularExpression( '/name="votes\[' . $second . '\]"[^>]*value="8" checked/', $page );
+		$this->assertStringContainsString( 'name="votes[' . $first . ']"', $page );
 		$this->assertSame( 0, $this->vote_count() );
 	}
 
-	public function test_second_token_ballot_is_reported_as_already_voted(): void {
+	public function test_a_voter_who_has_cast_their_ballot_is_told_so_once(): void {
 		$token = $this->issue_token( $this->make_member( 'active@example.com', true ) );
 		$this->submit_vote( $token, $this->make_image() );
 
-		$output = $this->submit_vote( $token, $this->make_image() );
+		$_POST = array();
+		$page  = $this->shortcode->render();
 
-		$this->assertStringContainsString( 'Your votes for this category have already been recorded.', $output );
-		$this->assertStringNotContainsString( 'Thank you for voting!', $output );
-		$this->assertStringNotContainsString( 'class="error"', $output );
-		$this->assertSame( 1, $this->vote_count() );
+		$this->assertSame( 1, substr_count( $page, 'Your votes for this category have already been recorded.' ) );
+		$this->assertStringNotContainsString( 'id="voting-form"', $page );
 	}
 
-	public function test_inactive_member_token_cannot_vote(): void {
-		$image_id = $this->make_image();
+	public function test_a_ballot_cast_again_redirects_to_already_cast(): void {
+		$permalink = $this->view_page();
+		$token     = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$this->submit_vote( $token, $this->make_image() );
 
-		$this->submit_vote( $this->issue_token( $this->make_member( 'inactive@example.com', false ) ), $image_id );
+		$location = $this->submit_vote( $token, $this->make_image() );
 
+		$this->assertSame( add_query_arg( 'ballot', 'already_cast', $permalink ), $location );
+		$this->assertSame( 1, $this->vote_count() );
+
+		$_POST          = array();
+		$_GET['ballot'] = 'already_cast';
+		$this->assertSame( 1, substr_count( $this->shortcode->render(), 'Your votes for this category have already been recorded.' ) );
+	}
+
+	public function test_a_ballot_with_an_expired_link_says_so(): void {
+		$token = $this->issue_token( $this->make_member( 'active@example.com', true ), -60 );
+
+		$page = $this->submit_vote( $token, $this->make_image() );
+
+		$this->assertStringContainsString( 'This voting link has expired or isn&#039;t valid.', $page );
+		$this->assertStringContainsString( 'token-request-section', $page );
+		$this->assertSame( 0, $this->vote_count() );
+	}
+
+	public function test_a_ballot_for_a_closed_category_says_so_once(): void {
+		$token = $this->issue_token( $this->make_member( 'active@example.com', true ) );
+		$this->set_open_categories( array( 'mono' ) );
+
+		$page = $this->submit_vote( $token, $this->make_image() );
+
+		$this->assertSame( 1, substr_count( $page, 'open for this category.' ) );
 		$this->assertSame( 0, $this->vote_count() );
 	}
 
@@ -474,5 +704,158 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$url = $this->check_open_url( $this->shortcode->render() );
 
 		$this->assertSame( add_query_arg( 'token', 'abc%26foo%3Dbar', $permalink ), $url );
+	}
+
+	/**
+	 * Make the competition judged, with one judge assigned.
+	 *
+	 * @return string The judge's link token.
+	 */
+	private function make_judged_with_judge(): string {
+		$repo     = new Competitions_Repository();
+		$id       = (int) $this->competition->id;
+		$settings = json_decode( $this->competition->settings, true );
+
+		$settings['voting'] = array(
+			'auth_mode'    => 'judges',
+			'score_matrix' => array( 5, 4, 3 ),
+		);
+		$settings['urls']   = array( 'voting_page' => 'https://example.org/vote/' );
+		$repo->update( $id, array( 'settings' => $settings ) );
+		$this->competition = $repo->find( $id );
+
+		$judge_id = ( new Judges_Repository() )->create( 'Jane Judge', 'jane@example.com' );
+		$this->assertNotWPError( $judge_id );
+		$token = ( new Competition_Judges_Repository() )->assign( $id, $judge_id );
+		$this->assertNotWPError( $token );
+
+		return $token;
+	}
+
+	/**
+	 * Post a judge's ballot, the way template_redirect sees it.
+	 *
+	 * @param string         $token    Judge token.
+	 * @param string         $category Category slug.
+	 * @param array<int,int> $scores Image ID => score.
+	 * @return string The redirect target, or the rendered page when the ballot is refused.
+	 */
+	private function submit_judge_ballot( string $token, string $category, array $scores ): string {
+		$nonce = wp_create_nonce( 'photo_competition_vote_as_judge' );
+
+		$_GET['judge']                            = $token;
+		$_POST['photo_competition_vote']          = '1';
+		$_POST['photo_competition_vote_nonce']    = $nonce;
+		$_REQUEST['photo_competition_vote_nonce'] = $nonce;
+		$_POST['category']                        = $category;
+		$_POST['votes']                           = array_map( 'strval', $scores );
+
+		try {
+			$this->shortcode->handle_ballot();
+		} catch ( Redirect_Exception $e ) {
+			return $e->getMessage();
+		}
+
+		return $this->shortcode->render();
+	}
+
+	public function test_judge_sees_open_category_grid(): void {
+		$token = $this->make_judged_with_judge();
+		$this->view_page();
+		$_GET['judge'] = $token;
+
+		$html = $this->shortcode->render();
+
+		$this->assertStringContainsString( 'Jane Judge', $html );
+		$this->assertStringContainsString( 'votes[' . $this->images['colour'] . ']', $html );
+		$this->assertStringNotContainsString( 'votes[' . $this->images['mono'] . ']', $html );
+		$this->assertStringContainsString( 'name="category" value="colour"', $html );
+		$this->assertStringNotContainsString( 'colour-entrant', $html );
+		$this->assertStringNotContainsString( 'photo_competition_request_voting_token', $html );
+	}
+
+	public function test_judge_page_uses_scoring_wording_and_member_page_keeps_voting_wording(): void {
+		$token = $this->make_judged_with_judge();
+		$this->view_page();
+		$_GET['judge'] = $token;
+
+		$html = $this->shortcode->render();
+
+		$this->assertStringContainsString( ' - Judging</h2>', $html );
+		$this->assertStringContainsString( 'How to score', $html );
+		$this->assertStringContainsString( 'You must score every image to submit your scores.', $html );
+		$this->assertStringNotContainsString( 'How to Vote', $html );
+		$this->assertStringNotContainsString( 'You must vote for all images', $html );
+		$this->assertStringNotContainsString( ' - Voting</h2>', $html );
+
+		$this->submit_judge_ballot( $token, 'colour', array( $this->images['colour'] => 5 ) );
+		$_GET['judge'] = $token;
+		$html          = $this->shortcode->render();
+		$this->assertStringContainsString( 'Your scores for this category have already been recorded.', $html );
+		$this->assertStringNotContainsString( 'Your votes for this category', $html );
+	}
+
+	public function test_judge_link_with_no_open_category_says_so(): void {
+		$token = $this->make_judged_with_judge();
+		$this->set_open_categories( array() );
+		$permalink     = $this->view_page();
+		$_GET['judge'] = $token;
+
+		$html = $this->shortcode->render();
+
+		$this->assertStringContainsString( 'Scoring isn&#039;t open yet.', $html );
+		$this->assertStringContainsString( 'Check again', $html );
+		$this->assertSame( add_query_arg( 'judge', $token, $permalink ), $this->check_open_url( $html ) );
+	}
+
+	public function test_judged_competition_without_link_shows_notice_and_no_request_form(): void {
+		$this->make_judged_with_judge();
+		$this->view_page();
+
+		foreach ( array( '', 'nope' ) as $token ) {
+			$_GET['judge'] = $token;
+			$html          = $this->shortcode->render();
+
+			$this->assertStringContainsString( 'Judges are scoring this competition.', $html );
+			$this->assertStringNotContainsString( 'photo_competition_request_voting_token', $html );
+			$this->assertStringNotContainsString( 'voting_password', $html );
+			$this->assertStringNotContainsString( 'votes[', $html );
+		}
+	}
+
+	public function test_judge_ballot_redirect_keeps_judge_param(): void {
+		$token = $this->make_judged_with_judge();
+		$this->view_page();
+
+		$redirect = $this->submit_judge_ballot( $token, 'colour', array( $this->images['colour'] => 5 ) );
+
+		$this->assertSame( 1, $this->vote_count() );
+		$this->assertStringContainsString( 'ballot=cast', $redirect );
+		$this->assertStringContainsString( 'judge=' . $token, $redirect );
+
+		$_GET['ballot'] = 'cast';
+		$html           = $this->shortcode->render();
+		$this->assertStringContainsString( 'Thank you, your scores have been recorded.', $html );
+		$this->assertSame( add_query_arg( 'judge', $token, get_permalink() ), $this->check_open_url( $html ) );
+	}
+
+	public function test_judge_ballot_after_close_is_refused_and_kept(): void {
+		$token = $this->make_judged_with_judge();
+		$this->view_page();
+		$this->set_open_categories( array() );
+		Workflow_Fixtures::set_stage( (int) $this->competition->id, 'colour', Competition_Workflow::STAGE_DONE );
+
+		$html = $this->submit_judge_ballot( $token, 'colour', array( $this->images['colour'] => 4 ) );
+
+		$this->assertSame( 0, $this->vote_count() );
+		$this->assertStringContainsString( 'class="error"', $html );
+		$this->assertMatchesRegularExpression( '/value="4"\s+checked/', $html );
+	}
+
+	public function test_judge_link_url_is_the_voting_page_with_the_token(): void {
+		$token = $this->make_judged_with_judge();
+		$url   = \PhotoCompetitionManager\Service\Judge_Link::url( $this->competition, $token );
+
+		$this->assertSame( 'https://example.org/vote/?judge=' . $token, $url );
 	}
 }

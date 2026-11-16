@@ -8,12 +8,15 @@
 namespace PhotoCompetitionManager\Tests\API;
 
 use PhotoCompetitionManager\API\Upload_API;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Photo_Uploads;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_REST_Request;
 use WP_UnitTestCase;
@@ -23,7 +26,24 @@ use WP_UnitTestCase;
  */
 class Upload_API_Test extends WP_UnitTestCase {
 
+	use Photo_Uploads;
+
+	/**
+	 * $_SERVER as it was before the test.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private $server;
+
+	public function setUp(): void {
+		parent::setUp();
+		$this->server = $_SERVER;
+	}
+
 	public function tearDown(): void {
+		$_SERVER = $this->server;
+		$_POST   = array();
+		$_FILES  = array();
 		parent::tearDown();
 
 		// Moves create the category folders, each with an index.php, even when an entry has no
@@ -35,11 +55,13 @@ class Upload_API_Test extends WP_UnitTestCase {
 			wp_delete_file( $folder );
 		}
 		$this->delete_folders( $folder );
+		$this->remove_tmp_files();
 	}
 
 	private function request_for_member( bool $active ): WP_REST_Request {
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -266,6 +288,167 @@ class Upload_API_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * An open interclub competition whose colour panel takes the given images and one substitute, and a club's upload token for it.
+	 *
+	 * @param int  $quota     Images in the colour panel.
+	 * @param bool $interclub Whether the competition is interclub; an individual one keeps the same numbers.
+	 * @return string Upload token.
+	 */
+	private function interclub_token( int $quota, bool $interclub = true ): string {
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'   => Type_Fixtures::id(),
+				'title'     => 'Upload Comp',
+				'slug'      => 'upload-comp',
+				'open_date' => '2020-01-01 00:00:00',
+				'settings'  => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => $quota,
+						),
+					),
+					'interclub'  => array(
+						'enabled'            => $interclub,
+						'substitutes'        => 1,
+						'photographer_limit' => 0,
+					),
+				),
+			)
+		);
+		$club_id        = (int) ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Lee Camera Club',
+				'email' => 'lee@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		return ( new Upload_Token_Repository() )->find_or_create( $club_id, $competition_id )->token;
+	}
+
+	public function test_a_club_uploads_a_named_substitute_beside_its_full_panel(): void {
+		$token = $this->interclub_token( 1 );
+		$this->assertSame( 200, rest_do_request( $this->upload_request( $token, 'Ann', false ) )->get_status() );
+
+		$response = rest_do_request( $this->upload_request( $token, 'Bob', true ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 1, $response->get_data()['success_count'], wp_json_encode( $response->get_data() ) );
+		$image = ( new Images_Repository() )->find( $response->get_data()['results']['file_0']['image_id'] );
+		$this->assertSame( 'substitute', $image->entry_status );
+		$this->assertSame( 'Bob', $image->photographer );
+	}
+
+	public function test_a_substitute_sent_to_an_individual_competition_is_told_it_takes_none(): void {
+		$response = rest_do_request( $this->upload_request( $this->interclub_token( 2, false ), 'Ann', true ) );
+
+		$this->assertSame( 'This competition doesn\'t take substitutes.', $response->get_data()['results']['file_0']['error'] ?? wp_json_encode( $response->get_data() ) );
+	}
+
+	public function test_a_batch_with_more_entries_than_the_panel_takes_saves_none_of_them(): void {
+		$request = $this->batch_request( $this->interclub_token( 2 ) );
+		$request->set_body_params(
+			array(
+				'assignments'   => array_fill_keys( array( 'file_0', 'file_1', 'file_2' ), 'colour' ),
+				'photographers' => array_fill_keys( array( 'file_0', 'file_1', 'file_2' ), 'Ann' ),
+			)
+		);
+		$request->set_file_params(
+			array(
+				'file_0' => $this->photo( array( 10, 0, 0 ) ),
+				'file_1' => $this->photo( array( 20, 0, 0 ) ),
+				'file_2' => $this->photo( array( 30, 0, 0 ) ),
+			)
+		);
+
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'batch_quota_exceeded', $response->as_error()->get_error_code() );
+		$this->assertSame( array(), ( new Images_Repository() )->find_uploads( (int) ( new Competitions_Repository() )->find_by_slug( 'upload-comp' )->id ) );
+	}
+
+	/**
+	 * A batch upload of one colour image.
+	 *
+	 * @param string $token        Upload token.
+	 * @param string $photographer Photographer's name.
+	 * @param bool   $substitute   Whether it's a substitute.
+	 * @return WP_REST_Request
+	 */
+	private function upload_request( string $token, string $photographer, bool $substitute ): WP_REST_Request {
+		static $shade = 0;
+		++$shade;
+
+		$request = $this->batch_request( $token );
+		$request->set_body_params(
+			array(
+				'assignments'   => array( 'file_0' => 'colour' ),
+				'photographers' => array( 'file_0' => $photographer ),
+				'substitutes'   => array( 'file_0' => $substitute ? '1' : '' ),
+			)
+		);
+		$request->set_file_params( array( 'file_0' => $this->photo( array( $shade * 40, 0, 0 ) ) ) );
+
+		return $request;
+	}
+
+	public function test_a_batch_upload_bigger_than_post_max_size_says_the_image_is_too_big(): void {
+		$this->post_over_post_max_size();
+
+		$response = rest_do_request( $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) ) );
+
+		$this->assertSame( 413, $response->get_status() );
+		$this->assertSame( 'file_too_large', $response->as_error()->get_error_code() );
+		$this->assertSame( 'That image is too big. Check the size limit under the upload form.', $response->get_data()['message'] );
+	}
+
+	public function test_a_batch_upload_with_a_body_is_checked_as_usual_whatever_its_length(): void {
+		$this->post_over_post_max_size();
+		$_POST['assignments'] = array( 'file_0' => 'colour' );
+		$request              = $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) );
+		$request->set_body_params( $_POST );
+
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'no_files', $response->as_error()->get_error_code() );
+	}
+
+	public function test_a_batch_upload_with_no_assignments_under_post_max_size_says_they_are_required(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = '0';
+
+		$response = rest_do_request( $this->batch_request( $this->request_for_member( true )->get_param( 'token' ) ) );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'invalid_assignments', $response->as_error()->get_error_code() );
+	}
+
+	/**
+	 * Make this a POST longer than post_max_size, whose body PHP has dropped.
+	 */
+	private function post_over_post_max_size(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = (string) ( 2 * GB_IN_BYTES );
+		$_POST                     = array();
+		$_FILES                    = array();
+	}
+
+	/**
+	 * @param string $token Upload token.
+	 * @return WP_REST_Request A batch upload with no body.
+	 */
+	private function batch_request( string $token ): WP_REST_Request {
+		$request = new WP_REST_Request( 'POST', '/photo-comp/v1/upload/batch' );
+		$request->set_query_params( array( 'token' => $token ) );
+
+		return $request;
+	}
+
+	/**
 	 * @param string             $token   Upload token.
 	 * @param array<int, string> $changes New category, keyed by entry ID.
 	 * @return WP_REST_Request
@@ -277,5 +460,86 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$request->set_body( wp_json_encode( array( 'changes' => $changes ) ) );
 
 		return $request;
+	}
+
+	/**
+	 * A token for a member of an Individual competition, one of two types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return array{0: WP_REST_Request, 1: int, 2: int} Quota request, competition ID and member ID.
+	 */
+	private function two_type_request( string $entry_mode, array $types ): array {
+		Type_Fixtures::clear();
+		$type_ids       = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => $type_ids['Individual'],
+				'title'      => 'Upload Comp',
+				'slug'       => 'upload-comp',
+				'open_date'  => '2020-01-01 00:00:00',
+				'entry_mode' => $entry_mode,
+			)
+		);
+		$member_id      = (int) ( new Members_Repository() )->create(
+			array(
+				'name'     => 'Uploader',
+				'email'    => 'uploader@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+
+		$request = new WP_REST_Request( 'GET', '/photo-comp/v1/upload/quota' );
+		$request->set_param( 'token', ( new Upload_Token_Repository() )->find_or_create( $member_id, $competition_id )->token );
+
+		return array( $request, $competition_id, $member_id );
+	}
+
+	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
+		list( $request, $competition_id, $member_id ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+		$entrants                                     = new Entrants_Repository();
+		$entrants->add( $competition_id, $member_id );
+		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
+
+		$entrants->remove( $competition_id, $member_id );
+		$result = ( new Upload_API() )->validate_token_permission( $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_token', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+	}
+
+	public function test_a_member_without_the_competitions_type_is_refused(): void {
+		list( $request ) = $this->two_type_request( 'all', array( 'Team' ) );
+
+		$result = ( new Upload_API() )->validate_token_permission( $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_token', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+	}
+
+	public function test_a_non_entrants_batch_upload_is_forbidden(): void {
+		list( $request ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+
+		$response = rest_do_request( $this->batch_request( $request->get_param( 'token' ) ) );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 'invalid_token', $response->get_data()['code'] );
+	}
+
+	public function test_a_member_with_the_competitions_type_is_permitted(): void {
+		list( $request ) = $this->two_type_request( 'all', array( 'Individual' ) );
+
+		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
 	}
 }

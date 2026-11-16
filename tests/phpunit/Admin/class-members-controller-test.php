@@ -14,12 +14,15 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Members_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 
 /**
  * Characterization tests for the members controller.
@@ -72,6 +75,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_open_competition( string $title = 'Spring Show', string $slug = 'spring-show' ): int {
 		return $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				// Null dates make is_open() true independent of the clock, so the
@@ -402,7 +406,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_delete_member_removes_their_entries(): void {
 		$id             = $this->create_member();
-		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		$competition_id = (int) $this->competitions->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Entered' ) );
 		$entry_id       = Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array( 7 ) );
 
 		$this->set_request(
@@ -425,11 +429,42 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Deleting a member removes everything that names them, keeps their votes, and says so.
+	 */
+	public function test_delete_member_removes_their_links_and_says_their_votes_are_kept(): void {
+		$id             = $this->create_member();
+		$competition_id = $this->create_open_competition();
+		$uploads        = new Upload_Token_Repository();
+		$uploads->find_or_create( $id, $competition_id );
+
+		$this->set_request(
+			array(
+				'action' => 'delete_member',
+				'member' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_delete_member_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array(), $uploads->get_tracking_by_competition( $competition_id ) );
+		$messages = wp_list_pluck( get_settings_errors( self::GROUP ), 'message' );
+		$this->assertSame(
+			array( 'Member "Ada Lovelace" and their entries have been deleted, with everything that names them. The votes they cast are kept without their name.' ),
+			$messages
+		);
+	}
+
+	/**
 	 * A member whose entries won't all go is kept, with the error shown.
 	 */
 	public function test_delete_member_keeps_the_member_when_an_entry_wont_go(): void {
 		$id             = $this->create_member();
-		$competition_id = (int) $this->competitions->create( array( 'title' => 'Entered' ) );
+		$competition_id = (int) $this->competitions->create( array( 'type_id' => Type_Fixtures::id(), 'title' => 'Entered' ) );
 		Entry_Fixtures::insert_entry( $competition_id, 'colour', $id, array() );
 
 		$failing_repo     = new class() extends Images_Repository {
@@ -528,6 +563,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * Sending to an active member of an open competition reports success.
 	 */
 	public function test_send_member_upload_email_success(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
 		$competition_id = $this->create_open_competition();
 		$member_id      = $this->create_member(
 			array(
@@ -552,6 +588,46 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'upload_email_sent', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * With no upload page anywhere, the admin is told so rather than the
+	 * member getting a link to the home page.
+	 */
+	public function test_send_member_upload_email_without_an_upload_page_says_why(): void {
+		$competition_id = $this->create_open_competition();
+		$member_id      = $this->create_member(
+			array(
+				'active' => 1,
+				'email'  => 'active@example.com',
+			)
+		);
+		$mail_count = 0;
+		add_filter(
+			'pre_wp_mail',
+			function () use ( &$mail_count ) {
+				++$mail_count;
+				return true;
+			}
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_member_upload_email',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_email_' . $member_id . '_' . $competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'no_upload_page', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 0, $mail_count );
 	}
 
 	/**
@@ -629,6 +705,76 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'invalid_member', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * A member who may not enter the competition gets no link, and the admin is told why.
+	 */
+	public function test_send_member_upload_email_to_a_non_entrant_says_so(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
+		Types::clear();
+		$individual     = Types::create( 'Individual' );
+		$team           = Types::create( 'Team' );
+		$competition_id = $this->competitions->create(
+			array(
+				'type_id'    => $individual,
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'open_date'  => null,
+				'close_date' => null,
+			)
+		);
+		$member_id      = $this->create_member( array( 'type_ids' => array( $team ) ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_member_upload_email',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_email_' . $member_id . '_' . $competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$notices = wp_list_pluck( get_settings_errors( self::GROUP ), 'type', 'code' );
+		$this->assertSame( array( 'not_an_entrant' => 'error' ), $notices );
+	}
+
+	/**
+	 * The members table offers an upload link to copy, and to email, only for members who may enter.
+	 */
+	public function test_members_table_gives_an_upload_link_only_to_those_who_may_enter(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$this->competitions->create(
+			array(
+				'type_id'    => $individual,
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'open_date'  => null,
+				'close_date' => null,
+			)
+		);
+		$this->create_member( array( 'type_ids' => array( $individual ) ) );
+		$this->create_member(
+			array(
+				'name'     => 'Tess Team',
+				'email'    => 'tess@example.com',
+				'type_ids' => array( $team ),
+			)
+		);
+
+		$html = $this->render_screen();
+
+		$this->assertSame( 1, substr_count( $html, 'https://example.com/upload/?token=' ) );
+		$this->assertSame( 1, substr_count( $html, 'action=send_member_upload_email' ) );
 	}
 
 	/**
@@ -940,5 +1086,155 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
+	}
+
+	/**
+	 * Render the members screen.
+	 *
+	 * @return string
+	 */
+	private function render_screen(): string {
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_untagged_active_members_are_flagged(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'email' => 'a@example.com' ) );
+		$this->create_member( array( 'email' => 'b@example.com' ) );
+		$this->create_member( array( 'email' => 'c@example.com', 'active' => 0 ) );
+
+		$html = $this->render_screen();
+
+		$this->assertStringContainsString( '2 active members have no type, so they get no links for competitions open to all.', $html );
+		$this->assertStringContainsString( 'type=none', $html );
+	}
+
+	public function test_no_type_tools_on_a_one_type_site(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		$this->create_member( array( 'email' => 'a@example.com' ) );
+
+		$html = $this->render_screen();
+
+		$this->assertStringNotContainsString( 'name="type"', $html );
+		$this->assertStringNotContainsString( 'member_types', $html );
+		$this->assertStringNotContainsString( 'bulk_add_type', $html );
+		$this->assertStringNotContainsString( 'have no type', $html );
+	}
+
+	public function test_filter_by_type(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'name' => 'Tagged Tina', 'email' => 'tina@example.com', 'type_ids' => array( $individual ) ) );
+		$this->create_member( array( 'name' => 'Bare Bob', 'email' => 'bob@example.com' ) );
+
+		$this->set_request( array( 'type' => (string) $individual ) );
+		$html = $this->render_screen();
+		$this->assertStringContainsString( 'Tagged Tina', $html );
+		$this->assertStringNotContainsString( 'Bare Bob', $html );
+
+		$this->set_request( array( 'type' => 'none' ) );
+		$html = $this->render_screen();
+		$this->assertStringNotContainsString( 'Tagged Tina', $html );
+		$this->assertStringContainsString( 'Bare Bob', $html );
+	}
+
+	public function test_create_member_saves_the_ticked_types(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		$team = Types::create( 'Team' );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_member',
+				'member_name'              => 'Grace Hopper',
+				'member_email'             => 'grace@example.com',
+				'member_grade'             => 'advanced',
+				'member_types'             => array( (string) $team ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_create', 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $team ), $this->members->type_ids( (int) $this->members->find_by_email( 'grace@example.com' )->id ) );
+	}
+
+	public function test_update_member_replaces_the_types(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$id         = $this->create_member( array( 'type_ids' => array( $individual ) ) );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => (string) $id,
+				'member_name'              => 'Test Member',
+				'member_email'             => 'member@example.com',
+				'member_grade'             => 'beginner',
+				'member_active'            => '1',
+				'member_types'             => array( (string) $team ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $team ), $this->members->type_ids( $id ) );
+	}
+
+	public function test_update_member_on_a_one_type_site_keeps_the_tag(): void {
+		Types::clear();
+		$only = Types::create( 'Individual' );
+		$id   = $this->create_member();
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => (string) $id,
+				'member_name'              => 'Renamed',
+				'member_email'             => 'member@example.com',
+				'member_grade'             => 'beginner',
+				'member_active'            => '1',
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $only ), $this->members->type_ids( $id ) );
+	}
+
+	public function test_bulk_add_and_remove_type(): void {
+		Types::clear();
+		$individual = Types::create( 'Individual' );
+		$team       = Types::create( 'Team' );
+		$a          = $this->create_member( array( 'email' => 'a@example.com', 'type_ids' => array( $individual ) ) );
+		$b          = $this->create_member( array( 'email' => 'b@example.com' ) );
+
+		$this->set_request(
+			array(
+				'action'     => 'bulk_add_type',
+				'member_ids' => array( (string) $a, (string) $b ),
+				'bulk_type'  => (string) $team,
+			)
+		);
+		$this->set_nonce( 'photo_competition_bulk_members' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members->type_ids( $a ) );
+		$this->assertSame( array( $team ), $this->members->type_ids( $b ) );
+		$this->assertContains( 'bulk_type_added', $this->settings_error_codes( self::GROUP ) );
+
+		$GLOBALS['wp_settings_errors'] = array(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test isolation.
+		$this->set_request( array( 'action' => 'bulk_remove_type' ) );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $individual ), $this->members->type_ids( $a ) );
+		$this->assertSame( array(), $this->members->type_ids( $b ) );
+		$this->assertContains( 'bulk_type_removed', $this->settings_error_codes( self::GROUP ) );
 	}
 }

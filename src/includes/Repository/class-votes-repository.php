@@ -20,6 +20,33 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Votes_Repository extends Abstract_Repository {
 
 	/**
+	 * How admin screens and exports name each vote's voter: the judge's label, else
+	 * the voter's name, else the voting link's token, as a voting-link vote has no name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object[] $votes Vote rows.
+	 * @return string[] A label per vote, with the votes' keys.
+	 */
+	public function voter_labels( array $votes ): array {
+		$judges       = new Judges_Repository();
+		$judge_labels = array();
+
+		return array_map(
+			function ( object $vote ) use ( $judges, &$judge_labels ): string {
+				if ( empty( $vote->judge_id ) ) {
+					return $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
+				}
+
+				$judge_id = (int) $vote->judge_id;
+
+				return $judge_labels[ $judge_id ] ??= $judges->vote_label( $judge_id );
+			},
+			$votes
+		);
+	}
+
+	/**
 	 * Table suffix.
 	 *
 	 * @return string
@@ -41,15 +68,28 @@ class Votes_Repository extends Abstract_Repository {
 	public function create_anonymous( int $competition_id, string $category, int $voting_token_id, int $image_id, int $score ) {
 		global $wpdb;
 
+		$inserted = $this->create_anonymous_ballot( $competition_id, $category, $voting_token_id, array( $image_id => $score ) );
+
+		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Record a token voter's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id  Competition ID.
+	 * @param string         $category        Category slug.
+	 * @param int            $voting_token_id Voting token ID.
+	 * @param array<int,int> $scores          Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_anonymous_ballot( int $competition_id, string $category, int $voting_token_id, array $scores ) {
 		if ( $voting_token_id <= 0 ) {
 			return new WP_Error( 'missing_token_id', __( 'Voting token ID is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( $score < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
-		return $this->insert_vote( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $image_id, $score );
+		return $this->insert_ballot( $competition_id, $category, 'voting_token_id', (string) $voting_token_id, $scores );
 	}
 
 	/**
@@ -65,60 +105,153 @@ class Votes_Repository extends Abstract_Repository {
 	public function create( int $competition_id, string $category, string $voter_name, int $image_id, int $score ) {
 		global $wpdb;
 
+		$inserted = $this->create_ballot( $competition_id, $category, $voter_name, array( $image_id => $score ) );
+
+		return is_wp_error( $inserted ) ? $inserted : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Record a named voter's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param string         $voter_name     Voter name.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_ballot( int $competition_id, string $category, string $voter_name, array $scores ) {
 		if ( empty( $voter_name ) ) {
 			return new WP_Error( 'missing_voter_name', __( 'Voter name is required.', 'photo-competition-manager' ) );
 		}
 
-		if ( $score < 0 ) {
-			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
-		}
-
-		return $this->insert_vote( $competition_id, $category, 'voter_name', $voter_name, $image_id, $score );
+		return $this->insert_ballot( $competition_id, $category, 'voter_name', $voter_name, $scores );
 	}
 
 	/**
-	 * Insert a vote. A voter gets one vote per image: the table's unique keys
-	 * turn a second one into an insert of no rows.
+	 * Record a judge's ballot: all of its votes, or none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param int            $judge_id       Judge ID.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	public function create_judge_ballot( int $competition_id, string $category, int $judge_id, array $scores ) {
+		if ( $judge_id <= 0 ) {
+			return new WP_Error( 'missing_judge_id', __( 'Judge ID is required.', 'photo-competition-manager' ) );
+		}
+
+		return $this->insert_ballot( $competition_id, $category, 'judge_id', (string) $judge_id, $scores );
+	}
+
+	/**
+	 * Whether a judge has a ballot in a category.
 	 *
 	 * @since 0.4.0
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param string $category       Category slug.
-	 * @param string $voter_column   voting_token_id or voter_name.
-	 * @param string $voter          The voter's token ID or name.
-	 * @param int    $image_id       Image ID.
-	 * @param int    $score          Score value.
-	 * @return int|WP_Error Vote ID or error.
+	 * @param int    $judge_id       Judge ID.
+	 * @return bool
 	 */
-	private function insert_vote( int $competition_id, string $category, string $voter_column, string $voter, int $image_id, int $score ) {
+	public function has_judge_voted( int $competition_id, string $category, int $judge_id ): bool {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$inserted = $wpdb->query(
+		return null !== $wpdb->get_var(
 			$wpdb->prepare(
-				'INSERT INTO %i (competition_id, category, %i, image_id, score, created_at)
-				VALUES (%d, %s, %s, %d, %d, %s)
-				ON DUPLICATE KEY UPDATE id = id',
+				'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s AND judge_id = %d LIMIT 1',
 				$this->table(),
-				$voter_column,
 				$competition_id,
 				$category,
-				$voter,
-				$image_id,
-				$score,
-				utc_time()
+				$judge_id
+			)
+		);
+	}
+
+	/**
+	 * IDs of the judges who have a ballot in a category.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int[]
+	 */
+	public function judges_with_ballot( int $competition_id, string $category ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT judge_id FROM %i WHERE competition_id = %d AND category = %s AND judge_id IS NOT NULL',
+				$this->table(),
+				$competition_id,
+				$category
 			)
 		);
 
+		return array_map( 'intval', $ids );
+	}
+
+	/**
+	 * Insert a ballot in one statement, so it goes in whole or not at all.
+	 * A voter gets one vote per image: the table's unique keys turn a vote
+	 * that's already there into an insert of no rows.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int            $competition_id Competition ID.
+	 * @param string         $category       Category slug.
+	 * @param string         $voter_column   voting_token_id, voter_name or judge_id.
+	 * @param string         $voter          The voter's token ID, name or judge ID.
+	 * @param array<int,int> $scores         Image ID => score.
+	 * @return int|WP_Error Number of votes recorded, or error.
+	 */
+	private function insert_ballot( int $competition_id, string $category, string $voter_column, string $voter, array $scores ) {
+		global $wpdb;
+
+		if ( empty( $scores ) ) {
+			return new WP_Error( 'empty_ballot', __( 'A ballot needs at least one vote.', 'photo-competition-manager' ) );
+		}
+
+		if ( min( $scores ) < 0 ) {
+			return new WP_Error( 'invalid_score', __( 'Score must be non-negative.', 'photo-competition-manager' ) );
+		}
+
+		$rows   = array();
+		$values = array( $this->table(), $voter_column );
+		$now    = utc_time();
+		foreach ( $scores as $image_id => $score ) {
+			$rows[] = '(%d, %s, %s, %d, %d, %s)';
+			array_push( $values, $competition_id, $category, $voter, (int) $image_id, (int) $score, $now );
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- One row of placeholders per vote; the count matches at runtime.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $rows only holds literal placeholders.
+		$inserted = $wpdb->query(
+			$wpdb->prepare(
+				'INSERT INTO %i (competition_id, category, %i, image_id, score, created_at)
+				VALUES ' . implode( ', ', $rows ) . '
+				ON DUPLICATE KEY UPDATE id = id',
+				$values
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+
 		if ( false === $inserted ) {
-			return new WP_Error( 'insert_failed', $wpdb->last_error );
+			return new WP_Error( 'insert_failed', __( 'Could not record the vote.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
 		if ( 0 === $inserted ) {
 			return new WP_Error( 'duplicate_vote', __( 'This image already has a vote from this voter.', 'photo-competition-manager' ) );
 		}
 
-		return (int) $wpdb->insert_id;
+		return $inserted;
 	}
 
 	/**
@@ -187,6 +320,122 @@ class Votes_Repository extends Abstract_Repository {
 		$count = (int) $wpdb->get_var( $sql );
 
 		return $count > 0;
+	}
+
+	/**
+	 * Count the votes cast with a member's voting links.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return int
+	 */
+	public function count_by_member_tokens( int $member_id ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i AS v INNER JOIN %i AS t ON t.id = v.voting_token_id WHERE t.member_id = %d',
+				$this->table(),
+				( new Voting_Token_Repository() )->table(),
+				$member_id
+			)
+		);
+	}
+
+	/**
+	 * The votes some members cast: with their voting links, or under their
+	 * names, matched as named voting matches them. Each vote once, with only
+	 * its ID, competition, category, entry and score: never the voter's name
+	 * or token.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int[]    $member_ids  Member IDs.
+	 * @param string[] $voter_names The members' names, as a named voter gives them.
+	 * @return array<int, object>
+	 */
+	public function find_cast_by_members( array $member_ids, array $voter_names ): array {
+		global $wpdb;
+
+		$member_ids  = array_values( array_unique( array_map( 'intval', $member_ids ) ) );
+		$voter_names = array_values( array_unique( $voter_names ) );
+		$ids         = $member_ids ? implode( ',', array_fill( 0, count( $member_ids ), '%d' ) ) : 'NULL';
+		$names       = $voter_names ? implode( ',', array_fill( 0, count( $voter_names ), '%s' ) ) : 'NULL';
+
+		// Two indexed lookups rather than one OR across the join, which scans
+		// every vote. UNION drops a vote both find.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $ids and $names hold only placeholders, one per value.
+		$votes = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT v.id, v.competition_id, v.category, v.image_id, v.score FROM %i AS v
+				JOIN %i AS t ON t.id = v.voting_token_id
+				WHERE t.member_id IN ({$ids})
+				UNION
+				SELECT id, competition_id, category, image_id, score FROM %i
+				WHERE voter_name IN ({$names})
+				ORDER BY competition_id, category, id",
+				$this->table(),
+				( new Voting_Token_Repository() )->table(),
+				...array_merge( $member_ids, array( $this->table() ), $voter_names )
+			)
+		);
+		// phpcs:enable
+
+		return $votes;
+	}
+
+	/**
+	 * Count the votes cast under a name, matched as named voting matches it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $voter_name Voter name.
+	 * @return int
+	 */
+	public function count_by_voter( string $voter_name ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE voter_name = %s',
+				$this->table(),
+				$voter_name
+			)
+		);
+	}
+
+	/**
+	 * Move every vote cast under a name to another name. Names match as named
+	 * voting matches them: the voter_name column's collation ignores case,
+	 * accents and trailing spaces.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $voter_name The name the votes were cast under.
+	 * @param string $new_name   The name to give them.
+	 * @return int|WP_Error Number of votes renamed, or error.
+	 */
+	public function rename_voter( string $voter_name, string $new_name ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$renamed = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET voter_name = %s WHERE voter_name = %s',
+				$this->table(),
+				$new_name,
+				$voter_name
+			)
+		);
+
+		if ( false === $renamed ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not remove the member\'s name from the votes they cast.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return (int) $renamed;
 	}
 
 	/**

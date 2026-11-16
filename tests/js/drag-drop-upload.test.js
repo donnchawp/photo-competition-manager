@@ -1,0 +1,873 @@
+/**
+ * Tests for the drag-and-drop uploader on the upload page.
+ */
+
+/**
+ * A stand-in for XMLHttpRequest that records each request and lets the test answer it.
+ */
+class FakeXhr {
+	constructor() {
+		this.listeners = {};
+		this.upload = {
+			listeners: {},
+			addEventListener( type, listener ) {
+				this.listeners[ type ] = listener;
+			},
+		};
+		FakeXhr.requests.push( this );
+	}
+
+	addEventListener( type, listener ) {
+		this.listeners[ type ] = listener;
+	}
+
+	open( method, url ) {
+		this.url = url;
+	}
+
+	setRequestHeader() {}
+
+	send( body ) {
+		this.body = body;
+	}
+
+	respond( status, data ) {
+		this.respondWithText( status, JSON.stringify( data ) );
+	}
+
+	respondWithText( status, text ) {
+		this.status = status;
+		this.responseText = text;
+		this.listeners.load();
+	}
+
+	fail() {
+		this.listeners.error();
+	}
+
+	sendProgress( loaded, total ) {
+		this.upload.listeners.progress( { lengthComputable: true, loaded, total } );
+	}
+}
+
+const uploaded = { results: { file_0: { success: true, image_id: 1 } }, success_count: 1, error_count: 0, total: 1 };
+
+/**
+ * Render the upload page's uploader markup.
+ *
+ * @param {boolean} withStatus Whether the page has the live region, which a copy cached before it was added lacks.
+ */
+function renderPage( withStatus = true ) {
+	const status = withStatus ? '<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>' : '';
+	document.body.innerHTML = `
+		<div class="photo-comp-drag-drop-zone"></div>
+		<input type="file" id="batch-file-input" multiple />
+		<div class="photo-comp-preview-grid"></div>
+		<button type="button" class="photo-comp-upload-all-btn">Upload All</button>
+		${ status }
+		<div class="photo-comp-upload-progress"></div>`;
+}
+
+window.photoCompUpload = {
+	token: 'abc',
+	apiUrl: 'https://example.com/wp-json/',
+	nonce: 'n',
+	categories: [ { slug: 'colour', label: 'Colour', quota: 3 } ],
+	quotas: { colour: { current: 0, quota: 3, remaining: 3 } },
+	maxFileSize: 5 * 1024 * 1024,
+	allowedFormats: [ 'jpg', 'jpeg' ],
+};
+
+const { setLocaleData, resetLocaleData } = require( '@wordpress/i18n' );
+
+// The script starts an uploader on each DOMContentLoaded, so it's loaded once and each test fires the event.
+require( '../../assets/src/js/drag-drop-upload' );
+
+/**
+ * Pick files in the file input, without waiting for the uploader to read them.
+ *
+ * @param {string[]} names The file names.
+ * @param {string}   type  The files' MIME type.
+ */
+function pickFiles( names, type = 'image/jpeg' ) {
+	const input = document.querySelector( '#batch-file-input' );
+	const files = names.map( ( name ) => new File( [ 'data' ], name, { type } ) );
+	Object.defineProperty( input, 'files', { value: files, configurable: true } );
+	input.dispatchEvent( new Event( 'change' ) );
+}
+
+async function selectFiles( names ) {
+	pickFiles( names );
+
+	// Each preview is read in the background, and the button waits until each one's category is assigned.
+	const button = document.querySelector( '.photo-comp-upload-all-btn' );
+	for ( let i = 0; i < 50 && button.disabled; i++ ) {
+		await settle();
+	}
+	expect( button.disabled ).toBe( false );
+}
+
+/**
+ * Let the uploader move on to its next request.
+ */
+function settle() {
+	return new Promise( ( resolve ) => setTimeout( resolve, 0 ) );
+}
+
+/**
+ * Answer the last request with fake timers running, then wait well past the reload delay.
+ *
+ * @param {Function} answer Answers the last request.
+ */
+async function answerLastAndWait( answer ) {
+	jest.useFakeTimers();
+	answer();
+	await jest.advanceTimersByTimeAsync( 10000 );
+}
+
+/**
+ * The failure lines listed under the upload progress.
+ *
+ * @return {string[]} Each line's text.
+ */
+function errorLines() {
+	return Array.from( document.querySelectorAll( '.photo-comp-upload-progress .photo-comp-error-list li' ), ( li ) => li.textContent );
+}
+
+/**
+ * The line that sums up how a batch went.
+ *
+ * @return {HTMLElement|null} The summary.
+ */
+function summary() {
+	return document.querySelector( '.photo-comp-upload-status p' );
+}
+
+/**
+ * The live region the upload page renders for the uploader's messages.
+ *
+ * @return {HTMLElement|null} The live region.
+ */
+function liveRegion() {
+	return document.querySelector( '[role="status"]' );
+}
+
+/**
+ * The names of the images selected so far.
+ *
+ * @return {string[]} Each preview's file name.
+ */
+function selectedNames() {
+	return Array.from( document.querySelectorAll( '.photo-comp-preview-item img' ), ( img ) => img.alt );
+}
+
+/**
+ * The quota message on screen, if there is one.
+ *
+ * @return {string|null} The message.
+ */
+function quotaMessage() {
+	const message = document.querySelector( '.photo-comp-error-message' );
+	return message ? message.textContent : null;
+}
+
+/**
+ * Send one.jpg and two.jpg, and answer the first request with a success.
+ */
+async function sendTwoWithFirstUploaded() {
+	await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+	document.querySelector( '.photo-comp-upload-all-btn' ).click();
+	await settle();
+	FakeXhr.requests[ 0 ].respond( 200, uploaded );
+	await settle();
+}
+
+const realLocation = window.location;
+
+describe( 'drag-and-drop upload', () => {
+	beforeEach( () => {
+		FakeXhr.requests = [];
+		window.XMLHttpRequest = FakeXhr;
+		delete window.location;
+		window.location = { reload: jest.fn() };
+		renderPage();
+		document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+	} );
+
+	afterEach( () => {
+		jest.useRealTimers();
+		window.location = realLocation;
+	} );
+
+	it( 'reloads the page to show the new entries when every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'keeps the failures on screen after a mixed batch, with a button to show the new entries', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( window.location.reload ).not.toHaveBeenCalled();
+		const progress = document.querySelector( '.photo-comp-upload-progress' );
+		expect( errorLines() ).toEqual( [
+			'two.jpg: Only JPEG images are allowed.',
+		] );
+
+		const refresh = progress.querySelector( 'button.photo-comp-refresh-btn' );
+		expect( refresh.textContent ).toBe( 'Show my entries' );
+		refresh.click();
+		expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'takes the images that went in out of the selection after a mixed batch', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( selectedNames() ).toEqual( [ 'two.jpg' ] );
+
+		// Upload All sends only the image that failed, so one.jpg isn't entered twice.
+		const uploadAll = document.querySelector( '.photo-comp-upload-all-btn' );
+		expect( uploadAll.disabled ).toBe( false );
+		uploadAll.click();
+		await jest.advanceTimersByTimeAsync( 0 );
+
+		expect( FakeXhr.requests ).toHaveLength( 3 );
+		expect( FakeXhr.requests[ 2 ].body.get( 'file_0' ).name ).toBe( 'two.jpg' );
+	} );
+
+	it( "takes the last batch's summary away when the next batch starts", async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await jest.advanceTimersByTimeAsync( 0 );
+
+		expect( summary() ).toBeNull();
+	} );
+
+	it( 'hides Upload All when the failed image is removed after a mixed batch', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		document.querySelector( '.photo-comp-preview-item .photo-comp-remove-btn' ).click();
+
+		expect( document.querySelector( '.photo-comp-upload-all-btn' ).style.display ).toBe( 'none' );
+	} );
+
+	it( 'counts the images that went in against the quota after a mixed batch', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		// Of the 3 allowed, one.jpg is entered, so with two.jpg removed two more fit.
+		document.querySelector( '.photo-comp-preview-item .photo-comp-remove-btn' ).click();
+		pickFiles( [ 'three.jpg', 'four.jpg', 'five.jpg' ] );
+
+		expect( quotaMessage() ).toBe(
+			'Only 2 files added. 1 file rejected due to quota limits.'
+		);
+	} );
+
+	it( 'adds an image in a second go while the quota has room for it', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBeNull();
+	} );
+
+	it( 'turns away an image in a second go once the quota is full', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+
+		await selectFiles( [ 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'All category quotas are full. Cannot add more files.' );
+	} );
+
+	it( 'adds as many images in a second go as the quota has room for', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		await selectFiles( [ 'three.jpg', 'four.jpg' ] );
+
+		expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+		expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
+	} );
+
+	it( 'keeps the failures on screen when a later file is turned away', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( errorLines() ).toEqual( [
+			'two.jpg: Only JPEG images are allowed.',
+		] );
+		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
+	} );
+
+	it( 'keeps the refusal on screen when the link is refused after an image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 403, { code: 'rest_forbidden', message: 'Uploads for this competition have closed.' } ) );
+
+		expect( window.location.reload ).not.toHaveBeenCalled();
+		expect( errorLines() ).toEqual( [
+			'Uploads for this competition have closed.',
+		] );
+		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
+	} );
+
+	it( 'keeps the failures on screen when no image went in', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 0 ].fail() );
+
+		expect( window.location.reload ).not.toHaveBeenCalled();
+		const progress = document.querySelector( '.photo-comp-upload-progress' );
+		expect( errorLines() ).toEqual( [
+			'one.jpg: Network error. Please check your connection and try again.',
+		] );
+		expect( progress.querySelector( '.photo-comp-refresh-btn' ) ).toBeNull();
+	} );
+
+	it( 'shows a batch where no image went in as an error', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].fail();
+		await settle();
+		FakeXhr.requests[ 1 ].fail();
+		await settle();
+
+		expect( summary().classList.contains( 'error' ) ).toBe( true );
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
+		expect( document.activeElement ).toBe( summary() );
+	} );
+
+	it( 'shows a batch where some images went in as a notice, with both counts', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( summary().classList.contains( 'success' ) ).toBe( false );
+		expect( summary().classList.contains( 'notice' ) ).toBe( true );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+	} );
+
+	it( 'shows a batch where every image went in as a success', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( summary().className ).toBe( 'success' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
+	it( 'announces the outcome in the live region already on the page, but not the progress', async () => {
+		const region = liveRegion();
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].sendProgress( 50, 100 );
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].sendProgress( 50, 100 );
+
+		expect( region.textContent ).toBe( '' );
+
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( region.isConnected ).toBe( true );
+		expect( region.textContent ).toBe( 'Successfully uploaded 2 images.' );
+	} );
+
+	it( 'moves focus to the summary after a batch with a failure', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+		expect( document.activeElement ).toBe( summary() );
+	} );
+
+	it( 'leaves focus alone after a batch where every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.activeElement ).not.toBe( summary() );
+	} );
+
+	it( 'announces an error in the live region already on the page', () => {
+		const region = liveRegion();
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+		expect( region.textContent ).toBe( 'No valid image files selected.' );
+	} );
+
+	it( 'hides the emptied progress box once every image went in', async () => {
+		await sendTwoWithFirstUploaded();
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+		expect( document.querySelector( '.photo-comp-upload-progress' ).style.display ).toBe( 'none' );
+	} );
+
+	it( 'keeps a message shown just before Upload All on screen through the batch', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+		pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].fail();
+		await settle();
+
+		expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( liveRegion().firstElementChild ).toBe( summary() );
+	} );
+
+	describe( 'in an interclub competition', () => {
+		const quotas = window.photoCompUpload.quotas;
+
+		beforeEach( () => {
+			window.photoCompUpload.interclub = { enabled: true, substitutes: 2 };
+			window.photoCompUpload.quotas = { colour: { current: 0, quota: 3, remaining: 5, entered_remaining: 3, substitutes_remaining: 2 } };
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		afterEach( () => {
+			delete window.photoCompUpload.interclub;
+			window.photoCompUpload.quotas = quotas;
+		} );
+
+		/**
+		 * Pick files and wait for each one's preview.
+		 *
+		 * @param {string[]} names The file names.
+		 */
+		async function pickAndPreview( names ) {
+			pickFiles( names );
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < names.length; i++ ) {
+				await settle();
+			}
+		}
+
+		/**
+		 * Type a photographer's name for the nth image.
+		 *
+		 * @param {number} index The image's place in the selection.
+		 * @param {string} name  The name.
+		 */
+		function typePhotographer( index, name ) {
+			const input = document.querySelectorAll( '.photo-comp-photographer-input' )[ index ];
+			input.value = name;
+			input.dispatchEvent( new Event( 'input' ) );
+		}
+
+		it( 'keeps Upload All off until every image has a photographer', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg' ] );
+			const button = document.querySelector( '.photo-comp-upload-all-btn' );
+
+			typePhotographer( 0, 'Ann Murphy' );
+			typePhotographer( 1, '   ' );
+			expect( button.disabled ).toBe( true );
+
+			typePhotographer( 1, 'Bob Byrne' );
+			expect( button.disabled ).toBe( false );
+		} );
+
+		it( "sends each image's photographer and whether it's a substitute", async () => {
+			await pickAndPreview( [ 'one.jpg' ] );
+			typePhotographer( 0, 'Ann Murphy' );
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			document.querySelector( '.photo-comp-upload-all-btn' ).click();
+			await settle();
+
+			expect( FakeXhr.requests[ 0 ].body.get( 'photographers[file_0]' ) ).toBe( 'Ann Murphy' );
+			expect( FakeXhr.requests[ 0 ].body.get( 'substitutes[file_0]' ) ).toBe( '1' );
+		} );
+	} );
+
+	describe( 'with a full panel and a substitute place left', () => {
+		const quotas = window.photoCompUpload.quotas;
+
+		beforeEach( () => {
+			window.photoCompUpload.interclub = { enabled: true, substitutes: 1 };
+			window.photoCompUpload.quotas = { colour: { current: 1, quota: 1, remaining: 1, entered_remaining: 0, substitutes_remaining: 1 } };
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		afterEach( () => {
+			delete window.photoCompUpload.interclub;
+			window.photoCompUpload.quotas = quotas;
+		} );
+
+		it( 'takes the image only as a substitute', async () => {
+			pickFiles( [ 'one.jpg' ] );
+			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-photographer-input' ); i++ ) {
+				await settle();
+			}
+			const input = document.querySelector( '.photo-comp-photographer-input' );
+			input.value = 'Ann Murphy';
+			input.dispatchEvent( new Event( 'input' ) );
+			const button = document.querySelector( '.photo-comp-upload-all-btn' );
+			expect( button.disabled ).toBe( true );
+
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			expect( button.disabled ).toBe( false );
+		} );
+
+		it( 'says only a substitute place is left, until the image is a substitute', async () => {
+			pickFiles( [ 'one.jpg' ] );
+			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-substitute-checkbox' ); i++ ) {
+				await settle();
+			}
+			const warning = () => document.querySelector( '.photo-comp-quota-warning' );
+			expect( warning().textContent ).toBe( 'The Colour panel has all its entries, but has room for 1 substitute. Tick Substitute on an image to add it as one.' );
+
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			expect( warning() ).toBeNull();
+		} );
+	} );
+
+	it( 'asks for no photographer in an individual competition', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		expect( document.querySelector( '.photo-comp-photographer-input' ) ).toBeNull();
+	} );
+
+	describe( 'on a copy of the page cached before it had the live region', () => {
+		beforeEach( () => {
+			renderPage( false );
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		it( 'uploads the images and announces the outcome', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+
+			expect( FakeXhr.requests ).toHaveLength( 2 );
+			expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+			expect( liveRegion().getAttribute( 'aria-atomic' ) ).toBe( 'false' );
+			expect( liveRegion().nextElementSibling ).toBe( document.querySelector( '.photo-comp-upload-progress' ) );
+		} );
+
+		it( 'shows an error', () => {
+			pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+			expect( quotaMessage() ).toBe( 'No valid image files selected.' );
+		} );
+	} );
+
+	it( 'sends each image in a request of its own', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+
+		expect( FakeXhr.requests ).toHaveLength( 1 );
+		const first = FakeXhr.requests[ 0 ];
+		expect( first.url ).toBe( 'https://example.com/wp-json/photo-comp/v1/upload/batch?token=abc' );
+		expect( first.body.get( 'file_0' ).name ).toBe( 'one.jpg' );
+		expect( first.body.get( 'assignments[file_0]' ) ).toBe( 'colour' );
+		expect( first.body.get( 'file_1' ) ).toBeNull();
+
+		first.respond( 200, uploaded );
+		await settle();
+
+		expect( FakeXhr.requests ).toHaveLength( 2 );
+		expect( FakeXhr.requests[ 1 ].body.get( 'file_0' ).name ).toBe( 'two.jpg' );
+	} );
+
+	it( 'shows the successes and failures of all the requests together', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].respond( 413, { code: 'file_too_large', message: 'That image is too big. Check the size limit under the upload form.' } );
+		await settle();
+		FakeXhr.requests[ 2 ].respond( 200, { results: { file_0: { success: true, image_id: 3 } }, success_count: 1, error_count: 0, total: 1 } );
+		await settle();
+
+		expect( summary().textContent ).toBe( 'Successfully uploaded 2 images. 1 upload failed.' );
+		expect( errorLines() ).toEqual( [
+			'two.jpg: That image is too big. Check the size limit under the upload form.',
+		] );
+	} );
+
+	it( 'moves the progress bar while an image is being sent', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].sendProgress( 50, 100 );
+
+		expect( document.querySelector( '#upload-progress-text' ).textContent ).toBe( '25%' );
+
+		FakeXhr.requests[ 0 ].respond( 200, uploaded );
+		await settle();
+		FakeXhr.requests[ 1 ].sendProgress( 50, 100 );
+
+		expect( document.querySelector( '#upload-progress-text' ).textContent ).toBe( '75%' );
+	} );
+
+	it( 'carries on to the next image after a network error', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].fail();
+		await settle();
+
+		expect( FakeXhr.requests ).toHaveLength( 2 );
+		FakeXhr.requests[ 1 ].respond( 200, uploaded );
+		await settle();
+
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );
+		expect( errorLines() ).toEqual( [
+			'one.jpg: Network error. Please check your connection and try again.',
+		] );
+	} );
+
+	it( 'stops and says why once when the upload link is refused', async () => {
+		await selectFiles( [ 'one.jpg', 'two.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].respond( 401, { code: 'invalid_token', message: 'Invalid or expired upload token.' } );
+		await settle();
+
+		expect( FakeXhr.requests ).toHaveLength( 1 );
+		expect( summary().textContent ).toBe( 'No images were uploaded. 2 uploads failed.' );
+		expect( errorLines() ).toEqual( [
+			'Invalid or expired upload token.',
+		] );
+	} );
+
+	describe( 'on a site in another language', () => {
+		beforeEach( () => {
+			setLocaleData(
+				{
+					'': { domain: 'photo-competition-manager', plural_forms: 'nplurals=2; plural=n != 1;' },
+					'No valid image files selected.': [ 'Níor roghnaíodh aon chomhad íomhá bailí.' ],
+					'Successfully uploaded %d image.': [ 'Uploaded %d picture.', 'Uploaded %d pictures.' ],
+				},
+				'photo-competition-manager'
+			);
+		} );
+
+		afterEach( () => {
+			resetLocaleData( undefined, 'photo-competition-manager' );
+		} );
+
+		it( 'shows the translated message when no file is an image', () => {
+			pickFiles( [ 'notes.txt' ], 'text/plain' );
+
+			expect( document.querySelector( '.photo-comp-error-message' ).textContent ).toBe( 'Níor roghnaíodh aon chomhad íomhá bailí.' );
+		} );
+
+		it( 'picks the translated plural for the count', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+			expect( summary().textContent ).toBe( 'Uploaded 2 pictures.' );
+		} );
+	} );
+
+	it( 'says one image went in, in the singular', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		await answerLastAndWait( () => FakeXhr.requests[ 0 ].respond( 200, uploaded ) );
+
+		expect( summary().textContent ).toBe( 'Successfully uploaded 1 image.' );
+	} );
+
+	it( 'shows a category label with HTML in it as written', async () => {
+		const config = window.photoCompUpload;
+		window.photoCompUpload = { ...config, categories: [ { slug: 'colour', label: '<b>Colour</b>', quota: 3 } ] };
+		renderPage();
+		document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		window.photoCompUpload = config;
+
+		await selectFiles( [ 'one.jpg' ] );
+
+		const label = document.querySelector( '.photo-comp-category-label' );
+		expect( label.textContent ).toBe( 'Category: <b>Colour</b> (2 remaining)' );
+		expect( label.querySelector( 'b' ) ).toBeNull();
+	} );
+
+	describe( 'with two categories', () => {
+		beforeEach( () => {
+			const config = window.photoCompUpload;
+			window.photoCompUpload = {
+				...config,
+				categories: [
+					{ slug: 'colour', label: 'Colour', quota: 1 },
+					{ slug: 'mono', label: 'Mono', quota: 2 },
+				],
+				quotas: {
+					colour: { current: 0, quota: 1, remaining: 1 },
+					mono: { current: 0, quota: 2, remaining: 2 },
+				},
+			};
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+			window.photoCompUpload = config;
+		} );
+
+		/**
+		 * Select files and wait until each one's preview is on the page.
+		 *
+		 * @param {string[]} names The file names.
+		 */
+		async function selectUnassigned( names ) {
+			const before = document.querySelectorAll( '.photo-comp-preview-item' ).length;
+			pickFiles( names );
+
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-preview-item' ).length < before + names.length; i++ ) {
+				await settle();
+			}
+		}
+
+		/**
+		 * The category control under a file's preview.
+		 *
+		 * @param {string} name The file name.
+		 * @return {HTMLElement} The control's container.
+		 */
+		function categoryControl( name ) {
+			const item = Array.from( document.querySelectorAll( '.photo-comp-preview-item' ) ).find(
+				( preview ) => preview.querySelector( 'img' ).alt === name
+			);
+			return item.querySelector( '.photo-comp-category-select-container' );
+		}
+
+		function choose( name, slug ) {
+			const select = categoryControl( name ).querySelector( 'select' );
+			select.value = slug;
+			select.dispatchEvent( new Event( 'change' ) );
+		}
+
+		it( 'shows the other image the one category left once a full category is chosen', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+
+			choose( 'one.jpg', 'colour' );
+
+			const one = categoryControl( 'one.jpg' ).querySelector( 'select' );
+			expect( one.value ).toBe( 'colour' );
+			expect( Array.from( one.options, ( option ) => option.textContent ) ).toEqual( [
+				'-- Select Category --',
+				'Colour',
+				'Mono (1 remaining)',
+			] );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ) ).toBeNull();
+			expect( categoryControl( 'two.jpg' ).textContent ).toBe( 'Category: Mono (1 remaining)' );
+			expect( document.querySelector( '.photo-comp-upload-all-btn' ).disabled ).toBe( false );
+		} );
+
+		it( 'gives the other image its dropdown back once the full category is freed', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			choose( 'one.jpg', 'mono' );
+
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'mono' );
+			const two = categoryControl( 'two.jpg' ).querySelector( 'select' );
+			expect( two.value ).toBe( 'mono' );
+			expect( Array.from( two.options, ( option ) => option.value ) ).toEqual( [ '', 'colour', 'mono' ] );
+		} );
+
+		it( 'adds an image in a second go after a category is chosen, while the quotas have room', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+
+			await selectUnassigned( [ 'three.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBeNull();
+		} );
+
+		it( 'counts every selected image against the total when a category has more than its quota', async () => {
+			await selectUnassigned( [ 'one.jpg', 'two.jpg' ] );
+			choose( 'one.jpg', 'colour' );
+			choose( 'one.jpg', 'mono' );
+			choose( 'two.jpg', 'colour' );
+			choose( 'one.jpg', 'colour' );
+			expect( categoryControl( 'one.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+			expect( categoryControl( 'two.jpg' ).querySelector( 'select' ).value ).toBe( 'colour' );
+
+			// Two of the 3 places are taken, so only one more image fits.
+			await selectUnassigned( [ 'three.jpg', 'four.jpg' ] );
+
+			expect( selectedNames() ).toEqual( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			expect( quotaMessage() ).toBe( 'Only 1 file added. 1 file rejected due to quota limits.' );
+		} );
+	} );
+
+	/**
+	 * Select a 2.5 MB image on a page in the given language, and return the size shown under it.
+	 *
+	 * @param {string} lang The page's lang attribute.
+	 * @return {Promise<string>} The size shown.
+	 */
+	async function sizeShownIn( lang ) {
+		document.documentElement.lang = lang;
+		const input = document.querySelector( '#batch-file-input' );
+		const file = new File( [ new Uint8Array( 2.5 * 1024 * 1024 ) ], 'big.jpg', { type: 'image/jpeg' } );
+		Object.defineProperty( input, 'files', { value: [ file ], configurable: true } );
+		input.dispatchEvent( new Event( 'change' ) );
+		for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-file-info' ); i++ ) {
+			await settle();
+		}
+		document.documentElement.lang = '';
+
+		return document.querySelector( '.photo-comp-file-info' ).textContent;
+	}
+
+	it( "shows an image's size in the site's number format", async () => {
+		expect( await sizeShownIn( 'de-DE' ) ).toBe( '2,5 MB' );
+	} );
+
+	it( "shows an image's size when the page's language isn't one the browser knows", async () => {
+		expect( await sizeShownIn( 'not a language!' ) ).toBe( '2.5 MB' );
+	} );
+
+	it( 'says the image is too big when the web server refuses it before WordPress', async () => {
+		await selectFiles( [ 'one.jpg' ] );
+
+		document.querySelector( '.photo-comp-upload-all-btn' ).click();
+		await settle();
+		FakeXhr.requests[ 0 ].respondWithText( 413, '<html><body>413 Request Entity Too Large</body></html>' );
+		await settle();
+
+		expect( errorLines() ).toEqual( [
+			'one.jpg: That image is too big. Check the size limit under the upload form.',
+		] );
+	} );
+} );

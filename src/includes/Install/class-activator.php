@@ -9,14 +9,22 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
+use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
+
+use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Plugin Activator.
@@ -28,7 +36,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 4;
+	const DB_VERSION = 11;
 
 	/**
 	 * Option holding the installed data version.
@@ -44,6 +52,26 @@ class Activator {
 		self::create_tables();
 		self::add_capabilities();
 		self::maybe_upgrade();
+		self::flush_image_permalink_rule();
+	}
+
+	/**
+	 * Register the image permalink's rewrite rule, then flush the rules.
+	 *
+	 * Registered first, because the flush can run before init registers it. The
+	 * upgrade runs on plugins_loaded, before WordPress creates its rewrite
+	 * object, so then the flush waits for the end of init.
+	 *
+	 * @return void
+	 */
+	public static function flush_image_permalink_rule(): void {
+		if ( ! did_action( 'init' ) && ! doing_action( 'init' ) ) {
+			add_action( 'init', array( self::class, 'flush_image_permalink_rule' ), 99 );
+			return;
+		}
+
+		Image_Permalink::add_rewrite_rule();
+		flush_rewrite_rules( false );
 	}
 
 	/**
@@ -56,6 +84,13 @@ class Activator {
 
 		if ( $installed >= self::DB_VERSION ) {
 			return;
+		}
+
+		// A kind of email has one name, so an email job's type is its kind's
+		// key. First, because it needs no other step and every admin page
+		// shows unfinished jobs by their kind. Renaming is safe to repeat.
+		if ( $installed < 5 ) {
+			self::name_email_jobs_by_kind();
 		}
 
 		// Leave the version alone on failure so the step runs again on the next request.
@@ -90,7 +125,80 @@ class Activator {
 			return;
 		}
 
+		// A member has one voting token per category, and asking for a link
+		// again renews it. Old tables never got the unique key that says so.
+		if ( $installed < 6 && ! self::make_voting_tokens_unique() ) {
+			return;
+		}
+
+		// An image has a photographer and an entry status, so a club can
+		// upload substitutes and an admin can disqualify an image. Existing
+		// images take the column defaults: entered, with no photographer.
+		// Before step 7, because recording results reads images by status.
+		if ( $installed < 11 && ! self::add_entry_status_schema() ) {
+			return;
+		}
+
+		// Results are recorded when they're published, so deleting a member
+		// later moves nobody. Record what past competitions have now, and
+		// drop the score column nothing read.
+		if ( $installed < 7 && ( ! self::record_past_results() || ! self::drop_image_score() ) ) {
+			return;
+		}
+
+		// A member has one upload token per competition. Old tables never got
+		// the unique key that says so.
+		if ( $installed < 8 && ! self::make_upload_tokens_unique() ) {
+			return;
+		}
+
+		// External judges are invited by competition and score images through
+		// votes that carry the judge's ID.
+		if ( $installed < 9 && ! self::add_judging_schema() ) {
+			return;
+		}
+
+		// Competitions have a type, members are tagged with types, and a
+		// competition can list its entrants. Every existing competition and
+		// member gets the one type, so a club with a single type sees no change.
+		if ( $installed < 10 && ( ! self::add_types_schema() || false === self::create_default_type() ) ) {
+			return;
+		}
+
+		if ( $installed < 9 ) {
+			self::flush_image_permalink_rule();
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * Old email job types and the kind of email each one sends. Jobs from
+	 * before job types existed have no type and send detailed results.
+	 */
+	const LEGACY_EMAIL_JOB_TYPES = array(
+		''              => 'results_detailed',
+		'results'       => 'results_detailed',
+		'results_share' => 'results_published',
+		'upload_link'   => 'upload_reminder',
+	);
+
+	/**
+	 * Rename the type of every stored email job to its kind of email.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return void
+	 */
+	private static function name_email_jobs_by_kind(): void {
+		foreach ( Email_Job_Manager::get_all_jobs() as $job_id => $job ) {
+			$type = (string) ( $job['type'] ?? '' );
+
+			if ( isset( self::LEGACY_EMAIL_JOB_TYPES[ $type ] ) ) {
+				$job['type'] = self::LEGACY_EMAIL_JOB_TYPES[ $type ];
+				update_option( Email_Job_Manager::OPTION_PREFIX . $job_id, $job, false );
+			}
+		}
 	}
 
 	/**
@@ -217,10 +325,28 @@ class Activator {
 			}
 		}
 
-		// Totals come from the votes, so say which competitions' results changed.
-		// The upgrade runs on whichever request comes first, so the system is
-		// the actor, not the current user. It runs before translations can
-		// load, so the description is in English.
+		self::log_removed_votes( $removed, 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.' );
+
+		self::create_tables();
+
+		return self::votes_are_unique( $table );
+	}
+
+	/**
+	 * Log, per competition, the votes an upgrade deleted.
+	 *
+	 * Totals come from the votes, so say which competitions' results changed.
+	 * The upgrade runs on whichever request comes first, so the system is
+	 * the actor, not the current user. It runs before translations can
+	 * load, so the description is in English.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<int, int> $removed     Votes deleted, by competition ID.
+	 * @param string          $description Description, with %d for the count.
+	 * @return void
+	 */
+	private static function log_removed_votes( array $removed, string $description ): void {
 		foreach ( array_filter( $removed ) as $competition_id => $count ) {
 			( new Logs_Repository() )->create(
 				array(
@@ -229,15 +355,165 @@ class Activator {
 					'event_category' => 'voting',
 					'actor_type'     => 'system',
 					'actor_name'     => 'System',
-					'description'    => sprintf( 'Upgrade removed %d duplicate vote(s), keeping each voter\'s earliest vote for an image.', $count ),
+					'description'    => sprintf( $description, $count ),
 					'metadata'       => array( 'removed' => $count ),
 				)
 			);
 		}
+	}
 
-		self::create_tables();
+	/**
+	 * Keep one voting token per member, competition and category, then add
+	 * the unique key that stops a second one.
+	 *
+	 * Of a member's tokens for a category, the one renew() would use stays
+	 * (see Voting_Token_Repository::member_token_id()). The other tokens go,
+	 * and their votes with them: those can only be a second ballot from the
+	 * same member.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the key couldn't be added.
+	 */
+	private static function make_voting_tokens_unique(): bool {
+		global $wpdb;
 
-		return self::votes_are_unique( $table );
+		$tokens = new Voting_Token_Repository();
+		$table  = $tokens->table();
+		$votes  = ( new Votes_Repository() )->table();
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::voting_tokens_are_unique( $table ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$duplicates = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT member_id, competition_id, category FROM %i
+				GROUP BY member_id, competition_id, category
+				HAVING COUNT(*) > 1',
+				$table
+			)
+		);
+
+		$removed  = array();
+		$complete = true;
+
+		foreach ( $duplicates as $duplicate ) {
+			$competition_id = (int) $duplicate->competition_id;
+			$keep           = $tokens->member_token_id( (int) $duplicate->member_id, $competition_id, $duplicate->category );
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$others = $wpdb->get_col(
+				$wpdb->prepare(
+					'SELECT id FROM %i WHERE member_id = %d AND competition_id = %d AND category = %s AND id <> %d',
+					$table,
+					$duplicate->member_id,
+					$competition_id,
+					$duplicate->category,
+					$keep
+				)
+			);
+
+			foreach ( $others as $token_id ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$deleted = $wpdb->delete( $votes, array( 'voting_token_id' => $token_id ), array( '%d' ) );
+
+				// Keep the token, or its votes would count with no token to
+				// find them by. The step runs again on the next request.
+				if ( false === $deleted ) {
+					$complete = false;
+					continue;
+				}
+
+				$removed[ $competition_id ] = ( $removed[ $competition_id ] ?? 0 ) + $deleted;
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->delete( $table, array( 'id' => $token_id ), array( '%d' ) );
+			}
+		}
+
+		self::log_removed_votes( $removed, 'Upgrade removed %d vote(s) cast with a member\'s second voting link, keeping their earliest ballot in each category.' );
+
+		if ( ! $complete ) {
+			return false;
+		}
+
+		// Old tables have a plain key with this name, so dbDelta can't add
+		// the unique one: drop it and add it back unique in one statement.
+		// Without one, the drop would fail every time, so just add it.
+		if ( self::has_key( $table, 'member_competition_category' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition_category, ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD UNIQUE KEY member_competition_category (member_id, competition_id, category)', $table ) );
+		}
+
+		return self::voting_tokens_are_unique( $table );
+	}
+
+	/**
+	 * Keep one upload token per member and competition, then add the unique
+	 * key that stops a second one.
+	 *
+	 * The earliest token stays: it's the one find_or_create() returns and
+	 * refreshes. Nothing refers to a token by its ID, so deleting the others
+	 * only stops their emailed links working.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the key couldn't be added.
+	 */
+	private static function make_upload_tokens_unique(): bool {
+		global $wpdb;
+
+		$table = ( new Upload_Token_Repository() )->table();
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::upload_tokens_are_unique( $table ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$duplicates = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT member_id, competition_id, MIN(id) AS earliest FROM %i
+				GROUP BY member_id, competition_id
+				HAVING COUNT(*) > 1',
+				$table
+			)
+		);
+
+		foreach ( $duplicates as $duplicate ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$deleted = $wpdb->query(
+				$wpdb->prepare(
+					'DELETE FROM %i WHERE member_id = %d AND competition_id = %d AND id <> %d',
+					$table,
+					$duplicate->member_id,
+					$duplicate->competition_id,
+					$duplicate->earliest
+				)
+			);
+
+			if ( false === $deleted ) {
+				return false;
+			}
+		}
+
+		// Old tables have a plain key with this name, so dbDelta can't add
+		// the unique one: drop it and add it back unique in one statement.
+		// Without one, the drop would fail every time, so just add it.
+		if ( self::has_key( $table, 'member_competition' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX member_competition, ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD UNIQUE KEY member_competition (member_id, competition_id)', $table ) );
+		}
+
+		return self::upload_tokens_are_unique( $table );
 	}
 
 	/**
@@ -249,12 +525,288 @@ class Activator {
 	 * @return bool
 	 */
 	private static function votes_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'image_token', 'image_voter' ) );
+	}
+
+	/**
+	 * Whether the voting tokens table has its unique key.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Voting tokens table.
+	 * @return bool
+	 */
+	private static function voting_tokens_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'member_competition_category' ) );
+	}
+
+	/**
+	 * Whether the upload tokens table has its unique key.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Upload tokens table.
+	 * @return bool
+	 */
+	private static function upload_tokens_are_unique( string $table ): bool {
+		return self::has_unique_keys( $table, array( 'member_competition' ) );
+	}
+
+	/**
+	 * Add the judges tables, and the judge column and keys on votes.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the schema is still incomplete, so the step runs again.
+	 */
+	private static function add_judging_schema(): bool {
+		global $wpdb;
+
+		$judges      = $wpdb->prefix . 'photocomp_judges';
+		$assignments = $wpdb->prefix . 'photocomp_competition_judges';
+		$votes       = $wpdb->prefix . 'photocomp_votes';
+
+		// Requests run upgrades without activating, so add the tables here.
+		// Only when they're missing: DDL ends the running transaction.
+		if ( ! self::table_exists( $judges ) || ! self::table_exists( $assignments ) ) {
+			self::create_tables();
+		}
+
+		if ( ! self::column_exists( $votes, 'judge_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN judge_id BIGINT UNSIGNED NULL, ADD KEY judge_id (judge_id), ADD UNIQUE KEY image_judge (image_id, judge_id)', $votes ) );
+		}
+
+		return self::table_exists( $judges )
+			&& self::table_exists( $assignments )
+			&& self::column_exists( $votes, 'judge_id' );
+	}
+
+	/**
+	 * Add the type, member tag and entrant tables and the competition columns.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the schema is still incomplete, so the step runs again.
+	 */
+	private static function add_types_schema(): bool {
+		global $wpdb;
+
+		$types        = $wpdb->prefix . 'photocomp_competition_types';
+		$member_types = $wpdb->prefix . 'photocomp_member_types';
+		$entrants     = $wpdb->prefix . 'photocomp_entrants';
+		$competitions = $wpdb->prefix . 'photocomp_competitions';
+
+		// Requests run upgrades without activating, so add the tables here.
+		// Only when they're missing: DDL ends the running transaction.
+		if ( ! self::table_exists( $types ) || ! self::table_exists( $member_types ) || ! self::table_exists( $entrants ) ) {
+			self::create_tables();
+		}
+
+		if ( ! self::column_exists( $competitions, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN type_id BIGINT UNSIGNED NULL', $competitions ) );
+		}
+
+		if ( ! self::has_key( $competitions, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD KEY type_id (type_id)', $competitions ) );
+		}
+
+		if ( ! self::column_exists( $competitions, 'entry_mode' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN entry_mode VARCHAR(20) NOT NULL DEFAULT 'all'", $competitions ) );
+		}
+
+		return self::table_exists( $types )
+			&& self::table_exists( $member_types )
+			&& self::table_exists( $entrants )
+			&& self::column_exists( $competitions, 'type_id' )
+			&& self::has_key( $competitions, 'type_id' )
+			&& self::column_exists( $competitions, 'entry_mode' );
+	}
+
+	/**
+	 * Add the photographer and entry status columns to the images table.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if a column is still missing, so the step runs again.
+	 */
+	private static function add_entry_status_schema(): bool {
+		global $wpdb;
+
+		$images = $wpdb->prefix . 'photocomp_images';
+
+		if ( ! self::column_exists( $images, 'photographer' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN photographer VARCHAR(191) NOT NULL DEFAULT ''", $images ) );
+		}
+
+		if ( ! self::column_exists( $images, 'entry_status' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN entry_status VARCHAR(20) NOT NULL DEFAULT 'entered'", $images ) );
+		}
+
+		return self::column_exists( $images, 'photographer' ) && self::column_exists( $images, 'entry_status' );
+	}
+
+	/**
+	 * Create the one type every existing competition and member gets.
+	 *
+	 * Its competition defaults are the club's settings. A site that already
+	 * has a type keeps its first one. Either way the backfill runs, so an
+	 * upgrade that died partway is finished: it only touches members without
+	 * the tag and competitions without a type.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return int|false The type's ID, or false if a step failed and the upgrade must run again.
+	 */
+	public static function create_default_type() {
+		global $wpdb;
+
+		$types        = $wpdb->prefix . 'photocomp_competition_types';
+		$member_types = $wpdb->prefix . 'photocomp_member_types';
+		$competitions = $wpdb->prefix . 'photocomp_competitions';
+		$members      = $wpdb->prefix . 'photocomp_members';
+
+		$categories = Competition_Settings::club_categories();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$existing = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i ORDER BY id ASC LIMIT 1', $types ) );
+		$type_id  = null !== $existing ? (int) $existing : self::insert_default_type( $types, $categories );
+		if ( ! $type_id ) {
+			return false;
+		}
+
+		$tagged = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $member_types, $type_id, $members ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$typed  = $wpdb->query( $wpdb->prepare( "UPDATE %i SET type_id = %d, entry_mode = 'all' WHERE type_id IS NULL", $competitions, $type_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$listed = self::give_competitions_the_club_categories( $competitions, $categories );
+
+		return false === $tagged || false === $typed || ! $listed ? false : $type_id;
+	}
+
+	/**
+	 * Insert the Individual type, with the club's settings as its defaults.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string                           $table      Types table.
+	 * @param array<int, array<string, mixed>> $categories The club's category list.
+	 * @return int The new type's ID, or 0 on failure.
+	 */
+	private static function insert_default_type( string $table, array $categories ): int {
+		global $wpdb;
+
+		$club     = Competition_Settings::global_settings();
+		$defaults = array();
+		foreach ( array( 'upload', 'voting', 'slideshow', 'email_reminders' ) as $key ) {
+			if ( isset( $club[ $key ] ) ) {
+				$defaults[ $key ] = $club[ $key ];
+			}
+		}
+		$defaults = array( 'categories' => $categories ) + $defaults;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$inserted = $wpdb->insert(
+			$table,
+			array(
+				'name'        => __( 'Individual', 'photo-competition-manager' ),
+				'settings'    => wp_json_encode( $defaults ),
+				'grade_names' => '{}',
+				'created_at'  => utc_time(),
+			)
+		);
+		if ( ! $inserted ) {
+			return 0;
+		}
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Give each competition without categories the club's current list.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string                           $table      Competitions table.
+	 * @param array<int, array<string, mixed>> $categories The club's category list.
+	 * @return bool False if a competition couldn't be updated.
+	 */
+	private static function give_competitions_the_club_categories( string $table, array $categories ): bool {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$keys = $wpdb->get_col( $wpdb->prepare( "SHOW INDEX FROM %i WHERE Key_name IN ('image_token', 'image_voter')", $table ), 2 );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, settings FROM %i', $table ) );
 
-		return 2 === count( array_unique( $keys ) );
+		foreach ( $rows as $row ) {
+			$settings = ! empty( $row->settings ) ? json_decode( $row->settings, true ) : array();
+			$settings = is_array( $settings ) ? $settings : array();
+
+			if ( ! empty( $settings['categories'] ) ) {
+				continue;
+			}
+
+			$settings['categories'] = $categories;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( false === $wpdb->update( $table, array( 'settings' => wp_json_encode( $settings ) ), array( 'id' => (int) $row->id ) ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether a table exists.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Table name.
+	 * @return bool
+	 */
+	private static function table_exists( string $table ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	}
+
+	/**
+	 * Whether a table has all of the named keys, and each is unique.
+	 *
+	 * A name isn't enough: old voting and upload tokens tables have a plain
+	 * key named as the unique one is now.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string        $table Table name.
+	 * @param array<string> $keys  Key names.
+	 * @return bool
+	 */
+	private static function has_unique_keys( string $table, array $keys ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$found = $wpdb->get_col( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Non_unique = 0', $table ), 2 );
+
+		return array() === array_diff( $keys, $found );
+	}
+
+	/**
+	 * Whether a table has a key of that name, unique or not.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $table Table name.
+	 * @param string $key   Key name.
+	 * @return bool
+	 */
+	private static function has_key( string $table, string $key ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW INDEX FROM %i WHERE Key_name = %s', $table, $key ) );
 	}
 
 	/**
@@ -271,6 +823,58 @@ class Activator {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM %i LIKE %s', $table, $column ) );
+	}
+
+	/**
+	 * Record the results of every competition whose results are published,
+	 * or that has closed or been archived, unless they have a trusted record
+	 * (see Results_Ranking::record_if_missing()).
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if a competition couldn't be recorded.
+	 */
+	private static function record_past_results(): bool {
+		global $wpdb;
+
+		// Requests run upgrades without activating, so add the table here.
+		// Only when it's missing: DDL ends the running transaction.
+		if ( ! ( new Recorded_Results_Repository() )->table_exists() ) {
+			self::create_tables();
+		}
+
+		$ranking = new Results_Ranking( new Images_Repository(), new Votes_Repository(), new Members_Repository() );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		foreach ( $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i', ( new Competitions_Repository() )->table() ) ) as $competition ) {
+			if ( is_wp_error( $ranking->record_if_missing( $competition ) ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Drop images.score. Nothing read it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return bool False if the column couldn't be dropped.
+	 */
+	private static function drop_image_score(): bool {
+		global $wpdb;
+
+		$table = ( new Images_Repository() )->table();
+
+		if ( ! self::column_exists( $table, 'score' ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP COLUMN score', $table ) );
+
+		return ! self::column_exists( $table, 'score' );
 	}
 
 	/**
@@ -443,9 +1047,12 @@ class Activator {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			deleted_at DATETIME NULL,
+			type_id BIGINT UNSIGNED NULL,
+			entry_mode VARCHAR(20) NOT NULL DEFAULT 'all',
 			PRIMARY KEY  (id),
 			UNIQUE KEY slug (slug),
-			KEY share_hash (share_hash)
+			KEY share_hash (share_hash),
+			KEY type_id (type_id)
 		) {$charset_collate};";
 
 		$images = "CREATE TABLE {$wpdb->prefix}photocomp_images (
@@ -455,8 +1062,9 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			filename VARCHAR(191) NOT NULL,
 			random_number BIGINT UNSIGNED NOT NULL,
-			score INT NULL,
 			original_attachment_id BIGINT UNSIGNED NULL,
+			photographer VARCHAR(191) NOT NULL DEFAULT '',
+			entry_status VARCHAR(20) NOT NULL DEFAULT 'entered',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
@@ -471,6 +1079,7 @@ class Activator {
 			category VARCHAR(100) NOT NULL,
 			voter_name VARCHAR(191) NULL,
 			voting_token_id BIGINT UNSIGNED NULL,
+			judge_id BIGINT UNSIGNED NULL,
 			image_id BIGINT UNSIGNED NOT NULL,
 			score INT NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -479,8 +1088,10 @@ class Activator {
 			KEY image (image_id),
 			KEY voting_token (voting_token_id),
 			KEY voter_name (voter_name),
+			KEY judge_id (judge_id),
 			UNIQUE KEY image_token (image_id, voting_token_id),
-			UNIQUE KEY image_voter (image_id, voter_name)
+			UNIQUE KEY image_voter (image_id, voter_name),
+			UNIQUE KEY image_judge (image_id, judge_id)
 		) {$charset_collate};";
 
 		$upload_tokens = "CREATE TABLE {$wpdb->prefix}photocomp_upload_tokens (
@@ -532,6 +1143,71 @@ class Activator {
 			KEY created_at (created_at)
 		) {$charset_collate};";
 
+		// A row outlives its entry and member: deleting either sets its ID to null.
+		$recorded_results = "CREATE TABLE {$wpdb->prefix}photocomp_recorded_results (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			category VARCHAR(100) NOT NULL,
+			entry_id BIGINT UNSIGNED NULL,
+			member_id BIGINT UNSIGNED NULL,
+			grade VARCHAR(100) NOT NULL DEFAULT '',
+			total_score INT NOT NULL,
+			vote_count INT NOT NULL,
+			position INT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY competition_entry (competition_id, entry_id),
+			KEY entry (entry_id),
+			KEY member (member_id)
+		) {$charset_collate};";
+
+		$judges = "CREATE TABLE {$wpdb->prefix}photocomp_judges (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(191) NOT NULL,
+			email VARCHAR(191) NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY email (email)
+		) {$charset_collate};";
+
+		$competition_judges = "CREATE TABLE {$wpdb->prefix}photocomp_competition_judges (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			judge_id BIGINT UNSIGNED NOT NULL,
+			token VARCHAR(64) NOT NULL,
+			sent_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY competition_judge (competition_id, judge_id),
+			UNIQUE KEY token (token)
+		) {$charset_collate};";
+
+		$competition_types = "CREATE TABLE {$wpdb->prefix}photocomp_competition_types (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(191) NOT NULL,
+			settings LONGTEXT NULL,
+			grade_names LONGTEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NULL,
+			PRIMARY KEY  (id)
+		) {$charset_collate};";
+
+		$member_types = "CREATE TABLE {$wpdb->prefix}photocomp_member_types (
+			member_id BIGINT UNSIGNED NOT NULL,
+			type_id BIGINT UNSIGNED NOT NULL,
+			PRIMARY KEY  (member_id, type_id),
+			KEY type_id (type_id)
+		) {$charset_collate};";
+
+		$entrants = "CREATE TABLE {$wpdb->prefix}photocomp_entrants (
+			competition_id BIGINT UNSIGNED NOT NULL,
+			member_id BIGINT UNSIGNED NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (competition_id, member_id),
+			KEY member_id (member_id)
+		) {$charset_collate};";
+
 		return array(
 			$members,
 			$competitions,
@@ -540,6 +1216,12 @@ class Activator {
 			$upload_tokens,
 			$voting_tokens,
 			$logs,
+			$recorded_results,
+			$judges,
+			$competition_judges,
+			$competition_types,
+			$member_types,
+			$entrants,
 		);
 	}
 }

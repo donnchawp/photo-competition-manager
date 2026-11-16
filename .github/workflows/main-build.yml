@@ -1,0 +1,43 @@
+name: Main - Playground zip
+
+# Builds the plugin from main with `make release` (JS/CSS bundles included,
+# since they aren't committed) and publishes it to the ci-artifacts prerelease
+# as main-photo-competition-manager.zip, replacing the previous build.
+# blueprint.json installs that zip, so the README's Playground link always
+# runs the latest main.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: main-playground-zip
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: assets/package-lock.json
+
+      - name: Build the release zip
+        run: |
+          set -euo pipefail
+          npm --prefix assets ci
+          make release
+          unzip -l photo-competition-manager.zip | grep -q 'photo-competition-manager/assets/build/drag-drop-upload.js'
+          mv photo-competition-manager.zip main-photo-competition-manager.zip
+
+      - name: Publish to the ci-artifacts prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ci-artifacts main-photo-competition-manager.zip --clobber

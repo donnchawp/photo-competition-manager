@@ -12,15 +12,17 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Email_Job_Notice;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\sanitize_csv_row;
 
@@ -71,13 +73,6 @@ class Results_Controller {
 	private $analytics;
 
 	/**
-	 * Score calculator service.
-	 *
-	 * @var Score_Calculator
-	 */
-	private $calculator;
-
-	/**
 	 * Results ranking service.
 	 *
 	 * @var Results_Ranking
@@ -99,6 +94,13 @@ class Results_Controller {
 	private $entries;
 
 	/**
+	 * Competition workflow.
+	 *
+	 * @var Competition_Workflow
+	 */
+	private $workflow;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository $competitions      Competitions repository.
@@ -106,7 +108,6 @@ class Results_Controller {
 	 * @param Members_Repository      $members           Members repository.
 	 * @param Votes_Repository        $votes             Votes repository.
 	 * @param Results_Analytics       $analytics         Results analytics service.
-	 * @param Score_Calculator        $calculator        Score calculator service.
 	 * @param Results_Ranking         $ranking           Results ranking service.
 	 * @param Email_Job_Manager       $email_job_manager Email job manager.
 	 * @param Entries|null            $entries           Entries module.
@@ -117,7 +118,6 @@ class Results_Controller {
 		Members_Repository $members,
 		Votes_Repository $votes,
 		Results_Analytics $analytics,
-		Score_Calculator $calculator,
 		Results_Ranking $ranking,
 		Email_Job_Manager $email_job_manager,
 		?Entries $entries = null
@@ -127,10 +127,10 @@ class Results_Controller {
 		$this->members           = $members;
 		$this->votes             = $votes;
 		$this->analytics         = $analytics;
-		$this->calculator        = $calculator;
 		$this->ranking           = $ranking;
 		$this->email_job_manager = $email_job_manager;
 		$this->entries           = $entries ?? new Entries( $competitions, $images, $members );
+		$this->workflow          = new Competition_Workflow( $competitions, $images, $votes, null, $ranking );
 	}
 
 	/**
@@ -189,10 +189,10 @@ class Results_Controller {
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
 		}
 
-		if ( 'recalculate_scores' === $action ) {
+		if ( 'email_results' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
-			check_admin_referer( 'photo_competition_recalculate_scores_' . $competition_id );
+			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
 			$redirect_url = add_query_arg(
 				array(
@@ -202,39 +202,18 @@ class Results_Controller {
 				admin_url( 'admin.php' )
 			);
 
+			// Members are told their positions only once they're read from the record.
 			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
+			if ( $competition && ! $this->workflow->reads_recorded_results( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
+					'results_not_published',
+					__( 'Results can be emailed once they\'re shown, or once the competition has closed, so every member is told the positions that are recorded.', 'photo-competition-manager' ),
 					'error'
 				);
+
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
-
-			// Score_Calculator::calculate_scores() always returns an array{updated, errors};
-			// it has no whole-run failure mode, so there is no WP_Error path to handle here.
-			$result = $this->calculator->calculate_scores( $competition_id );
-
-			add_settings_error(
-				'photo_competition_results',
-				'scores_recalculated',
-				sprintf(
-					/* translators: %d: number of images updated */
-					__( 'Scores recalculated successfully. %d images updated.', 'photo-competition-manager' ),
-					$result['updated']
-				),
-				'updated'
-			);
-
-			$this->redirect_with_settings_errors( $redirect_url );
-		}
-
-		if ( 'email_results' === $action ) {
-			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
-
-			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
 			// Queue a background job for email sending.
 			$job_id = $this->email_job_manager->queue_results( $competition_id );
@@ -247,27 +226,17 @@ class Results_Controller {
 					'error'
 				);
 
-				$this->redirect_with_settings_errors(
-					add_query_arg(
-						array(
-							'page'        => 'photo-competition-manager-results',
-							'competition' => $competition_id,
-						),
-						admin_url( 'admin.php' )
-					)
-				);
+				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
 			// Redirect to results page with job status.
 			wp_safe_redirect(
 				add_query_arg(
 					array(
-						'page'        => 'photo-competition-manager-results',
-						'competition' => $competition_id,
-						'job_id'      => $job_id,
-						'status'      => 'processing',
+						'job_id' => $job_id,
+						'status' => 'processing',
 					),
-					admin_url( 'admin.php' )
+					$redirect_url
 				)
 			);
 			exit;
@@ -297,6 +266,17 @@ class Results_Controller {
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
+			// The committee checks results before they're public, so only their link goes early.
+			if ( 'send_results_all' === $action && ! $this->workflow->reads_recorded_results( $competition ) ) {
+				add_settings_error(
+					'photo_competition_results',
+					'results_not_published',
+					__( 'The results link can be sent to every member once results are shown, or once the competition has closed. The committee can be sent it before then.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
 			$share_hash = $competition->share_hash ?? '';
 
 			if ( empty( $share_hash ) ) {
@@ -309,13 +289,12 @@ class Results_Controller {
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
-			$settings         = Competition_Settings::parse( $competition->settings );
-			$results_page_url = $settings['urls']['results_page'] ?? '';
-			if ( empty( $results_page_url ) ) {
+			$results_page_url = Competition_Settings::page_url( 'results_page', $competition );
+			if ( '' === $results_page_url ) {
 				add_settings_error(
 					'photo_competition_results',
 					'no_results_page',
-					__( 'No results page URL configured. Set one in competition settings.', 'photo-competition-manager' ),
+					__( 'No results page is set. Set the results page in Settings, or publish a page with the [competition_results] shortcode.', 'photo-competition-manager' ),
 					'error'
 				);
 				$this->redirect_with_settings_errors( $redirect_url );
@@ -326,7 +305,7 @@ class Results_Controller {
 			if ( 'send_results_committee' === $action ) {
 				$recipients = $this->members->find_committee_members();
 			} else {
-				$recipients = $this->members->find_active_members();
+				$recipients = $this->members->find_by_type( (int) $competition->type_id );
 			}
 
 			$member_ids = array();
@@ -337,7 +316,7 @@ class Results_Controller {
 			}
 
 			$job_id = $this->email_job_manager->queue(
-				'results_share',
+				'results_published',
 				$competition_id,
 				$member_ids,
 				array( 'share_url' => $share_url )
@@ -447,6 +426,7 @@ class Results_Controller {
 
 		// Competition selector options.
 		$competition_options = array();
+		$labels              = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
 			$url = add_query_arg(
 				array(
@@ -459,7 +439,7 @@ class Results_Controller {
 			$competition_options[] = array(
 				'url'      => $url,
 				'selected' => ( (int) $comp->id === (int) $competition->id ),
-				'title'    => $comp->title,
+				'title'    => $labels->title_for_everyone( $comp ),
 			);
 		}
 
@@ -499,22 +479,10 @@ class Results_Controller {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
 			$groups             = $rankings[ $selected_category ] ?? $this->ranking->rank_category( (int) $competition->id, $selected_category );
-			$results_table_html = $this->render_results_table( $competition, $selected_category, $groups );
+			$results_table_html = $this->render_results_table( $competition, $selected_category, $groups, (bool) $settings['interclub']['enabled'] );
 		}
 
 		// Action buttons.
-		$recalculate_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'action'      => 'recalculate_scores',
-					'competition' => (int) $competition->id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_recalculate_scores_' . (int) $competition->id
-		);
-
 		$export_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -541,7 +509,7 @@ class Results_Controller {
 
 		// Share results section.
 		$share_hash   = $competition->share_hash ?? '';
-		$results_page = $settings['urls']['results_page'] ?? '';
+		$results_page = Competition_Settings::page_url( 'results_page', $competition );
 
 		$share_url          = '';
 		$send_committee_url = '';
@@ -575,17 +543,31 @@ class Results_Controller {
 			);
 		}
 
+		$send_all_confirm = __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' );
+		$types            = new Competition_Types_Repository();
+		if ( $types->has_several() ) {
+			$type = $types->find( (int) $competition->type_id );
+			if ( $type ) {
+				$send_all_confirm = sprintf(
+					/* translators: %s: competition type name */
+					__( 'This will send the results link to all active members of %s. Continue?', 'photo-competition-manager' ),
+					$type->name
+				);
+			}
+		}
+
 		return $this->render_template(
 			'admin/results/overview.php',
 			array(
+				'send_all_confirm'     => $send_all_confirm,
 				'competition_options'  => $competition_options,
 				'summary_cards_html'   => $summary_cards_html,
 				'ungraded_notice_html' => $this->render_ungraded_notice( $categories, $rankings ),
+				'club_standings_html'  => $settings['interclub']['enabled'] ? $this->render_club_standings( $competition, $categories, $rankings ) : '',
 				'category_tabs'        => $category_tabs,
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
-				'recalculate_url'      => $recalculate_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
 				'share_hash'           => $share_hash,
@@ -634,6 +616,11 @@ class Results_Controller {
 				}
 
 				foreach ( $group['entries'] as $entry ) {
+					// A recorded entry removed since has nothing left to fix.
+					if ( ! $entry['image'] ) {
+						continue;
+					}
+
 					if ( $entry['member'] ) {
 						$members[ (int) $entry['member']->id ] = array(
 							'name'  => $entry['member']->name,
@@ -663,15 +650,48 @@ class Results_Controller {
 	}
 
 	/**
+	 * Render an interclub competition's club standings, or '' when no club has a ranked entry.
+	 *
+	 * @param object               $competition Competition record.
+	 * @param array<int, array>    $categories  Category definitions.
+	 * @param array<string, array> $rankings    Category slug => Results_Ranking::rank_category() groups.
+	 * @return string
+	 */
+	private function render_club_standings( object $competition, array $categories, array $rankings ): string {
+		$labels = new Competition_Labels();
+		$grades = array();
+		foreach ( $this->ranking->rank_clubs( (int) $competition->id, $rankings ) as $grade ) {
+			$grades[] = array(
+				'label' => $labels->admin_grade_label( $competition, $grade['slug'] ),
+				'clubs' => $grade['clubs'],
+			);
+		}
+
+		if ( ! $grades ) {
+			return '';
+		}
+
+		return $this->render_template(
+			'admin/results/club-standings.php',
+			array(
+				'categories' => $categories,
+				'grades'     => $grades,
+			)
+		);
+	}
+
+	/**
 	 * Render results table grouped by grade.
 	 *
 	 * @param object            $competition Competition record.
 	 * @param string            $category    Category slug.
 	 * @param array<int, array> $groups      The category's Results_Ranking::rank_category() groups.
+	 * @param bool              $interclub   Whether entries show their photographer and club.
 	 * @return string
 	 */
-	private function render_results_table( object $competition, string $category, array $groups ): string {
+	private function render_results_table( object $competition, string $category, array $groups, bool $interclub ): string {
 		$grade_tables = array();
+		$labels       = new Competition_Labels();
 
 		foreach ( $groups as $group ) {
 			$rows = array();
@@ -680,7 +700,8 @@ class Results_Controller {
 				$image  = $entry['image'];
 				$member = $entry['member'];
 
-				$detail_url = add_query_arg(
+				// A recorded entry removed since has no image or details.
+				$detail_url = $image ? add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager-results',
 						'competition' => (int) $competition->id,
@@ -688,25 +709,33 @@ class Results_Controller {
 						'image'       => (int) $image->id,
 					),
 					admin_url( 'admin.php' )
-				);
+				) : '';
 
 				$rows[] = array(
-					'rank'        => $entry['position'],
-					'image_url'   => $this->entries->urls( $competition, $image )['thumb'],
-					'member_name' => $member ? $member->name : null,
-					'total_score' => $entry['total_score'],
-					'vote_count'  => $entry['vote_count'],
-					'detail_url'  => $detail_url,
+					'rank'         => $entry['position'],
+					'image_url'    => $image ? $this->entries->urls( $competition, $image )['thumb'] : '',
+					'member_name'  => $member ? $member->name : null,
+					'photographer' => $image ? (string) $image->photographer : '',
+					'total_score'  => $entry['total_score'],
+					'vote_count'   => $entry['vote_count'],
+					'detail_url'   => $detail_url,
+					'recorded'     => $entry['recorded'],
 				);
 			}
 
 			$grade_tables[] = array(
-				'label' => $group['label'],
+				'label' => $group['ungraded'] ? $group['label'] : $labels->admin_grade_label( $competition, $group['slug'] ),
 				'rows'  => $rows,
 			);
 		}
 
-		return $this->render_template( 'admin/results/results-table.php', array( 'grade_tables' => $grade_tables ) );
+		return $this->render_template(
+			'admin/results/results-table.php',
+			array(
+				'grade_tables' => $grade_tables,
+				'interclub'    => $interclub,
+			)
+		);
 	}
 
 	/**
@@ -743,11 +772,10 @@ class Results_Controller {
 		$image_url = $this->entries->urls( $competition, $image )['thumb'];
 
 		$vote_rows = array();
-		foreach ( $votes as $vote ) {
-			$voter_name = $vote->voter_name ? $vote->voter_name : 'Token #' . $vote->voting_token_id;
-
+		$labels    = $this->votes->voter_labels( $votes );
+		foreach ( $votes as $key => $vote ) {
 			$vote_rows[] = array(
-				'voter_name' => $voter_name,
+				'voter_name' => $labels[ $key ],
 				'score'      => $vote->score,
 				'created_at' => $this->format_datetime( $vote->created_at ),
 			);
@@ -760,7 +788,7 @@ class Results_Controller {
 				'image_url'      => $image_url,
 				'member_name'    => $member ? $member->name : __( 'Unknown', 'photo-competition-manager' ),
 				'member_email'   => ( $member && ! empty( $member->email ) ) ? $member->email : '',
-				'member_grade'   => $member ? $member->grade : '',
+				'member_grade'   => $member ? ( new Competition_Labels() )->admin_grade_label( $competition, (string) $member->grade ) : '',
 				'has_member'     => (bool) $member,
 				'category_label' => $category_label,
 				'image_number'   => $image->random_number,
@@ -813,22 +841,18 @@ class Results_Controller {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
-		$rows = array(
-			array(
-				'Competition',
-				'Grade',
-				'Category',
-				'Rank',
-				'Image Number',
-				'Member Name',
-				'Member Email',
-				'Score',
-				'Vote Count',
-				'Filename',
+		// Only an interclub competition's entries have photographers.
+		$interclub = $settings['interclub']['enabled'];
+		$rows      = array(
+			array_merge(
+				array( 'Competition', 'Grade', 'Category', 'Rank', 'Image Number', 'Member Name' ),
+				$interclub ? array( 'Photographer' ) : array(),
+				array( 'Member Email', 'Score', 'Vote Count', 'Filename' )
 			),
 		);
 
 		// Bucket rows by grade (configured order, ungraded last) so grade is the outer grouping.
+		$title             = ( new Competition_Labels() )->title_for_everyone( $competition );
 		$rows_by_grade     = array_fill_keys( array_column( Competition_Settings::club_grades(), 'slug' ), array() );
 		$rows_by_grade[''] = array();
 
@@ -841,17 +865,22 @@ class Results_Controller {
 					$image  = $entry['image'];
 					$member = $entry['member'];
 
-					$rows_by_grade[ $group['slug'] ][] = array(
-						$competition->title,
-						$group['label'],
-						$category_label,
-						$entry['position'],
-						$image->random_number,
-						$member ? $member->name : '',
-						$member ? $member->email : '',
-						number_format( $entry['total_score'], 0 ),
-						$entry['vote_count'],
-						$image->filename,
+					$rows_by_grade[ $group['slug'] ][] = array_merge(
+						array(
+							$title,
+							$group['label'],
+							$category_label,
+							$entry['position'],
+							$image ? $image->random_number : '',
+							$this->export_member_name( $entry ),
+						),
+						$interclub ? array( $image ? (string) $image->photographer : '' ) : array(),
+						array(
+							$member ? $member->email : '',
+							number_format( $entry['total_score'], 0 ),
+							$entry['vote_count'],
+							$image ? $image->filename : '',
+						)
 					);
 				}
 			}
@@ -862,5 +891,24 @@ class Results_Controller {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * The member name an exported entry gets. A recorded entry whose member
+	 * was deleted is a former member's. Before results are recorded, a
+	 * missing member is a data error, exported as "Unknown" as the Results
+	 * screen shows it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array{member: object|null, recorded: bool} $entry A Results_Ranking::rank_category() entry.
+	 * @return string
+	 */
+	private function export_member_name( array $entry ): string {
+		if ( $entry['member'] ) {
+			return (string) $entry['member']->name;
+		}
+
+		return $entry['recorded'] ? __( 'Former member', 'photo-competition-manager' ) : __( 'Unknown', 'photo-competition-manager' );
 	}
 }

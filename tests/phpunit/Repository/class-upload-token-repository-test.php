@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Tests\Legacy_Tables;
 use WP_UnitTestCase;
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -19,6 +20,13 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 	 * @var Upload_Token_Repository
 	 */
 	private $repo;
+
+	/**
+	 * Table hidden behind a temporary one by the test, if any.
+	 *
+	 * @var string
+	 */
+	private $shadowed = '';
 
 	/**
 	 * Set up test environment.
@@ -41,6 +49,43 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Drop the temporary table a test hid the real one behind.
+	 */
+	public function tearDown(): void {
+		global $wpdb;
+
+		if ( '' !== $this->shadowed ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( "DROP TEMPORARY TABLE {$this->shadowed}" );
+		}
+
+		parent::tearDown();
+	}
+
+	/**
+	 * A table without the unique key, whose upgrade hasn't run, may hold two
+	 * tokens for a member: the earliest is theirs, as the upgrade keeps it.
+	 */
+	public function test_find_or_create_returns_the_earliest_of_a_members_tokens() {
+		global $wpdb;
+		$this->shadowed = Legacy_Tables::shadow_v7_upload_tokens();
+		foreach ( array( 'earliest', 'later' ) as $token ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->insert(
+				$this->shadowed,
+				array(
+					'member_id'      => 1,
+					'competition_id' => 2,
+					'token'          => $token,
+					'expires_at'     => utc_time( WEEK_IN_SECONDS ),
+				)
+			);
+		}
+
+		$this->assertSame( 'earliest', $this->repo->find_or_create( 1, 2 )->token );
 	}
 
 	/**
@@ -370,6 +415,10 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 		// Member 3 should have opened link.
 		$this->assertArrayHasKey( 3, $tracking );
 		$this->assertNotNull( $tracking[3]->first_opened_at );
+
+		// A member has one upload token, so the opened time is all there is
+		// to report.
+		$this->assertSame( array( 'member_id', 'first_opened_at' ), array_keys( get_object_vars( $tracking[1] ) ) );
 	}
 
 	/**
@@ -419,6 +468,17 @@ class Upload_Token_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertCount( 0, $tracking_10 );
 		$this->assertCount( 1, $tracking_20 );
+	}
+
+	public function test_delete_for_removes_one_members_token_for_one_competition(): void {
+		$this->repo->find_or_create( 1, 10 );
+		$this->repo->find_or_create( 2, 10 );
+		$this->repo->find_or_create( 1, 20 );
+
+		$this->assertTrue( $this->repo->delete_for( 1, 10 ) );
+
+		$this->assertSame( array( 2 ), array_keys( $this->repo->get_tracking_by_competition( 10 ) ) );
+		$this->assertSame( array( 1 ), array_keys( $this->repo->get_tracking_by_competition( 20 ) ) );
 	}
 
 	public function test_delete_by_competition_returns_false_for_invalid_id(): void {

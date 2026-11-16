@@ -9,6 +9,8 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 ?>
 		<nav class="nav-tab-wrapper photo-comp-category-tabs">
 			<?php

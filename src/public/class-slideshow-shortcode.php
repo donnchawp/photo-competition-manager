@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -114,7 +115,7 @@ class Slideshow_Shortcode {
 		}
 
 		// Get images for this category in randomized order to prevent identification across categories.
-		$images = $this->images_repo->find_by_competition( (int) $competition->id, $category );
+		$images = $this->images_repo->find_entered( (int) $competition->id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, (int) $competition->id, $category );
 
 		$image_data = $this->slides( $competition, $images );
@@ -156,7 +157,7 @@ class Slideshow_Shortcode {
 
 			<!-- Control Panel -->
 			<div class="slideshow-controls">
-				<h2><?php echo esc_html( $competition->title ); ?> - <?php echo esc_html( $category_label ); ?></h2>
+				<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php echo esc_html( $category_label ); ?></h2>
 
 				<div class="control-buttons">
 					<button type="button" class="button button-primary slideshow-start">
@@ -235,7 +236,7 @@ class Slideshow_Shortcode {
 		}
 
 		// Get images for this category in randomized order to prevent identification across categories.
-		$images = $this->images_repo->find_by_competition( $competition_id, $category );
+		$images = $this->images_repo->find_entered( $competition_id, $category );
 		$images = $this->images_repo->shuffle_deterministic( $images, $competition_id, $category );
 
 		$image_data = $this->slides( $competition, $images );
@@ -256,7 +257,7 @@ class Slideshow_Shortcode {
 	private function slides( object $competition, array $images ): array {
 		$slides = array();
 		foreach ( $images as $image ) {
-			$url = $this->entries->urls( $competition, $image )['full'];
+			$url = $this->entries->public_urls( $competition, $image )['full'];
 			if ( '' !== $url ) {
 				$slides[] = array(
 					'id'            => $image->id,

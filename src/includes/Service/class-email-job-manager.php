@@ -19,13 +19,14 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
+use function PhotoCompetitionManager\Support\render_template;
 use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Class Email_Job_Manager
  *
- * A job is one bulk send of one email type to a list of members. Job types:
- * results, upload_link, voting_opened, results_share.
+ * A job is one bulk send of one kind of email to a list of members. A job's
+ * type is the kind's key, from Email_Kinds.
  *
  * @package PhotoCompetitionManager\Service
  */
@@ -47,6 +48,11 @@ class Email_Job_Manager {
 	 * Prefix of the option each job is stored in. The rest is the job ID.
 	 */
 	const OPTION_PREFIX = 'photo_comp_email_job_';
+
+	/**
+	 * Daily cron event that deletes finished jobs.
+	 */
+	const CLEANUP_HOOK = 'photo_comp_cleanup_email_jobs';
 
 	/**
 	 * Get batch size for email sending.
@@ -141,6 +147,13 @@ class Email_Job_Manager {
 	private $rankings = array();
 
 	/**
+	 * Club standings for the batch being sent, keyed by competition ID, like $rankings.
+	 *
+	 * @var array<int, array<int, array>>
+	 */
+	private $club_rankings = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository  $competitions    Competitions repository.
@@ -190,7 +203,7 @@ class Email_Job_Manager {
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
-		// Collect all members who submitted images.
+		// Collect every member who uploaded, including a club whose images were all disqualified.
 		$member_ids = array();
 		foreach ( $categories as $category ) {
 			$category_slug = $category['slug'] ?? '';
@@ -198,7 +211,7 @@ class Email_Job_Manager {
 				continue;
 			}
 
-			$images = $this->images->find_by_competition( $competition_id, $category_slug );
+			$images = $this->images->find_uploads( $competition_id, $category_slug );
 			foreach ( $images as $image ) {
 				$member_ids[ $image->member_id ] = true;
 			}
@@ -219,7 +232,7 @@ class Email_Job_Manager {
 			return false;
 		}
 
-		return $this->queue( 'results', $competition_id, $member_ids );
+		return $this->queue( 'results_detailed', $competition_id, $member_ids );
 	}
 
 	/**
@@ -246,13 +259,21 @@ class Email_Job_Manager {
 	/**
 	 * Store a new email job.
 	 *
-	 * @param string              $type           Job type.
+	 * Only a kind of email sent in bulk, one with job wording in Email_Kinds,
+	 * can be a job, so every stored job can be shown on the admin pages.
+	 *
+	 * @param string              $type           Job type: a kind of email sent in bulk.
 	 * @param int                 $competition_id Competition ID.
 	 * @param array<int, int>     $member_ids     Recipient member IDs.
 	 * @param array<string,mixed> $args           Type-specific send arguments.
-	 * @return string|false Job ID on success, false if there are no recipients.
+	 * @return string|false Job ID on success, false if there are no recipients or the kind isn't sent in bulk.
 	 */
 	public function create_job( string $type, int $competition_id, array $member_ids, array $args = array() ) {
+		if ( empty( Email_Kinds::get( $type )['job'] ) ) {
+			_doing_it_wrong( __METHOD__, esc_html( sprintf( '"%s" is not a kind of email sent in bulk.', $type ) ), '0.4.0' );
+			return false;
+		}
+
 		$member_ids = array_values( array_unique( array_map( 'intval', $member_ids ) ) );
 
 		if ( empty( $member_ids ) ) {
@@ -337,19 +358,13 @@ class Email_Job_Manager {
 			return;
 		}
 
-		// Unlike the other emails, voting opened has no built-in fallback, so
-		// every member would fail with a misleading wp_mail() error.
-		if ( 'voting_opened' === ( $job['type'] ?? '' ) && ! $this->email_service->is_template_enabled( 'voting_opened' ) ) {
-			$this->fail_job( $job_id, $job, 'The Voting Opened email template was turned off or has no subject or body.' );
-			return;
-		}
-
 		// Get next batch of unprocessed members.
 		$remaining = array_diff( $job['member_ids'], $job['processed_ids'] );
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 		$members   = $this->members->find_many( $batch );
 
-		$this->rankings = array();
+		$this->rankings      = array();
+		$this->club_rankings = array();
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -468,61 +483,67 @@ class Email_Job_Manager {
 	 * @param array  $job         Job data.
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
-	 * @return string|WP_Error 'sent', 'skipped' (e.g. rate limited), or an error.
+	 * @return string|WP_Error 'sent', 'skipped' (e.g. rate limited, or the notification is off), or an error.
 	 */
 	private function send_to_member( array $job, object $competition, object $member ) {
 		$args = $job['args'] ?? array();
 
-		switch ( $job['type'] ?? 'results' ) {
-			case 'results':
-				$sent = $this->send_results( $competition, $member );
-				break;
+		switch ( $job['type'] ) {
+			case 'results_detailed':
+				return $this->email_service->send( 'results_detailed', $member, $competition, array( '{results_table}' => $this->results_table( $competition, $member ) ) );
 
-			case 'upload_link':
-				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id, (string) $args['upload_page_url'] );
+			case 'upload_reminder':
+				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id );
 
 			case 'voting_opened':
-				$sent = $this->email_service->send_voting_opened_notification(
-					$member->email,
-					$member->name,
-					$competition->title,
-					(string) $args['voting_page_url'],
-					(string) $args['close_date']
+				return $this->email_service->send(
+					'voting_opened',
+					$member,
+					$competition,
+					array(
+						'{voting_page}' => Competition_Settings::page_url( 'voting_page', $competition ),
+						'{close_date}'  => (string) $args['close_date'],
+					)
 				);
-				break;
 
-			case 'results_share':
-				$sent = $this->email_service->send_results_share_link(
-					$member->email,
-					$member->name,
-					$competition->title,
-					(string) $args['share_url'],
-					(int) $competition->id
+			case 'results_published':
+				// {results_share_link} is the link's old name, kept for saved templates.
+				return $this->email_service->send(
+					'results_published',
+					$member,
+					$competition,
+					array(
+						'{results_page}'       => (string) $args['share_url'],
+						'{results_share_link}' => (string) $args['share_url'],
+					)
 				);
-				break;
 
 			default:
 				return new WP_Error( 'unknown_email_job_type', sprintf( 'Unknown email job type "%s"', $job['type'] ) );
 		}
-
-		return $sent ? 'sent' : new WP_Error( 'send_failed', 'wp_mail() failed' );
 	}
 
 	/**
-	 * Build and send one member's detailed results email.
+	 * A member's results table: the rank, scores and votes for each of their entries.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
-	 * @return bool Whether the email was sent.
+	 * @return string HTML.
 	 */
-	private function send_results( object $competition, object $member ): bool {
+	private function results_table( object $competition, object $member ): string {
 		$competition_id = (int) $competition->id;
 		$member_id      = (int) $member->id;
 
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
+		// Judges' scores aren't shown per vote, only the total.
+		$judged = Ballots::is_judged( $competition );
+
+		$interclub      = $settings['interclub']['enabled'];
 		$member_results = array(
+			'judged' => $judged,
+			'club'   => $interclub ? $this->club_results( $competition_id, $member_id, $categories ) : null,
 			'images' => array(),
 		);
 
@@ -537,33 +558,87 @@ class Email_Job_Manager {
 			foreach ( $this->get_ranking( $competition_id, $category_slug ) as $group ) {
 				foreach ( $group['entries'] as $entry ) {
 					$image = $entry['image'];
-					if ( (int) $image->member_id !== $member_id ) {
+
+					// A recorded entry removed since has no image or votes to report.
+					if ( ! $image || (int) $image->member_id !== $member_id ) {
 						continue;
 					}
 
-					$votes = $this->votes->find_by_image( (int) $image->id );
+					// The statistics come from the votes. Once those no longer
+					// match the recorded count, as after a category's votes are
+					// cleared, they'd contradict the recorded score.
+					$votes       = $this->votes->find_by_image( (int) $image->id );
+					$votes_match = count( $votes ) === $entry['vote_count'];
 
 					// An ungraded entry has no position to report.
 					$member_results['images'][] = array(
 						'category_label' => $category_label,
 						'image_number'   => $image->random_number,
+						'photographer'   => $interclub ? (string) $image->photographer : '',
 						'rank'           => $group['ungraded'] ? null : $entry['position'],
 						'total_in_grade' => count( $group['entries'] ),
 						'grade'          => $group['label'],
 						'thumbnail_url'  => $this->entries->urls( $competition, $image )['thumb'],
-						'statistics'     => $this->analytics->get_vote_statistics( $votes ),
-						'votes'          => $votes,
+						'total_score'    => $entry['total_score'],
+						'vote_count'     => $entry['vote_count'],
+						'statistics'     => $votes_match && ! $judged ? $this->analytics->get_vote_statistics( $votes ) : null,
+						'votes'          => $votes_match && ! $judged ? $votes : array(),
 					);
 				}
 			}
 		}
 
-		return $this->email_service->send_results_email(
-			$member->email,
-			$member->name,
-			$competition->title,
-			$member_results
-		);
+		return render_template( 'email/results-table.php', $member_results );
+	}
+
+	/**
+	 * A club's panels and overall place in an interclub competition, or null when it has none.
+	 *
+	 * @param int               $competition_id Competition ID.
+	 * @param int               $member_id      The club's member ID.
+	 * @param array<int, array> $categories     The competition's categories.
+	 * @return array{grade: string, panels: array<int, array{label: string, total: int|null, position: int|null, of: int}>, total: int|null, position: int|null, of: int}|null
+	 */
+	private function club_results( int $competition_id, int $member_id, array $categories ): ?array {
+		if ( ! isset( $this->club_rankings[ $competition_id ] ) ) {
+			$rankings = array();
+			foreach ( $categories as $category ) {
+				$slug              = (string) ( $category['slug'] ?? '' );
+				$rankings[ $slug ] = $this->get_ranking( $competition_id, $slug );
+			}
+
+			$this->club_rankings[ $competition_id ] = $this->ranking->rank_clubs( $competition_id, $rankings );
+		}
+
+		foreach ( $this->club_rankings[ $competition_id ] as $grade ) {
+			foreach ( $grade['clubs'] as $club ) {
+				if ( (int) $club['member']->id !== $member_id ) {
+					continue;
+				}
+
+				$panels = array();
+				foreach ( $categories as $category ) {
+					$slug     = (string) ( $category['slug'] ?? '' );
+					$panel    = $club['panels'][ $slug ] ?? null;
+					$panels[] = array(
+						'label'    => (string) ( $category['label'] ?? $slug ),
+						'total'    => $panel ? $panel['total'] : null,
+						'position' => $panel ? $panel['position'] : null,
+						'of'       => count( array_filter( array_column( array_column( $grade['clubs'], 'panels' ), $slug ) ) ),
+					);
+				}
+
+				return array(
+					'grade'    => $grade['label'],
+					'panels'   => $panels,
+					'total'    => $club['total'],
+					'position' => $club['position'],
+					'of'       => count( array_filter( array_column( $grade['clubs'], 'position' ) ) ),
+				);
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -663,7 +738,7 @@ class Email_Job_Manager {
 		$cutoff    = time() - self::ABANDONED_AFTER;
 		$abandoned = array();
 
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if ( ! self::is_unfinished( $job ) ) {
 				continue;
 			}
@@ -722,7 +797,7 @@ class Email_Job_Manager {
 	public function discard_competition_jobs( int $competition_id, string $reason ): int {
 		$discarded = 0;
 
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if ( (int) $job['competition_id'] === $competition_id && self::is_unfinished( $job ) && $this->discard_job( (string) $job_id, $reason ) ) {
 				++$discarded;
 			}
@@ -751,7 +826,7 @@ class Email_Job_Manager {
 
 		$cleaned = 0;
 
-		foreach ( $this->get_all_jobs() as $job_id => $job_data ) {
+		foreach ( self::get_all_jobs() as $job_id => $job_data ) {
 			// Only clean up completed or failed jobs.
 			if ( ! in_array( $job_data['status'], array( 'completed', 'failed' ), true ) ) {
 				continue;
@@ -780,10 +855,10 @@ class Email_Job_Manager {
 	 * @return string|null Job ID, or null if there is no unfinished match.
 	 */
 	private function find_unfinished_job( string $type, int $competition_id, array $args ): ?string {
-		foreach ( $this->get_all_jobs() as $job_id => $job ) {
+		foreach ( self::get_all_jobs() as $job_id => $job ) {
 			if (
 				self::is_unfinished( $job )
-				&& ( $job['type'] ?? 'results' ) === $type
+				&& $job['type'] === $type
 				&& (int) $job['competition_id'] === $competition_id
 				&& ( $job['args'] ?? array() ) === $args
 			) {
@@ -797,9 +872,11 @@ class Email_Job_Manager {
 	/**
 	 * Load every stored email job.
 	 *
+	 * @since 0.4.0 Public and static, for the data upgrade that renames job types.
+	 *
 	 * @return array<string, array> Job data keyed by job ID.
 	 */
-	private function get_all_jobs(): array {
+	public static function get_all_jobs(): array {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

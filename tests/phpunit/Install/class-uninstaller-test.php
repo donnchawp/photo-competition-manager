@@ -17,6 +17,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		update_option( 'photo_comp_default_settings', array( 'grades' => array() ) );
 		update_option( 'photo_comp_email_templates', array( 'voting_opened' => array( 'enabled' => true ) ) );
 		update_option( 'photo_comp_voting_ui_type', 'buttons' );
+		update_option( 'photo_comp_log_retention_months', 12 );
 
 		Uninstaller::delete_data();
 
@@ -24,6 +25,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		$this->assertFalse( get_option( 'photo_comp_default_settings' ) );
 		$this->assertFalse( get_option( 'photo_comp_email_templates' ) );
 		$this->assertFalse( get_option( 'photo_comp_voting_ui_type' ) );
+		$this->assertFalse( get_option( 'photo_comp_log_retention_months' ) );
 	}
 
 	public function test_delete_data_removes_options_added_later(): void {
@@ -69,6 +71,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 	public function test_delete_data_unschedules_cron_events(): void {
 		wp_schedule_event( time(), 'daily', 'photo_comp_cleanup_email_jobs' );
 		wp_schedule_event( time(), 'daily', 'photo_competition_daily_cron' );
+		wp_schedule_event( time(), 'daily', 'photo_comp_trim_logs' );
 		wp_schedule_single_event( time() + 60, 'photo_comp_send_email_batch', array( 'email_job_a' ) );
 		wp_schedule_single_event( time() + 60, 'photo_comp_send_results_batch', array( 'email_job_b' ) );
 
@@ -76,6 +79,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_cleanup_email_jobs' ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_competition_daily_cron' ) );
+		$this->assertFalse( wp_next_scheduled( 'photo_comp_trim_logs' ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_email_batch', array( 'email_job_a' ) ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_results_batch', array( 'email_job_b' ) ) );
 	}

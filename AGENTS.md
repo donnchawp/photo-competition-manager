@@ -14,7 +14,7 @@
 
 ## Coding Style & Naming Conventions
 - Follow WordPress PHP coding standards: four-space indentation, snake_case functions, PascalCase classes inside the `PhotoCompetitionManager` namespace.
-- Prefix actions, filters, and option keys with `photo_comp_` to avoid collisions.
+- Prefix hooks the plugin fires (`do_action()`, `apply_filters()`) with `photo_competition_manager_`; bare `./vendor/bin/phpcs` enforces it via `phpcs.xml`. Option keys and cron event names use `photo_comp_`.
 - Use kebab-case for asset filenames and camelCase for JavaScript variables; keep React components in PascalCase.
 - Update inline documentation blocks (`@since`, `@param`, `@return`) whenever signatures change.
 

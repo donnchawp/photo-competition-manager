@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -53,6 +54,7 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		return (int) $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Workflow ' . $n,
 					'slug'       => 'workflow-' . $n,
 					'open_date'  => utc_time( -DAY_IN_SECONDS ),
@@ -94,6 +96,16 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->is_accepting_uploads( $competition ) );
 		$this->assertSame( Competition_Workflow::STAGE_NOT_STARTED, $this->workflow->stage( $competition, 'colour' ) );
 		$this->assertFalse( $this->workflow->is_accepting_votes( $competition, 'colour' ) );
+	}
+
+	public function test_any_voting_started_once_one_category_is_past_previewed(): void {
+		$id = $this->ready_to_open( 'mono' );
+
+		$this->assertFalse( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
+
+		$this->workflow->open_voting( $id, 'mono' );
+
+		$this->assertTrue( $this->workflow->has_any_voting_started( $this->row( $id ) ) );
 	}
 
 	public function test_closing_uploads_is_saved(): void {
@@ -275,6 +287,61 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
 	}
 
+	public function test_reopening_uploads_once_a_category_has_started_voting_is_refused(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour. Reset that category before reopening uploads.', $result->get_error_message() );
+		$this->assertTrue( $this->workflow->uploads_closed( $this->row( $id ) ) );
+	}
+
+	public function test_reopening_uploads_names_every_category_whose_voting_has_started(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+		$this->workflow->advance( $id, 'mono', Competition_Workflow::STAGE_PREVIEWED );
+		$this->workflow->open_voting( $id, 'mono' );
+		$this->workflow->close_voting( $id, 'mono' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour and Mono. Reset those categories before reopening uploads.', $result->get_error_message() );
+	}
+
+	public function test_reopening_uploads_with_a_category_only_previewed_is_allowed(): void {
+		$id = $this->ready_to_open( 'colour' );
+
+		$this->assertTrue( $this->workflow->reopen_uploads( $id ) );
+		$this->assertTrue( $this->workflow->is_accepting_uploads( $this->row( $id ) ) );
+	}
+
+	public function test_reopening_uploads_is_allowed_once_the_started_category_is_reset(): void {
+		$id = $this->ready_to_open( 'colour' );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$this->workflow->reset_category( $id, 'colour', false );
+
+		$this->assertTrue( $this->workflow->reopen_uploads( $id ) );
+	}
+
+	public function test_reopening_uploads_with_votes_and_a_started_category_names_the_category(): void {
+		$id = $this->ready_to_open( 'colour' );
+		Entry_Fixtures::insert_entry( $id, 'colour', 3, array( 9 ) );
+		$this->workflow->open_voting( $id, 'colour' );
+		$this->workflow->close_voting( $id, 'colour' );
+
+		$result = $this->workflow->reopen_uploads( $id );
+
+		$this->assertSame( 'voting_started', $result->get_error_code() );
+		$this->assertSame( 'Voting has started in Colour. Reset that category before reopening uploads.', $result->get_error_message() );
+	}
+
 	public function test_reopening_uploads_while_results_are_published_is_refused(): void {
 		$id = $this->create_competition();
 		Workflow_Fixtures::publish_results( $id );
@@ -299,6 +366,19 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->workflow->unpublish_results( $id ) );
 		$this->assertFalse( $this->workflow->results_published( $this->row( $id ) ) );
+	}
+
+	public function test_hiding_results_once_the_competition_has_closed_is_refused(): void {
+		$id = $this->create_competition();
+		Workflow_Fixtures::publish_results( $id );
+		$this->assertTrue( $this->workflow->close_competition( $id ) );
+
+		$result = $this->workflow->unpublish_results( $id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'competition_closed', $result->get_error_code() );
+		$this->assertStringContainsString( 'move the close date into the future', $result->get_error_message() );
+		$this->assertTrue( $this->workflow->results_published( $this->row( $id ) ) );
 	}
 
 	public function test_publishing_results_while_uploads_are_open_is_refused(): void {
@@ -339,8 +419,8 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		Entry_Fixtures::insert_entry( $id, 'mono', 4, array( 7 ) );
 		$voter  = Member_Fixtures::insert_with_grade( 'Voter', 'voter@example.com', 'advanced' );
 		$tokens = new Voting_Token_Repository();
-		$tokens->create( $voter, $id, 'colour', hash( 'sha256', 'colour-token' ), utc_time( DAY_IN_SECONDS ) );
-		$tokens->create( $voter, $id, 'mono', hash( 'sha256', 'mono-token' ), utc_time( DAY_IN_SECONDS ) );
+		$tokens->renew( $voter, $id, 'colour', hash( 'sha256', 'colour-token' ), utc_time( DAY_IN_SECONDS ) );
+		$tokens->renew( $voter, $id, 'mono', hash( 'sha256', 'mono-token' ), utc_time( DAY_IN_SECONDS ) );
 
 		$this->assertTrue( $this->workflow->reset_category( $id, 'colour', true ) );
 
@@ -414,6 +494,48 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->competitions->archive( $id );
 
 		$this->assertSame( Competition_Workflow::PHASE_ARCHIVED, $this->workflow->phase( $this->row( $id ) ) );
+	}
+
+	/**
+	 * Competitions open, closed and archived, with when each became Closed
+	 * or Archived.
+	 *
+	 * @return array<string, array{int|null, int|null, string|null}>
+	 */
+	public function closing_times(): array {
+		return array(
+			'open'                           => array( DAY_IN_SECONDS, null, null ),
+			'closed'                         => array( -HOUR_IN_SECONDS, null, 'close' ),
+			'archived before its close date' => array( DAY_IN_SECONDS, -HOUR_IN_SECONDS, 'archive' ),
+			'archived after it closed'       => array( -2 * HOUR_IN_SECONDS, -HOUR_IN_SECONDS, 'close' ),
+			'archived without a close date'  => array( null, -HOUR_IN_SECONDS, 'archive' ),
+		);
+	}
+
+	/**
+	 * A competition became Closed or Archived at the earlier of its passed
+	 * close date and its archive time.
+	 *
+	 * @dataProvider closing_times
+	 *
+	 * @param int|null    $close    Close date, in seconds from now.
+	 * @param int|null    $archive  Archive time, in seconds from now.
+	 * @param string|null $expected Which time closed_at() gives, or null.
+	 */
+	public function test_closed_at_is_when_it_became_closed_or_archived( ?int $close, ?int $archive, ?string $expected ): void {
+		$now         = time();
+		$competition = (object) array(
+			'open_date'  => gmdate( 'Y-m-d H:i:s', $now - 2 * DAY_IN_SECONDS ),
+			'close_date' => null === $close ? null : gmdate( 'Y-m-d H:i:s', $now + $close ),
+			'deleted_at' => null === $archive ? null : gmdate( 'Y-m-d H:i:s', $now + $archive ),
+			'settings'   => '',
+		);
+		$times       = array(
+			'close'   => $competition->close_date,
+			'archive' => $competition->deleted_at,
+		);
+
+		$this->assertSame( null === $expected ? null : $times[ $expected ], $this->workflow->closed_at( $competition ) );
 	}
 
 	public function test_a_competition_without_dates_is_open(): void {

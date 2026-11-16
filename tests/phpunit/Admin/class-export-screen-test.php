@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Export_Screen;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -43,6 +44,148 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		$this->remove_tmp_files();
 
 		parent::tear_down();
+	}
+
+	/**
+	 * A vote row as the votes repository returns it.
+	 *
+	 * @param int         $image_id Entry ID.
+	 * @param int         $score    Score.
+	 * @param string|null $name     Voter name, for a password vote.
+	 * @param int|null    $token_id Voting token ID, for a voting-link vote.
+	 * @return object
+	 */
+	private function vote( int $image_id, int $score, ?string $name, ?int $token_id = null ): object {
+		return (object) array(
+			'image_id'        => $image_id,
+			'category'        => 'colour',
+			'voter_name'      => $name,
+			'voting_token_id' => $token_id,
+			'score'           => $score,
+		);
+	}
+
+	public function test_each_voter_gets_their_own_row_in_the_votes_csv(): void {
+		$images = array();
+		foreach ( array( 11 => 1, 12 => 2 ) as $id => $random_number ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => $random_number,
+				'category'      => 'colour',
+			);
+		}
+		$votes = array(
+			$this->vote( 11, 3, 'Ann' ),
+			$this->vote( 12, 5, 'Ann' ),
+			$this->vote( 11, 4, null, 5 ),
+			$this->vote( 12, 2, null, 5 ),
+			$this->vote( 11, 1, null, 9 ),
+			$this->vote( 12, 6, null, 9 ),
+		);
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #1', 'Image #2' ),
+				array( 'Ann', 3, 5 ),
+				array( 'Token #5', 4, 2 ),
+				array( 'Token #9', 1, 6 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( $votes, $images )
+		);
+	}
+
+	public function test_each_of_a_members_images_in_a_category_gets_its_own_votes_csv_column(): void {
+		// Member 7's images 22 and 21 share their number, so their headers name the file; member 3 has one image.
+		$images = array();
+		foreach ( array( 22 => 7, 23 => 3, 21 => 7 ) as $id => $random_number ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => $random_number,
+				'category'      => 'colour',
+				'filename'      => 'photo-' . $id . '.jpg',
+			);
+		}
+		$votes = array(
+			$this->vote( 21, 5, 'Ann' ),
+			$this->vote( 22, 7, 'Ann' ),
+			$this->vote( 23, 9, 'Ann' ),
+			$this->vote( 22, 6, 'Bob' ),
+		);
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #3', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
+				array( 'Ann', 9, 5, 7 ),
+				array( 'Bob', '', '', 6 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( $votes, $images )
+		);
+	}
+
+	public function test_a_number_split_in_one_category_has_the_same_columns_in_every_category(): void {
+		// Member 7 has two colour images and one mono image.
+		$images = array();
+		foreach ( array( 21 => 'colour', 22 => 'colour', 23 => 'mono' ) as $id => $category ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => 7,
+				'category'      => $category,
+				'filename'      => 'photo-' . $id . '.jpg',
+			);
+		}
+		$mono = $this->vote( 23, 8, 'Ann' );
+
+		$mono->category = 'mono';
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
+				array( 'Ann', 5, 6 ),
+				array( '' ),
+				array( 'Category: mono' ),
+				array( 'Voter', 'Image #7a (photo-23.jpg)', 'Image #7b' ),
+				array( 'Ann', 8, 0 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( array( $this->vote( 21, 5, 'Ann' ), $this->vote( 22, 6, 'Ann' ), $mono ), $images )
+		);
+	}
+
+	public function test_every_judge_gets_their_own_row_in_the_votes_csv(): void {
+		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
+		$ann    = $judges->create( 'Ann', 'ann@example.com' );
+		$bob    = $judges->create( 'Bob', 'bob@example.com' );
+		$gone   = $judges->create( 'Cat', 'cat@example.com' );
+		$judges->delete( $gone );
+
+		$image  = (object) array(
+			'id'            => 11,
+			'random_number' => 1,
+			'category'      => 'colour',
+		);
+		$judged = function ( int $judge_id, int $score ): object {
+			$vote           = $this->vote( 11, $score, null );
+			$vote->judge_id = $judge_id;
+			return $vote;
+		};
+
+		// Judge rows sort by ID as text, so compare without caring about order.
+		$this->assertEqualsCanonicalizing(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #1' ),
+				array( 'Judge: Ann', 7 ),
+				array( 'Judge: Bob', 8 ),
+				array( 'Former judge #' . $gone, 9 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( array( $judged( $bob, 8 ), $judged( $ann, 7 ), $judged( $gone, 9 ) ), array( $image ) )
+		);
 	}
 
 	public function test_exporting_a_large_original_puts_the_full_size_file_in_the_zip(): void {
@@ -189,6 +332,7 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	private function create_competition(): int {
 		return (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Export Comp',
 				'slug'      => 'export-comp',
 				'open_date' => '2020-01-01 00:00:00',

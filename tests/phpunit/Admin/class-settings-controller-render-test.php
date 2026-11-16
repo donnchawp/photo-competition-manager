@@ -15,6 +15,7 @@ require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Settings_Controller;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -33,6 +34,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function tear_down(): void {
 		delete_option( 'photo_comp_default_settings' );
 		delete_option( 'photo_comp_voting_ui_type' );
+		delete_option( Log_Retention::OPTION );
 		parent::tear_down();
 	}
 
@@ -100,23 +102,19 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function test_render_defaults_no_saved_settings(): void {
 		// No `photo_comp_default_settings` option saved: exercises the
-		// hard-coded-defaults branch for every section (2 categories, 3
-		// grades, default upload/voting/slideshow/email/url values), plus
-		// the "buttons" default for the voting_ui_type option and the
-		// "password" auth-mode / "bar" meter-type selected() / checked()
-		// branches.
+		// hard-coded-defaults branch for every section (3 grades, default
+		// email/url values), plus the "buttons" default for the
+		// voting_ui_type option.
 		$this->assert_matches_snapshot( 'defaults-no-saved-settings' );
 	}
 
 	public function test_render_configured_settings(): void {
-		// Fully configured settings: 3 categories and 2 grades (both counts
-		// different from the 2/3 defaults, to prove the category-field and
-		// grade-field loops emit the right number of rows), token auth mode,
-		// dropdown voting UI, a non-empty voting password, click-to-zoom
-		// enabled, a custom score matrix, the "radial" meter type (so the
-		// active-card branch fires on a different card than the default),
-		// custom slideshow durations, custom email sender fields, and
-		// custom URLs for all four pages.
+		// Fully configured settings: 2 grades (different from the 3
+		// defaults, to prove the grade-field loop emits the right number of
+		// rows), dropdown voting UI, custom email sender fields, and custom
+		// URLs for all four pages. The old competition defaults (categories,
+		// upload, voting, slideshow) are stored too, and must not render:
+		// they're set on competition types now.
 		$settings = array(
 			'categories' => array(
 				array(
@@ -178,6 +176,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		update_option( 'photo_comp_default_settings', Competition_Settings::encode( $settings ) );
 		update_option( 'photo_comp_voting_ui_type', 'dropdown' );
+		update_option( Log_Retention::OPTION, 6 );
 
 		$this->assert_matches_snapshot( 'configured-settings' );
 	}
@@ -194,5 +193,13 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'with-settings-error' );
+	}
+
+	public function test_one_month_reads_in_the_singular(): void {
+		update_option( Log_Retention::OPTION, 1 );
+
+		$html = $this->render_normalized();
+
+		$this->assertStringContainsString( 'Delete log entries older than <input type="number" id="log_retention_months" name="log_retention_months" value="1" min="1" step="1" class="small-text" aria-label="Number of months" /> month</label>', $html );
 	}
 }

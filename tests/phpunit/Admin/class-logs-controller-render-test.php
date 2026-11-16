@@ -14,8 +14,10 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Logs_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
+use PhotoCompetitionManager\Service\Log_Retention;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Logs_Controller
@@ -134,6 +136,7 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	private function seed_competition( string $title, ?string $created_at = null ): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => sanitize_title( $title ),
 				// A past, closed range never overlaps the other seeded competitions.
@@ -191,6 +194,12 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function test_render_no_logs(): void {
 		// No logs, no competitions: empty state, no export button, no pagination.
 		$this->assert_matches_snapshot( 'no-logs' );
+	}
+
+	public function test_render_says_how_long_logs_are_kept(): void {
+		update_option( Log_Retention::OPTION, 6 );
+
+		$this->assert_matches_snapshot( 'kept-for-six-months' );
 	}
 
 	public function test_render_logs_with_pagination(): void {

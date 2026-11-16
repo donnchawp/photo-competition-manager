@@ -138,22 +138,30 @@ auto-increment IDs, everything else byte-exact).
 
 ### The seam
 
-`Form_Rendering` (`src/admin/Traits/trait-form-rendering.php`, `@since 0.3.0`) provides:
+The renderer is a namespaced function (`src/includes/Support/class-helpers.php`,
+`@since 0.4.0`, loaded from `src/includes/bootstrap.php` so cron and email batches can reach it):
 
 ```php
-protected function template_path( string $relative ): string;
-protected function render_template( string $relative, array $data = array() ): string;
+\PhotoCompetitionManager\Support\render_template( string $relative, array $data = array() ): string;
 ```
 
-`render_template()` is `ob_start()` + `include` + `ob_get_clean()`; it returns a string,
-it does not echo. Every controller already uses `Form_Rendering` for its POST/redirect
-helpers, so this seam is free to reach for.
+It is `ob_start()` + `include` + `ob_get_clean()` (the buffer is closed in a `finally`);
+it returns a string, it does not echo. `$relative` is a path under `src/templates/`.
+
+Controllers reach it through `Form_Rendering` (`src/admin/Traits/trait-form-rendering.php`,
+`@since 0.3.0`), whose `protected function render_template( string $relative, array $data
+= array() ): string` delegates to the function. Every controller already uses
+`Form_Rendering` for its POST/redirect helpers, so this seam is free to reach for.
+Services, which don't use the trait, import the function with
+`use function PhotoCompetitionManager\Support\render_template;` and call it directly, as
+`Email_Job_Manager` does for `email/results-table.php` (#177).
 
 ### Location and naming
 
 `src/templates/<area>/<controller>/<partial>.php`, kebab-case filenames — e.g.
 `src/templates/admin/voting/competition-status-bar.php`. One partial per logical chunk
-of markup (a card, a notice, a tab strip), not one partial per controller.
+of markup (a card, a notice, a tab strip), not one partial per controller. Email markup
+lives under `src/templates/email/`, e.g. `src/templates/email/results-table.php`.
 
 ### Contract
 

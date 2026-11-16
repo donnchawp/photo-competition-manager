@@ -16,6 +16,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<div class="notice notice-error">';
 echo '<p><strong>' . esc_html__( 'ERROR: Some members have submitted images but don\'t have a grade from the club\'s list!', 'photo-competition-manager' ) . '</strong></p>';
 echo '<p>' . esc_html__( 'The following members need grades assigned before voting can proceed. Results will not display correctly without grades.', 'photo-competition-manager' ) . '</p>';

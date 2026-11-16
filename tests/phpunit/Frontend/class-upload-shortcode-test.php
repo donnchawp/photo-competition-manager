@@ -8,10 +8,13 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Upload_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -40,14 +43,23 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	private $competition_id;
 
+	/**
+	 * $_SERVER as it was before the test.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private $server;
+
 	public function setUp(): void {
 		parent::setUp();
+		$this->server = $_SERVER;
 
 		$this->shortcode = new Upload_Shortcode();
 		$this->members   = new Members_Repository();
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -64,10 +76,15 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		);
 
 		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+
+		// The page only registers the script when the JS has been built, which CI doesn't do.
+		wp_register_script( 'photo-comp-drag-drop-upload', 'drag-drop-upload.js', array(), '1', true );
+		wp_register_script( 'photo-comp-submission-category', 'submission-category.js', array(), '1', true );
 	}
 
 	public function tearDown(): void {
 		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+		$_SERVER  = $this->server;
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -90,6 +107,16 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		return ( new Upload_Token_Repository() )->find_or_create( $member_id, $this->competition_id )->token;
 	}
 
+	public function test_upload_page_shows_entrants_grade_title(): void {
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'title' => '{grade} Upload' ), array( 'id' => $this->competition_id ) );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( '<h2>Beginner Upload</h2>', $output );
+	}
+
 	public function test_active_member_token_opens_upload_page(): void {
 		$_GET['token'] = $this->issue_token( true );
 
@@ -97,6 +124,115 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
 		$this->assertStringNotContainsString( 'token-request-section', $output );
+	}
+
+	/**
+	 * The upload page shows the lower of the competition's limit (5 MB) and
+	 * the server's.
+	 *
+	 * @dataProvider server_limits
+	 *
+	 * @param int $server_limit The server's limit, in bytes.
+	 * @param int $shown_mb     The limit the page should show, in MB.
+	 */
+	public function test_the_upload_page_shows_the_limit_really_enforced( int $server_limit, int $shown_mb ): void {
+		add_filter(
+			'photo_competition_manager_server_upload_limit',
+			static function () use ( $server_limit ) {
+				return $server_limit;
+			}
+		);
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( "Max size: {$shown_mb} MB.", $output );
+		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	public function test_the_upload_page_loads_the_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_a_deactivated_members_page_loads_no_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( false );
+
+		$this->shortcode->render( array() );
+
+		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	public function test_the_upload_page_loads_the_category_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		$this->assertSame( 'photo-competition-manager', wp_scripts()->registered['photo-comp-submission-category']->textdomain );
+	}
+
+	public function test_a_deactivated_members_page_loads_no_category_script_translations(): void {
+		$_GET['token'] = $this->issue_token( false );
+
+		$this->shortcode->render( array() );
+
+		$this->assertNull( wp_scripts()->registered['photo-comp-submission-category']->textdomain );
+	}
+
+	public function test_a_member_with_every_category_full_loads_no_upload_script_translations(): void {
+		$_GET['token'] = $this->issue_token( true );
+		$member        = $this->members->find_by_email( 'uploader@example.com' );
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $member->id,
+				'category'       => 'colour',
+				'filename'       => 'entry.jpg',
+			)
+		);
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'You have reached the maximum number of submissions for all categories.', $output );
+		$this->assertNull( wp_scripts()->registered['photo-comp-drag-drop-upload']->textdomain );
+	}
+
+	/**
+	 * Server limits, and the limit the page should show for each.
+	 *
+	 * @return array<string, array{0: int, 1: int}>
+	 */
+	public function server_limits(): array {
+		return array(
+			'server below the competition' => array( 2 * MB_IN_BYTES, 2 ),
+			'competition below the server' => array( 8 * MB_IN_BYTES, 5 ),
+			// PHP reads a size limit of 0 or less as no limit.
+			'no server limit'              => array( 0, 5 ),
+		);
+	}
+
+	/**
+	 * The settings the upload page hands the drag-and-drop script.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function upload_script_data(): array {
+		$data = wp_scripts()->get_data( 'photo-comp-drag-drop-upload', 'data' );
+		preg_match( '/var photoCompUpload = (\{.*\});/s', (string) $data, $matches );
+
+		return json_decode( $matches[1] ?? 'null', true ) ?? array();
+	}
+
+	public function test_the_upload_page_has_a_live_region_for_the_drag_and_drop_results(): void {
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		// Screen readers announce only what's written into a live region already on the page.
+		$this->assertStringContainsString( '<div class="photo-comp-upload-status" role="status" aria-atomic="false"></div>', $output );
 	}
 
 	public function test_submission_delete_form_uses_two_tap_confirmation(): void {
@@ -169,6 +305,113 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Uploads are closed', $output );
 	}
 
+	/**
+	 * Make the test's competition an interclub one.
+	 *
+	 * @param int $quota              Images in the colour panel.
+	 * @param int $substitutes        Substitutes beside it.
+	 * @param int $photographer_limit Most images per photographer in it; 0 for no limit.
+	 */
+	private function make_interclub( int $quota, int $substitutes, int $photographer_limit = 0 ): void {
+		( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => $quota,
+						),
+					),
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => $substitutes,
+						'photographer_limit' => $photographer_limit,
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Store one of the uploader's images in the colour panel.
+	 *
+	 * @param string $photographer Photographer's name.
+	 * @param string $entry_status Entry status.
+	 * @return void
+	 */
+	private function insert_panel_image( string $photographer, string $entry_status = 'entered' ): void {
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $this->members->find_by_email( 'uploader@example.com' )->id,
+				'category'       => 'colour',
+				'filename'       => wp_unique_id( 'panel-' ) . '.jpg',
+				'photographer'   => $photographer,
+				'entry_status'   => $entry_status,
+			)
+		);
+	}
+
+	public function test_a_club_with_a_full_panel_can_still_upload_its_substitutes(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann' );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringNotContainsString( 'You have reached the maximum number of submissions', $output );
+		$data = $this->upload_script_data();
+		$this->assertSame( 1, $data['quotas']['colour']['remaining'] );
+		$this->assertSame( 1, $data['quotas']['colour']['substitutes_remaining'] );
+		$this->assertTrue( $data['interclub']['enabled'] );
+	}
+
+	public function test_the_upload_script_knows_a_panels_entered_places_left(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+
+		$this->shortcode->render( array() );
+
+		// Without it the script refuses every entered image in an interclub batch.
+		$this->assertSame( 1, $this->upload_script_data()['quotas']['colour']['entered_remaining'] ?? null );
+	}
+
+	public function test_a_club_sees_each_images_photographer_and_its_substitutes(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$this->insert_panel_image( 'Bob Byrne', 'substitute' );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Ann Murphy', $output );
+		$this->assertMatchesRegularExpression( '/Bob Byrne.*Substitute/s', $output );
+	}
+
+	public function test_an_upload_over_the_photographer_limit_says_so(): void {
+		$this->make_interclub( 2, 0, 1 );
+		$token = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$_POST['photographer'] = 'ann murphy';
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'That photographer already has as many images in this panel as they&#039;re allowed.', $output );
+	}
+
+	public function test_an_entry_refused_by_a_full_panel_points_to_the_substitute_box(): void {
+		$this->make_interclub( 1, 1 );
+		$token = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$_POST['photographer'] = 'Bob Byrne';
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'This panel has all its entries. To add this image as a substitute, tick “This is a substitute” and upload it again.', $output );
+	}
+
 	public function test_an_upload_over_quota_shows_the_quota_message(): void {
 		$token = $this->issue_token( true );
 		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
@@ -182,6 +425,27 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_INI_SIZE ) );
 
 		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_a_file_over_post_max_size_says_it_is_too_big(): void {
+		$_GET['token']             = $this->issue_token( true );
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = (string) ( 2 * GB_IN_BYTES );
+
+		$output = $this->follow( $this->capture_redirect() );
+
+		$this->assertStringContainsString( 'That image is too big. Check the size limit under the upload form.', $output );
+	}
+
+	public function test_an_empty_post_under_post_max_size_just_shows_the_page(): void {
+		$_GET['token']             = $this->issue_token( true );
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['CONTENT_LENGTH'] = '0';
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $output );
+		$this->assertStringNotContainsString( 'class="error"', $output );
 	}
 
 	public function test_a_file_of_the_wrong_type_says_so(): void {
@@ -228,6 +492,19 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'This competition isn&#039;t accepting uploads right now.', $output );
 	}
 
+	/**
+	 * Uploads can't reopen once a category's voting has started, but a site
+	 * that reopened them before that rule may still have uploads open.
+	 */
+	public function test_an_upload_to_a_category_whose_voting_has_started_says_so(): void {
+		$token = $this->issue_token( true );
+		( new Competitions_Repository() )->save_workflow( $this->competition_id, array( 'stages' => array( 'colour' => Competition_Workflow::STAGE_CRITIQUE ) ) );
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'Voting has started in this category, so it can&#039;t take new entries.', $output );
+	}
+
 	public function test_deleting_an_entry_thats_already_gone_says_so(): void {
 		$output = $this->follow( $this->post_delete( $this->issue_token( true ), 999999 ) );
 
@@ -255,6 +532,69 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->shortcode->render( array() );
 
 		$this->assertStringNotContainsString( 'class="error"', $output );
+	}
+
+	/**
+	 * @dataProvider message_texts
+	 */
+	public function test_each_message_key_shows_its_text( string $key, string $escaped_text ): void {
+		$_GET = array(
+			'token'    => $this->issue_token( true ),
+			'msg_type' => 'success',
+			'msg_key'  => $key,
+			'msg_time' => time(),
+		);
+
+		$this->assertStringContainsString( '<p class="success">' . $escaped_text . '</p>', $this->shortcode->render( array() ) );
+	}
+
+	/**
+	 * Every message key and the text it shows, as escaped on the page.
+	 *
+	 * @return array<string, array{0: string, 1: string}>
+	 */
+	public function message_texts(): array {
+		return array(
+			'upload_success'       => array( 'upload_success', 'Image uploaded successfully!' ),
+			'delete_success'       => array( 'delete_success', 'Image deleted successfully.' ),
+			'category_missing'     => array( 'category_missing', 'Please select a category.' ),
+			'image_missing'        => array( 'image_missing', 'Please select an image to upload.' ),
+			'invalid_deletion'     => array( 'invalid_deletion', 'Invalid deletion request.' ),
+			'upload_failed'        => array( 'upload_failed', 'Upload failed. Please try again.' ),
+			'delete_failed'        => array( 'delete_failed', 'Failed to delete image. Please try again.' ),
+			'quota_exceeded'       => array( 'quota_exceeded', 'You&#039;ve already uploaded the maximum number of images for this category.' ),
+			'uploads_closed'       => array( 'uploads_closed', 'This competition isn&#039;t accepting uploads right now.' ),
+			'category_has_votes'   => array( 'category_has_votes', 'This category already has votes, so it can&#039;t take new entries.' ),
+			'voting_started'       => array( 'voting_started', 'Voting has started in this category, so it can&#039;t take new entries.' ),
+			'invalid_category'     => array( 'invalid_category', 'That category isn&#039;t part of this competition.' ),
+			'file_too_large'       => array( 'file_too_large', 'That image is too big. Check the size limit under the upload form.' ),
+			'wrong_file_type'      => array( 'wrong_file_type', 'That file type isn&#039;t allowed. Check the formats listed under the upload form.' ),
+			'invalid_image'        => array( 'invalid_image', 'That file isn&#039;t a valid image.' ),
+			'deleting_closed'      => array( 'deleting_closed', 'Images can&#039;t be deleted now that uploads have closed.' ),
+			'entry_not_found'      => array( 'entry_not_found', 'That image wasn&#039;t found. It may already have been deleted.' ),
+			'photographer_missing' => array( 'photographer_missing', 'Please give the photographer&#039;s name.' ),
+			'no_substitutes'       => array( 'no_substitutes', 'This competition doesn&#039;t take substitutes.' ),
+			'substitutes_full'     => array( 'substitutes_full', 'This panel already has all its substitutes.' ),
+			'photographer_limit'   => array( 'photographer_limit', 'That photographer already has as many images in this panel as they&#039;re allowed. Substitutes don&#039;t count.' ),
+		);
+	}
+
+	public function test_a_message_shows_its_translation(): void {
+		$translate = static function ( $translation, $text, $domain ) {
+			if ( 'photo-competition-manager' === $domain && 'Upload failed. Please try again.' === $text ) {
+				return 'Níor éirigh leis an uaslódáil.';
+			}
+			return $translation;
+		};
+		add_filter( 'gettext', $translate, 10, 3 );
+
+		try {
+			$output = $this->follow( $this->post_upload( $this->issue_token( true ), UPLOAD_ERR_PARTIAL ) );
+		} finally {
+			remove_filter( 'gettext', $translate, 10 );
+		}
+
+		$this->assertStringContainsString( '<p class="error">Níor éirigh leis an uaslódáil.</p>', $output );
 	}
 
 	/**
@@ -340,9 +680,11 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * @return string Rendered page.
 	 */
 	private function follow( string $location ): string {
-		$_POST    = array();
-		$_REQUEST = array();
-		$_FILES   = array();
+		unset( $_SERVER['CONTENT_LENGTH'] );
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_POST                     = array();
+		$_REQUEST                  = array();
+		$_FILES                    = array();
 		wp_parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $_GET );
 
 		return $this->shortcode->render( array() );
@@ -355,5 +697,94 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'token-request-section', $output );
 		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	/**
+	 * Make the page's competition an Individual one of two types, and issue a token to a member of the given types.
+	 *
+	 * @param string   $entry_mode 'all' or 'selected'.
+	 * @param string[] $types      The member's type names.
+	 * @return array{0: string, 1: int} Token and member ID.
+	 */
+	private function two_type_token( string $entry_mode, array $types ): array {
+		Type_Fixtures::clear();
+		$type_ids = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team' ),
+		);
+		$updated = ( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'type_id'    => $type_ids['Individual'],
+				'entry_mode' => $entry_mode,
+			)
+		);
+		$this->assertTrue( $updated );
+		$member_id = (int) $this->members->create(
+			array(
+				'name'     => 'Uploader',
+				'email'    => 'uploader@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array_map(
+					static function ( $type ) use ( $type_ids ) {
+						return $type_ids[ $type ];
+					},
+					$types
+				),
+			)
+		);
+
+		return array( ( new Upload_Token_Repository() )->find_or_create( $member_id, $this->competition_id )->token, $member_id );
+	}
+
+	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
+		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		$entrants                  = new Entrants_Repository();
+		$entrants->add( $this->competition_id, $member_id );
+		$_GET['token'] = $token;
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $this->shortcode->render( array() ) );
+
+		$entrants->remove( $this->competition_id, $member_id );
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertStringContainsString( 'token-request-section', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	public function test_a_removed_entrants_upload_is_refused(): void {
+		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $this->competition_id ) );
+		$nonce = wp_create_nonce( 'photo_competition_upload_with_token' );
+
+		$_GET['token']                       = $token;
+		$_POST['photo_competition_upload']   = '1';
+		$_POST['photo_competition_nonce']    = $nonce;
+		$_REQUEST['photo_competition_nonce'] = $nonce;
+		$_POST['category']                   = 'colour';
+		$GLOBALS['post']                     = get_post( self::factory()->post->create( array( 'post_type' => 'page' ) ) );
+
+		// No redirect: the upload isn't handled at all.
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertSame( array(), ( new Images_Repository() )->find_uploads( $this->competition_id ) );
+	}
+
+	public function test_a_member_without_the_competitions_type_is_refused_on_the_page(): void {
+		list( $token ) = $this->two_type_token( 'all', array( 'Team' ) );
+		$_GET['token'] = $token;
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	public function test_a_member_with_the_competitions_type_opens_the_page(): void {
+		list( $token ) = $this->two_type_token( 'all', array( 'Individual', 'Team' ) );
+		$_GET['token'] = $token;
+
+		$this->assertStringContainsString( 'Authenticated as: Uploader', $this->shortcode->render( array() ) );
 	}
 }

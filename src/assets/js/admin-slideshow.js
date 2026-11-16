@@ -165,7 +165,6 @@
 			$(document).on('click', '.photo-competition-manager-start-slideshow', function() {
 				const $btn = $(this);
 				const competitionId = $btn.data('competition-id');
-				const competitionSlug = $btn.data('competition-slug');
 				const category = $btn.data('category');
 				const categoryLabel = $btn.data('category-label');
 
@@ -176,7 +175,7 @@
 					self.overrideDuration = parseInt($durationInput.val(), 10) * 1000 || 0;
 				}
 
-				self.loadSlideshow(competitionId, competitionSlug, category, categoryLabel);
+				self.loadSlideshow(competitionId, category, categoryLabel);
 			});
 
 			// Control buttons
@@ -298,7 +297,7 @@
 			});
 		}
 
-		loadSlideshow(competitionId, competitionSlug, category, categoryLabel) {
+		loadSlideshow(competitionId, category, categoryLabel) {
 			const self = this;
 
 			// Load images via AJAX
@@ -309,7 +308,6 @@
 					action: 'photo_comp_get_slideshow_images',
 					nonce: photoCompetitionManagerSlideshow.nonce,
 					competition_id: competitionId,
-					competition_slug: competitionSlug,
 					category: category
 				},
 				success: function(response) {

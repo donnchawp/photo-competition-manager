@@ -4,14 +4,21 @@
  * @package PhotoCompetitionManager
  */
 
+import { __, _n, sprintf } from '@wordpress/i18n';
+
 class DragDropUpload {
 	constructor(config) {
 		this.token = config.token;
 		this.apiUrl = config.apiUrl;
 		this.categories = config.categories;
-		this.quotas = config.quotas;
+		// A copy, since the uploader counts down each category's remaining quota as images go in.
+		this.quotas = Object.fromEntries(
+			Object.entries(config.quotas).map(([slug, quota]) => [slug, { ...quota }])
+		);
 		this.maxFileSize = config.maxFileSize || 10 * 1024 * 1024; // 10MB default
 		this.allowedFormats = config.allowedFormats || ['jpg', 'jpeg', 'png'];
+		// In an interclub competition each image names its photographer and may be a substitute.
+		this.interclub = config.interclub || { enabled: false, substitutes: 0 };
 		this.selectedFiles = [];
 
 		this.init();
@@ -23,9 +30,20 @@ class DragDropUpload {
 		this.previewGrid = document.querySelector('.photo-comp-preview-grid');
 		this.uploadButton = document.querySelector('.photo-comp-upload-all-btn');
 		this.progressSection = document.querySelector('.photo-comp-upload-progress');
+		// A live region already in the page, so screen readers announce what's written into it.
+		this.statusRegion = document.querySelector('.photo-comp-upload-status');
 
 		if (!this.dropZone || !this.fileInput || !this.previewGrid) {
 			return;
+		}
+
+		// A copy of the page cached before the region was added: make one, so messages still show.
+		if (!this.statusRegion) {
+			this.statusRegion = document.createElement('div');
+			this.statusRegion.className = 'photo-comp-upload-status';
+			this.statusRegion.setAttribute('role', 'status');
+			this.statusRegion.setAttribute('aria-atomic', 'false');
+			this.progressSection.before(this.statusRegion);
 		}
 
 		this.bindEvents();
@@ -88,17 +106,16 @@ class DragDropUpload {
 		const validFiles = files.filter((file) => this.validateFile(file));
 
 		if (validFiles.length === 0) {
-			this.showError('No valid image files selected.');
+			this.showError(__('No valid image files selected.', 'photo-competition-manager'));
 			return;
 		}
 
-		// Calculate total available quota across all categories.
-		const totalAvailableQuota = this.getTotalAvailableQuota();
-		const currentFileCount = this.selectedFiles.length;
-		const availableSlots = totalAvailableQuota - currentFileCount;
+		// Every selected image takes a place, whatever its category, so an over-full category can't hide one.
+		const totalRemaining = Object.values(this.quotas).reduce((sum, quota) => sum + quota.remaining, 0);
+		const availableSlots = totalRemaining - this.selectedFiles.length;
 
 		if (availableSlots <= 0) {
-			this.showError('All category quotas are full. Cannot add more files.');
+			this.showError(__('All category quotas are full. Cannot add more files.', 'photo-competition-manager'));
 			return;
 		}
 
@@ -107,9 +124,17 @@ class DragDropUpload {
 		const rejectedCount = validFiles.length - filesToAdd.length;
 
 		if (rejectedCount > 0) {
-			this.showError(
-				`Only ${filesToAdd.length} file(s) added. ${rejectedCount} file(s) rejected due to quota limits.`
+			const added = sprintf(
+				/* translators: %d: number of files added. */
+				_n('Only %d file added.', 'Only %d files added.', filesToAdd.length, 'photo-competition-manager'),
+				filesToAdd.length
 			);
+			const rejected = sprintf(
+				/* translators: %d: number of files turned away. */
+				_n('%d file rejected due to quota limits.', '%d files rejected due to quota limits.', rejectedCount, 'photo-competition-manager'),
+				rejectedCount
+			);
+			this.showError(`${added} ${rejected}`);
 		}
 
 		filesToAdd.forEach((file) => {
@@ -119,6 +144,8 @@ class DragDropUpload {
 				file: file,
 				category: '',
 				preview: null,
+				photographer: '',
+				substitute: false,
 			};
 
 			this.selectedFiles.push(fileData);
@@ -126,26 +153,6 @@ class DragDropUpload {
 		});
 
 		this.updateUI();
-	}
-
-	getTotalAvailableQuota() {
-		// Calculate remaining quota across all categories, accounting for already-assigned files.
-		const assignedCount = {};
-		this.selectedFiles.forEach((fileData) => {
-			if (fileData.category) {
-				assignedCount[fileData.category] = (assignedCount[fileData.category] || 0) + 1;
-			}
-		});
-
-		let total = 0;
-		Object.keys(this.quotas).forEach((categorySlug) => {
-			const quota = this.quotas[categorySlug];
-			const assigned = assignedCount[categorySlug] || 0;
-			const remaining = quota.remaining - assigned;
-			total += Math.max(0, remaining);
-		});
-
-		return total;
 	}
 
 	getEffectiveRemainingQuota(categorySlug) {
@@ -196,7 +203,12 @@ class DragDropUpload {
 		// Check file size.
 		if (file.size > this.maxFileSize) {
 			this.showError(
-				`${file.name} is too large. Maximum file size is ${this.formatFileSize(this.maxFileSize)}.`
+				sprintf(
+					/* translators: 1: file name, 2: maximum file size, such as "5 MB". */
+					__('%1$s is too large. Maximum file size is %2$s.', 'photo-competition-manager'),
+					file.name,
+					this.formatFileSize(this.maxFileSize)
+				)
 			);
 			return false;
 		}
@@ -234,6 +246,9 @@ class DragDropUpload {
 		fileInfo.textContent = this.formatFileSize(fileData.file.size);
 
 		controls.appendChild(categorySelect);
+		if (this.interclub.enabled) {
+			controls.appendChild(this.createInterclubFields(fileData));
+		}
 		controls.appendChild(fileInfo);
 		controls.appendChild(removeButton);
 
@@ -241,6 +256,47 @@ class DragDropUpload {
 		item.appendChild(controls);
 
 		this.previewGrid.appendChild(item);
+	}
+
+	/**
+	 * Build an image's photographer field, and its substitute box when the panel takes substitutes.
+	 *
+	 * @param {Object} fileData The selected file.
+	 * @return {HTMLElement} The fields.
+	 */
+	createInterclubFields(fileData) {
+		const container = document.createElement('div');
+		container.className = 'photo-comp-interclub-fields';
+
+		const nameLabel = document.createElement('label');
+		nameLabel.append(__('Photographer:', 'photo-competition-manager'), ' ');
+		const nameInput = document.createElement('input');
+		nameInput.type = 'text';
+		nameInput.className = 'photo-comp-photographer-input';
+		nameInput.maxLength = 191;
+		nameInput.required = true;
+		nameInput.addEventListener('input', (e) => {
+			fileData.photographer = e.target.value.trim();
+			this.updateUploadButton();
+		});
+		nameLabel.appendChild(nameInput);
+		container.appendChild(nameLabel);
+
+		if (this.interclub.substitutes > 0) {
+			const substituteLabel = document.createElement('label');
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.className = 'photo-comp-substitute-checkbox';
+			checkbox.addEventListener('change', (e) => {
+				fileData.substitute = e.target.checked;
+				this.updateUploadButton();
+				this.updateQuotaWarning();
+			});
+			substituteLabel.append(checkbox, ' ', __('Substitute', 'photo-competition-manager'));
+			container.appendChild(substituteLabel);
+		}
+
+		return container;
 	}
 
 	createCategorySelect(fileData) {
@@ -253,20 +309,12 @@ class DragDropUpload {
 		// If only one category is available, auto-select it and show as text.
 		if (availableCategories.length === 1) {
 			const cat = availableCategories[0];
-			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
 
 			// Auto-assign the category.
 			fileData.category = cat.slug;
 
 			// Display as text instead of dropdown.
-			const categoryLabel = document.createElement('div');
-			categoryLabel.className = 'photo-comp-category-label';
-
-			// Only show remaining count if quota is more than 1.
-			const quota = this.quotas[cat.slug];
-			const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
-			categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
-			container.appendChild(categoryLabel);
+			container.appendChild(this.createCategoryLabel(cat));
 
 			// Trigger update since we auto-assigned.
 			this.updateUploadButton();
@@ -280,21 +328,7 @@ class DragDropUpload {
 		select.className = 'photo-comp-category-select';
 		select.dataset.fileId = fileData.id;
 
-		const defaultOption = document.createElement('option');
-		defaultOption.value = '';
-		defaultOption.textContent = '-- Select Category --';
-		select.appendChild(defaultOption);
-
-		availableCategories.forEach((cat) => {
-			const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
-			const option = document.createElement('option');
-			option.value = cat.slug;
-			// Only show remaining count if quota is more than 1.
-			const quota = this.quotas[cat.slug];
-			const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
-			option.textContent = `${cat.label}${remainingText}`;
-			select.appendChild(option);
-		});
+		this.fillCategoryOptions(select, availableCategories);
 
 		select.addEventListener('change', (e) => {
 			fileData.category = e.target.value;
@@ -305,6 +339,76 @@ class DragDropUpload {
 
 		container.appendChild(select);
 		return container;
+	}
+
+	/**
+	 * Build the text shown in place of the dropdown when only one category fits.
+	 *
+	 * The label is added as text, so a category label with HTML in it shows as written.
+	 *
+	 * @param {Object} cat The category.
+	 * @return {HTMLElement} The label.
+	 */
+	createCategoryLabel(cat) {
+		const categoryLabel = document.createElement('div');
+		categoryLabel.className = 'photo-comp-category-label';
+
+		const heading = document.createElement('strong');
+		heading.textContent = __('Category:', 'photo-competition-manager');
+		categoryLabel.append(heading, ` ${cat.label}`);
+
+		const remaining = this.remainingText(cat);
+		if (remaining) {
+			const small = document.createElement('small');
+			small.textContent = remaining;
+			categoryLabel.append(' ', small);
+		}
+
+		return categoryLabel;
+	}
+
+	/**
+	 * Replace a dropdown's options with a prompt and the given categories.
+	 *
+	 * @param {HTMLSelectElement} select     The dropdown.
+	 * @param {Object[]}          categories The categories to offer.
+	 */
+	fillCategoryOptions(select, categories) {
+		select.replaceChildren();
+
+		const defaultOption = document.createElement('option');
+		defaultOption.value = '';
+		defaultOption.textContent = __('-- Select Category --', 'photo-competition-manager');
+		select.appendChild(defaultOption);
+
+		categories.forEach((cat) => {
+			const option = document.createElement('option');
+			option.value = cat.slug;
+			const remaining = this.remainingText(cat);
+			option.textContent = remaining ? `${cat.label} ${remaining}` : cat.label;
+			select.appendChild(option);
+		});
+	}
+
+	/**
+	 * How many more images a category takes, such as "(2 remaining)".
+	 *
+	 * Left out for a category that takes only one image.
+	 *
+	 * @param {Object} cat The category.
+	 * @return {string} The text, or an empty string.
+	 */
+	remainingText(cat) {
+		if (this.quotas[cat.slug].quota <= 1 && !(this.interclub.substitutes > 0)) {
+			return '';
+		}
+
+		const remaining = this.getEffectiveRemainingQuota(cat.slug);
+		return sprintf(
+			/* translators: %d: number of images the category still takes. */
+			_n('(%d remaining)', '(%d remaining)', remaining, 'photo-competition-manager'),
+			remaining
+		);
 	}
 
 	refreshCategorySelects() {
@@ -329,66 +433,30 @@ class DragDropUpload {
 			// Get available categories for this specific file (includes current category even if exhausted).
 			const availableCategories = this.getAvailableCategoriesForFile(fileData);
 
-			// If only one category available now, switch to label.
-			if (availableCategories.length === 1) {
-				const cat = availableCategories[0];
-				const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
-
-				// Auto-assign if not already assigned.
-				if (fileData.category === '') {
-					fileData.category = cat.slug;
-				}
-
-				// Replace with label.
-				const categoryLabel = document.createElement('div');
-				categoryLabel.className = 'photo-comp-category-label';
-				const quota = this.quotas[cat.slug];
-				const remainingText = quota.quota > 1 ? ` <small>(${effectiveRemaining} remaining)</small>` : '';
-				categoryLabel.innerHTML = `<strong>Category:</strong> ${cat.label}${remainingText}`;
-
-				const newContainer = document.createElement('div');
-				newContainer.className = 'photo-comp-category-select-container';
-				newContainer.appendChild(categoryLabel);
-
-				existingContainer.replaceWith(newContainer);
-			} else if (availableCategories.length > 1) {
-				// Multiple categories - ensure dropdown is up to date.
-				const existingSelect = existingContainer.querySelector('select');
-
-				// If it's currently a label, recreate as dropdown.
-				if (!existingSelect) {
-					const newContainer = this.createCategorySelect(fileData);
-					existingContainer.replaceWith(newContainer);
-					// Set the value if there was a previous assignment.
-					if (fileData.category) {
-						const newSelect = newContainer.querySelector('select');
-						if (newSelect) {
-							newSelect.value = fileData.category;
-						}
-					}
-				} else {
-					// Update existing dropdown options.
-					const currentValue = fileData.category;
-					existingSelect.innerHTML = '';
-
-					const defaultOption = document.createElement('option');
-					defaultOption.value = '';
-					defaultOption.textContent = '-- Select Category --';
-					existingSelect.appendChild(defaultOption);
-
-					availableCategories.forEach((cat) => {
-						const effectiveRemaining = this.getEffectiveRemainingQuota(cat.slug);
-						const option = document.createElement('option');
-						option.value = cat.slug;
-						const quota = this.quotas[cat.slug];
-						const remainingText = quota.quota > 1 ? ` (${effectiveRemaining} remaining)` : '';
-						option.textContent = `${cat.label}${remainingText}`;
-						existingSelect.appendChild(option);
-					});
-
-					existingSelect.value = currentValue;
-				}
+			if (availableCategories.length === 0) {
+				return;
 			}
+
+			// A dropdown that still has a choice to offer keeps its place; its options are refreshed below.
+			const existingSelect = existingContainer.querySelector('select');
+			if (existingSelect && availableCategories.length > 1) {
+				return;
+			}
+
+			// Otherwise rebuild it: a label when one category fits (auto-assigned), a dropdown when several do.
+			existingContainer.replaceWith(this.createCategorySelect(fileData));
+		});
+
+		// Fill the dropdowns last, so their counts include every file given its only category above.
+		this.selectedFiles.forEach((fileData) => {
+			const select = this.previewGrid.querySelector(`select[data-file-id="${fileData.id}"]`);
+			const availableCategories = this.getAvailableCategoriesForFile(fileData);
+			if (!select || availableCategories.length < 2) {
+				return;
+			}
+
+			this.fillCategoryOptions(select, availableCategories);
+			select.value = fileData.category;
 		});
 
 		this.updateUploadButton();
@@ -401,10 +469,11 @@ class DragDropUpload {
 			existingWarning.remove();
 		}
 
-		if (!this.validateQuotas()) {
+		const problem = this.quotaProblem();
+		if (problem) {
 			const warning = document.createElement('div');
 			warning.className = 'photo-comp-quota-warning';
-			warning.textContent = 'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.';
+			warning.textContent = problem;
 			this.previewGrid.parentNode.insertBefore(warning, this.previewGrid);
 		}
 	}
@@ -413,8 +482,15 @@ class DragDropUpload {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'photo-comp-remove-btn';
-		button.textContent = 'Remove';
-		button.setAttribute('aria-label', `Remove ${fileData.file.name}`);
+		button.textContent = __('Remove', 'photo-competition-manager');
+		button.setAttribute(
+			'aria-label',
+			sprintf(
+				/* translators: %s: file name. */
+				__('Remove %s', 'photo-competition-manager'),
+				fileData.file.name
+			)
+		);
 
 		button.addEventListener('click', () => {
 			this.removeFile(fileData.id);
@@ -459,9 +535,10 @@ class DragDropUpload {
 		}
 
 		const allCategoriesAssigned = this.selectedFiles.every((f) => f.category !== '');
+		const allPhotographersNamed = !this.interclub.enabled || this.selectedFiles.every((f) => f.photographer !== '');
 		const quotaValid = this.validateQuotas();
 
-		if (allCategoriesAssigned && this.selectedFiles.length > 0 && quotaValid) {
+		if (allCategoriesAssigned && allPhotographersNamed && this.selectedFiles.length > 0 && quotaValid) {
 			this.uploadButton.disabled = false;
 		} else {
 			this.uploadButton.disabled = true;
@@ -469,113 +546,239 @@ class DragDropUpload {
 	}
 
 	validateQuotas() {
-		// Count files per category.
-		const categoryCount = {};
+		return this.quotaProblem() === '';
+	}
+
+	/**
+	 * What's wrong with the selection's categories, if anything.
+	 *
+	 * @return {string} The warning to show, or an empty string.
+	 */
+	quotaProblem() {
+		const tooMany = __(
+			'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
+			'photo-competition-manager'
+		);
+
+		// Count files per category, and in an interclub panel its entries and substitutes apart.
+		const counts = {};
 		this.selectedFiles.forEach((fileData) => {
 			if (fileData.category) {
-				categoryCount[fileData.category] = (categoryCount[fileData.category] || 0) + 1;
+				const count = (counts[fileData.category] ||= { all: 0, entered: 0, substitutes: 0 });
+				++count.all;
+				++count[fileData.substitute ? 'substitutes' : 'entered'];
 			}
 		});
 
-		// Check if any category exceeds quota.
-		for (const [category, count] of Object.entries(categoryCount)) {
+		for (const [category, count] of Object.entries(counts)) {
 			const quota = this.quotas[category];
-			if (!quota || count > quota.remaining) {
-				return false;
+			if (!quota || count.all > quota.remaining) {
+				return tooMany;
+			}
+
+			if (!this.interclub.enabled) {
+				continue;
+			}
+
+			const label = this.categories.find((cat) => cat.slug === category)?.label ?? category;
+
+			if (count.entered > quota.entered_remaining) {
+				if (0 === quota.entered_remaining) {
+					return sprintf(
+						/* translators: 1: category label, 2: substitutes the panel still takes. */
+						_n(
+							'The %1$s panel has all its entries, but has room for %2$d substitute. Tick Substitute on an image to add it as one.',
+							'The %1$s panel has all its entries, but has room for %2$d substitutes. Tick Substitute on an image to add it as one.',
+							quota.substitutes_remaining,
+							'photo-competition-manager'
+						),
+						label,
+						quota.substitutes_remaining
+					);
+				}
+
+				return sprintf(
+					/* translators: 1: category label, 2: entries the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more entry.',
+						'The %1$s panel has room for %2$d more entries.',
+						quota.entered_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.entered_remaining
+				);
+			}
+
+			if (count.substitutes > quota.substitutes_remaining) {
+				return sprintf(
+					/* translators: 1: category label, 2: substitutes the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more substitute.',
+						'The %1$s panel has room for %2$d more substitutes.',
+						quota.substitutes_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.substitutes_remaining
+				);
 			}
 		}
 
-		return true;
+		return '';
 	}
 
-	uploadAll() {
+	async uploadAll() {
 		if (this.selectedFiles.length === 0) {
 			return;
 		}
 
 		// Disable upload button.
 		this.uploadButton.disabled = true;
-		this.uploadButton.textContent = 'Uploading...';
+		this.uploadButton.textContent = __('Uploading...', 'photo-competition-manager');
 
 		// Show progress section with progress bar.
 		this.progressSection.style.display = 'block';
-		this.progressSection.innerHTML = `
-			<p>Uploading ${this.selectedFiles.length} image(s)...</p>
-			<div class="photo-comp-progress-bar-container">
-				<div class="photo-comp-progress-bar" id="upload-progress-bar"></div>
-				<div class="photo-comp-progress-text" id="upload-progress-text">0%</div>
-			</div>
-		`;
-
-		const formData = new FormData();
-		const assignments = {};
-
-		this.selectedFiles.forEach((fileData, index) => {
-			const fileKey = `file_${index}`;
-			formData.append(fileKey, fileData.file);
-			assignments[fileKey] = fileData.category;
-		});
-
-		// Send assignments as individual form fields instead of JSON.
-		Object.keys(assignments).forEach((key) => {
-			formData.append(`assignments[${key}]`, assignments[key]);
-		});
-
-		// Use XMLHttpRequest for progress tracking.
-		const xhr = new XMLHttpRequest();
-
-		// Track upload progress.
-		xhr.upload.addEventListener('progress', (e) => {
-			if (e.lengthComputable) {
-				const percentComplete = Math.round((e.loaded / e.total) * 100);
-				this.updateProgressBar(percentComplete);
-			}
-		});
-
-		// Handle completion.
-		xhr.addEventListener('load', () => {
-			if (xhr.status >= 200 && xhr.status < 300) {
-				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadSuccess(data);
-				} catch (error) {
-					this.showError('Failed to parse server response.');
-					console.error('Parse error:', error);
-				}
-			} else {
-				try {
-					const data = JSON.parse(xhr.responseText);
-					this.handleUploadError(data);
-				} catch (error) {
-					this.showError('Upload failed. Please try again.');
-					console.error('Upload error:', error);
-				}
-			}
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
-
-		// Handle errors.
-		xhr.addEventListener('error', () => {
-			this.showError('Network error. Please check your connection and try again.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
-
-		// Handle abort.
-		xhr.addEventListener('abort', () => {
-			this.showError('Upload cancelled.');
-			this.uploadButton.disabled = false;
-			this.uploadButton.textContent = 'Upload All';
-		});
-
-		// Send request.
-		xhr.open(
-			'POST',
-			`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
+		const status = document.createElement('p');
+		status.textContent = sprintf(
+			/* translators: %d: number of images being uploaded. */
+			_n('Uploading %d image...', 'Uploading %d images...', this.selectedFiles.length, 'photo-competition-manager'),
+			this.selectedFiles.length
 		);
-		xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
-		xhr.send(formData);
+
+		const barContainer = document.createElement('div');
+		barContainer.className = 'photo-comp-progress-bar-container';
+		const bar = document.createElement('div');
+		bar.className = 'photo-comp-progress-bar';
+		bar.id = 'upload-progress-bar';
+		const barText = document.createElement('div');
+		barText.className = 'photo-comp-progress-text';
+		barText.id = 'upload-progress-text';
+		barText.textContent = '0%';
+		barContainer.append(bar, barText);
+
+		this.progressSection.replaceChildren(status, barContainer);
+		// Only the last batch's summary goes; a message shown just before stays for its few seconds.
+		this.statusRegion.querySelector(':scope > p')?.remove();
+
+		// One image per request, so no request is bigger than PHP's post_max_size allows.
+		const files = this.selectedFiles.slice();
+		const results = [];
+		const entered = [];
+
+		for (const [index, fileData] of files.entries()) {
+			const result = await this.uploadOne(fileData, (sent) => {
+				this.updateProgressBar(Math.round(((index + sent) / files.length) * 100));
+			});
+
+			// The link or session was refused, so the rest would be too: say why once and stop.
+			if (result.refused) {
+				results.push({ success: false, error: result.error });
+				break;
+			}
+
+			if (result.success) {
+				entered.push(fileData);
+				results.push(result);
+			} else {
+				results.push({
+					success: false,
+					error: sprintf(
+						/* translators: 1: file name, 2: why the upload failed. */
+						__('%1$s: %2$s', 'photo-competition-manager'),
+						fileData.file.name,
+						result.error
+					),
+				});
+			}
+
+			this.updateProgressBar(Math.round(((index + 1) / files.length) * 100));
+		}
+
+		// The images that went in are entries now, so they leave the selection and use up their quota.
+		// Upload All can then only send the images that didn't go in.
+		entered.forEach((fileData) => {
+			const quota = this.quotas[fileData.category];
+			quota.remaining -= 1;
+			const kind = fileData.substitute ? 'substitutes_remaining' : 'entered_remaining';
+			if (typeof quota[kind] === 'number') {
+				quota[kind] -= 1;
+			}
+			this.removeFile(fileData.id);
+		});
+		this.uploadButton.textContent = __('Upload All', 'photo-competition-manager');
+		this.updateUI();
+
+		this.showResults(results, files.length);
+	}
+
+	/**
+	 * Upload one image to the batch endpoint.
+	 *
+	 * A 401, 403 or 404 refuses the whole upload (a bad link, an expired
+	 * session, a missing competition), so the result says it's refused.
+	 *
+	 * @param {Object}   fileData   The selected file and its category.
+	 * @param {Function} onProgress Called with the fraction of this image sent so far, 0 to 1.
+	 * @return {Promise<Object>} Resolves to { success: true } or { success: false, error, refused }.
+	 */
+	uploadOne(fileData, onProgress) {
+		const formData = new FormData();
+		formData.append('file_0', fileData.file);
+		formData.append('assignments[file_0]', fileData.category);
+		if (this.interclub.enabled) {
+			formData.append('photographers[file_0]', fileData.photographer);
+			formData.append('substitutes[file_0]', fileData.substitute ? '1' : '');
+		}
+
+		return new Promise((resolve) => {
+			const xhr = new XMLHttpRequest();
+
+			xhr.upload.addEventListener('progress', (event) => {
+				if (event.lengthComputable && event.total > 0) {
+					onProgress(event.loaded / event.total);
+				}
+			});
+
+			xhr.addEventListener('load', () => {
+				let data = null;
+				try {
+					data = JSON.parse(xhr.responseText);
+				} catch (error) {
+					// Not JSON: a web server in front of WordPress answered, such as nginx refusing a big body.
+				}
+
+				if (xhr.status >= 200 && xhr.status < 300 && data && data.results && data.results.file_0) {
+					resolve(data.results.file_0);
+					return;
+				}
+
+				let error = (data && data.message) || __('Upload failed. Please try again.', 'photo-competition-manager');
+				if (xhr.status === 413 && !(data && data.message)) {
+					error = __('That image is too big. Check the size limit under the upload form.', 'photo-competition-manager');
+				}
+
+				resolve({ success: false, error, refused: [401, 403, 404].includes(xhr.status) });
+			});
+
+			xhr.addEventListener('error', () => {
+				resolve({
+					success: false,
+					error: __('Network error. Please check your connection and try again.', 'photo-competition-manager'),
+				});
+			});
+
+			xhr.addEventListener('abort', () => {
+				resolve({ success: false, error: __('Upload cancelled.', 'photo-competition-manager') });
+			});
+
+			xhr.open(
+				'POST',
+				`${this.apiUrl}photo-comp/v1/upload/batch?token=${encodeURIComponent(this.token)}`
+			);
+			xhr.setRequestHeader('X-WP-Nonce', window.photoCompUpload?.nonce || '');
+			xhr.send(formData);
+		});
 	}
 
 	updateProgressBar(percent) {
@@ -591,48 +794,90 @@ class DragDropUpload {
 		}
 	}
 
-	handleUploadSuccess(data) {
-		const successCount = data.success_count || 0;
-		const errorCount = data.error_count || 0;
+	/**
+	 * Show how each upload went.
+	 *
+	 * The summary is styled as a success only when every image went in, as a
+	 * notice when some did, and as an error when none did. It's announced
+	 * through the page's live region, and takes focus when anything failed.
+	 *
+	 * When every image went in, the page reloads to show the new entries. When
+	 * some failed, the failures stay listed with a button to reload, so the
+	 * member can see which images to fix first.
+	 *
+	 * @param {Object[]} results One { success, error } per image sent, or one error for a refused upload.
+	 * @param {number}   total   How many images were selected.
+	 */
+	showResults(results, total) {
+		const failures = results.filter((result) => !result.success);
+		const successCount = results.length - failures.length;
+		const failedCount = total - successCount;
 
-		let message = `Successfully uploaded ${successCount} image(s).`;
-		if (errorCount > 0) {
-			message += ` ${errorCount} upload(s) failed.`;
+		let message = successCount > 0
+			? sprintf(
+				/* translators: %d: number of images uploaded. */
+				_n('Successfully uploaded %d image.', 'Successfully uploaded %d images.', successCount, 'photo-competition-manager'),
+				successCount
+			)
+			: __('No images were uploaded.', 'photo-competition-manager');
+		if (failedCount > 0) {
+			message += ' ' + sprintf(
+				/* translators: %d: number of images that failed to upload. */
+				_n('%d upload failed.', '%d uploads failed.', failedCount, 'photo-competition-manager'),
+				failedCount
+			);
 		}
 
-		this.progressSection.innerHTML = `<p class="success">${message}</p>`;
+		const summary = document.createElement('p');
+		if (failedCount === 0) {
+			summary.className = 'success';
+		} else {
+			summary.className = successCount > 0 ? 'notice' : 'error';
+		}
+		summary.textContent = message;
+		// Above any message still showing, which removes itself after a few seconds.
+		this.statusRegion.prepend(summary);
 
-		// Show individual results.
-		if (data.results && errorCount > 0) {
+		// The progress box holds only the failures from here on, so it's hidden when there are none.
+		// A refused upload always adds a failure, so failures is empty exactly when failedCount is 0.
+		if (failedCount > 0) {
 			const errorList = document.createElement('ul');
 			errorList.className = 'photo-comp-error-list';
 
-			Object.keys(data.results).forEach((fileKey) => {
-				const result = data.results[fileKey];
-				if (!result.success) {
-					const li = document.createElement('li');
-					li.textContent = result.error;
-					errorList.appendChild(li);
-				}
+			failures.forEach((result) => {
+				const li = document.createElement('li');
+				li.textContent = result.error;
+				errorList.appendChild(li);
 			});
 
-			if (errorList.children.length > 0) {
-				this.progressSection.appendChild(errorList);
-			}
+			this.progressSection.replaceChildren(errorList);
+			this.progressSection.style.display = 'block';
+
+			// Take keyboard users to the summary, so the failures listed under it come next.
+			summary.tabIndex = -1;
+			summary.focus();
+		} else {
+			this.progressSection.replaceChildren();
+			this.progressSection.style.display = 'none';
 		}
 
-		// Clear successful uploads.
-		if (successCount > 0) {
-			setTimeout(() => {
-				// Reload page to show updated submissions.
-				window.location.reload();
-			}, 2000);
+		if (successCount === 0) {
+			return;
 		}
-	}
 
-	handleUploadError(data) {
-		const message = data.message || 'Upload failed. Please try again.';
-		this.showError(message);
+		// Everything went in: reload to show the new entries once the message has been seen.
+		if (failedCount === 0) {
+			setTimeout(() => window.location.reload(), 2000);
+			return;
+		}
+
+		// Some failed: keep the list on screen and let the member reload when they've read it.
+		const refreshButton = document.createElement('button');
+		refreshButton.type = 'button';
+		refreshButton.className = 'photo-comp-refresh-btn';
+		refreshButton.textContent = __('Show my entries', 'photo-competition-manager');
+		refreshButton.addEventListener('click', () => window.location.reload());
+		this.progressSection.appendChild(refreshButton);
 	}
 
 	showError(message) {
@@ -640,11 +885,8 @@ class DragDropUpload {
 		errorDiv.className = 'photo-comp-error-message';
 		errorDiv.textContent = message;
 
-		if (this.progressSection) {
-			this.progressSection.innerHTML = '';
-			this.progressSection.appendChild(errorDiv);
-			this.progressSection.style.display = 'block';
-		}
+		// Added below whatever is there, so a batch's summary stays on screen.
+		this.statusRegion.appendChild(errorDiv);
 
 		setTimeout(() => {
 			errorDiv.remove();
@@ -656,11 +898,38 @@ class DragDropUpload {
 	}
 
 	formatFileSize(bytes) {
-		if (bytes === 0) return '0 Bytes';
+		const sizes = [
+			__('Bytes', 'photo-competition-manager'),
+			__('KB', 'photo-competition-manager'),
+			__('MB', 'photo-competition-manager'),
+			__('GB', 'photo-competition-manager'),
+		];
 		const k = 1024;
-		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+		const i = bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(k));
+		const size = Math.round(bytes / Math.pow(k, i) * 100) / 100;
+		return sprintf(
+			/* translators: 1: file size, such as "2.5", 2: unit, such as "MB". */
+			__('%1$s %2$s', 'photo-competition-manager'),
+			this.formatNumber(size),
+			sizes[i]
+		);
+	}
+
+	/**
+	 * Format a number the way the site's language writes it, such as "2,5" on a German site.
+	 *
+	 * The site's language comes from the page's lang attribute, which WordPress sets.
+	 *
+	 * @param {number} number The number.
+	 * @return {string} The formatted number.
+	 */
+	formatNumber(number) {
+		try {
+			return new Intl.NumberFormat(document.documentElement.lang || undefined).format(number);
+		} catch (e) {
+			// A theme can print a lang attribute Intl doesn't accept.
+			return String(number);
+		}
 	}
 }
 

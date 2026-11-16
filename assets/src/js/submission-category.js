@@ -4,6 +4,8 @@
  * @package PhotoCompetitionManager
  */
 
+import { __, _n, sprintf } from '@wordpress/i18n';
+
 document.addEventListener('DOMContentLoaded', () => {
 	const categorySelects = document.querySelectorAll('.submission-category-select');
 	const saveButton = document.getElementById('save-category-changes');
@@ -15,26 +17,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	const pendingChanges = new Map(); // Track unsaved changes
 
+	// The button's label as the page printed it, already in the site's language.
+	const saveLabel = saveButton.textContent.trim();
+
 	// Get configuration data
 	const config = window.photoCompCategoryUpdate || {};
 	const categories = config.categories || {};
 
 	/**
-	 * Count submissions per category with current selections.
+	 * Count entries per category with current selections: entered ones and
+	 * substitutes apart. A disqualified entry takes no place.
 	 */
 	function getCategoryCounts() {
 		const counts = {};
 
-		// Initialize counts
 		Object.keys(categories).forEach((slug) => {
-			counts[slug] = 0;
+			counts[slug] = { entered: 0, substitutes: 0 };
 		});
 
-		// Count based on current dropdown values
 		categorySelects.forEach((select) => {
 			const category = select.value;
-			if (category && counts.hasOwnProperty(category)) {
-				counts[category]++;
+			const entryStatus = select.dataset.entryStatus || 'entered';
+			if (!category || !counts.hasOwnProperty(category) || entryStatus === 'disqualified') {
+				return;
+			}
+
+			if (entryStatus === 'substitute') {
+				counts[category].substitutes++;
+			} else {
+				counts[category].entered++;
 			}
 		});
 
@@ -49,12 +60,33 @@ document.addEventListener('DOMContentLoaded', () => {
 		const errors = [];
 
 		Object.keys(counts).forEach((slug) => {
-			const count = counts[slug];
+			const { entered, substitutes } = counts[slug];
 			const quota = categories[slug]?.quota || 1;
+			const substituteLimit = categories[slug]?.substitutes || 0;
 			const label = categories[slug]?.label || slug;
 
-			if (count > quota) {
-				errors.push(`${label}: ${count}/${quota} (over quota)`);
+			if (entered > quota) {
+				errors.push(
+					sprintf(
+						/* translators: 1: category name, 2: entries in the category, 3: the category's quota */
+						__('%1$s: %2$d/%3$d (over quota)', 'photo-competition-manager'),
+						label,
+						entered,
+						quota
+					)
+				);
+			}
+
+			if (substitutes > substituteLimit) {
+				errors.push(
+					sprintf(
+						/* translators: 1: category name, 2: substitutes in the category, 3: substitutes it takes */
+						__('%1$s: %2$d/%3$d substitutes (over the limit)', 'photo-competition-manager'),
+						label,
+						substitutes,
+						substituteLimit
+					)
+				);
 			}
 		});
 
@@ -115,19 +147,34 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (errors.length > 0) {
 			// Show warnings
 			statusDiv.className = 'category-change-status warning';
-			statusDiv.innerHTML = `
-				<strong>Warning: Category quotas exceeded</strong>
-				<ul>
-					${errors.map((err) => `<li>${err}</li>`).join('')}
-				</ul>
-				<p>Please adjust categories before saving.</p>
-			`;
+			// Built from text nodes so a category name or a translation can't add markup.
+			const heading = document.createElement('strong');
+			heading.textContent = __('Warning: Category quotas exceeded', 'photo-competition-manager');
+			const list = document.createElement('ul');
+			errors.forEach((err) => {
+				const item = document.createElement('li');
+				item.textContent = err;
+				list.append(item);
+			});
+			const advice = document.createElement('p');
+			advice.textContent = __('Please adjust categories before saving.', 'photo-competition-manager');
+			statusDiv.replaceChildren(heading, list, advice);
 			statusDiv.style.display = 'block';
 			saveButton.disabled = true;
 		} else {
 			// Valid changes
 			statusDiv.className = 'category-change-status info';
-			statusDiv.textContent = `${pendingChanges.size} category change(s) pending. Click "Save Category Changes" to apply.`;
+			statusDiv.textContent = sprintf(
+				/* translators: 1: number of category changes, 2: the save button's label */
+				_n(
+					'%1$d category change pending. Click "%2$s" to apply.',
+					'%1$d category changes pending. Click "%2$s" to apply.',
+					pendingChanges.size,
+					'photo-competition-manager'
+				),
+				pendingChanges.size,
+				saveLabel
+			);
 			statusDiv.style.display = 'block';
 			saveButton.disabled = false;
 		}
@@ -169,16 +216,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		// Validate first
 		const errors = validateQuotas();
 		if (errors.length > 0) {
-			alert('Please fix quota issues before saving.');
+			alert(__('Please fix quota issues before saving.', 'photo-competition-manager'));
 			return;
 		}
 
 		// Disable button during save
 		saveButton.disabled = true;
-		saveButton.textContent = 'Saving...';
+		saveButton.textContent = __('Saving...', 'photo-competition-manager');
 
 		statusDiv.className = 'category-change-status info';
-		statusDiv.textContent = 'Saving changes...';
+		statusDiv.textContent = __('Saving changes...', 'photo-competition-manager');
 		statusDiv.style.display = 'block';
 
 		const token = config.token || '';
@@ -190,7 +237,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		const showError = (message) => {
 			// Nothing moved, so the pending changes stay for the member to fix and save again.
 			statusDiv.className = 'category-change-status error';
-			statusDiv.textContent = `No categories were changed: ${message}`;
+			statusDiv.textContent = sprintf(
+				/* translators: %s: why the server refused the changes */
+				__('No categories were changed: %s', 'photo-competition-manager'),
+				message
+			);
 		};
 
 		try {
@@ -212,7 +263,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			if (response.ok) {
 				statusDiv.className = 'category-change-status success';
-				statusDiv.textContent = `✓ Successfully updated ${pendingChanges.size} category assignment(s).`;
+				statusDiv.textContent =
+					'✓ ' +
+					sprintf(
+						/* translators: %d: number of entries moved to another category */
+						_n(
+							'Successfully updated %d category assignment.',
+							'Successfully updated %d category assignments.',
+							pendingChanges.size,
+							'photo-competition-manager'
+						),
+						pendingChanges.size
+					);
 				setTimeout(() => {
 					statusDiv.style.display = 'none';
 				}, 5000);
@@ -226,15 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
 				pendingChanges.clear();
 				saveButton.style.display = 'none';
 			} else {
-				showError(data.message || 'Failed');
+				showError(data.message || __('Failed', 'photo-competition-manager'));
 			}
 		} catch (error) {
 			// The request may have gone through, so don't claim nothing changed.
 			statusDiv.className = 'category-change-status error';
-			statusDiv.textContent = "Couldn't confirm whether the categories changed. Reload the page to check.";
+			statusDiv.textContent = __("Couldn't confirm whether the categories changed. Reload the page to check.", 'photo-competition-manager');
 		}
 
-		saveButton.textContent = 'Save Category Changes';
+		saveButton.textContent = saveLabel;
 		saveButton.disabled = false;
 	});
 

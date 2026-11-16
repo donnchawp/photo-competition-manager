@@ -13,12 +13,15 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="get" class="photo-comp-filters">';
 echo '<input type="hidden" name="page" value="photo-competition-manager-submissions" />';
 echo '<label for="competition_id" class="screen-reader-text">' . esc_html__( 'Competition', 'photo-competition-manager' ) . '</label>';
 echo '<select name="competition_id" id="competition_id">';
+$labels = new \PhotoCompetitionManager\Service\Competition_Labels();
 foreach ( $data['competitions'] as $competition ) {
-	$label = $competition->title;
+	$label = $labels->title_for_everyone( $competition );
 	if ( ! empty( $competition->deleted_at ) ) {
 		$label .= ' ' . esc_html__( '(Archived)', 'photo-competition-manager' );
 	}

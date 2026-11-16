@@ -33,6 +33,13 @@ class Admin_Screen {
 	private $members_controller;
 
 	/**
+	 * Judges controller.
+	 *
+	 * @var Judges_Controller
+	 */
+	private $judges_controller;
+
+	/**
 	 * Submissions controller.
 	 *
 	 * @var Submissions_Controller
@@ -52,6 +59,13 @@ class Admin_Screen {
 	 * @var Settings_Controller
 	 */
 	private $settings_controller;
+
+	/**
+	 * Competition types controller.
+	 *
+	 * @var Types_Controller
+	 */
+	private $types_controller;
 
 	/**
 	 * Export screen.
@@ -106,9 +120,11 @@ class Admin_Screen {
 		// Initialize controllers with their dependencies.
 		$this->competitions_controller    = new Competitions_Controller( $deps->competitions, $deps->email_job_manager );
 		$this->members_controller         = new Members_Controller( $deps->competitions, $deps->members );
+		$this->judges_controller          = new Judges_Controller( new \PhotoCompetitionManager\Repository\Judges_Repository() );
 		$this->submissions_controller     = new Submissions_Controller( $deps->competitions, $deps->members, $deps->images, $deps->votes );
 		$this->voting_controller          = new Voting_Controller( $deps->competitions, $deps->images, $deps->members, $deps->email_job_manager );
 		$this->settings_controller        = new Settings_Controller( $deps->members );
+		$this->types_controller           = new Types_Controller( new \PhotoCompetitionManager\Repository\Competition_Types_Repository() );
 		$this->export_screen              = new Export_Screen();
 		$this->results_controller         = new Results_Controller(
 			$deps->competitions,
@@ -116,7 +132,6 @@ class Admin_Screen {
 			$deps->members,
 			$deps->votes,
 			$deps->analytics,
-			$deps->score_calculator,
 			$deps->results_ranking,
 			$deps->email_job_manager
 		);
@@ -138,9 +153,11 @@ class Admin_Screen {
 		// Register all controllers.
 		$this->competitions_controller->register();
 		$this->members_controller->register();
+		$this->judges_controller->register();
 		$this->submissions_controller->register();
 		$this->voting_controller->register();
 		$this->settings_controller->register();
+		$this->types_controller->register();
 		$this->export_screen->register();
 		$this->results_controller->register();
 		$this->setup_wizard_controller->register();
@@ -180,6 +197,15 @@ class Admin_Screen {
 			'manage_photo_competitions',
 			'photo-competition-manager-members',
 			array( $this->members_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Judges', 'photo-competition-manager' ),
+			__( 'Judges', 'photo-competition-manager' ),
+			'manage_photo_competitions',
+			'photo-competition-manager-judges',
+			array( $this->judges_controller, 'render' )
 		);
 
 		add_submenu_page(
@@ -225,6 +251,15 @@ class Admin_Screen {
 			'manage_photo_competitions',
 			'photo-competition-manager-settings',
 			array( $this->settings_controller, 'render' )
+		);
+
+		add_submenu_page(
+			'photo-competition-manager',
+			__( 'Competition Types', 'photo-competition-manager' ),
+			__( 'Competition Types', 'photo-competition-manager' ),
+			'manage_photo_competitions',
+			'photo-competition-manager-types',
+			array( $this->types_controller, 'render' )
 		);
 
 		add_submenu_page(

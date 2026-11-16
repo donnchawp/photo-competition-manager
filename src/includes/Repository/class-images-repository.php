@@ -20,14 +20,99 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Images_Repository extends Abstract_Repository {
 
 	/**
-	 * Find all images for a competition.
+	 * Entry statuses an image can have. Only entered images compete: they're
+	 * voted on, judged and ranked. A substitute waits to replace a
+	 * disqualified image, and a disqualified image is out of the competition.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @var string[]
+	 */
+	public const ENTRY_STATUSES = array( 'entered', 'substitute', 'disqualified' );
+
+	/**
+	 * A photographer's name as it's stored: cleaned of tags and extra spaces, and cut to the column's 191 characters.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $photographer Photographer's name as given.
+	 * @return string
+	 */
+	public static function clean_photographer( string $photographer ): string {
+		return mb_substr( sanitize_text_field( $photographer ), 0, 191 );
+	}
+
+	/**
+	 * An entry status's name, as people see it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string $entry_status One of ENTRY_STATUSES.
+	 * @return string
+	 */
+	public static function entry_status_label( string $entry_status ): string {
+		$labels = array(
+			'entered'      => __( 'Entered', 'photo-competition-manager' ),
+			'substitute'   => __( 'Substitute', 'photo-competition-manager' ),
+			'disqualified' => __( 'Disqualified', 'photo-competition-manager' ),
+		);
+
+		return $labels[ $entry_status ] ?? $entry_status;
+	}
+
+	/**
+	 * Find a competition's entered images: the ones voted on, judged and ranked.
+	 *
+	 * @since 0.4.0 Was find_by_competition(), which also returned substitutes and disqualified images. find_uploads() has them.
 	 *
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
 	 * @param int|null    $member_id      Optional member filter.
 	 * @return array<int, object>
 	 */
-	public function find_by_competition( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+	public function find_entered( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, array( 'entered' ) );
+	}
+
+	/**
+	 * Find every image uploaded to a competition, whatever its entry status.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @return array<int, object>
+	 */
+	public function find_uploads( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, array() );
+	}
+
+	/**
+	 * Find the images that take a place in a competition's panels: entered
+	 * images and substitutes. A disqualified image takes none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @return array<int, object>
+	 */
+	public function find_in_panels( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, array( 'entered', 'substitute' ) );
+	}
+
+	/**
+	 * Query a competition's images.
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @param string[]    $statuses       Entry statuses to find; every status when empty.
+	 * @return array<int, object>
+	 */
+	private function query_competition( int $competition_id, ?string $category, ?int $member_id, array $statuses ): array {
 		global $wpdb;
 
 		if ( $competition_id <= 0 ) {
@@ -36,6 +121,11 @@ class Images_Repository extends Abstract_Repository {
 
 		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
+
+		if ( $statuses ) {
+			$query       .= ' AND entry_status IN (' . implode( ', ', array_fill( 0, count( $statuses ), '%s' ) ) . ')';
+			$prepare_args = array_merge( $prepare_args, $statuses );
+		}
 
 		if ( null !== $category ) {
 			$query         .= ' AND category = %s';
@@ -47,7 +137,8 @@ class Images_Repository extends Abstract_Repository {
 			$prepare_args[] = $member_id;
 		}
 
-		$query .= ' ORDER BY category, random_number';
+		// Images sharing a number (a member's entries) come in ID order, as the votes CSV's a/b columns do.
+		$query .= ' ORDER BY category, random_number, id';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
 		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );
@@ -156,7 +247,7 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Whether a competition's category has any images.
+	 * Whether a competition's category has any entered images.
 	 *
 	 * @since 0.4.0
 	 *
@@ -168,7 +259,50 @@ class Images_Repository extends Abstract_Repository {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE competition_id = %d AND category = %s LIMIT 1', $this->table(), $competition_id, $category ) );
+		return null !== $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM %i WHERE competition_id = %d AND category = %s AND entry_status = 'entered' LIMIT 1", $this->table(), $competition_id, $category ) );
+	}
+
+	/**
+	 * The members with entries in a competition.
+	 *
+	 * @since 0.4.0
+	 * @param int $competition_id Competition ID.
+	 * @return int[] Member IDs.
+	 */
+	public function member_ids( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$member_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
+				$this->table(),
+				$competition_id
+			)
+		);
+
+		return array_map( 'intval', $member_ids );
+	}
+
+	/**
+	 * The grades of the members with entries in a competition.
+	 *
+	 * @since 0.4.0
+	 * @param int $competition_id Competition ID.
+	 * @return string[] Grade slugs.
+	 */
+	public function entrant_grades( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT m.grade FROM %i i INNER JOIN %i m ON m.id = i.member_id WHERE i.competition_id = %d',
+				$this->table(),
+				$wpdb->prefix . 'photocomp_members',
+				$competition_id
+			)
+		);
 	}
 
 	/**
@@ -236,6 +370,113 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Make room for a new image's number at a random place among a category's numbers.
+	 *
+	 * The category's numbers run from 1 to however many images it has. A random place among
+	 * them, up to one past the end, is picked, and the numbers from there up move along by one.
+	 * Putting each new image in a random place keeps the numbers in a random order, so they
+	 * don't show who uploaded which image. Used for an interclub competition, where every image
+	 * has its own number.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return int The new image's number.
+	 */
+	public function open_number_slot( int $competition_id, string $category ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count  = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s', $this->table(), $competition_id, $category ) );
+		$number = wp_rand( 1, $count + 1 );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET random_number = random_number + 1 WHERE competition_id = %d AND category = %s AND random_number >= %d', $this->table(), $competition_id, $category, $number ) );
+
+		return $number;
+	}
+
+	/**
+	 * Close the gap an image's number leaves when it leaves a category: the numbers above it move down by one.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @param int    $number         The number that left.
+	 * @return void
+	 */
+	public function close_number_slot( int $competition_id, string $category, int $number ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET random_number = random_number - 1 WHERE competition_id = %d AND category = %s AND random_number > %d', $this->table(), $competition_id, $category, $number ) );
+	}
+
+	/**
+	 * Set an image's number.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $id     Image ID.
+	 * @param int $number Its number.
+	 * @return true|WP_Error
+	 */
+	public function update_number( int $id, int $number ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'random_number' => $number,
+				'updated_at'    => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%d', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s number.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Give every image its own number within its category, 1 to the number of images there, in a random order.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function regenerate_image_numbers( int $competition_id ) {
+		$by_category = array();
+		foreach ( $this->find_uploads( $competition_id ) as $image ) {
+			$by_category[ $image->category ][] = (int) $image->id;
+		}
+		if ( empty( $by_category ) ) {
+			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'photo-competition-manager' ) );
+		}
+
+		foreach ( $by_category as $image_ids ) {
+			shuffle( $image_ids );
+
+			foreach ( $image_ids as $index => $image_id ) {
+				$updated = $this->update_number( $image_id, $index + 1 );
+				if ( is_wp_error( $updated ) ) {
+					return $updated;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Regenerate random numbers for all members in a competition.
 	 *
 	 * Assigns new sequential numbers (1, 2, 3...) to members randomly,
@@ -251,15 +492,7 @@ class Images_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
 		}
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$member_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				'SELECT DISTINCT member_id FROM %i WHERE competition_id = %d',
-				$this->table(),
-				$competition_id
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$member_ids = $this->member_ids( $competition_id );
 
 		if ( empty( $member_ids ) ) {
 			return new WP_Error( 'no_images', __( 'No images found for this competition.', 'photo-competition-manager' ) );
@@ -320,19 +553,25 @@ class Images_Repository extends Abstract_Repository {
 
 		$original_attachment_id = isset( $data['original_attachment_id'] ) ? absint( $data['original_attachment_id'] ) : null;
 
+		$entry_status = $data['entry_status'] ?? 'entered';
+		if ( ! in_array( $entry_status, self::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
 		$payload = array(
 			'competition_id'         => $competition_id,
 			'member_id'              => $member_id,
 			'category'               => $category,
 			'filename'               => $filename,
 			'random_number'          => $random_number,
-			'score'                  => null,
 			'original_attachment_id' => $original_attachment_id,
+			'photographer'           => isset( $data['photographer'] ) ? self::clean_photographer( (string) $data['photographer'] ) : '',
+			'entry_status'           => $entry_status,
 			'created_at'             => utc_time(),
 			'updated_at'             => utc_time(),
 		);
 
-		$format = array( '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s', '%s' );
+		$format = array( '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert( $this->table(), $payload, $format );
@@ -342,45 +581,6 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		return (int) $wpdb->insert_id;
-	}
-
-	/**
-	 * Update image score.
-	 *
-	 * @param int $id    Image ID.
-	 * @param int $score Score value.
-	 * @return bool|WP_Error
-	 */
-	public function update_score( int $id, int $score ) {
-		global $wpdb;
-
-		if ( $id <= 0 ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
-		}
-
-		// Check if image exists.
-		$image = $this->find( $id );
-		if ( ! $image ) {
-			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
-		}
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$updated = $wpdb->update(
-			$this->table(),
-			array(
-				'score'      => $score,
-				'updated_at' => utc_time(),
-			),
-			array( 'id' => $id ),
-			array( '%d', '%s' ),
-			array( '%d' )
-		);
-
-		if ( false === $updated ) {
-			return new WP_Error( 'db_update_failed', __( 'Could not update image score.', 'photo-competition-manager' ), $wpdb->last_error );
-		}
-
-		return true;
 	}
 
 	/**
@@ -427,9 +627,76 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Set an image's photographer, cleaned and cut to the column's 191 characters.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $id           Image ID.
+	 * @param string $photographer Photographer's name, or '' for none.
+	 * @return true|WP_Error
+	 */
+	public function update_photographer( int $id, string $photographer ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'photographer' => self::clean_photographer( $photographer ),
+				'updated_at'   => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s photographer.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Set an image's entry status.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $id           Image ID.
+	 * @param string $entry_status One of ENTRY_STATUSES.
+	 * @return true|WP_Error
+	 */
+	public function update_entry_status( int $id, string $entry_status ) {
+		global $wpdb;
+
+		if ( ! in_array( $entry_status, self::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$updated = $wpdb->update(
+			$this->table(),
+			array(
+				'entry_status' => $entry_status,
+				'updated_at'   => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s status.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Delete an image record.
 	 *
-	 * Also deletes any votes associated with the image.
+	 * Also deletes any votes associated with the image. Its recorded results
+	 * stay, without its ID.
 	 *
 	 * @param int $id Image ID.
 	 * @return bool|WP_Error
@@ -461,6 +728,7 @@ class Images_Repository extends Abstract_Repository {
 		}
 
 		( new Votes_Repository() )->delete_by_image( $id );
+		( new Recorded_Results_Repository() )->forget_entry( $id );
 
 		return true;
 	}
@@ -470,25 +738,6 @@ class Images_Repository extends Abstract_Repository {
 	 */
 	protected function table_suffix(): string {
 		return 'photocomp_images';
-	}
-
-	/**
-	 * Get all images with uploader info.
-	 *
-	 * @return array<object>
-	 */
-	public function get_all_images_with_uploader_info(): array {
-		global $wpdb;
-
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return $wpdb->get_results(
-			$wpdb->prepare(
-				'SELECT i.id, i.competition_id, i.member_id, i.category, i.filename, i.random_number, i.score, i.created_at, m.name AS member_name, m.email AS member_email FROM %i AS i LEFT JOIN %i AS m ON i.member_id = m.id ORDER BY i.member_id ASC',
-				$this->table(),
-				$wpdb->prefix . 'photocomp_members'
-			)
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 
 	/**

@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -70,7 +71,17 @@ class Entries {
 	private $workflow;
 
 	/**
+	 * Results ranking, which records a closed competition's results before
+	 * its entries go.
+	 *
+	 * @var Results_Ranking
+	 */
+	private $ranking;
+
+	/**
 	 * Constructor.
+	 *
+	 * @since 0.4.0
 	 *
 	 * @param Competitions_Repository|null $competitions_repo Competitions repository.
 	 * @param Images_Repository|null       $images_repo       Images repository.
@@ -78,6 +89,7 @@ class Entries {
 	 * @param Image_Processor|null         $image_processor   Image processor.
 	 * @param Competition_Workflow|null    $workflow          Competition workflow.
 	 * @param Votes_Repository|null        $votes_repo        Votes repository.
+	 * @param Results_Ranking|null         $ranking           Results ranking.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions_repo = null,
@@ -85,7 +97,8 @@ class Entries {
 		?Members_Repository $members_repo = null,
 		?Image_Processor $image_processor = null,
 		?Competition_Workflow $workflow = null,
-		?Votes_Repository $votes_repo = null
+		?Votes_Repository $votes_repo = null,
+		?Results_Ranking $ranking = null
 	) {
 		$this->competitions_repo = $competitions_repo ?? new Competitions_Repository();
 		$this->images_repo       = $images_repo ?? new Images_Repository();
@@ -93,6 +106,7 @@ class Entries {
 		$this->image_processor   = $image_processor ?? new Image_Processor();
 		$this->workflow          = $workflow ?? new Competition_Workflow( $this->competitions_repo );
 		$this->votes_repo        = $votes_repo ?? new Votes_Repository();
+		$this->ranking           = $ranking ?? new Results_Ranking( $this->images_repo, $this->votes_repo, $this->members_repo, $this->competitions_repo, $this->workflow );
 	}
 
 	/**
@@ -100,16 +114,23 @@ class Entries {
 	 *
 	 * A member may add only their own entries, and only while the competition accepts uploads.
 	 * An admin may add for any member at any time. Both are held to the category's quota, and
-	 * neither can add to a category that already has votes.
+	 * neither can add to a category whose voting has started (its stage is past Previewed), or that
+	 * already has votes. In an interclub competition the entry needs its photographer's name and
+	 * is held to the panel's rules: see panel_error().
+	 *
+	 * @since 0.4.0 Takes the entry's details.
 	 *
 	 * @param Actor                $actor          Who is adding the entry.
 	 * @param int                  $competition_id Competition ID.
 	 * @param int                  $member_id      The member the entry belongs to.
 	 * @param string               $category       Category slug.
 	 * @param array<string, mixed> $file           Uploaded file from $_FILES.
+	 * @param array<string, mixed> $details        Interclub details: `photographer` (string) and
+	 *                                             `substitute` (bool). An individual competition
+	 *                                             ignores the photographer and takes no substitutes.
 	 * @return int|WP_Error Entry ID on success, WP_Error on failure.
 	 */
-	public function add( Actor $actor, int $competition_id, int $member_id, string $category, array $file ) {
+	public function add( Actor $actor, int $competition_id, int $member_id, string $category, array $file, array $details = array() ) {
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition ) {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
@@ -141,17 +162,46 @@ class Entries {
 			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
 		}
 
-		// Members can't get here in practice: voting needs uploads closed, and uploads can't reopen
-		// once there are votes. The rule doesn't rely on that.
+		// Uploads can't reopen once a category's voting has started, so members only get here on a
+		// site whose uploads were reopened before that rule, such as one upgraded from 0.3.0.
+		if ( $this->workflow->has_voting_started( $competition, $category ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so it can\'t take new entries. Reset the category first.', 'photo-competition-manager' ) );
+		}
+
+		// Members can't get here in practice: uploads can't reopen once there are votes. The rule
+		// doesn't rely on that.
 		$voted = $this->voted_category_error( $competition_id, $category );
 		if ( $voted ) {
 			return $voted;
 		}
 
-		$current_count = $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
+		$interclub    = $settings['interclub'];
+		$entry_status = empty( $details['substitute'] ) ? 'entered' : 'substitute';
+		$photographer = $interclub['enabled'] ? sanitize_text_field( (string) ( $details['photographer'] ?? '' ) ) : '';
+
+		if ( 'substitute' === $entry_status && Competition_Settings::substitutes( $settings ) < 1 ) {
+			return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
+		}
+
+		if ( $interclub['enabled'] && '' === $photographer ) {
+			return new WP_Error( 'photographer_missing', __( 'Please give the photographer\'s name.', 'photo-competition-manager' ) );
+		}
+
+		$panel         = $this->images_repo->find_in_panels( $competition_id, $category, $member_id );
+		$current_count = count( $panel );
 		$quota         = $category_config['quota'] ?? 1;
 
-		if ( $current_count >= $quota ) {
+		if ( $interclub['enabled'] ) {
+			$panel[] = (object) array(
+				'entry_status' => $entry_status,
+				'photographer' => $photographer,
+			);
+
+			$refused = $this->panel_error( $settings, $category_config, $panel );
+			if ( $refused ) {
+				return $refused;
+			}
+		} elseif ( $current_count >= $quota ) {
 			return new WP_Error(
 				'quota_exceeded',
 				sprintf(
@@ -202,6 +252,8 @@ class Entries {
 		$filename      = $result['filename'];
 		$attachment_id = $result['attachment_id'];
 
+		// An interclub image takes a number of its own, opened before the row arrives so it isn't counted twice.
+		$number   = $interclub['enabled'] ? $this->images_repo->open_number_slot( $competition_id, $category ) : 0;
 		$entry_id = $this->images_repo->create(
 			array(
 				'competition_id'         => $competition_id,
@@ -209,24 +261,29 @@ class Entries {
 				'category'               => $category,
 				'filename'               => $filename,
 				'original_attachment_id' => $attachment_id,
-			)
+				'photographer'           => $photographer,
+				'entry_status'           => $entry_status,
+			) + ( $number ? array( 'random_number' => $number ) : array() )
 		);
 
 		if ( is_wp_error( $entry_id ) ) {
+			if ( $number ) {
+				$this->images_repo->close_number_slot( $competition_id, $category, $number );
+			}
 			$this->delete_files( $competition, $category, $filename, $attachment_id );
 			return $entry_id;
 		}
 
-		$email_service = new Email_Service();
-		$email_service->send_submission_confirmed_notification(
-			$member->email,
-			$member->name,
-			$competition->title,
-			$category_config['label'],
-			$counter,
-			$quota,
-			null,
-			! empty( $member->grade ) ? $member->grade : ''
+		( new Email_Service() )->send(
+			'submission_confirmed',
+			$member,
+			$competition,
+			array(
+				'{member_grade}'  => ( new Competition_Labels() )->grade_label( $competition, (string) ( $member->grade ?? '' ) ),
+				'{category_name}' => (string) $category_config['label'],
+				'{current_count}' => (string) ( $current_count + 1 ),
+				'{quota}'         => (string) $quota,
+			)
 		);
 
 		return $entry_id;
@@ -238,6 +295,7 @@ class Entries {
 	 * A member may remove only their own entries, and only while the competition accepts uploads.
 	 * An admin may remove any entry at any time. If the row won't delete, its votes, files and
 	 * original are left alone. A file that won't delete is logged and doesn't fail the removal.
+	 * A competition whose results are due a record gets one first, so the removal moves nobody.
 	 *
 	 * @param Actor $actor          Who is removing the entry.
 	 * @param int   $competition_id Competition the entry must belong to.
@@ -245,6 +303,38 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	public function remove( Actor $actor, int $competition_id, int $entry_id ) {
+		$found = $this->find_competition_entry( $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
+		}
+		list( $entry, $competition ) = $found;
+
+		if ( ! $actor->is_admin() ) {
+			if ( ! $actor->is_member( (int) $entry->member_id ) ) {
+				return new WP_Error( 'not_authorized', __( 'You are not authorized to delete this image.', 'photo-competition-manager' ) );
+			}
+
+			if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
+				return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'photo-competition-manager' ) );
+			}
+		}
+
+		$recorded = $this->ranking->record_if_missing( $competition );
+		if ( is_wp_error( $recorded ) ) {
+			return $recorded;
+		}
+
+		return $this->remove_entry( $competition, $entry );
+	}
+
+	/**
+	 * An entry and the competition it must belong to.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @param int $entry_id       Entry ID.
+	 * @return array{0: object, 1: object}|WP_Error The entry and its competition.
+	 */
+	private function find_competition_entry( int $competition_id, int $entry_id ) {
 		$entry = $this->images_repo->find( $entry_id );
 		if ( ! $entry ) {
 			return new WP_Error( 'invalid_image', __( 'Image not found.', 'photo-competition-manager' ) );
@@ -259,17 +349,296 @@ class Entries {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		if ( ! $actor->is_admin() ) {
-			if ( ! $actor->is_member( (int) $entry->member_id ) ) {
-				return new WP_Error( 'not_authorized', __( 'You are not authorized to delete this image.', 'photo-competition-manager' ) );
-			}
+		return array( $entry, $competition );
+	}
 
-			if ( ! $this->workflow->is_accepting_uploads( $competition ) ) {
-				return new WP_Error( 'competition_closed', __( 'Cannot delete images after competition has closed.', 'photo-competition-manager' ) );
+	/**
+	 * Change an entry's status: disqualify it, promote a substitute, or bring a disqualified entry back.
+	 *
+	 * Only an admin may do this, and only until the competition's results are recorded. An entry
+	 * can be disqualified at any time before then, even after its category has votes: its votes
+	 * stay but no longer count. Any other change puts the entry on its category's ballot or among
+	 * its substitutes, so it follows the rules for adding one: the category's voting mustn't have
+	 * started and it mustn't have votes, and the panel's rules must hold (see panel_error()), or
+	 * in an individual competition the category's quota.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor  $actor          Who is changing it.
+	 * @param int    $competition_id Competition the entry must belong to.
+	 * @param int    $entry_id       Entry ID.
+	 * @param string $entry_status   The new status: entered, substitute or disqualified.
+	 * @return true|WP_Error
+	 */
+	public function set_entry_status( Actor $actor, int $competition_id, int $entry_id, string $entry_status ) {
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
+		}
+		list( $entry, $competition ) = $found;
+
+		if ( $entry_status === $entry->entry_status ) {
+			return true;
+		}
+
+		if ( ! in_array( $entry_status, Images_Repository::ENTRY_STATUSES, true ) ) {
+			return new WP_Error( 'invalid_entry_status', __( 'An image must be entered, a substitute or disqualified.', 'photo-competition-manager' ) );
+		}
+
+		$refused = $this->status_phase_error( $competition, $entry, $entry_status ) ?? $this->status_panel_error( $competition, $entry, $entry_status );
+		if ( $refused ) {
+			return $refused;
+		}
+
+		$updated = $this->images_repo->update_entry_status( $entry_id, $entry_status );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		( new Event_Logger() )->log(
+			$competition_id,
+			'entry_status_changed',
+			'upload',
+			sprintf(
+				/* translators: 1: entry ID, 2: old status, 3: new status */
+				__( 'Entry #%1$d changed from %2$s to %3$s.', 'photo-competition-manager' ),
+				$entry_id,
+				$entry->entry_status,
+				$entry_status
+			),
+			array(
+				'entry_id' => $entry_id,
+				'from'     => $entry->entry_status,
+				'to'       => $entry_status,
+			)
+		);
+
+		return true;
+	}
+
+	/**
+	 * Renumber a competition's entries in a random order, so the numbers don't follow the order they were uploaded in.
+	 *
+	 * An interclub competition's images each get their own number within their category; otherwise
+	 * each member gets one number for all their images. Only an admin may do this, and not once
+	 * any category's voting has started.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor          Who is renumbering.
+	 * @param int   $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function regenerate_numbers( Actor $actor, int $competition_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
+		}
+
+		// Voters, judges and results already know the entries by their numbers.
+		if ( $this->workflow->has_any_voting_started( $competition ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started, so the numbers can\'t change. Reset the competition\'s voting first.', 'photo-competition-manager' ) );
+		}
+
+		// A category reset can keep its votes, and they were cast for the numbers as they are.
+		if ( $this->votes_repo->has_votes( $competition_id ) ) {
+			return new WP_Error( 'category_has_votes', __( 'This competition has votes, so the numbers can\'t change. Reset its categories and clear their votes first.', 'photo-competition-manager' ) );
+		}
+
+		if ( self::numbers_each_image( $competition ) ) {
+			return $this->images_repo->regenerate_image_numbers( $competition_id );
+		}
+
+		return $this->images_repo->regenerate_member_numbers( $competition_id );
+	}
+
+	/**
+	 * Whether a competition numbers each image, within its category, rather than each member.
+	 *
+	 * An interclub competition does, so a club's images don't share a number that shows they're the same club's.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	private static function numbers_each_image( object $competition ): bool {
+		return Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
+	}
+
+	/**
+	 * Correct or clear an entry's photographer.
+	 *
+	 * Only an admin may do this, at any time, even after results are recorded: results read the
+	 * name from the entry, so this is how a photographer's name is corrected or removed. It isn't
+	 * held to the panel's photographer limit. The change is logged without either name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor  $actor          Who is changing it.
+	 * @param int    $competition_id Competition the entry must belong to.
+	 * @param int    $entry_id       Entry ID.
+	 * @param string $photographer   The photographer's name, or '' to clear it.
+	 * @return true|WP_Error
+	 */
+	public function set_photographer( Actor $actor, int $competition_id, int $entry_id, string $photographer ) {
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
+		}
+
+		if ( Images_Repository::clean_photographer( $photographer ) === (string) $found[0]->photographer ) {
+			return true;
+		}
+
+		$updated = $this->images_repo->update_photographer( $entry_id, $photographer );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		( new Event_Logger() )->log(
+			$competition_id,
+			'photographer_changed',
+			'upload',
+			sprintf(
+				/* translators: %d: entry ID */
+				__( 'Entry #%d\'s photographer was changed.', 'photo-competition-manager' ),
+				$entry_id
+			),
+			array( 'entry_id' => $entry_id )
+		);
+
+		return true;
+	}
+
+	/**
+	 * An entry and its competition, for a change only an admin may make.
+	 *
+	 * @param Actor $actor          Who is making the change.
+	 * @param int   $competition_id Competition the entry must belong to.
+	 * @param int   $entry_id       Entry ID.
+	 * @return array{0: object, 1: object}|WP_Error The entry and its competition.
+	 */
+	private function entry_for_admin( Actor $actor, int $competition_id, int $entry_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		return $this->find_competition_entry( $competition_id, $entry_id );
+	}
+
+	/**
+	 * The statuses an admin may move an entry to as the competition stands, in the order of
+	 * Images_Repository::ENTRY_STATUSES.
+	 *
+	 * Only the competition's phase and type decide them. The panel's rules are checked when the
+	 * status changes, so a status listed here can still be refused.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $entry       Entry row.
+	 * @return string[]
+	 */
+	public function entry_status_options( object $competition, object $entry ): array {
+		$options = array();
+		foreach ( Images_Repository::ENTRY_STATUSES as $entry_status ) {
+			if ( $entry_status !== $entry->entry_status && null === $this->status_phase_error( $competition, $entry, $entry_status ) ) {
+				$options[] = $entry_status;
 			}
 		}
 
-		return $this->remove_entry( $competition, $entry );
+		return $options;
+	}
+
+	/**
+	 * The refusal for a status change that the competition's phase or type rules out, if it does.
+	 *
+	 * @param object $competition  Competition row.
+	 * @param object $entry        Entry row.
+	 * @param string $entry_status The new status.
+	 * @return WP_Error|null
+	 */
+	private function status_phase_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
+		// Hiding results reopens a competition's entries only until it closes; after that, only a later close date does.
+		if ( $this->workflow->has_closed( $competition ) ) {
+			return new WP_Error( 'results_recorded', __( 'This competition has closed, so its entries can\'t change status. To change one, move its close date into the future first.', 'photo-competition-manager' ) );
+		}
+
+		if ( $this->workflow->results_published( $competition ) ) {
+			return new WP_Error( 'results_recorded', __( 'This competition\'s results are recorded, so its entries can\'t change status. Hide its results first.', 'photo-competition-manager' ) );
+		}
+
+		if ( 'disqualified' === $entry_status ) {
+			return null;
+		}
+
+		if ( 'substitute' === $entry_status && Competition_Settings::substitutes( Competition_Settings::parse( $competition->settings ) ) < 1 ) {
+			return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
+		}
+
+		if ( $this->workflow->has_voting_started( $competition, (string) $entry->category ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started in this category, so its entries are fixed. Reset the category first.', 'photo-competition-manager' ) );
+		}
+
+		return $this->voted_category_error( (int) $competition->id, (string) $entry->category );
+	}
+
+	/**
+	 * The refusal for a status change that would break the entry's panel or quota, if it would.
+	 *
+	 * Disqualifying never does.
+	 *
+	 * @param object $competition  Competition row.
+	 * @param object $entry        Entry row.
+	 * @param string $entry_status The new status.
+	 * @return WP_Error|null
+	 */
+	private function status_panel_error( object $competition, object $entry, string $entry_status ): ?WP_Error {
+		if ( 'disqualified' === $entry_status ) {
+			return null;
+		}
+
+		$settings        = Competition_Settings::parse( $competition->settings );
+		$category_config = Competition_Settings::find_category( $settings, (string) $entry->category );
+		if ( ! $category_config ) {
+			return new WP_Error( 'invalid_category', __( 'Invalid category.', 'photo-competition-manager' ) );
+		}
+
+		$panel = array_values(
+			array_filter(
+				$this->images_repo->find_in_panels( (int) $competition->id, (string) $entry->category, (int) $entry->member_id ),
+				static function ( object $image ) use ( $entry ): bool {
+					return (int) $image->id !== (int) $entry->id;
+				}
+			)
+		);
+
+		if ( $settings['interclub']['enabled'] ) {
+			$panel[] = (object) array(
+				'entry_status' => $entry_status,
+				'photographer' => $entry->photographer,
+			);
+
+			return $this->panel_error( $settings, $category_config, $panel );
+		}
+
+		$quota = (int) ( $category_config['quota'] ?? 1 );
+		if ( count( $panel ) >= $quota ) {
+			return new WP_Error(
+				'quota_exceeded',
+				sprintf(
+					/* translators: 1: category label, 2: quota */
+					__( 'This member already has the maximum of %2$d image(s) in %1$s.', 'photo-competition-manager' ),
+					$category_config['label'],
+					$quota
+				)
+			);
+		}
+
+		return null;
 	}
 
 	/**
@@ -295,7 +664,7 @@ class Entries {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			$removed = $this->remove_entry( $competition, $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
@@ -311,7 +680,8 @@ class Entries {
 	 * Remove every entry a member has, in every competition.
 	 *
 	 * Only an admin may do this, at any phase. It stops at the first row that won't delete,
-	 * leaving that entry and the ones after it in place.
+	 * leaving that entry and the ones after it in place. Every competition whose results are
+	 * due a record gets one first, so the removal moves nobody.
 	 *
 	 * @since 0.4.0
 	 *
@@ -324,8 +694,24 @@ class Entries {
 			return new WP_Error( 'not_authorized', __( 'Only an admin can remove a member\'s entries.', 'photo-competition-manager' ) );
 		}
 
-		foreach ( $this->images_repo->find_by_member( $member_id ) as $entry ) {
-			$removed = $this->remove_entry( $this->competitions_repo->find( (int) $entry->competition_id, true ), $entry );
+		$entries      = $this->images_repo->find_by_member( $member_id );
+		$competitions = array();
+		foreach ( $entries as $entry ) {
+			$competition_id = (int) $entry->competition_id;
+			if ( ! array_key_exists( $competition_id, $competitions ) ) {
+				$competitions[ $competition_id ] = $this->competitions_repo->find( $competition_id, true );
+			}
+		}
+
+		foreach ( array_filter( $competitions ) as $competition ) {
+			$recorded = $this->ranking->record_if_missing( $competition );
+			if ( is_wp_error( $recorded ) ) {
+				return $recorded;
+			}
+		}
+
+		foreach ( $entries as $entry ) {
+			$removed = $this->remove_entry( $competitions[ (int) $entry->competition_id ], $entry );
 			if ( is_wp_error( $removed ) ) {
 				return $removed;
 			}
@@ -342,6 +728,10 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	private function remove_entry( ?object $competition, object $entry ) {
+		// Read afresh: removing another of the member's entries may have closed a gap below this one.
+		$current = $this->images_repo->find( (int) $entry->id );
+		$number  = $current ? (int) $current->random_number : (int) $entry->random_number;
+
 		$deleted = $this->images_repo->delete( (int) $entry->id );
 		if ( is_wp_error( $deleted ) ) {
 			return $deleted;
@@ -349,6 +739,11 @@ class Entries {
 
 		if ( $competition ) {
 			$this->delete_files( $competition, $entry->category, $entry->filename, (int) $entry->original_attachment_id );
+
+			// Close the gap, unless the category has been voted on: then its numbers are known.
+			if ( self::numbers_each_image( $competition ) && ! $this->workflow->has_voting_started( $competition, (string) $entry->category ) && ! $this->votes_repo->has_votes_in_category( (int) $competition->id, (string) $entry->category ) ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $number );
+			}
 		} else {
 			// Without its competition there's no folder to look in, but the original is in the media library.
 			$this->delete_original( (int) $entry->competition_id, (int) $entry->original_attachment_id );
@@ -431,7 +826,7 @@ class Entries {
 			'failed'    => 0,
 		);
 
-		foreach ( $this->images_repo->find_by_competition( $competition_id ) as $entry ) {
+		foreach ( $this->images_repo->find_uploads( $competition_id ) as $entry ) {
 			if ( empty( $entry->original_attachment_id ) ) {
 				continue;
 			}
@@ -498,8 +893,7 @@ class Entries {
 		$settings = Competition_Settings::parse( $competition->settings );
 
 		// The member's entries in this competition: the only ones they can move, and what quota counts.
-		$entries = array_column( $this->images_repo->find_by_competition( $competition_id, null, $member_id ), null, 'id' );
-		$counts  = array_count_values( array_column( $entries, 'category' ) );
+		$entries = array_column( $this->images_repo->find_uploads( $competition_id, null, $member_id ), null, 'id' );
 		$moves   = array();
 
 		foreach ( $changes as $entry_id => $new_category ) {
@@ -524,8 +918,6 @@ class Entries {
 			}
 
 			$moves[] = array( $entry, $new_category );
-			--$counts[ $entry->category ];
-			$counts[ $new_category ] = ( $counts[ $new_category ] ?? 0 ) + 1;
 		}
 
 		if ( $actor->is_admin() ) {
@@ -540,8 +932,7 @@ class Entries {
 			);
 
 			foreach ( array_unique( $touched ) as $category ) {
-				$stage = $this->workflow->stage( $competition, $category );
-				if ( Competition_Workflow::STAGE_NOT_STARTED !== $stage && Competition_Workflow::STAGE_PREVIEWED !== $stage ) {
+				if ( $this->workflow->has_voting_started( $competition, $category ) ) {
 					return new WP_Error( 'voting_started', __( 'Voting has started in one of these categories, so its entries can\'t move. Reset the category and clear its votes first.', 'photo-competition-manager' ) );
 				}
 			}
@@ -556,15 +947,21 @@ class Entries {
 
 			$category_config = Competition_Settings::find_category( $settings, $new_category );
 			$quota           = $category_config['quota'] ?? 1;
+			$panel           = $this->panel_after_moves( $entries, $moves, $new_category );
 
-			if ( $counts[ $new_category ] > $quota ) {
+			if ( $settings['interclub']['enabled'] ) {
+				$refused = $this->panel_error( $settings, $category_config, $panel );
+				if ( $refused ) {
+					return $refused;
+				}
+			} elseif ( count( $panel ) > $quota ) {
 				return new WP_Error(
 					'quota_exceeded',
 					sprintf(
 						/* translators: 1: category label, 2: number of entries, 3: quota limit */
 						__( 'That would leave %1$s with %2$d entries, but the limit is %3$d.', 'photo-competition-manager' ),
 						$category_config['label'],
-						$counts[ $new_category ],
+						count( $panel ),
 						$quota
 					)
 				);
@@ -588,6 +985,118 @@ class Entries {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A category's panel once the given moves are made.
+	 *
+	 * @param array<int, object>                      $entries  The member's uploads, keyed by ID.
+	 * @param array<int, array{0: object, 1: string}> $moves Each entry and the category it moves to.
+	 * @param string                                  $category Category slug.
+	 * @return array<int, object> Image records, without disqualified ones.
+	 */
+	private function panel_after_moves( array $entries, array $moves, string $category ): array {
+		$moving_to = array();
+		foreach ( $moves as list( $entry, $new_category ) ) {
+			$moving_to[ (int) $entry->id ] = $new_category;
+		}
+
+		$panel = array();
+		foreach ( $entries as $id => $entry ) {
+			if ( 'disqualified' !== $entry->entry_status && ( $moving_to[ (int) $id ] ?? $entry->category ) === $category ) {
+				$panel[] = $entry;
+			}
+		}
+
+		return $panel;
+	}
+
+	/**
+	 * The refusal for an interclub panel that breaks its rules, if it breaks one.
+	 *
+	 * A panel holds at most the category's quota of entered images, and at
+	 * most the type's number of substitutes. No photographer may have more
+	 * entered images in it than the type's limit, when it has one; their
+	 * substitutes don't count. Photographers' names are compared ignoring
+	 * case and surrounding spaces.
+	 *
+	 * @param array<string, mixed> $settings        Competition settings.
+	 * @param array<string, mixed> $category_config The panel's category.
+	 * @param array<int, object>   $panel           The panel's images, with `entry_status` and `photographer`, as it would be.
+	 * @return WP_Error|null
+	 */
+	private function panel_error( array $settings, array $category_config, array $panel ): ?WP_Error {
+		$quota       = (int) ( $category_config['quota'] ?? 1 );
+		$substitutes = Competition_Settings::substitutes( $settings );
+		$limit       = (int) $settings['interclub']['photographer_limit'];
+
+		$entered       = 0;
+		$substituting  = 0;
+		$photographers = array();
+		foreach ( $panel as $image ) {
+			if ( 'substitute' === $image->entry_status ) {
+				++$substituting;
+				continue;
+			}
+
+			++$entered;
+			$name = mb_strtolower( trim( (string) $image->photographer ) );
+			if ( '' === $name ) {
+				// An admin can clear a name, and an entry from before interclub has none.
+				continue;
+			}
+
+			$photographers[ $name ] = array(
+				'name'  => trim( (string) $image->photographer ),
+				'count' => ( $photographers[ $name ]['count'] ?? 0 ) + 1,
+			);
+		}
+
+		if ( $entered > $quota ) {
+			$message = sprintf(
+				/* translators: 1: category label, 2: images the panel takes, 3: images it would have */
+				__( 'The %1$s panel takes %2$d image(s), and that would give it %3$d.', 'photo-competition-manager' ),
+				$category_config['label'],
+				$quota,
+				$entered
+			);
+			if ( $substitutes > 0 ) {
+				$message .= ' ' . __( 'A substitute doesn\'t count towards that.', 'photo-competition-manager' );
+			}
+
+			return new WP_Error( 'quota_exceeded', $message );
+		}
+
+		if ( $substituting > $substitutes ) {
+			return new WP_Error(
+				'substitutes_full',
+				sprintf(
+					/* translators: 1: category label, 2: substitutes the panel takes */
+					__( 'The %1$s panel already has its %2$d substitute(s).', 'photo-competition-manager' ),
+					$category_config['label'],
+					$substitutes
+				)
+			);
+		}
+
+		if ( $limit > 0 ) {
+			foreach ( $photographers as $photographer ) {
+				if ( $photographer['count'] > $limit ) {
+					return new WP_Error(
+						'photographer_limit',
+						sprintf(
+							/* translators: 1: photographer's name, 2: category label, 3: most images per photographer */
+							__( '%1$s can have at most %3$d image(s) in the %2$s panel. Substitutes don\'t count.', 'photo-competition-manager' ),
+							$photographer['name'],
+							$category_config['label'],
+							$limit
+						)
+					);
+				}
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -623,10 +1132,25 @@ class Entries {
 			return $new_filename;
 		}
 
+		// A number of its own in the new category, taken before the entry arrives so it isn't counted
+		// there twice. Neither category has votes, or the move would have been refused.
+		$numbered = self::numbers_each_image( $competition );
+		$number   = $numbered ? $this->images_repo->open_number_slot( (int) $competition->id, $new_category ) : 0;
+
 		$result = $this->images_repo->update_category( (int) $entry->id, $new_category, $new_filename );
 		if ( is_wp_error( $result ) ) {
+			if ( $numbered ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, $new_category, $number );
+			}
 			$this->move_back( $competition, $entry, $new_category, $new_filename );
 			return $result;
+		}
+
+		if ( $numbered ) {
+			// Read afresh: an earlier move in the same batch may have closed a gap below it.
+			$old_number = (int) $this->images_repo->find( (int) $entry->id )->random_number;
+			$this->images_repo->update_number( (int) $entry->id, $number );
+			$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $old_number );
 		}
 
 		return $new_filename;
@@ -658,7 +1182,7 @@ class Entries {
 			return array();
 		}
 
-		$entries = $this->images_repo->find_by_competition( $competition_id, null, $member_id );
+		$entries = $this->images_repo->find_uploads( $competition_id, null, $member_id );
 
 		foreach ( $entries as $entry ) {
 			$entry->urls = $this->urls( $competition, $entry );
@@ -708,42 +1232,141 @@ class Entries {
 	}
 
 	/**
+	 * Name-free URLs of an entry's image and thumbnail, for pages that mustn't show who took it.
+	 *
+	 * Entry files are named after the member, so these go through the image permalink,
+	 * which serves the file by entry ID.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @return array{full: string, thumb: string} Each '' when its file is missing.
+	 */
+	public function public_urls( object $competition, object $entry ): array {
+		$full  = $this->path_for( $competition, $entry, false );
+		$thumb = $this->path_for( $competition, $entry, true );
+
+		return array(
+			'full'  => null === $full ? '' : $this->image_permalink( (int) $entry->id, false, (int) filemtime( $full ) ),
+			'thumb' => null === $thumb ? '' : $this->image_permalink( (int) $entry->id, true, (int) filemtime( $thumb ) ),
+		);
+	}
+
+	/**
+	 * The permalink of an entry's image: the pretty URL, or the query form on plain permalinks, where the rewrite rule can't match.
+	 *
+	 * @param int  $entry_id Entry ID.
+	 * @param bool $thumb    Whether it's the thumbnail.
+	 * @param int  $version  Cache buster.
+	 * @return string
+	 */
+	private function image_permalink( int $entry_id, bool $thumb, int $version ): string {
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			$args = array( Image_Permalink::QUERY_VAR => $entry_id );
+			if ( $thumb ) {
+				$args[ Image_Permalink::SIZE_QUERY_VAR ] = 'thumb';
+			}
+			return add_query_arg( 'v', $version, add_query_arg( $args, home_url( '/' ) ) );
+		}
+
+		return add_query_arg( 'v', $version, home_url( "/photocomp-image/{$entry_id}/" . ( $thumb ? 'thumb/' : '' ) ) );
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file, looked up by entry ID.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int    $entry_id Entry ID.
+	 * @param string $size     'thumb' for the thumbnail, anything else for the full image.
+	 * @return string|null Null when the entry, its competition (soft-deleted counts as missing) or the file is missing.
+	 */
+	public function file_path( int $entry_id, string $size ): ?string {
+		$entry       = $this->images_repo->find( $entry_id );
+		$competition = $entry ? $this->competitions_repo->find( (int) $entry->competition_id ) : null;
+
+		return $competition ? $this->path_for( $competition, $entry, 'thumb' === $size ) : null;
+	}
+
+	/**
+	 * Path of an entry's image or thumbnail file.
+	 *
+	 * Built from the entry's competition and category and its stored filename, never from a request.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @param bool   $thumb       Whether to give the thumbnail's path.
+	 * @return string|null Null when the file is missing.
+	 */
+	private function path_for( object $competition, object $entry, bool $thumb ): ?string {
+		if ( '' === (string) $entry->filename ) {
+			return null;
+		}
+
+		$directory = $this->category_directory( (string) $competition->slug, (string) $entry->category );
+		if ( is_wp_error( $directory ) ) {
+			return null;
+		}
+
+		$path = $directory . '/' . ( $thumb ? Image_Processor::get_thumbnail_filename( $entry->filename ) : $entry->filename );
+
+		return is_file( $path ) ? $path : null;
+	}
+
+	/**
 	 * Get a member's quota status for every category in a competition.
+	 *
+	 * A disqualified image takes no place. In an interclub competition a
+	 * panel also takes the type's number of substitutes, so `remaining`
+	 * counts both, and `entered_remaining` and `substitutes_remaining` say
+	 * which. In an individual competition there are no substitutes.
+	 *
+	 * @since 0.4.0 Leaves out disqualified images, and gives entered and substitute places apart.
 	 *
 	 * @param object $competition Competition record.
 	 * @param int    $member_id   Member ID.
-	 * @return array<string, array{label: string, slug: string, current: int, quota: int, remaining: int}> Keyed by category slug.
+	 * @return array<string, array{label: string, slug: string, current: int, quota: int, remaining: int, entered_remaining: int, substitutes_remaining: int}> Keyed by category slug.
 	 */
 	public function get_quota_status( object $competition, int $member_id ): array {
-		$settings = Competition_Settings::parse( $competition->settings );
+		$settings    = Competition_Settings::parse( $competition->settings );
+		$substitutes = Competition_Settings::substitutes( $settings );
+
+		// One query for every category.
+		$panels = array();
+		foreach ( $this->images_repo->find_in_panels( (int) $competition->id, null, $member_id ) as $image ) {
+			$panels[ $image->category ][] = $image;
+		}
 
 		$quota_status = array();
 		foreach ( Competition_Settings::get_categories( $settings ) as $cat ) {
-			$current = $this->images_repo->count_by_member_category( (int) $competition->id, $member_id, $cat['slug'] );
-			$quota   = $cat['quota'] ?? 1;
+			$panel        = $panels[ $cat['slug'] ] ?? array();
+			$substituting = count(
+				array_filter(
+					$panel,
+					static function ( object $image ): bool {
+						return 'substitute' === $image->entry_status;
+					}
+				)
+			);
+			$quota        = (int) ( $cat['quota'] ?? 1 );
+			$entered_left = max( 0, $quota - ( count( $panel ) - $substituting ) );
+			$subs_left    = max( 0, $substitutes - $substituting );
 
 			$quota_status[ $cat['slug'] ] = array(
-				'label'     => $cat['label'],
-				'slug'      => $cat['slug'],
-				'current'   => $current,
-				'quota'     => $quota,
-				'remaining' => max( 0, $quota - $current ),
+				'label'                 => $cat['label'],
+				'slug'                  => $cat['slug'],
+				'current'               => count( $panel ),
+				'quota'                 => $quota,
+				'remaining'             => $entered_left + $subs_left,
+				'entered_remaining'     => $entered_left,
+				'substitutes_remaining' => $subs_left,
 			);
 		}
 
 		return $quota_status;
-	}
-
-	/**
-	 * Get how many entries a member has in a category.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $category       Category slug.
-	 * @return int
-	 */
-	public function get_category_count( int $competition_id, int $member_id, string $category ): int {
-		return $this->images_repo->count_by_member_category( $competition_id, $member_id, $category );
 	}
 
 	/**

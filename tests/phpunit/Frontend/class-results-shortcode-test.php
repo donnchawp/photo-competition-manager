@@ -8,10 +8,13 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Results_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -38,6 +41,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Results Comp',
 				'slug'      => 'results-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -102,6 +106,83 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( 'data-label="Member"', $html );
 		$this->assertStringContainsString( 'data-label="Score"', $html );
+	}
+
+	/**
+	 * Create a closed interclub competition with published results: Lee's colour entry by Ann
+	 * Murphy scores 9, and Bandon's by Bob Byrne scores 4.
+	 */
+	private function create_interclub_results(): void {
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => '2019-01-01 00:00:00',
+				'close_date' => '2019-02-01 00:00:00',
+				'settings'   => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		foreach ( array( 'Lee Camera Club' => array( 'Ann Murphy', 9 ), 'Bandon Camera Club' => array( 'Bob Byrne', 4 ) ) as $club => list( $photographer, $score ) ) {
+			$club_id  = (int) ( new Members_Repository() )->create(
+				array(
+					'name'  => $club,
+					'email' => sanitize_title( $club ) . '@example.com',
+					'grade' => 'beginner',
+				)
+			);
+			$image_id = Entry_Fixtures::insert_entry( $competition_id, 'colour', $club_id, array( $score ) );
+			( new Images_Repository() )->update_photographer( $image_id, $photographer );
+		}
+		Workflow_Fixtures::publish_results( $competition_id );
+	}
+
+	public function test_an_interclub_entry_shows_its_photographer_and_club(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		$this->assertMatchesRegularExpression( '#<td class="member-name"[^>]*>Ann Murphy — Lee Camera Club</td>#u', $html );
+	}
+
+	public function test_interclub_results_show_each_grades_club_standings(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		preg_match_all( '#<tr class="club-standing">\s*<td class="position">(\d+|—)</td>\s*<td class="club-name"[^>]*>([^<]+)</td>\s*<td class="panel-total"[^>]*>\s*(\d+) <span class="panel-position">\((\d+)\)</span>\s*</td>\s*<td class="club-total"[^>]*>(\d+|—)</td>\s*</tr>#u', $html, $rows, PREG_SET_ORDER );
+		$this->assertSame(
+			array( array( '1', 'Lee Camera Club', '9', '1', '9' ), array( '2', 'Bandon Camera Club', '4', '2', '4' ) ),
+			array_map( static fn( array $row ): array => array_slice( $row, 1 ), $rows )
+		);
+	}
+
+	public function test_hidden_names_leave_out_photographers_clubs_and_the_club_standings(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render(
+			array(
+				'competition' => 'interclub',
+				'hide_names'  => 'true',
+			)
+		);
+
+		$this->assertStringContainsString( 'data-label="Score">9</td>', $html );
+		$this->assertStringNotContainsString( 'Ann Murphy', $html );
+		$this->assertStringNotContainsString( 'Lee Camera Club', $html );
 	}
 
 	/**
@@ -180,6 +261,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
 		$competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Next Month',
 				'slug'      => 'next-month',
 				'open_date' => '2020-02-01 00:00:00',
@@ -209,6 +291,21 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
 
 		$this->assertStringContainsString( 'Club Starters', $html );
+	}
+
+	/**
+	 * A type that renames a grade shows its name on the public results.
+	 */
+	public function test_results_page_shows_type_grade_names(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'beginner' => 'Novice Cup' ) );
+		// The type is locked once a competition has entries, so set it directly.
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( 'Novice Cup', $html );
+		$this->assertStringNotContainsString( '>Beginner<', $html );
 	}
 
 	/**
@@ -245,5 +342,66 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Old Grade', $html );
 		$this->assertStringNotContainsString( 'Ungraded', $html );
 		$this->assertMatchesRegularExpression( '#<td class="position">1</td>.*?Ben Example.*?<td class="position">2</td>.*?Ann Example#s', $html );
+	}
+
+	/**
+	 * A member deleted after results are published stays in their place,
+	 * as a former member without an image, and nobody moves up.
+	 */
+	public function test_a_deleted_members_entry_keeps_its_place_as_a_former_member(): void {
+		$winner    = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Zed Winner', 'beginner', array( 9 ) );
+		$member_id = (int) ( new Images_Repository() )->find( $winner )->member_id;
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $member_id );
+		( new Members_Repository() )->delete( $member_id );
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Former member</td>', $html );
+		$this->assertStringNotContainsString( 'Zed Winner', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+		$this->assertMatchesRegularExpression( '/Former member.*Ann Example/s', $html );
+	}
+
+	/**
+	 * Recorded results stay on the page after every entry is removed, as
+	 * they do on the Results screen.
+	 */
+	public function test_recorded_results_are_shown_after_every_entry_is_removed(): void {
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+		$image = ( new Images_Repository() )->find_entered( $this->competition_id )[0];
+
+		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $image->id );
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringNotContainsString( 'No images submitted', $html );
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+	}
+
+	/**
+	 * A recorded entry keeps the grade it was entered in, even once that
+	 * grade is gone from the club's list.
+	 */
+	public function test_recorded_entries_in_a_grade_since_removed_are_shown(): void {
+		( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				)
+			)
+		);
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'results-comp' ) );
+
+		$this->assertStringContainsString( '<h4>beginner</h4>', $html );
+		$this->assertStringContainsString( '<td class="member-name" data-label="Member">Ann Example</td>', $html );
 	}
 }

@@ -11,6 +11,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Voting_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -70,6 +71,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	private function create_open_competition( string $title, string $slug ): int {
 		return $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				// Null dates make is_open() true independent of the clock, so the
@@ -143,7 +145,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	private function seed_token( int $competition_id, string $category ): void {
 		$tokens = new Voting_Token_Repository();
-		$tokens->create( $this->admin_id, $competition_id, $category, 'hash_' . $category, '2099-12-31 00:00:00' );
+		$tokens->renew( $this->admin_id, $competition_id, $category, 'hash_' . $category, '2099-12-31 00:00:00' );
 	}
 
 	/**
@@ -297,6 +299,257 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertMatchesRegularExpression( '/[?&]job_id=email_job_/', $location );
 		$this->assertSame( 0, $mail_count );
+	}
+
+	/**
+	 * The voting opened email goes to the active members carrying the
+	 * competition's type who have an email, whoever may enter: a selected
+	 * competition's voting password works for anyone.
+	 */
+	public function test_voting_opened_goes_to_type_members_only(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->voting_opened_email_on();
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$this->assertTrue(
+			$this->competitions->update(
+				$this->competition_id,
+				array( 'entry_mode' => 'selected' )
+			)
+		);
+		$this->move_to_type( $individual );
+		$members = new Members_Repository();
+		$ann     = $members->create(
+			array(
+				'name'     => 'Ann',
+				'email'    => 'ann@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual, $team ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Ben',
+				'email'    => 'ben@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $team ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Cat',
+				'email'    => 'cat@example.com',
+				'grade'    => 'beginner',
+				'active'   => false,
+				'type_ids' => array( $individual ),
+			)
+		);
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		wp_parse_str( (string) wp_parse_url( $this->open_colour_voting(), PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( 'voting_opened', $job['type'] );
+		$this->assertSame( array( $ann ), $job['member_ids'] );
+	}
+
+	/**
+	 * With emailed links, only the people who can ask for a link are told voting opened:
+	 * a selected competition's entrants, not the other members of its type.
+	 */
+	public function test_voting_opened_with_emailed_links_goes_to_entrants_only(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->voting_opened_email_on();
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$this->assertTrue(
+			$this->competitions->update(
+				$this->competition_id,
+				array(
+					'entry_mode' => 'selected',
+					'settings'   => array(
+						'categories' => array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 2 ) ),
+						'voting'     => array( 'auth_mode' => 'token' ),
+					),
+				)
+			)
+		);
+		$this->move_to_type( $individual );
+		$members = new Members_Repository();
+		$ann     = $members->create(
+			array(
+				'name'     => 'Ann',
+				'email'    => 'ann@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual ),
+			)
+		);
+		$members->create(
+			array(
+				'name'     => 'Ben',
+				'email'    => 'ben@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual ),
+			)
+		);
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $this->competition_id, (int) $ann );
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		wp_parse_str( (string) wp_parse_url( $this->open_colour_voting(), PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( array( $ann ), $job['member_ids'] );
+	}
+
+	/**
+	 * Put the competition under a type without copying the type's categories over its own.
+	 *
+	 * @param int $type_id Type ID.
+	 */
+	private function move_to_type( int $type_id ): void {
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'type_id' => $type_id ), array( 'id' => $this->competition_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Turn the voting-opened email on and add one member to send it to.
+	 */
+	private function voting_opened_email_on(): void {
+		update_option(
+			'photo_comp_email_templates',
+			array(
+				'voting_opened' => array(
+					'enabled' => true,
+					'subject' => 'Voting is open',
+					'body'    => '<p>Vote at {voting_page}</p>',
+				),
+			)
+		);
+		( new Members_Repository() )->create(
+			array(
+				'name'  => 'Voter',
+				'email' => 'voter@example.com',
+				'grade' => 'beginner',
+			)
+		);
+	}
+
+	/**
+	 * Open voting on colour and return where the request redirected.
+	 *
+	 * @return string Redirect location.
+	 */
+	private function open_colour_voting(): string {
+		$this->set_request(
+			array(
+				'action'      => 'open_category_voting',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_open_voting_' . $this->competition_id . '_colour' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	/**
+	 * Voting opened links the competition's own voting page, the same one
+	 * its upload link email gives.
+	 */
+	public function test_voting_opened_links_the_competitions_own_voting_page(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/club-vote/' ) ) ) );
+		$this->competitions->update( $this->competition_id, array( 'settings' => array( 'urls' => array( 'voting_page' => 'https://example.com/spring-vote/' ) ) ) );
+		$this->voting_opened_email_on();
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+		$bodies = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$bodies ) {
+				$bodies[] = $atts['message'];
+				return true;
+			},
+			10,
+			2
+		);
+
+		$location = $this->open_colour_voting();
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->process_batch( $query['job_id'] );
+
+		$this->assertCount( 1, $bodies );
+		$this->assertStringContainsString( 'Vote at https://example.com/spring-vote/', $bodies[0] );
+	}
+
+	/**
+	 * With no voting page anywhere, voting still opens, nothing is queued,
+	 * and the admin is told why members weren't emailed.
+	 */
+	public function test_opening_voting_with_no_voting_page_says_members_were_not_told(): void {
+		global $wpdb;
+
+		$this->voting_opened_email_on();
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		$location = $this->open_colour_voting();
+
+		$this->assertSame( Competition_Workflow::STAGE_VOTING, $this->colour_stage() );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertSame(
+			'0',
+			$wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE option_name LIKE %s',
+					$wpdb->options,
+					$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
+				)
+			)
+		);
+		$notices = wp_list_pluck( get_settings_errors( 'photo_competition_voting' ), 'type', 'code' );
+		$this->assertSame( 'updated', $notices['voting_opened'] );
+		$this->assertSame( 'warning', $notices['no_voting_page'] );
+	}
+
+	/**
+	 * Judges score a judged competition, so members aren't told voting is open
+	 * and no warning about a missing voting page is shown.
+	 */
+	public function test_open_voting_in_judged_competition_queues_no_member_email(): void {
+		global $wpdb;
+
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
+		$this->competitions->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'voting' => array(
+						'auth_mode'    => 'judges',
+						'score_matrix' => array( 5, 4, 3 ),
+					),
+				),
+			)
+		);
+		$this->voting_opened_email_on();
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		$location = $this->open_colour_voting();
+
+		$this->assertSame( Competition_Workflow::STAGE_VOTING, $this->colour_stage() );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertSame(
+			'0',
+			$wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE option_name LIKE %s',
+					$wpdb->options,
+					$wpdb->esc_like( Email_Job_Manager::OPTION_PREFIX ) . '%'
+				)
+			)
+		);
 	}
 
 	/**

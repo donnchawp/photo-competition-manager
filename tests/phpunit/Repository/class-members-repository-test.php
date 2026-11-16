@@ -6,6 +6,7 @@
 namespace PhotoCompetitionManager\Tests\Repository;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -84,6 +85,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Charlie Lens',
 				'email' => 'charlie@example.com',
 				'grade' => 'intermediate',
@@ -110,6 +112,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$first = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Dana First',
 				'email' => 'dana@example.com',
 				'grade' => 'beginner',
@@ -120,6 +123,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$second = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Dana Second',
 				'email' => 'dana@example.com',
 				'grade' => 'beginner',
@@ -140,6 +144,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Evan Artist',
 				'email' => 'evan@example.com',
 				'grade' => 'beginner',
@@ -176,6 +181,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Fay Toggle',
 				'email'  => 'fay@example.com',
 				'grade'  => 'beginner',
@@ -198,6 +204,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$alice = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Alice Batch',
 				'email' => 'alice.batch@example.com',
 				'grade' => 'beginner',
@@ -206,6 +213,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$bob = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Bob Batch',
 				'email' => 'bob.batch@example.com',
 				'grade' => 'beginner',
@@ -230,6 +238,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'George Finder',
 				'email' => 'george@example.com',
 				'grade' => 'intermediate',
@@ -279,6 +288,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'      => 'Committee Alice',
 				'email'     => 'calice@example.com',
 				'grade'     => 'beginner',
@@ -289,6 +299,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'      => 'Regular Bob',
 				'email'     => 'rbob@example.com',
 				'grade'     => 'beginner',
@@ -300,6 +311,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		// Inactive committee member should be excluded.
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'      => 'Inactive Charlie',
 				'email'     => 'icharlie@example.com',
 				'grade'     => 'beginner',
@@ -323,6 +335,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Active Alice',
 				'email'  => 'aalice@example.com',
 				'grade'  => 'beginner',
@@ -332,6 +345,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Inactive Bob',
 				'email'  => 'ibob@example.com',
 				'grade'  => 'beginner',
@@ -354,6 +368,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Delete Me',
 				'email' => 'deleteme@example.com',
 				'grade' => 'beginner',
@@ -371,6 +386,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Still Entered',
 				'email' => 'entered@example.com',
 				'grade' => 'beginner',
@@ -411,6 +427,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Gil Leaver',
 				'email' => 'gil@example.com',
 				'grade' => 'beginner',
@@ -427,6 +444,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Hal Returner',
 				'email' => 'hal@example.com',
 				'grade' => 'beginner',
@@ -444,6 +462,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Ivy Inactive',
 				'email'  => 'ivy@example.com',
 				'grade'  => 'beginner',
@@ -459,6 +478,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Jo Edited',
 				'email'  => 'jo@example.com',
 				'grade'  => 'beginner',
@@ -484,6 +504,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Mo Typed',
 				'email'  => 'Deactivated-Mo@example.com.INVALID',
 				'grade'  => 'beginner',
@@ -503,6 +524,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Kit Gone',
 				'email'  => 'kit@example.com',
 				'grade'  => 'beginner',
@@ -518,6 +540,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Lee Gone',
 				'email'  => 'lee@example.com',
 				'grade'  => 'beginner',
@@ -527,6 +550,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 
 		$result = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'  => 'Lee Again',
 				'email' => 'lee@example.com',
 				'grade' => 'beginner',
@@ -564,6 +588,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$active_id = (int) $wpdb->insert_id;
 		$marked_id = $repository->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'name'   => 'Already Marked',
 				'email'  => 'marked@example.com',
 				'grade'  => 'beginner',
@@ -684,5 +709,93 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$member = $repository->find( $id );
 		$this->assertSame( 'beginner', $member->grade );
 		$this->assertSame( 'Gina Graded', $member->name );
+	}
+
+	public function test_new_member_gets_the_only_type(): void {
+		Type_Fixtures::clear();
+		$type = Type_Fixtures::create( 'Individual' );
+
+		$id = ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$this->assertSame( array( $type ), ( new Members_Repository() )->type_ids( $id ) );
+	}
+
+	public function test_new_member_untagged_with_two_types(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+		$members = new Members_Repository();
+
+		$id = $members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$this->assertSame( array(), $members->type_ids( $id ) );
+	}
+
+	public function test_create_tags_with_the_types_given(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+		$members = new Members_Repository();
+
+		$id = $members->create(
+			array(
+				'name'     => 'Ada',
+				'email'    => 'ada@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $individual ),
+			)
+		);
+
+		$this->assertSame( array( $individual ), $members->type_ids( $id ) );
+	}
+
+	public function test_set_types_replaces_tags(): void {
+		Type_Fixtures::clear();
+		$a = Type_Fixtures::create( 'Individual' );
+		$b = Type_Fixtures::create( 'Team' );
+		$c = Type_Fixtures::create( 'Juniors' );
+		$members = new Members_Repository();
+		$id      = $members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+
+		$members->set_types( $id, array( $a, $b ) );
+		$this->assertEqualsCanonicalizing( array( $a, $b ), $members->type_ids( $id ) );
+
+		$members->set_types( $id, array( $c, $c, 999999 ) );
+		$this->assertSame( array( $c ), $members->type_ids( $id ) );
+
+		$members->set_types( $id, array() );
+		$this->assertSame( array(), $members->type_ids( $id ) );
+	}
+
+	public function test_find_by_type_skips_inactive_and_untagged(): void {
+		Type_Fixtures::clear();
+		$a = Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+		$members  = new Members_Repository();
+		$tagged   = $members->create( array( 'name' => 'Tagged', 'email' => 't@example.com', 'grade' => 'beginner', 'type_ids' => array( $a ) ) );
+		$inactive = $members->create( array( 'name' => 'Gone', 'email' => 'g@example.com', 'grade' => 'beginner', 'active' => 0, 'type_ids' => array( $a ) ) );
+		$untagged = $members->create( array( 'name' => 'Bare', 'email' => 'b@example.com', 'grade' => 'beginner' ) );
+
+		$ids = fn( array $rows ) => array_map( fn( $m ) => (int) $m->id, $rows );
+
+		$this->assertSame( array( $tagged ), $ids( $members->find_by_type( $a ) ) );
 	}
 }

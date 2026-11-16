@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Submissions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -49,6 +50,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function set_up(): void {
 		parent::set_up();
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'http://example.org/photo-upload/' ) ) ) );
 		$this->competitions = new Competitions_Repository();
 		$this->members      = new Members_Repository();
 		$this->images       = new Images_Repository();
@@ -123,18 +125,20 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		}
 
 		// Normalize non-deterministic auto-increment member IDs, scoped to the
-		// member filter dropdown's <option value="..."> and the row checkbox
+		// member filter dropdown's <option value="..."> and the status form's member_id; the row checkbox
 		// values are image IDs, not member IDs, so no collision there.
 		foreach ( $member_ids as $id ) {
 			$id_pattern = preg_quote( (string) $id, '/' );
 			$html       = preg_replace( '/<option value="' . $id_pattern . '"/', '<option value="ID"', $html );
+			$html       = preg_replace( '/name="member_id" value="' . $id_pattern . '"/', 'name="member_id" value="ID"', $html );
 		}
 
 		// Normalize non-deterministic auto-increment image (submission) IDs,
-		// scoped to the row checkbox value attribute.
+		// scoped to the row checkbox value and the status buttons' names.
 		foreach ( $image_ids as $id ) {
 			$id_pattern = preg_quote( (string) $id, '/' );
 			$html       = preg_replace( '/name="image_ids\[\]" value="' . $id_pattern . '"/', 'name="image_ids[]" value="ID"', $html );
+			$html       = preg_replace( '/name="entry_status\[' . $id_pattern . '\]"/', 'name="entry_status[ID]"', $html );
 		}
 
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
@@ -198,6 +202,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => null,
@@ -328,8 +333,8 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function test_render_no_submissions(): void {
 		// Competition exists (global default categories, since none are set
-		// explicitly) but has no submissions: filters, action forms, a
-		// zero-state submission-status table, then the "no submissions" notice.
+		// explicitly) but has no submissions: filters, action forms, the
+		// "no submissions" notice, then a zero-state submission-status table.
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 
 		$this->assert_matches_snapshot( 'no-submissions', array( $comp_id ) );
@@ -374,6 +379,29 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array(), $json_decode_deprecations, 'Rendering a null-settings competition must not emit a json_decode() deprecation.' );
 		// The selected competition still renders its admin action forms.
 		$this->assertStringContainsString( 'name="competition_id" value="' . $comp_id . '"', $html );
+	}
+
+	public function test_a_competition_with_no_settings_offers_the_clubs_categories(): void {
+		// Like the upload page, a competition without settings takes the club's categories.
+		global $wpdb;
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'categories' => array( array( 'slug' => 'nature', 'label' => 'Nature', 'quota' => 1 ) ) ) ) );
+		$comp_id = $this->seed_competition( 'No Settings Show', 'no-settings-show' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$this->assertSame( 1, $wpdb->update( $this->competitions->table(), array( 'settings' => null ), array( 'id' => $comp_id ), array( '%s' ), array( '%d' ) ) );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '#<select name="category" id="admin-upload-category"[^>]*>.*<option value="nature">Nature</option>#s', $html );
+		// The status summary has a column for the club's category.
+		$this->assertStringContainsString( '<th>Nature</th>', $html );
 	}
 
 	public function test_render_happy_path(): void {
@@ -511,5 +539,232 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array( $ada, $grace ),
 			array( $grace_img )
 		);
+	}
+
+	/**
+	 * Render the entries of one competition with one entry, given the club's upload page.
+	 *
+	 * @param string $club_upload_page Club upload page URL, or '' for none.
+	 * @return string Rendered HTML.
+	 */
+	private function render_one_entry( string $club_upload_page ): string {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => $club_upload_page ) ) ) );
+		$comp_id = $this->seed_competition( 'Autumn Exhibition', 'autumn-exhibition' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $this->seed_member( 'Ada Lovelace', 'ada@example.com' ),
+				'category'  => 'colour',
+				'filename'  => 'ada-photo.jpg',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_the_summary_counts_only_a_members_entered_images_against_the_quota(): void {
+		$comp_id   = $this->seed_competition(
+			'Interclub',
+			'interclub',
+			array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+					'quota' => 2,
+				),
+			)
+		);
+		$member_id = $this->seed_member( 'Lee Camera Club', 'lee@example.com' );
+		foreach ( array( 'entered', 'substitute', 'disqualified' ) as $status ) {
+			$this->seed_image(
+				$comp_id,
+				array(
+					'member_id'    => $member_id,
+					'filename'     => $status . '.jpg',
+					'entry_status' => $status,
+				)
+			);
+		}
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '#font-weight: bold;">1/2</td>#', $html );
+	}
+
+	public function test_the_submitted_photos_come_before_the_submission_status(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_image( $comp_id, array( 'member_id' => $this->seed_member( 'Ada Lovelace', 'ada@example.com' ) ) );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Submission Status', $html );
+		$this->assertStringContainsString( 'id="bulk-delete-form"', $html );
+		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'id="bulk-delete-form"' ) );
+	}
+
+	public function test_with_no_submissions_the_notice_comes_before_the_submission_status(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Ada Lovelace', substr( $html, (int) strpos( $html, 'Submission Status' ) ) );
+		$this->assertStringContainsString( 'No submissions', $html );
+		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'No submissions' ) );
+	}
+
+	public function test_each_entry_shows_its_photographer_and_the_status_changes_it_allows(): void {
+		$comp_id    = (int) $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => null,
+				'close_date' => null,
+				'settings'   => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 1,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		$member_id  = $this->seed_member( 'Lee Camera Club', 'lee@example.com' );
+		$substitute = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id'    => $member_id,
+				'filename'     => 'substitute.jpg',
+				'photographer' => 'Bob Byrne',
+				'entry_status' => 'substitute',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'form="photo-comp-photographer-form-' . $substitute . '" name="photographer" value="Bob Byrne"', $html );
+		preg_match_all( '#name="entry_status\[' . $substitute . '\]" value="([a-z]+)"#', $html, $offered );
+		$this->assertSame( array( 'entered', 'disqualified' ), $offered[1] );
+	}
+
+	public function test_the_summary_lists_the_members_who_may_enter_and_any_others_with_entries(): void {
+		$comp_id = $this->seed_competition( 'Selected Show', 'selected-show' );
+		$this->competitions->update( $comp_id, array( 'entry_mode' => 'selected' ) );
+		$entrant = $this->seed_member( 'Ada Entrant', 'ada@example.com' );
+		$this->seed_member( 'Bob Outsider', 'bob@example.com' );
+		$former  = $this->seed_member( 'Cat Former', 'cat@example.com' );
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $comp_id, $entrant );
+		// Cat entered, then was taken off the entrants.
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $former,
+				'filename'  => 'cat.jpg',
+			)
+		);
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$summary = substr( $html, (int) strpos( $html, 'Submission Status' ) );
+		$this->assertStringContainsString( '<strong>Ada Entrant</strong>', $summary );
+		$this->assertStringContainsString( '<strong>Cat Former</strong>', $summary );
+		$this->assertStringNotContainsString( 'Bob Outsider</strong>', $summary );
+	}
+
+	public function test_a_members_upload_link_uses_the_competitions_upload_page(): void {
+		$html = $this->render_one_entry( 'https://example.com/club-upload/' );
+
+		$this->assertMatchesRegularExpression( '#<a href="https://example.com/club-upload/\?token=[a-f0-9]{64}[^"]*"#', $html );
+	}
+
+	public function test_no_upload_link_is_shown_without_an_upload_page(): void {
+		$html = $this->render_one_entry( '' );
+
+		$this->assertStringNotContainsString( 'token=', $html );
+	}
+
+	public function test_no_upload_link_is_shown_for_a_member_who_may_no_longer_enter(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/club-upload/' ) ) ) );
+		$comp_id = $this->seed_competition( 'Autumn Exhibition', 'autumn-exhibition' );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ada,
+				'category'  => 'colour',
+				'filename'  => 'ada-photo.jpg',
+			)
+		);
+		// Ada no longer carries the competition's type.
+		$this->members->set_types( $ada, array() );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'ada-photo.jpg', $html );
+		$this->assertStringNotContainsString( 'token=', $html );
 	}
 }

@@ -107,7 +107,7 @@ The plugin sends automated emails for key events:
 * Results announcements when competition closes
 * Custom templates with merge tags (member names, competition titles, links, etc.)
 
-Configure and customize all templates from **Competitions → Email Templates**.
+Configure and customize all templates from **Competitions → Email Templates**. Each email sends the text that screen shows. Upload links, voting links and results emails always send. The voting opened and submission confirmed notifications are off until you switch them on.
 
 Emails going to many members (upload links, voting opened, results, and results links) are sent 5 at a time by the admin page you sent them from, so a big send can't time out a single request. The page shows progress while they go out, so keep it open until it says they've been sent. If you leave early, a notice on every admin page says where it stopped, with links to carry on without emailing anyone twice or to discard the rest. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
 

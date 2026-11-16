@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -96,6 +97,14 @@ class Competition_Workflow {
 	private $voting_tokens;
 
 	/**
+	 * Results ranking, which records results when they're published. Made
+	 * when first needed, as it uses this workflow too.
+	 *
+	 * @var Results_Ranking|null
+	 */
+	private $ranking;
+
+	/**
 	 * Category slugs of competitions with categories of their own, keyed by
 	 * their settings JSON. Nearly every question needs them, and parsing
 	 * settings isn't cheap.
@@ -107,21 +116,26 @@ class Competition_Workflow {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.4.0
+	 *
 	 * @param Competitions_Repository|null $competitions  Competitions repository.
 	 * @param Images_Repository|null       $images        Images repository.
 	 * @param Votes_Repository|null        $votes         Votes repository.
 	 * @param Voting_Token_Repository|null $voting_tokens Voting token repository.
+	 * @param Results_Ranking|null         $ranking       Results ranking.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions = null,
 		?Images_Repository $images = null,
 		?Votes_Repository $votes = null,
-		?Voting_Token_Repository $voting_tokens = null
+		?Voting_Token_Repository $voting_tokens = null,
+		?Results_Ranking $ranking = null
 	) {
 		$this->competitions  = $competitions ?? new Competitions_Repository();
 		$this->images        = $images ?? new Images_Repository();
 		$this->votes         = $votes ?? new Votes_Repository();
 		$this->voting_tokens = $voting_tokens ?? new Voting_Token_Repository();
+		$this->ranking       = $ranking;
 	}
 
 	/**
@@ -149,6 +163,42 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Whether the competition has closed: its phase is Closed or Archived.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public function has_closed( object $competition ): bool {
+		return in_array( $this->phase( $competition ), array( self::PHASE_CLOSED, self::PHASE_ARCHIVED ), true );
+	}
+
+	/**
+	 * When the competition became Closed or Archived: the earlier of its
+	 * close date, once that has passed, and when it was archived.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return string|null UTC datetime, or null if it hasn't closed.
+	 */
+	public function closed_at( object $competition ): ?string {
+		if ( ! $this->has_closed( $competition ) ) {
+			return null;
+		}
+
+		$times = array_filter(
+			array(
+				$competition->deleted_at ?? null,
+				$this->close_date_passed( $competition, utc_time() ) ? $competition->close_date : null,
+			)
+		);
+
+		return $times ? min( $times ) : null;
+	}
+
+	/**
 	 * Whether the competition is accepting uploads.
 	 *
 	 * @param object $competition Competition row.
@@ -167,6 +217,35 @@ class Competition_Workflow {
 	 */
 	public function stage( object $competition, string $category_slug ): string {
 		return $this->state( $competition )['stages'][ $category_slug ] ?? self::STAGE_NOT_STARTED;
+	}
+
+	/**
+	 * Whether a category's voting has started: its stage is past Previewed.
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Category slug.
+	 * @return bool
+	 */
+	public function has_voting_started( object $competition, string $category_slug ): bool {
+		return ! in_array( $this->stage( $competition, $category_slug ), array( self::STAGE_NOT_STARTED, self::STAGE_PREVIEWED ), true );
+	}
+
+	/**
+	 * Whether any of the competition's categories has started voting.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public function has_any_voting_started( object $competition ): bool {
+		foreach ( $this->category_slugs( $competition ) as $category_slug ) {
+			if ( $this->has_voting_started( $competition, $category_slug ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -196,7 +275,18 @@ class Competition_Workflow {
 
 		return empty( $competition->deleted_at )
 			&& ( empty( $competition->open_date ) || $competition->open_date <= $now )
-			&& ( empty( $competition->close_date ) || $competition->close_date > $now );
+			&& ! $this->close_date_passed( $competition, $now );
+	}
+
+	/**
+	 * Whether the competition has a close date, and it has passed.
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $now         UTC datetime.
+	 * @return bool
+	 */
+	private function close_date_passed( object $competition, string $now ): bool {
+		return ! empty( $competition->close_date ) && $competition->close_date <= $now;
 	}
 
 	/**
@@ -223,11 +313,13 @@ class Competition_Workflow {
 	 * Whether uploads may reopen.
 	 *
 	 * Not while results are published, since uploads stay shut then. Not
-	 * while a category is accepting votes, or once any votes are cast: a
-	 * new image would leave the ballots already cast incomplete.
+	 * while a category is accepting votes, or once any category's voting
+	 * has started: its entries are fixed until it's reset. Not once any
+	 * votes are cast either: a new image would leave the ballots already
+	 * cast incomplete.
 	 *
 	 * @param object $competition Competition row.
-	 * @return true|WP_Error 'results_published', 'voting_open' or 'votes_exist'.
+	 * @return true|WP_Error 'results_published', 'voting_open', 'voting_started' or 'votes_exist'.
 	 */
 	public function can_reopen_uploads( object $competition ) {
 		if ( $this->results_published( $competition ) ) {
@@ -236,6 +328,29 @@ class Competition_Workflow {
 
 		if ( ! empty( $this->categories_accepting_votes( $competition ) ) ) {
 			return new WP_Error( 'voting_open', __( 'Close voting before reopening uploads.', 'photo-competition-manager' ) );
+		}
+
+		$started = array();
+		foreach ( Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ?? '' ) ) as $category ) {
+			if ( $this->has_voting_started( $competition, (string) $category['slug'] ) ) {
+				$started[] = (string) ( $category['label'] ?? $category['slug'] );
+			}
+		}
+
+		if ( ! empty( $started ) ) {
+			return new WP_Error(
+				'voting_started',
+				sprintf(
+					/* translators: %s: category names, e.g. "Open and Monochrome". */
+					_n(
+						'Voting has started in %s. Reset that category before reopening uploads.',
+						'Voting has started in %s. Reset those categories before reopening uploads.',
+						count( $started ),
+						'photo-competition-manager'
+					),
+					wp_sprintf( '%l', $started )
+				)
+			);
 		}
 
 		if ( $this->votes->has_votes( (int) $competition->id ) ) {
@@ -266,6 +381,20 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * Whether the competition's results are read from its record: they're
+	 * published, or the competition has closed. Members can be told them
+	 * from then on.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public function reads_recorded_results( object $competition ): bool {
+		return $this->results_published( $competition ) || $this->has_closed( $competition );
+	}
+
+	/**
 	 * Whether results may be published: uploads are closed and no category
 	 * is accepting votes.
 	 *
@@ -285,23 +414,62 @@ class Competition_Workflow {
 	}
 
 	/**
-	 * Publish the results.
+	 * Publish the results, recording them first.
+	 *
+	 * Publishing again replaces the record, as the votes can change while
+	 * results are hidden. Once the competition has closed, a trusted record
+	 * stays as it is (see Results_Ranking::record()).
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error
 	 */
 	public function publish_results( int $competition_id ) {
+		$competition = $this->load( $competition_id );
+
+		if ( is_wp_error( $competition ) ) {
+			return $competition;
+		}
+
+		$allowed = $this->can_publish_results( $competition );
+
+		if ( true !== $allowed ) {
+			return $allowed;
+		}
+
+		$recorded = $this->ranking()->record( $competition );
+
+		if ( is_wp_error( $recorded ) ) {
+			return $recorded;
+		}
+
 		return $this->set_flag( $competition_id, 'results_published', true, array( $this, 'can_publish_results' ) );
 	}
 
 	/**
-	 * Unpublish the results.
+	 * Whether results may be hidden: not once the competition has closed,
+	 * since publishing again then can't replace the record.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return true|WP_Error 'competition_closed'.
+	 */
+	public function can_unpublish_results( object $competition ) {
+		if ( $this->has_closed( $competition ) ) {
+			return new WP_Error( 'competition_closed', __( 'Results can\'t be hidden after the competition has closed. To correct them, move the close date into the future first.', 'photo-competition-manager' ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Unpublish the results. Their record stays (see Results_Ranking::record()).
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @return true|WP_Error
 	 */
 	public function unpublish_results( int $competition_id ) {
-		return $this->set_flag( $competition_id, 'results_published', false, fn() => true );
+		return $this->set_flag( $competition_id, 'results_published', false, array( $this, 'can_unpublish_results' ) );
 	}
 
 	/**
@@ -661,6 +829,19 @@ class Competition_Workflow {
 		}
 
 		return $slugs;
+	}
+
+	/**
+	 * The results ranking, made when first needed.
+	 *
+	 * @return Results_Ranking
+	 */
+	private function ranking(): Results_Ranking {
+		if ( null === $this->ranking ) {
+			$this->ranking = new Results_Ranking( $this->images, $this->votes, new Members_Repository(), $this->competitions, $this );
+		}
+
+		return $this->ranking;
 	}
 
 	/**

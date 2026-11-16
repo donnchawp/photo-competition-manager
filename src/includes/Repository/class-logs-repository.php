@@ -227,6 +227,92 @@ class Logs_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Every log row about some members: rows whose metadata holds one of their
+	 * email addresses, or one of their member IDs. Oldest first.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     The members' email addresses.
+	 * @return array<int, object>
+	 */
+	public function find_about_members( array $member_ids, array $emails ): array {
+		global $wpdb;
+
+		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE {$conditions} ORDER BY created_at, id", $this->table(), ...$patterns ) );
+	}
+
+	/**
+	 * Delete every log row about a member, as find_about_members() finds them.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int      $member_id Member ID.
+	 * @param string[] $emails    The member's email addresses.
+	 * @return int|false The number of rows deleted, or false on error.
+	 */
+	public function delete_about_member( int $member_id, array $emails ) {
+		return $this->delete_about( array( $member_id ), $emails );
+	}
+
+	/**
+	 * Delete every log row whose metadata holds one of some email addresses, for people
+	 * who aren't members, such as judges.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string[] $emails Email addresses; at least one.
+	 * @return int|false The number of rows deleted, or false on error.
+	 */
+	public function delete_about_emails( array $emails ) {
+		return $emails ? $this->delete_about( array(), $emails ) : 0;
+	}
+
+	/**
+	 * Delete the log rows about some members or email addresses, as about_members() finds them.
+	 *
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     Email addresses.
+	 * @return int|false The number of rows deleted, or false on error.
+	 */
+	private function delete_about( array $member_ids, array $emails ) {
+		global $wpdb;
+
+		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
+	}
+
+	/**
+	 * The condition that finds the log rows about some members, and its values.
+	 *
+	 * @param int[]    $member_ids Member IDs.
+	 * @param string[] $emails     The members' email addresses.
+	 * @return array{0: string, 1: string[]} Conditions of placeholders only, and a LIKE pattern for each.
+	 */
+	private function about_members( array $member_ids, array $emails ): array {
+		global $wpdb;
+
+		// Metadata is JSON, so a value is matched with its quotes, or the
+		// punctuation after it, and never as part of a longer one.
+		$patterns = array();
+		foreach ( array_unique( array_map( 'intval', $member_ids ) ) as $member_id ) {
+			$patterns[] = '%"member_id":' . $member_id . ',%';
+			$patterns[] = '%"member_id":' . $member_id . '}%';
+			$patterns[] = '%"member_id":"' . $member_id . '"%';
+		}
+		foreach ( array_unique( $emails ) as $email ) {
+			$patterns[] = '%' . $wpdb->esc_like( (string) wp_json_encode( $email ) ) . '%';
+		}
+
+		return array( implode( ' OR ', array_fill( 0, count( $patterns ), 'metadata LIKE %s' ) ), $patterns );
+	}
+
+	/**
 	 * Get distinct event categories.
 	 *
 	 * @return array<int, string>

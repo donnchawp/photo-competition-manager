@@ -10,14 +10,21 @@
  *         rank: int,
  *         image_url: string,
  *         member_name: string|null,
+ *         photographer: string,
  *         total_score: int,
  *         vote_count: int,
  *         detail_url: string,
+ *         recorded: bool,
  *     }>,
  * }> Per-grade result tables to render; grades with no results are omitted.
+ * A recorded row with no member name is a former member's; an unrecorded one
+ * has lost its member, a data error. A row with no detail URL is a recorded
+ * entry removed since. $data['interclub'] (bool) adds the photographer column.
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 
 foreach ( $data['grade_tables'] as $grade_table ) {
 	echo '<h3>' . esc_html( $grade_table['label'] ) . '</h3>';
@@ -27,7 +34,12 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 	echo '<tr>';
 	echo '<th style="width: 60px;">' . esc_html__( 'Rank', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 80px;">' . esc_html__( 'Image', 'photo-competition-manager' ) . '</th>';
-	echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
+	if ( $data['interclub'] ) {
+		echo '<th>' . esc_html__( 'Photographer', 'photo-competition-manager' ) . '</th>';
+		echo '<th>' . esc_html__( 'Club', 'photo-competition-manager' ) . '</th>';
+	} else {
+		echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
+	}
 	echo '<th style="width: 100px;">' . esc_html__( 'Score', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 80px;">' . esc_html__( 'Votes', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 120px;">' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
@@ -47,9 +59,15 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 		}
 		echo '</td>';
 
+		if ( $data['interclub'] ) {
+			echo '<td>' . esc_html( $row['photographer'] ) . '</td>';
+		}
+
 		echo '<td>';
 		if ( null !== $row['member_name'] ) {
 			echo esc_html( $row['member_name'] );
+		} elseif ( $row['recorded'] ) {
+			echo '<em>' . esc_html__( 'Former member', 'photo-competition-manager' ) . '</em>';
 		} else {
 			echo '<em>' . esc_html__( 'Unknown', 'photo-competition-manager' ) . '</em>';
 		}
@@ -60,7 +78,9 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 		echo '<td>' . absint( $row['vote_count'] ) . '</td>';
 
 		echo '<td>';
-		echo '<a href="' . esc_url( $row['detail_url'] ) . '" class="button button-small">' . esc_html__( 'View Details', 'photo-competition-manager' ) . '</a>';
+		if ( '' !== $row['detail_url'] ) {
+			echo '<a href="' . esc_url( $row['detail_url'] ) . '" class="button button-small">' . esc_html__( 'View Details', 'photo-competition-manager' ) . '</a>';
+		}
 		echo '</td>';
 
 		echo '</tr>';

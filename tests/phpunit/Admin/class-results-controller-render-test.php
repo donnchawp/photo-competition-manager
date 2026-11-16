@@ -17,6 +17,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Results_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -25,8 +26,10 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * @covers \PhotoCompetitionManager\Admin\Results_Controller
@@ -64,7 +67,6 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->votes        = new Votes_Repository();
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $this->votes );
-		$calculator  = new Score_Calculator( $this->images, $this->votes );
 		$ranking     = new Results_Ranking( $this->images, $this->votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
@@ -83,7 +85,6 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$this->votes,
 			$analytics,
-			$calculator,
 			$ranking,
 			$job_manager
 		);
@@ -207,6 +208,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$id = $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => $title,
 					'slug'       => $slug,
 					'open_date'  => null,
@@ -322,6 +324,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 			array_merge(
 				array(
 					'job_id'         => $job_id,
+					'type'           => 'results_detailed',
 					'competition_id' => 0,
 					'member_ids'     => array( 1 ),
 					'processed_ids'  => array(),
@@ -544,6 +547,39 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( '<h3>Ungraded</h3>', $html );
 		$this->assertMatchesRegularExpression( '#<div class="notice notice-warning inline">.*<li>Old Grade Member \(old@example.com\)</li>.*<li>Image \#3 \(Colour\)</li>.*</div>#s', $html );
 		$this->assertStringNotContainsString( 'Ada Lovelace (', $html );
+		// Results aren't recorded yet, so a missing member is a data error,
+		// not a former member.
+		$this->assertStringContainsString( '<td><em>Unknown</em></td>', $html );
+		$this->assertStringNotContainsString( 'Former member', $html );
+	}
+
+	public function test_render_shows_a_renamed_grade_as_cup_advanced(): void {
+		$type_id = Type_Fixtures::create( 'Cups', array( 'advanced' => 'Cup' ) );
+		$comp_id = $this->seed_competition( 'Cup Show', 'cup-show', array( 'type_id' => $type_id ) );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced' ) );
+		$image   = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $ada,
+				'filename'  => 'ada.jpg',
+			)
+		);
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->assertStringContainsString( '<h3>Cup (Advanced)</h3>', $this->render_normalized( array( $comp_id ) ) );
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'image'       => (string) $image,
+			)
+		);
+		$this->assertStringContainsString( '<br>Cup (Advanced)</p>', $this->render_normalized( array( $comp_id ), array(), array( $image ) ) );
 	}
 
 	public function test_render_warns_about_ungraded_entries_in_another_category(): void {
@@ -589,6 +625,113 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'notice-warning', $html );
 	}
 
+	public function test_render_a_deleted_members_recorded_entry_as_a_former_member(): void {
+		$comp_id = $this->seed_competition( 'Recorded Show', 'recorded-show' );
+		$ada     = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->seed_image( $comp_id, array( 'member_id' => $ada ) );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => $this->seed_member( 'Bob Babbage', 'bob@example.com' ),
+				'random_number' => 2,
+			)
+		);
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $ada );
+		$this->members->delete( $ada );
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<td><em>Former member</em></td>', $html );
+		$this->assertStringContainsString( 'Bob Babbage', $html );
+		// Only Bob's entry is still there to show details for.
+		$this->assertSame( 1, substr_count( $html, 'View Details' ) );
+		$this->assertStringNotContainsString( 'notice-warning', $html );
+	}
+
+	public function test_an_interclub_competition_shows_its_club_standings_and_photographers(): void {
+		$comp_id = $this->seed_competition(
+			'Interclub',
+			'interclub',
+			array(
+				'settings' => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		foreach ( array( 'Lee Camera Club' => array( 'Ann Murphy', 9, 1 ), 'Bandon Camera Club' => array( 'Bob Byrne', 4, 2 ) ) as $club => list( $photographer, $score, $number ) ) {
+			$image_id = $this->seed_image(
+				$comp_id,
+				array(
+					'member_id'     => $this->seed_member( $club, sanitize_title( $club ) . '@example.com' ),
+					'photographer'  => $photographer,
+					'random_number' => $number,
+				)
+			);
+			$this->votes->create_anonymous( $comp_id, 'colour', 100 + $number, $image_id, $score );
+		}
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		preg_match_all( '#<tr class="club-standing"><td><strong>(\d+|—)</strong></td><td>([^<]+)</td><td>(\d+) \((\d+)\)</td><td><strong>(\d+|—)</strong></td></tr>#u', $html, $rows, PREG_SET_ORDER );
+		$this->assertSame(
+			array( array( '1', 'Lee Camera Club', '9', '1', '9' ), array( '2', 'Bandon Camera Club', '4', '2', '4' ) ),
+			array_map( static fn( array $row ): array => array_slice( $row, 1 ), $rows )
+		);
+		$this->assertStringContainsString( '<td>Ann Murphy</td>', $html );
+	}
+
+	public function test_render_leaves_a_removed_ungraded_entry_out_of_the_warning(): void {
+		$comp_id = $this->seed_competition( 'Recorded Show', 'recorded-show' );
+		$orphan  = $this->seed_image( $comp_id, array( 'member_id' => 999999 ) );
+		$this->seed_image(
+			$comp_id,
+			array(
+				'member_id'     => Member_Fixtures::insert_with_grade( 'Old Grade Member', 'old@example.com', 'retired' ),
+				'random_number' => 2,
+			)
+		);
+		Workflow_Fixtures::publish_results( $comp_id );
+
+		( new Entries() )->remove( Actor::admin(), $comp_id, $orphan );
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'category'    => 'colour',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		// The removed entry has nothing an admin can fix, so only the member without a grade is listed.
+		$this->assertStringContainsString( '<li>Old Grade Member (old@example.com)</li>', $html );
+		$this->assertStringNotContainsString( 'no longer exist', $html );
+	}
+
 	public function test_render_image_details_happy_path(): void {
 		// A member with an email and grade, plus one named voter and one
 		// anonymous/token voter (the voter_name ?: 'Token #' fallback branch).
@@ -614,6 +757,35 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'image-details-happy-path', array( $comp_id ), array(), array( $image ) );
+	}
+
+	public function test_image_details_name_judges_and_former_judges(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$member  = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced' ) );
+		$image   = $this->seed_image(
+			$comp_id,
+			array(
+				'member_id' => $member,
+				'filename'  => 'a.jpg',
+			)
+		);
+
+		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
+		$ann    = $judges->create( 'Ann', 'ann@example.com' );
+		$this->votes->create_judge_ballot( $comp_id, 'colour', $ann, array( $image => 8 ) );
+
+		$this->set_request(
+			array(
+				'competition' => (string) $comp_id,
+				'image'       => (string) $image,
+			)
+		);
+		$this->assertStringContainsString( 'Judge: Ann', $this->render_normalized( array( $comp_id ), array(), array( $image ) ) );
+
+		$judges->delete( $ann );
+		$html = $this->render_normalized( array( $comp_id ), array(), array( $image ) );
+		$this->assertStringContainsString( 'Former judge #' . $ann, $html );
+		$this->assertStringNotContainsString( 'Ann', $html );
 	}
 
 	public function test_render_image_details_no_votes_no_member(): void {
@@ -736,7 +908,7 @@ class Results_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->seed_job(
 			'email_job_results_share_test',
 			array(
-				'type'           => 'results_share',
+				'type'           => 'results_published',
 				'competition_id' => $comp_id,
 				'status'         => 'completed',
 				'sent_count'     => 1,

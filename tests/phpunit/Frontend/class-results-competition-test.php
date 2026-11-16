@@ -9,6 +9,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Results_Competition;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -95,6 +96,7 @@ class Results_Competition_Test extends WP_UnitTestCase {
 	private function create_competition( string $slug, bool $visible, string $hash = '' ): object {
 		$id = (int) $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => ucfirst( $slug ),
 				'slug'       => $slug,
 				'open_date'  => sprintf( '2020-%02d-01 00:00:00', ++$this->created ),

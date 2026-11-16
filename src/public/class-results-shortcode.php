@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Ranking;
@@ -82,7 +83,7 @@ class Results_Shortcode {
 		$this->images_repo       = $images_repo ?? new Images_Repository();
 		$members_repo            = $members_repo ?? new Members_Repository();
 		$this->workflow          = new Competition_Workflow( $this->competitions_repo, $this->images_repo );
-		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo );
+		$this->ranking           = new Results_Ranking( $this->images_repo, $votes_repo ?? new Votes_Repository(), $members_repo, $this->competitions_repo, $this->workflow );
 		$this->entries           = $entries ?? new Entries( $this->competitions_repo, $this->images_repo, $members_repo );
 	}
 
@@ -143,35 +144,91 @@ class Results_Shortcode {
 	 */
 	private function render_results( object $competition, bool $hide_names, string $share_hash ): void {
 		$settings   = Competition_Settings::parse( $competition->settings );
-		$grades     = Competition_Settings::club_grades();
 		$categories = Competition_Settings::get_categories( $settings );
 
 		if ( ! $this->results_viewable( $competition, $share_hash ) ) {
 			echo '<div class="photo-comp-results">';
-			echo '<h2>' . esc_html( $competition->title ) . ' - ' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';
+			echo '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';
 			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';
 			echo '</div>';
 			return;
 		}
 
-		if ( empty( $this->images_repo->find_by_competition( (int) $competition->id ) ) ) {
+		// Rank each category by grade. A recorded entry keeps the grade it
+		// was entered in, even one since removed from the club's list.
+		$rankings = array();
+		foreach ( $categories as $category_config ) {
+			$rankings[ $category_config['slug'] ] = $this->ranking->rank_category( (int) $competition->id, $category_config['slug'] );
+		}
+
+		if ( empty( array_filter( $rankings ) ) ) {
 			echo '<p class="notice">' . esc_html__( 'No images submitted for this competition yet.', 'photo-competition-manager' ) . '</p>';
 			return;
 		}
 
-		// Rank each category within the club's grades. Ungraded entries are for admins to fix and aren't shown.
+		// Ungraded entries are for admins to fix and aren't shown.
 		$results_by_category = array();
-		foreach ( $categories as $category_config ) {
-			foreach ( $this->ranking->rank_category( (int) $competition->id, $category_config['slug'] ) as $group ) {
-				if ( ! $group['ungraded'] ) {
-					$results_by_category[ $category_config['slug'] ][ $group['slug'] ] = $group['entries'];
-				}
-			}
+		foreach ( $rankings as $category_slug => $groups ) {
+			$results_by_category[ $category_slug ] = array_values(
+				array_filter(
+					$groups,
+					static fn( array $group ): bool => ! $group['ungraded']
+				)
+			);
 		}
+
+		$interclub     = $settings['interclub']['enabled'];
+		$name_header   = $interclub ? __( 'Photographer — Club', 'photo-competition-manager' ) : __( 'Member', 'photo-competition-manager' );
+		$club_rankings = $interclub && ! $hide_names ? $this->ranking->rank_clubs( (int) $competition->id, $rankings ) : array();
+		$labels        = new Competition_Labels();
 
 		?>
 		<div class="photo-comp-results">
-			<h2><?php echo esc_html( $competition->title ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( $labels->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+
+			<?php if ( $club_rankings ) : ?>
+				<div class="results-category-section results-club-standings">
+					<h3><?php esc_html_e( 'Club results', 'photo-competition-manager' ); ?></h3>
+					<?php foreach ( $club_rankings as $grade_clubs ) : ?>
+						<div class="results-grade-section">
+							<h4><?php echo esc_html( $grade_clubs['label'] ); ?></h4>
+							<div class="results-table">
+								<table>
+									<thead>
+										<tr>
+											<th><?php esc_html_e( 'Position', 'photo-competition-manager' ); ?></th>
+											<th><?php esc_html_e( 'Club', 'photo-competition-manager' ); ?></th>
+											<?php foreach ( $categories as $category_config ) : ?>
+												<th><?php echo esc_html( $category_config['label'] ); ?></th>
+											<?php endforeach; ?>
+											<th><?php esc_html_e( 'Total', 'photo-competition-manager' ); ?></th>
+										</tr>
+									</thead>
+									<tbody>
+										<?php foreach ( $grade_clubs['clubs'] as $club ) : ?>
+											<tr class="club-standing">
+												<td class="position"><?php echo esc_html( null === $club['position'] ? '—' : (string) $club['position'] ); ?></td>
+												<td class="club-name" data-label="<?php esc_attr_e( 'Club', 'photo-competition-manager' ); ?>"><?php echo esc_html( $club['member']->name ); ?></td>
+												<?php foreach ( $categories as $category_config ) : ?>
+													<?php $panel = $club['panels'][ $category_config['slug'] ] ?? null; ?>
+													<td class="panel-total" data-label="<?php echo esc_attr( $category_config['label'] ); ?>">
+														<?php if ( $panel ) : ?>
+															<?php echo esc_html( number_format( $panel['total'], 0 ) ); ?> <span class="panel-position">(<?php echo esc_html( (string) $panel['position'] ); ?>)</span>
+														<?php else : ?>
+															—
+														<?php endif; ?>
+													</td>
+												<?php endforeach; ?>
+												<td class="club-total" data-label="<?php esc_attr_e( 'Total', 'photo-competition-manager' ); ?>"><?php echo esc_html( null === $club['total'] ? '—' : number_format( $club['total'], 0 ) ); ?></td>
+											</tr>
+										<?php endforeach; ?>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
 
 			<?php foreach ( $categories as $category_config ) : ?>
 				<?php
@@ -183,11 +240,10 @@ class Results_Shortcode {
 					<div class="results-category-section">
 						<h3><?php echo esc_html( $category_label ); ?></h3>
 
-						<?php foreach ( $grades as $grade_config ) : ?>
+						<?php foreach ( $category_results as $grade_group ) : ?>
 							<?php
-							$grade_slug    = $grade_config['slug'];
-							$grade_label   = $grade_config['label'];
-							$grade_results = $category_results[ $grade_slug ] ?? array();
+							$grade_label   = $grade_group['label'];
+							$grade_results = $grade_group['entries'];
 							?>
 							<?php if ( ! empty( $grade_results ) ) : ?>
 								<div class="results-grade-section">
@@ -199,7 +255,7 @@ class Results_Shortcode {
 													<th><?php esc_html_e( 'Position', 'photo-competition-manager' ); ?></th>
 													<th><?php esc_html_e( 'Image', 'photo-competition-manager' ); ?></th>
 													<?php if ( ! $hide_names ) : ?>
-														<th><?php esc_html_e( 'Member', 'photo-competition-manager' ); ?></th>
+														<th><?php echo esc_html( $name_header ); ?></th>
 													<?php endif; ?>
 													<th><?php esc_html_e( 'Score', 'photo-competition-manager' ); ?></th>
 												</tr>
@@ -211,10 +267,14 @@ class Results_Shortcode {
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
 													$position    = $result['position'];
-													$image_urls  = $this->entries->urls( $competition, $image );
-													$thumb_url   = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
+													// A recorded entry deleted since has no image.
+													$image_urls = $image ? $this->entries->urls( $competition, $image ) : array(
+														'full'  => '',
+														'thumb' => '',
+													);
+													$thumb_url  = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 													/* translators: %d: Anonymised image identifier. */
-													$alt_text = sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number );
+													$alt_text = $image ? sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number ) : '';
 													?>
 													<tr>
 														<td class="position"><?php echo esc_html( $position ); ?></td>
@@ -226,10 +286,12 @@ class Results_Shortcode {
 																	<?php esc_html_e( 'Image unavailable', 'photo-competition-manager' ); ?>
 																</div>
 															<?php endif; ?>
-															<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+															<?php if ( $image ) : ?>
+																<div class="image-number">#<?php echo esc_html( $image->random_number ); ?></div>
+															<?php endif; ?>
 														</td>
 														<?php if ( ! $hide_names ) : ?>
-															<td class="member-name" data-label="<?php esc_attr_e( 'Member', 'photo-competition-manager' ); ?>"><?php echo esc_html( $member->name ); ?></td>
+															<td class="member-name" data-label="<?php echo esc_attr( $name_header ); ?>"><?php echo esc_html( $labels->entry_by( $competition, $image, $member ) ); ?></td>
 														<?php endif; ?>
 														<td class="score" data-label="<?php esc_attr_e( 'Score', 'photo-competition-manager' ); ?>"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></td>
 													</tr>

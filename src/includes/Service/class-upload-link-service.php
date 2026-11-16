@@ -58,6 +58,13 @@ class Upload_Link_Service {
 	private $workflow;
 
 	/**
+	 * Who may enter, built on first use since it uses this service too.
+	 *
+	 * @var Competition_Entry|null
+	 */
+	private $entry;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Upload_Token_Repository|null $token_repo        Token repository.
@@ -83,14 +90,19 @@ class Upload_Link_Service {
 	 *
 	 * Treats recent token as success (rate-limited) to avoid spamming members.
 	 *
+	 * The link goes to the competition's upload page, found by
+	 * Competition_Settings::page_url(), and the email's {voting_page} to its
+	 * voting page.
+	 *
 	 * @since 0.3.0
-	 * @param int    $competition_id  Competition ID.
-	 * @param int    $member_id       Member ID.
-	 * @param string $upload_page_url Base URL of the upload page.
-	 * @param bool   $force_send      Force sending even if a recent token exists.
-	 * @return bool|WP_Error True on success, WP_Error on hard failure.
+	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
+	 * @since 0.4.0 Refuses a member who may not enter, with 'not_an_entrant'.
+	 * @param int  $competition_id Competition ID.
+	 * @param int  $member_id      Member ID.
+	 * @param bool $force_send     Force sending even if a recent token exists.
+	 * @return bool|WP_Error True on success, WP_Error on hard failure, 'no_upload_page' when no upload page can be found, 'not_an_entrant' when the member may not enter.
 	 */
-	public function send_to_member( int $competition_id, int $member_id, string $upload_page_url, $force_send = false ) {
+	public function send_to_member( int $competition_id, int $member_id, $force_send = false ) {
 		$competition = $this->competitions_repo->find( $competition_id );
 		if ( ! $competition ) {
 			return new WP_Error( 'missing_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
@@ -101,6 +113,42 @@ class Upload_Link_Service {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
+		return $this->send_link( $competition, $member, (bool) $force_send );
+	}
+
+	/**
+	 * A member's tokenised upload link for a competition.
+	 *
+	 * Built on the competition's upload page, found by
+	 * Competition_Settings::page_url(), so every screen and email shows the
+	 * same link.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @return string|WP_Error The upload link, 'no_upload_page' when no upload page can be found, or the token error.
+	 */
+	public function upload_url( object $competition, int $member_id ) {
+		$upload_page_url = Competition_Settings::page_url( 'upload_page', $competition );
+		if ( '' === $upload_page_url ) {
+			return self::no_upload_page();
+		}
+
+		return $this->token_repo->generate_upload_url( (int) $competition->id, $member_id, $upload_page_url );
+	}
+
+	/**
+	 * Email a loaded member their upload link for a loaded competition.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @param bool   $force_send  Force sending even if a recent token exists.
+	 * @return bool|WP_Error True on success, WP_Error on failure: 'not_an_entrant' when the member may not enter.
+	 */
+	private function send_link( object $competition, object $member, bool $force_send ) {
+		$competition_id = (int) $competition->id;
+		$member_id      = (int) $member->id;
+
 		if ( ! $member->active ) {
 			return new WP_Error( 'inactive_member', __( 'Member account is not active.', 'photo-competition-manager' ) );
 		}
@@ -109,9 +157,18 @@ class Upload_Link_Service {
 			return new WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
 		}
 
+		if ( ! $this->entry()->may_enter( $competition, $member ) ) {
+			return new WP_Error( 'not_an_entrant', __( 'This member may not enter this competition.', 'photo-competition-manager' ) );
+		}
+
 		// Rate-limit: if an email was sent recently, skip unless forced.
 		if ( $this->token_repo->has_recent_email_send( $member_id, $competition_id ) && ! $force_send ) {
 			return true;
+		}
+
+		$upload_url = $this->upload_url( $competition, $member_id );
+		if ( is_wp_error( $upload_url ) ) {
+			return $upload_url;
 		}
 
 		$token_obj = $this->token_repo->find_or_create( $member_id, $competition_id );
@@ -119,25 +176,33 @@ class Upload_Link_Service {
 			return $token_obj;
 		}
 
-		$upload_url = $this->token_repo->generate_upload_url( $competition_id, $member_id, $upload_page_url );
-		if ( is_wp_error( $upload_url ) ) {
-			return $upload_url;
+		// Judges score a judged competition, so members aren't pointed at a voting page.
+		$voting_page = '';
+		$voting_info = '';
+		if ( ! Ballots::is_judged( $competition ) ) {
+			$voting_page = Competition_Settings::page_url( 'voting_page', $competition );
+			if ( '' !== $voting_page ) {
+				$voting_info = '<p>' . sprintf(
+					/* translators: %s: link to the voting page */
+					esc_html__( 'Once voting opens, you can vote at %s', 'photo-competition-manager' ),
+					'<a href="' . esc_url( $voting_page ) . '">' . esc_html( $voting_page ) . '</a>'
+				) . '</p>';
+			}
 		}
 
-		$settings        = Competition_Settings::parse( $competition->settings );
-		$voting_page_url = $settings['urls']['voting_page'] ?? null;
-
-		$sent = $this->email_service->send_upload_link(
-			$member->email,
-			$member->name ?? $member->email,
-			$competition->title,
-			$upload_url,
-			$competition_id,
-			$voting_page_url
+		$sent = $this->email_service->send(
+			'upload_reminder',
+			$member,
+			$competition,
+			array(
+				'{upload_link}' => $upload_url,
+				'{voting_page}' => $voting_page,
+				'{voting_info}' => $voting_info,
+			)
 		);
 
-		if ( ! $sent ) {
-			return new WP_Error( 'send_failed', __( 'Failed to send email.', 'photo-competition-manager' ) );
+		if ( is_wp_error( $sent ) ) {
+			return $sent;
 		}
 
 		$this->token_repo->mark_sent( (int) $token_obj->id );
@@ -148,15 +213,36 @@ class Upload_Link_Service {
 	/**
 	 * Email an upload link by member email without leaking existence (no enumeration).
 	 *
+	 * A member who may not enter is sent nothing, with the same success, so it
+	 * doesn't say who has entered.
+	 *
 	 * @since 0.3.0
-	 * @param int    $competition_id  Competition ID.
-	 * @param string $member_email    Member email (unsanitized).
-	 * @param string $upload_page_url Base URL for the upload page.
-	 * @return bool True if sent or intentionally suppressed; false only on hard send failure.
+	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
+	 * @param int    $competition_id Competition ID.
+	 * @param string $member_email   Member email (unsanitized).
+	 * @return bool True if sent or intentionally suppressed; false on hard send failure or when no upload page can be found.
 	 */
-	public function send_by_email( int $competition_id, string $member_email, string $upload_page_url ): bool {
+	public function send_by_email( int $competition_id, string $member_email ): bool {
 		$member_email = sanitize_email( $member_email );
 		if ( empty( $member_email ) ) {
+			return false;
+		}
+
+		// Without the competition there's nothing to send, whoever asks.
+		$competition = $this->competitions_repo->find( $competition_id );
+		if ( ! $competition ) {
+			return true;
+		}
+
+		// Checked before the member, so it says nothing about who is registered.
+		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
+			// The member only sees a generic failure, so the admin finds the cause in the log.
+			( new Event_Logger() )->log(
+				$competition_id,
+				'upload_link_no_upload_page',
+				'email',
+				__( 'A member asked for an upload link, but no upload page is set and no published page has the upload shortcode.', 'photo-competition-manager' )
+			);
 			return false;
 		}
 
@@ -167,7 +253,7 @@ class Upload_Link_Service {
 			return true;
 		}
 
-		$result = $this->send_to_member( $competition_id, (int) $member->id, $upload_page_url );
+		$result = $this->send_link( $competition, $member, false );
 
 		// Treat most errors as success to preserve privacy; only fail on hard send errors.
 		if ( is_wp_error( $result ) ) {
@@ -181,15 +267,15 @@ class Upload_Link_Service {
 	 * Send one member a submission reminder, reporting rate-limited sends as skipped.
 	 *
 	 * @since 0.3.0
-	 * @param int    $competition_id  Competition ID.
-	 * @param int    $member_id       Member ID.
-	 * @param string $upload_page_url Base URL of the upload page.
+	 * @since 0.4.0 Finds the upload page itself instead of taking its URL.
+	 * @param int $competition_id Competition ID.
+	 * @param int $member_id      Member ID.
 	 * @return string|WP_Error 'sent', 'skipped', or the send error.
 	 */
-	public function send_reminder( int $competition_id, int $member_id, string $upload_page_url ) {
+	public function send_reminder( int $competition_id, int $member_id ) {
 		$has_recent = $this->token_repo->has_recent_email_send( $member_id, $competition_id );
 
-		$result = $this->send_to_member( $competition_id, $member_id, $upload_page_url );
+		$result = $this->send_to_member( $competition_id, $member_id );
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -199,9 +285,10 @@ class Upload_Link_Service {
 	}
 
 	/**
-	 * Queue submission reminder emails to all active members for a competition.
+	 * Queue submission reminder emails to the active members who may enter a competition.
 	 *
 	 * @since 0.3.0
+	 * @since 0.4.0 Only the members who may enter, not every active member.
 	 * @param int               $competition_id Competition ID.
 	 * @param Email_Job_Manager $email_jobs     Email job queue.
 	 * @return string|WP_Error Job ID, or why nothing was queued.
@@ -220,29 +307,41 @@ class Upload_Link_Service {
 			return new WP_Error( 'competition_not_open', __( 'Competition must be open to send reminder emails.', 'photo-competition-manager' ) );
 		}
 
-		$member_ids = array();
-		foreach ( $this->members_repo->find_active_members() as $member ) {
-			if ( ! empty( $member->email ) ) {
-				$member_ids[] = (int) $member->id;
-			}
-		}
+		$member_ids = $this->entry()->eligible_member_ids( $competition );
 
 		if ( empty( $member_ids ) ) {
-			return new WP_Error( 'no_members', __( 'No active members found.', 'photo-competition-manager' ) );
+			return new WP_Error( 'no_members', __( 'No one may enter this competition yet.', 'photo-competition-manager' ) );
 		}
 
-		// Determine upload page URL; fall back to home URL.
-		$upload_page_url = Competition_Settings::find_page_url_with_shortcode( 'competition_upload' );
-		if ( empty( $upload_page_url ) ) {
-			$upload_page_url = home_url( '/' );
+		if ( '' === Competition_Settings::page_url( 'upload_page', $competition ) ) {
+			return self::no_upload_page();
 		}
-		$upload_page_url = apply_filters( 'photo_competition_manager_upload_page_url', $upload_page_url, $competition );
 
-		return $email_jobs->queue(
-			'upload_link',
-			$competition_id,
-			$member_ids,
-			array( 'upload_page_url' => $upload_page_url )
+		return $email_jobs->queue( 'upload_reminder', $competition_id, $member_ids );
+	}
+
+	/**
+	 * Who may enter.
+	 *
+	 * @return Competition_Entry
+	 */
+	private function entry(): Competition_Entry {
+		if ( ! $this->entry ) {
+			$this->entry = new Competition_Entry( $this->competitions_repo, $this->members_repo, $this );
+		}
+
+		return $this->entry;
+	}
+
+	/**
+	 * The refusal for a competition with no upload page to link to.
+	 *
+	 * @return WP_Error
+	 */
+	private static function no_upload_page(): WP_Error {
+		return new WP_Error(
+			'no_upload_page',
+			__( 'No upload page is set, so there is no upload link to send. Set the upload page in Settings, or publish a page with the [competition_upload] shortcode.', 'photo-competition-manager' )
 		);
 	}
 }

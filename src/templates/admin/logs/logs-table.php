@@ -13,6 +13,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<table class="wp-list-table widefat fixed striped">';
 echo '<thead>';
 echo '<tr>';

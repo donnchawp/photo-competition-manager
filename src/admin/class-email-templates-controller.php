@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Admin;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
+use PhotoCompetitionManager\Service\Email_Kinds;
+use PhotoCompetitionManager\Service\Email_Service;
 
 /**
  * Manage email template settings.
@@ -31,7 +33,9 @@ class Email_Templates_Controller {
 	}
 
 	/**
-	 * Enqueue inline styles for email templates page.
+	 * Enqueue the email templates page's styles and Restore default script.
+	 *
+	 * @since 0.4.0 Enqueues the Restore default script.
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
@@ -45,8 +49,16 @@ class Email_Templates_Controller {
 		wp_register_style( 'photo-comp-email-templates-style', '', array(), PHOTO_COMPETITION_MANAGER_VERSION );
 		wp_enqueue_style( 'photo-comp-email-templates-style' );
 
-		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;}';
+		$inline_css = '.photo-comp-email-templates .card{max-width:none;} .photo-comp-email-templates .form-table{max-width:none;} .photo-comp-email-templates .form-table th{width:180px;} .photo-comp-email-templates .form-table td{padding-right:0;} .photo-comp-template-edited{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:2px;background:#dcdcde;color:#1d2327;font-size:12px;font-weight:400;vertical-align:middle;}';
 		wp_add_inline_style( 'photo-comp-email-templates-style', $inline_css );
+
+		wp_enqueue_script(
+			'photo-comp-admin-email-templates',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-email-templates.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -69,22 +81,10 @@ class Email_Templates_Controller {
 		if ( 'save_email_templates' === $action ) {
 			check_admin_referer( 'photo_competition_email_templates' );
 
-			$templates = array();
-
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized below per field.
 			$raw_templates = isset( $_POST['templates'] ) && is_array( $_POST['templates'] ) ? wp_unslash( $_POST['templates'] ) : array();
 
-			foreach ( $raw_templates as $template_key => $template_data ) {
-				$key = sanitize_key( $template_key );
-
-				$templates[ $key ] = array(
-					'enabled' => isset( $template_data['enabled'] ) && '1' === $template_data['enabled'],
-					'subject' => isset( $template_data['subject'] ) ? sanitize_text_field( $template_data['subject'] ) : '',
-					'body'    => isset( $template_data['body'] ) ? wp_kses_post( $template_data['body'] ) : '',
-				);
-			}
-
-			update_option( 'photo_comp_email_templates', $templates );
+			update_option( 'photo_comp_email_templates', $this->templates_to_store( $raw_templates ) );
 
 			add_settings_error(
 				'photo_competition_email_templates',
@@ -95,6 +95,59 @@ class Email_Templates_Controller {
 
 			$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-email-templates' ) );
 		}
+	}
+
+	/**
+	 * What to store from the posted form: a notification's switch once it has
+	 * been set away from its default, and a kind's subject and body only where
+	 * either differs from its default, so the rest keep following their
+	 * defaults. A kind missing from the post keeps what was stored.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $raw_templates Posted templates, unslashed.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function templates_to_store( array $raw_templates ): array {
+		$email_service = new Email_Service();
+		$saved         = (array) get_option( 'photo_comp_email_templates', array() );
+		$templates     = array();
+
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			if ( ! isset( $raw_templates[ $kind ] ) || ! is_array( $raw_templates[ $kind ] ) ) {
+				if ( ! empty( $saved[ $kind ] ) ) {
+					$templates[ $kind ] = $saved[ $kind ];
+				}
+				continue;
+			}
+
+			$posted = $raw_templates[ $kind ];
+			$stored = array();
+
+			if ( $definition['notification'] ) {
+				$enabled = isset( $posted['enabled'] ) && '1' === $posted['enabled'];
+				// Once switched away from its default, the switch stays the admin's choice.
+				if ( $enabled !== $definition['on_by_default'] || isset( $saved[ $kind ]['enabled'] ) ) {
+					$stored['enabled'] = $enabled;
+				}
+			}
+
+			// An emptied field sends the default, so it is saved as the default.
+			$subject = isset( $posted['subject'] ) ? sanitize_text_field( $posted['subject'] ) : '';
+			$body    = isset( $posted['body'] ) ? wp_kses_post( $posted['body'] ) : '';
+			$subject = '' !== trim( $subject ) ? $subject : $definition['subject'];
+			$body    = '' !== trim( $body ) ? $body : $definition['body'];
+			if ( ! $email_service->is_default_template( $kind, $subject, $body ) ) {
+				$stored['subject'] = $subject;
+				$stored['body']    = $body;
+			}
+
+			if ( $stored ) {
+				$templates[ $kind ] = $stored;
+			}
+		}
+
+		return $templates;
 	}
 
 	/**
@@ -109,16 +162,20 @@ class Email_Templates_Controller {
 
 		settings_errors( 'photo_competition_email_templates' );
 
-		$templates = $this->get_default_templates();
-		$saved     = get_option( 'photo_comp_email_templates', array() );
-
-		// Merge saved templates with defaults.
-		foreach ( $saved as $key => $saved_template ) {
-			if ( isset( $templates[ $key ] ) ) {
-				$templates[ $key ]['subject'] = $saved_template['subject'];
-				$templates[ $key ]['body']    = $saved_template['body'];
-				$templates[ $key ]['enabled'] = $saved_template['enabled'];
-			}
+		$email_service = new Email_Service();
+		$templates     = array();
+		foreach ( Email_Kinds::all() as $kind => $definition ) {
+			$template           = $email_service->get_template( $kind );
+			$templates[ $kind ] = array(
+				'name'            => $definition['label'],
+				'description'     => $definition['description'],
+				'notification'    => $definition['notification'],
+				'enabled'         => $email_service->is_template_enabled( $kind ),
+				'edited'          => ! $email_service->is_default_template( $kind, $template['subject'], $template['body'] ),
+				'default_subject' => $definition['subject'],
+				'default_body'    => $definition['body'],
+				'merge_tags'      => wp_list_pluck( Email_Kinds::tags( $kind ), 'description' ),
+			) + $template;
 		}
 
 		echo '<div class="wrap">';
@@ -154,64 +211,6 @@ class Email_Templates_Controller {
 				'template_key' => $template_key,
 				'template'     => $template,
 			)
-		);
-	}
-
-	/**
-	 * Get default email templates.
-	 *
-	 * @return array<string, array<string, mixed>>
-	 */
-	private function get_default_templates(): array {
-		return array(
-			'upload_reminder'      => array(
-				'name'        => __( 'Upload Reminder', 'photo-competition-manager' ),
-				'description' => __( 'Sent to members with a link to upload their images.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Upload your images for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Here is your link to upload images for {competition_title}.</p>\n\n<p><a href=\"{upload_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Upload Images</a></p>\n\n<p>This link will remain active for 14 days.</p>\n\n<p>Once voting opens, you can cast your votes at: {voting_page}</p>\n\n<p>If you have any questions, please contact your club competitions officer.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{upload_link}', '{voting_page}', '{site_name}' ),
-			),
-			'voting_opened'        => array(
-				'name'        => __( 'Voting Opened', 'photo-competition-manager' ),
-				'description' => __( 'Sent when voting opens for a competition.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Voting is now open for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Voting is now open for {competition_title}!</p>\n\n<p>Visit the voting page to see all submitted images and cast your votes.</p>\n\n<p><a href=\"{voting_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Go to Voting Page</a></p>\n\n<p>Voting closes on {close_date}.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_page}', '{close_date}', '{site_name}' ),
-			),
-			'voting_link'          => array(
-				'name'        => __( 'Voting Link', 'photo-competition-manager' ),
-				'description' => __( 'Sent to a member who asks for a voting link on the voting page. When this is off, a built-in version is sent instead.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>You asked to vote in {competition_title}. Click the button below to open the voting form:</p>\n\n<p><a href=\"{voting_link}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">Vote Now</a></p>\n\n<p>This link will expire in 1 hour and can only be used once.</p>\n\n<p>If you did not request this link, you can safely ignore this email.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{voting_link}', '{close_date}', '{site_name}' ),
-			),
-			'results_published'    => array(
-				'name'        => __( 'Results Published', 'photo-competition-manager' ),
-				'description' => __( 'Sent to members when competition results are available.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available!</p>\n\n<p><a href=\"{results_page}\" style=\"background-color: #0073aa; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;\">View Results</a></p>\n\n<p>Thanks to everyone who participated.</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_page}', '{site_name}' ),
-			),
-			'results_detailed'     => array(
-				'name'        => __( 'Detailed Results', 'photo-competition-manager' ),
-				'description' => __( 'Sent to each member with their personal results. The {results_table} tag is replaced with the ranked scores for their images.', 'photo-competition-manager' ),
-				'enabled'     => true,
-				'subject'     => __( 'Results for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>The results for {competition_title} are now available. Here are your results:</p>\n\n{results_table}\n\n<p>Thank you for participating!</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{competition_title}', '{results_table}', '{site_name}' ),
-			),
-			'submission_confirmed' => array(
-				'name'        => __( 'Submission Confirmed', 'photo-competition-manager' ),
-				'description' => __( 'Sent when a member successfully uploads an image.', 'photo-competition-manager' ),
-				'enabled'     => false,
-				'subject'     => __( 'Image uploaded successfully for {competition_title}', 'photo-competition-manager' ),
-				'body'        => __( "<p>Hi {member_name},</p>\n\n<p>Your image has been successfully uploaded for {competition_title} in the {category_name} category.</p>\n\n<p>You are entering in the {member_grade} grade.</p>\n\n<p>You have uploaded {current_count} of {quota} images for this category.</p>\n\n<p>Thank you for your submission!</p>", 'photo-competition-manager' ),
-				'merge_tags'  => array( '{member_name}', '{member_grade}', '{competition_title}', '{category_name}', '{current_count}', '{quota}', '{site_name}' ),
-			),
 		);
 	}
 }

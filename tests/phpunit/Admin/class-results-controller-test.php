@@ -2,7 +2,7 @@
 /**
  * Characterization tests for Results_Controller.
  *
- * Pins current behavior of the results action router (recalculate / email /
+ * Pins current behavior of the results action router (email /
  * send-results / export) ahead of a later refactor. Asserts observable
  * settings-error codes and redirect targets, not internals.
  *
@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Results_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -22,8 +23,10 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
-use PhotoCompetitionManager\Service\Score_Calculator;
+use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -88,7 +91,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$votes              = new Votes_Repository();
 
 		$analytics   = new Results_Analytics( $this->competitions, $this->images, $this->members, $votes );
-		$calculator  = new Score_Calculator( $this->images, $votes );
 		$ranking     = new Results_Ranking( $this->images, $votes, $this->members );
 		$email       = new Email_Service();
 		$job_manager = new Email_Job_Manager(
@@ -107,7 +109,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			$this->members,
 			$votes,
 			$analytics,
-			$calculator,
 			$ranking,
 			$job_manager
 		);
@@ -125,6 +126,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		return $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => 'Spring Show',
 					'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 					// A past, closed range is clock-independent and never overlaps,
@@ -135,6 +137,22 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				),
 				$overrides
 			)
+		);
+	}
+
+	/**
+	 * Create a competition with no dates, so it's open and its results are
+	 * worked out from the votes until they're published.
+	 *
+	 * @param array<string, mixed> $overrides Field overrides.
+	 * @return int Competition ID.
+	 */
+	private function create_open_competition( array $overrides = array() ): int {
+		return $this->create_competition(
+			array(
+				'open_date'  => null,
+				'close_date' => null,
+			) + $overrides
 		);
 	}
 
@@ -182,85 +200,16 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->set_request(
 			array(
-				'action'      => 'recalculate_scores',
+				'action'      => 'email_results',
 				'competition' => $this->competition_id,
 			)
 		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $this->competition_id );
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
 
 		// Should simply return without redirecting or recording an error.
 		$this->controller->handle_actions();
 
 		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
-	}
-
-	/*
-	 * -------------------------------------------------------------------------
-	 * recalculate_scores.
-	 * -------------------------------------------------------------------------
-	 */
-
-	/**
-	 * Recalculating scores reports success and redirects back to the competition.
-	 */
-	public function test_recalculate_scores_success(): void {
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $this->competition_id,
-			)
-		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $this->competition_id );
-
-		$location = $this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$this->assertStringContainsString( 'page=photo-competition-manager-results', $location );
-		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
-		$this->assertContains( 'scores_recalculated', $this->settings_error_codes( 'photo_competition_results' ) );
-	}
-
-	/**
-	 * A missing/invalid nonce aborts recalculation via wp_die().
-	 */
-	public function test_recalculate_scores_bad_nonce_dies(): void {
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $this->competition_id,
-			)
-		);
-
-		$this->expectException( \WPDieException::class );
-		$this->controller->handle_actions();
-	}
-
-	/**
-	 * Recalculating a missing competition yields a not-found error, not success.
-	 */
-	public function test_recalculate_scores_competition_not_found(): void {
-		$missing = 999999;
-
-		$this->set_request(
-			array(
-				'action'      => 'recalculate_scores',
-				'competition' => $missing,
-			)
-		);
-		$this->set_nonce( 'photo_competition_recalculate_scores_' . $missing );
-
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$codes = $this->settings_error_codes( 'photo_competition_results' );
-		$this->assertContains( 'competition_not_found', $codes );
-		$this->assertNotContains( 'scores_recalculated', $codes );
 	}
 
 	/*
@@ -275,6 +224,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_email_results_success_redirects_with_job(): void {
 		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		Workflow_Fixtures::publish_results( $this->competition_id );
 
 		$this->set_request(
 			array(
@@ -302,6 +252,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * and the user is redirected back to the competition.
 	 */
 	public function test_email_results_no_members_records_error(): void {
+		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->set_request(
 			array(
 				'action'      => 'email_results',
@@ -318,6 +269,56 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertContains( 'email_job_failed', $this->settings_error_codes( 'photo_competition_results' ) );
 		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
+	}
+
+	/**
+	 * Detailed results wait for Show Results, so the position each entrant
+	 * is told is the recorded one.
+	 */
+	public function test_email_results_before_results_are_published_is_refused(): void {
+		$id = $this->create_open_competition();
+		$this->seed_member_with_image( $id, 'colour' );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+		$this->assertStringContainsString( 'or once the competition has closed', implode( ' ', wp_list_pluck( get_settings_errors( 'photo_competition_results' ), 'message' ) ) );
+	}
+
+	/**
+	 * A competition that closed without anyone pressing Show Results is read
+	 * from its record, so its results can be emailed.
+	 */
+	public function test_email_results_once_the_competition_has_closed_is_allowed(): void {
+		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'job_id=', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**
@@ -374,6 +375,42 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * The results link is built on the club's results page when the
+	 * competition has none, ahead of a page holding the results shortcode.
+	 */
+	public function test_send_results_links_the_clubs_results_page(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'results_page' => 'https://example.com/club-results/' ) ) ) );
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_results]',
+			)
+		);
+		$id = $this->create_competition( array( 'share_hash' => 'abc123hash' ) );
+		$this->seed_member_with_image( $id, 'colour' );
+		Workflow_Fixtures::publish_results( $id );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertSame( 'https://example.com/club-results/?share=abc123hash', $job['args']['share_url'] );
+	}
+
+	/**
 	 * Sending the results link to all active members succeeds under the same
 	 * preconditions (covers the send_results_all branch).
 	 */
@@ -381,6 +418,122 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$id = $this->create_competition(
 			array(
 				'share_hash' => 'def456hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		$this->seed_member_with_image( $id, 'colour' );
+		Workflow_Fixtures::publish_results( $id );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertStringContainsString( 'job_id=email_job_', $location );
+	}
+
+	/**
+	 * The results link to all members goes only to the active members of the competition's type.
+	 */
+	public function test_send_results_all_goes_only_to_members_of_the_competitions_type(): void {
+		$other_type = Type_Fixtures::create( 'Juniors' );
+		$own_type   = Type_Fixtures::id();
+
+		$id = $this->create_competition(
+			array(
+				'type_id'    => $own_type,
+				'share_hash' => 'def456hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		Workflow_Fixtures::publish_results( $id );
+
+		$inside  = (int) $this->members->create(
+			array(
+				'name'     => 'Inside',
+				'email'    => 'inside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $own_type ),
+			)
+		);
+		$outside = (int) $this->members->create(
+			array(
+				'name'     => 'Outside',
+				'email'    => 'outside@example.com',
+				'grade'    => 'beginner',
+				'active'   => 1,
+				'type_ids' => array( $other_type ),
+			)
+		);
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
+
+		$this->assertContains( $inside, array_map( 'intval', $job['member_ids'] ) );
+		$this->assertNotContains( $outside, array_map( 'intval', $job['member_ids'] ) );
+	}
+
+	/**
+	 * The results link goes to every member only once results are published.
+	 */
+	public function test_send_results_all_before_results_are_published_is_refused(): void {
+		$id = $this->create_open_competition(
+			array(
+				'share_hash' => 'jkl012hash',
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->set_request(
+			array(
+				'action'      => 'send_results_all',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_results_all_' . $id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'results_not_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+	}
+
+	/**
+	 * Once the competition has closed, its results are read from the
+	 * record, so every member can be sent the link.
+	 */
+	public function test_send_results_all_once_the_competition_has_closed_is_allowed(): void {
+		$id = $this->create_competition(
+			array(
+				'share_hash' => 'closedhash',
 				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
 			)
 		);
@@ -401,6 +554,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertStringContainsString( 'job_id=email_job_', $location );
+		$this->assertSame( array(), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**
@@ -592,6 +746,30 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_an_interclub_export_names_each_entrys_photographer(): void {
+		$this->competition_id = $this->create_competition(
+			array(
+				'settings' => array(
+					'interclub'  => array( 'enabled' => true ),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+				),
+			)
+		);
+		$image_id = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Lee Camera Club', 'beginner', array( 9 ) );
+		( new Images_Repository() )->update_photographer( $image_id, 'Ann Murphy' );
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$by_header = array_combine( $rows[0], $rows[1] );
+		$this->assertSame( 'Lee Camera Club', $by_header['Member Name'] );
+		$this->assertSame( 'Ann Murphy', $by_header['Photographer'] );
+	}
+
 	/**
 	 * Rows are grouped by grade (configured order), then category; ranks restart
 	 * for each grade within each category.
@@ -719,6 +897,59 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				'Beginner|Open|1|Tie Two',
 				'Beginner|Open|2|Third',
 				'Ungraded|Open|1|Orphan',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+	}
+
+	/**
+	 * A member deleted after results are recorded is exported in their place
+	 * as a former member, with no email or image.
+	 */
+	public function test_export_rows_keep_a_deleted_members_entry_as_a_former_member(): void {
+		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
+		$this->seed_scored_entry( 'Runner Up', 'beginner', 'colour', 5 );
+		$competition = $this->competitions->find( $this->competition_id );
+		$this->controller->get_export_rows( $competition );
+		$winner = $this->members->find_by_email( 'winner@example.com' );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), (int) $winner->id );
+		$this->members->delete( (int) $winner->id );
+		$rows = $this->controller->get_export_rows( $competition );
+
+		$this->assertSame(
+			array(
+				'Beginner|Colour|1|Former member',
+				'Beginner|Colour|2|Runner Up',
+			),
+			$this->summarize_export_rows( $rows )
+		);
+		$this->assertSame( array( '', '', '' ), array( $rows[1][4], $rows[1][6], $rows[1][9] ) );
+	}
+
+	/**
+	 * Before results are recorded, an entry whose member is missing is an
+	 * ungraded data error, not a former member's, so it's exported as
+	 * "Unknown", as the Results screen shows it.
+	 */
+	public function test_export_rows_call_a_missing_member_unknown_before_results_are_recorded(): void {
+		$this->competition_id = $this->create_open_competition();
+		$this->seed_scored_entry( 'Winner', 'beginner', 'colour', 9 );
+		$this->images->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => 999999,
+				'category'       => 'colour',
+				'filename'       => 'orphan.jpg',
+			)
+		);
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$this->assertSame(
+			array(
+				'Beginner|Colour|1|Winner',
+				'Ungraded|Colour|1|Unknown',
 			),
 			$this->summarize_export_rows( $rows )
 		);

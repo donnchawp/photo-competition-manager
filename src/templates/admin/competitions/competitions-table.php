@@ -5,10 +5,11 @@
  * Reads $data['views'] (array<int, array{label: string, count: int, url:
  * string, is_current: bool}>): the Active/Archived view-switcher links.
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
- * string, last_updated: string, edit_url: string, is_archived: bool,
+ * string, last_updated: string, edit_url: string (empty when archived; Restore is the way back), is_archived: bool,
  * toggle_uploads_url: string, uploads_closed: bool, reopen_refusal: string
  * (why uploads can't reopen; empty when they can), is_open: bool,
- * send_email_url: string, close_url: string, generate_link_url: string,
+ * send_email_url: string, email_judges_url: string (empty unless judges
+ * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string (empty when archived),
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
@@ -17,6 +18,8 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 
 echo '<h2 class="screen-reader-text">' . esc_html__( 'Competition List', 'photo-competition-manager' ) . '</h2>';
 
@@ -71,9 +74,11 @@ foreach ( $data['rows'] as $row ) {
 	echo '<td>' . esc_html( $row['closes'] ) . '</td>';
 	echo '<td>' . esc_html( $row['last_updated'] ) . '</td>';
 
-	$actions = array(
-		sprintf( '<a href="%s">%s</a>', esc_url( $row['edit_url'] ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
-	);
+	$actions = array();
+
+	if ( '' !== $row['edit_url'] ) {
+		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['edit_url'] ), esc_html__( 'Edit', 'photo-competition-manager' ) );
+	}
 
 	// Toggle uploads action.
 	if ( ! $row['is_archived'] ) {
@@ -88,10 +93,17 @@ foreach ( $data['rows'] as $row ) {
 		}
 	}
 
-	if ( $row['is_open'] && ! $row['is_archived'] ) {
-		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
-	} else {
-		$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+	// An archived competition never takes upload emails, so its row doesn't mention them.
+	if ( ! $row['is_archived'] ) {
+		if ( $row['is_open'] ) {
+			$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['send_email_url'] ), esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+		} else {
+			$actions[] = sprintf( '<span title="Send only on open competitions" style="color: #888;">%s</span>', esc_html__( 'Send Upload Emails', 'photo-competition-manager' ) );
+		}
+	}
+
+	if ( '' !== $row['email_judges_url'] ) {
+		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['email_judges_url'] ), esc_html__( 'Email Judges', 'photo-competition-manager' ) );
 	}
 
 	// Close competition action: sets the close date to now and closes voting.
@@ -106,12 +118,14 @@ foreach ( $data['rows'] as $row ) {
 	}
 
 	// Generate Results Link action.
-	$actions[] = sprintf(
-		'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
-		esc_url( $row['generate_link_url'] ),
-		esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
-		esc_html__( 'Generate Results Link', 'photo-competition-manager' )
-	);
+	if ( '' !== $row['generate_link_url'] ) {
+		$actions[] = sprintf(
+			'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
+			esc_url( $row['generate_link_url'] ),
+			esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
+			esc_html__( 'Generate Results Link', 'photo-competition-manager' )
+		);
+	}
 
 	if ( $row['is_archived'] ) {
 		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['restore_url'] ), esc_html__( 'Restore', 'photo-competition-manager' ) );

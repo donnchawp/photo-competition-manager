@@ -21,7 +21,14 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Competitions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Judges_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
@@ -70,6 +77,24 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$html
 		);
 
+		// The judges panel's nonce fields have no id, as there is one per form.
+		$html = preg_replace( '/(<input type="hidden" name="photo_competition_nonce" value=")[a-f0-9]{10}(")/', '$1NONCE$2', $html );
+
+		// Judge IDs and tokens are not stable across runs.
+		$html = preg_replace( '/(name="judge_ids\[\]" value=")\d+(")/', '$1JUDGE$2', $html );
+		$html = preg_replace( '/(name="judge_id" value=")\d+(")/', '$1JUDGE$2', $html );
+		$html = preg_replace( '/judge=[A-Za-z0-9%_-]+/', 'judge=TOKEN', $html );
+
+		// Member IDs in the entrants panel are not stable across runs either.
+		$html = preg_replace( '/(name="member_id" value=")\d+(")/', '$1MEMBER$2', $html );
+		$html = preg_replace_callback(
+			'/<select[^>]*name="member_ids\[\]".*?<\/select>/s',
+			static function ( $m ) {
+				return preg_replace( '/(<option value=")\d+(")/', '$1MEMBER$2', $m[0] );
+			},
+			$html
+		);
+
 		// Normalize the referer hidden field wp_nonce_field() emits by default;
 		// its value is the current REQUEST_URI, which is test-runner dependent.
 		$html = preg_replace( '/(name="_wp_http_referer" value=")[^"]*(")/', '$1REFERER$2', $html );
@@ -85,6 +110,15 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$html       = preg_replace( '/competition=' . $id_pattern . '(?!\d)/', 'competition=ID', $html );
 			$html       = preg_replace( '/name="competition_id" value="' . $id_pattern . '"/', 'name="competition_id" value="ID"', $html );
 		}
+
+		// Type IDs are auto-increment too.
+		$html = preg_replace_callback(
+			'/<select id="competition_type".*?<\/select>/s',
+			static function ( $m ) {
+				return preg_replace( '/(<option value=")\d+(")/', '$1TYPE$2', $m[0] );
+			},
+			$html
+		);
 
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
@@ -139,6 +173,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$id = $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => $title,
 					'slug'       => $slug,
 					'open_date'  => null,
@@ -183,6 +218,23 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		// in the table area, zero counts in the subsubsub view links, plus
 		// the always-present create form.
 		$this->assert_matches_snapshot( 'no-competitions-active' );
+	}
+
+	public function test_render_list_offers_email_judges_only_where_judges_are_assigned(): void {
+		// Scheduled, not yet open: judges get their links ahead of the night.
+		$judges   = array( 'voting' => array( 'auth_mode' => 'judges' ) );
+		$judged   = $this->seed_competition( 'Judged Show', 'judged-show', array( 'open_date' => '2099-01-01 00:00:00', 'close_date' => '2099-01-10 00:00:00', 'settings' => $judges ) );
+		$unjudged = $this->seed_competition( 'Empty Panel', 'empty-panel', array( 'open_date' => '2099-02-01 00:00:00', 'close_date' => '2099-02-10 00:00:00', 'settings' => $judges ) );
+		$members  = $this->seed_competition( 'Members Show', 'members-show', array( 'open_date' => '2099-03-01 00:00:00', 'close_date' => '2099-03-10 00:00:00' ) );
+		( new Competition_Judges_Repository() )->assign( $judged, ( new Judges_Repository() )->create( 'Ann', 'ann@example.com' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertSame( 1, substr_count( $html, 'Email Judges' ) );
+		$this->assertMatchesRegularExpression( '/action=email_judges&(#038;|amp;)?competition=' . $judged . '&/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/action=email_judges&(#038;|amp;)?competition=(' . $unjudged . '|' . $members . ')&/', $html );
 	}
 
 	public function test_render_list_active_with_rows(): void {
@@ -242,6 +294,37 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
 	}
 
+	public function test_render_greys_out_open_uploads_once_a_category_has_started_voting(): void {
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+				),
+			)
+		);
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => 'critique' ),
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<span title="Voting has started in Colour. Reset that category before reopening uploads." style="color: #888">Open Uploads</span>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
 	public function test_render_warns_when_multiple_competitions_open(): void {
 		$this->seed_competition( 'Spring Show', 'spring-show' );
 		$this->insert_overlapping_competition( 'Autumn Show', 'autumn-show' );
@@ -271,7 +354,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2, 3 ),
 				'status'         => 'completed',
@@ -292,12 +375,37 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because they were emailed in the last 5 minutes.', $html );
 	}
 
+	public function test_render_voting_opened_job_notice_says_skipped_members_werent_sent_it_because_it_was_switched_off(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		update_option(
+			'photo_comp_email_job_voting_opened_test',
+			array(
+				'type'           => 'voting_opened',
+				'competition_id' => $comp_id,
+				'processed_ids'  => array( 1, 2, 3 ),
+				'status'         => 'completed',
+				'total_count'    => 3,
+				'sent_count'     => 1,
+				'skipped_count'  => 2,
+				'failed_count'   => 0,
+				'error_log'      => array(),
+			)
+		);
+		$this->set_request( array( 'job_id' => 'voting_opened_test' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Sent 1 of 3 emails. 2 members were skipped because the Voting opened email was switched off.', $html );
+	}
+
 	public function test_render_completed_job_notice_lists_failures(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 		update_option(
 			'photo_comp_email_job_upload_failed_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1, 2 ),
 				'status'         => 'completed',
@@ -323,7 +431,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option(
 			'photo_comp_email_job_upload_running_test',
 			array(
-				'type'           => 'upload_link',
+				'type'           => 'upload_reminder',
 				'competition_id' => $comp_id,
 				'processed_ids'  => array( 1 ),
 				'status'         => 'processing',
@@ -369,6 +477,20 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->set_request( array( 'view' => 'archived' ) );
 
 		$this->assert_matches_snapshot( 'list-archived-view', array( $comp_id ) );
+	}
+
+	public function test_render_list_archived_view_offers_only_actions_that_apply_to_an_archived_competition(): void {
+		// The edit screen and the results-link action can't find an archived competition, and an archived competition never opens for upload emails.
+		$comp_id = $this->seed_competition( 'Retired Salon', 'retired-salon', array(), array( 'deleted_at' => '2026-03-01 00:00:00' ) );
+		$this->set_request( array( 'view' => 'archived' ) );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Retired Salon', $html );
+		$this->assertDoesNotMatchRegularExpression( '/action=(edit|generate_results_link)&(#038;|amp;)?competition=' . $comp_id . '\b/', $html );
+		$this->assertStringNotContainsString( 'Send Upload Emails', $html );
 	}
 
 	public function test_render_list_with_settings_error(): void {
@@ -427,6 +549,87 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-general-tab', array( $comp_id ) );
 	}
 
+	/**
+	 * Replace the site's types with Individual and Team.
+	 *
+	 * @return array<string, int> Type IDs by name.
+	 */
+	private function use_two_types(): array {
+		global $wpdb;
+
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+
+		$types      = new Competition_Types_Repository();
+		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+
+		return array(
+			'Individual' => (int) $types->create( 'Individual', $categories ),
+			'Team'       => (int) $types->create( 'Team', $categories ),
+		);
+	}
+
+	public function test_render_create_form_with_two_types_has_a_required_type_select(): void {
+		$this->use_two_types();
+
+		$this->assert_matches_snapshot( 'no-competitions-active-two-types' );
+	}
+
+	public function test_render_edit_general_tab_with_two_types_offers_the_type(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'type_id'    => $ids['Team'],
+				'open_date'  => '2026-04-01 00:00:00',
+				'close_date' => '2026-04-30 00:00:00',
+			),
+			array(
+				'created_at' => '2026-01-01 00:00:00',
+				'updated_at' => '2026-01-01 00:00:00',
+			)
+		);
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-general-tab-two-types', array( $comp_id ) );
+	}
+
+	public function test_render_edit_general_tab_shows_the_type_read_only_once_there_are_entries(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'type_id' => $ids['Team'] ) );
+		Entry_Fixtures::insert_entry( $comp_id, 'open', 1, array() );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<strong>Team</strong>', $html );
+		$this->assertStringContainsString( 'A competition&#039;s type can&#039;t change once it has entries.', $html );
+		$this->assertStringNotContainsString( 'name="competition_type"', $html );
+	}
+
+	public function test_render_edit_general_tab_with_one_type_has_no_type_field(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+			)
+		);
+
+		$this->assertStringNotContainsString( 'competition_type', $this->render_normalized( array( $comp_id ) ) );
+	}
+
 	public function test_render_edit_settings_tab_defaults(): void {
 		// tab=settings with no settings saved (falls back to the hard-coded
 		// defaults: 2 categories, 3 grades), empty voting password (neither
@@ -455,6 +658,21 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'edit-settings-tab-defaults', array( $comp_id ) );
+	}
+
+	public function test_render_edit_settings_tab_share_link_uses_the_clubs_results_page(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'results_page' => 'https://example.com/club-results/' ) ) ) );
+		$comp_id = $this->seed_competition( 'Club Results', 'club-results', array( 'share_hash' => 'clubhash' ) );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		$this->assertStringContainsString( 'href="https://example.com/club-results/?share=clubhash"', $this->render_normalized( array( $comp_id ) ) );
 	}
 
 	public function test_render_edit_settings_tab_configured(): void {
@@ -538,6 +756,194 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'edit-settings-tab-configured', array( $comp_id ) );
+	}
+
+	public function test_render_edit_settings_tab_judged(): void {
+		// A competition judges score shows the judges panel under the form: a
+		// checkbox per judge, and a link, last-sent time and Send link action
+		// for each assigned judge. Cat is not assigned.
+		$comp_id = $this->seed_competition(
+			'Judged Show',
+			'judged-show',
+			array(
+				'settings'   => array(
+					'voting' => array( 'auth_mode' => 'judges' ),
+					'urls'   => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+				'share_hash' => 'judgedsharehash',
+			),
+			array(
+				'created_at' => '2026-01-01 00:00:00',
+				'updated_at' => '2026-01-01 00:00:00',
+			)
+		);
+
+		$judges = new Judges_Repository();
+		$links  = new Competition_Judges_Repository();
+		$links->assign( $comp_id, $judges->create( 'Ann', 'ann@example.com' ) );
+		$links->assign( $comp_id, $judges->create( 'Bob', 'bob@example.com' ) );
+		$judges->create( 'Cat', 'cat@example.com' );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-settings-tab-judged', array( $comp_id ) );
+	}
+
+	public function test_render_judges_panel_links_to_the_judges_screen_when_there_are_none(): void {
+		$comp_id = $this->seed_competition( 'Judged Show', 'judged-show', array( 'settings' => array( 'voting' => array( 'auth_mode' => 'judges' ) ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'page=photo-competition-manager-judges', $html );
+		$this->assertStringNotContainsString( 'Send link to all judges', $html );
+	}
+
+	public function test_render_no_judges_panel_when_members_score(): void {
+		$comp_id = $this->seed_competition( 'Members Show', 'members-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'settings',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( '<h3>Judges</h3>', $html );
+	}
+
+	public function test_render_edit_entrants_tab_open_to_all(): void {
+		// One type: the entry setting offers "Open to all members", chosen,
+		// and there is no entrant list.
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-entrants-tab-open-to-all', array( $comp_id ) );
+	}
+
+	public function test_render_entrants_tab_of_a_closed_competition_says_it_has_closed(): void {
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'open_date'  => gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS ),
+				'close_date' => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
+			)
+		);
+		// Closed without voting ever starting, which locks entry too.
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'This competition has closed, so who enters it can&#039;t change.', $html );
+		$this->assertStringNotContainsString( 'Voting has started', $html );
+		$this->assertStringNotContainsString( 'name="entry_mode"', $html );
+	}
+
+	public function test_render_edit_entrants_tab_selected(): void {
+		// Selected entrants while uploads are open: Ann has an entry, so she
+		// can't be removed; Bob can. Both can be sent their upload link. The
+		// picker lists the other active members, and the new member form
+		// follows.
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'entry_mode' => 'selected',
+				'settings'   => array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ),
+			)
+		);
+		$members  = new Members_Repository();
+		$entrants = new Entrants_Repository();
+		$ann      = $members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
+		$bob      = $members->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner' ) );
+		$members->create( array( 'name' => 'Cat', 'email' => 'cat@example.com', 'grade' => 'advanced' ) );
+		$members->create( array( 'name' => 'Dan', 'email' => 'dan@example.com', 'grade' => 'advanced', 'active' => false ) );
+		$entrants->add( $comp_id, $ann );
+		$entrants->add( $comp_id, $bob );
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
+
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-entrants-tab-selected', array( $comp_id ) );
+	}
+
+	public function test_render_entrants_tab_with_two_types_names_the_type_and_lists_its_members_first(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
+		$members = new Members_Repository();
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
+		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Open to everyone in Team', $html );
+		$this->assertMatchesRegularExpression( '/<optgroup label="Team">\s*<option value="MEMBER">Zoe.*<optgroup label="Other members">\s*<option value="MEMBER">Ann/s', $html );
+	}
+
+	public function test_render_entrants_tab_once_voting_has_started_changes_nothing(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
+		$ann     = ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
+		( new Entrants_Repository() )->add( $comp_id, $ann );
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', \PhotoCompetitionManager\Service\Competition_Workflow::STAGE_VOTING );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Ann', $html );
+		$this->assertStringNotContainsString( 'name="photo_competition_action"', $html );
 	}
 
 	public function test_render_edit_settings_tab_legacy_password(): void {

@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use function PhotoCompetitionManager\Support\render_template;
+
 /**
  * Provides form input helper methods for admin controllers.
  *
@@ -48,6 +50,50 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * Enqueue the script that adds and removes category and grade rows and
+	 * animates the progress meter previews.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return void
+	 */
+	private function enqueue_category_grade_script(): void {
+		wp_enqueue_script(
+			'photo-comp-admin-category-grade',
+			PHOTO_COMPETITION_MANAGER_URL . 'assets/js/admin-category-grade.js',
+			array(),
+			PHOTO_COMPETITION_MANAGER_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'photo-comp-admin-category-grade',
+			'photoCompCategoryGrade',
+			array(
+				'labelText'       => __( 'Label', 'photo-competition-manager' ),
+				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
+				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
+				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+			)
+		);
+	}
+
+	/**
+	 * Types screen URL.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, string|int> $args Extra query arguments.
+	 * @return string
+	 */
+	private function types_url( array $args = array() ): string {
+		return add_query_arg(
+			array_merge( array( 'page' => 'photo-competition-manager-types' ), $args ),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
 	 * Dashboard URL.
 	 *
 	 * @return string
@@ -57,6 +103,37 @@ trait Form_Rendering {
 			array(
 				'page' => 'photo-competition-manager',
 			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * Settings screen URL.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string
+	 */
+	private function settings_url(): string {
+		return add_query_arg(
+			array(
+				'page' => 'photo-competition-manager-settings',
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * Judges screen URL.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, string|int> $args Extra query arguments.
+	 * @return string
+	 */
+	private function judges_url( array $args = array() ): string {
+		return add_query_arg(
+			array_merge( array( 'page' => 'photo-competition-manager-judges' ), $args ),
 			admin_url( 'admin.php' )
 		);
 	}
@@ -97,7 +174,7 @@ trait Form_Rendering {
 		return $this->render_template(
 			'admin/notice-multiple-open-competitions.php',
 			array(
-				'titles'    => wp_list_pluck( $open_competitions, 'title' ),
+				'titles'    => array_map( array( new \PhotoCompetitionManager\Service\Competition_Labels(), 'title_for_everyone' ), $open_competitions ),
 				'show_link' => $show_link,
 			)
 		);
@@ -142,21 +219,28 @@ trait Form_Rendering {
 	}
 
 	/**
-	 * Resolve a template partial path under src/templates/.
+	 * Queue an outcome as a notice and redirect: its error, or the success message.
 	 *
-	 * @since 0.3.0
-	 * @param string $relative Relative path, e.g. 'admin/voting/category-tabs.php'.
-	 * @return string Absolute filesystem path.
+	 * @since 0.4.0
+	 * @param string $group   Settings errors group.
+	 * @param mixed  $result  Outcome; a WP_Error is an error.
+	 * @param string $code    Success notice code.
+	 * @param string $message Success message.
+	 * @param string $url     Where to go next.
+	 * @return never
 	 */
-	protected function template_path( string $relative ): string {
-		return PHOTO_COMPETITION_MANAGER_DIR . '/templates/' . ltrim( $relative, '/' );
+	private function notice_and_redirect( string $group, $result, string $code, string $message, string $url ): void {
+		if ( is_wp_error( $result ) ) {
+			add_settings_error( $group, $result->get_error_code(), $result->get_error_message(), 'error' );
+		} else {
+			add_settings_error( $group, $code, $message, 'updated' );
+		}
+
+		$this->redirect_with_settings_errors( $url );
 	}
 
 	/**
-	 * Render a template partial to a string.
-	 *
-	 * The partial receives a single variable, $data (array), in scope and is
-	 * responsible for its own output escaping.
+	 * Render a template partial to a string through Support\render_template().
 	 *
 	 * @since 0.3.0
 	 * @param string $relative Relative partial path under src/templates/.
@@ -164,12 +248,6 @@ trait Form_Rendering {
 	 * @return string Rendered HTML.
 	 */
 	protected function render_template( string $relative, array $data = array() ): string {
-		ob_start();
-		try {
-			include $this->template_path( $relative );
-		} finally {
-			$html = ob_get_clean();
-		}
-		return (string) $html;
+		return render_template( $relative, $data );
 	}
 }

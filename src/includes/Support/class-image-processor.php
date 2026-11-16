@@ -26,10 +26,11 @@ class Image_Processor {
 	 * @return true|WP_Error
 	 */
 	public function validate( array $file, array $constraints ) {
+		$max_file_size = Competition_Settings::enforced_max_file_size( $constraints );
+
 		// Check upload error first. A file over PHP's own limit never reaches the size check below.
-		// The limit comes from PHP, not wp_max_upload_size(), which multisite caps at its own figure.
 		if ( in_array( $file['error'], array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true ) ) {
-			return $this->too_large_error( (int) floor( wp_convert_hr_to_bytes( ini_get( 'upload_max_filesize' ) ) / MB_IN_BYTES ) );
+			return $this->too_large_error( $max_file_size );
 		}
 
 		if ( UPLOAD_ERR_OK !== $file['error'] ) {
@@ -52,9 +53,8 @@ class Image_Processor {
 		}
 
 		// Check file size.
-		$max_size_bytes = ( $constraints['max_file_size_mb'] ?? 5 ) * 1024 * 1024;
-		if ( $file['size'] > $max_size_bytes ) {
-			return $this->too_large_error( (int) ( $constraints['max_file_size_mb'] ?? 5 ) );
+		if ( $file['size'] > $max_file_size ) {
+			return $this->too_large_error( $max_file_size );
 		}
 
 		// Security: Use WordPress robust file type validation.
@@ -109,16 +109,16 @@ class Image_Processor {
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int $max_mb The limit, in MB.
+	 * @param int $max_bytes The limit, in bytes.
 	 * @return WP_Error
 	 */
-	private function too_large_error( int $max_mb ): WP_Error {
+	private function too_large_error( int $max_bytes ): WP_Error {
 		return new WP_Error(
 			'file_too_large',
 			sprintf(
 				/* translators: %d: maximum file size in MB */
 				__( 'File size exceeds maximum of %d MB.', 'photo-competition-manager' ),
-				$max_mb
+				floor( $max_bytes / MB_IN_BYTES )
 			)
 		);
 	}
@@ -177,36 +177,61 @@ class Image_Processor {
 			return $attachment_id;
 		}
 
-		// Load image and resize to max dimensions for slideshow.
-		$image = wp_get_image_editor( $file['tmp_name'] );
-		if ( is_wp_error( $image ) ) {
-			wp_delete_attachment( $attachment_id, true );
-			return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'photo-competition-manager' ) );
+		// The resized copy and thumbnail are what judges and voters see, so they must not say who took
+		// the photo. The original, saved above, keeps its metadata.
+		add_filter( 'wp_image_editors', array( $this, 'use_author_stripping_editor' ) );
+		try {
+			// Load image and resize to max dimensions for slideshow.
+			$image = wp_get_image_editor( $file['tmp_name'] );
+			if ( is_wp_error( $image ) ) {
+				wp_delete_attachment( $attachment_id, true );
+				return new WP_Error( 'image_processing_failed', __( 'Could not process image.', 'photo-competition-manager' ) );
+			}
+
+			// Saving drops the EXIF Orientation tag, so turn the pixels upright first or
+			// camera and phone photos display sideways.
+			$image->maybe_exif_rotate();
+
+			// Always resize to max dimensions to ensure file size compliance.
+			$max_width  = $constraints['max_width'] ?? 1920;
+			$max_height = $constraints['max_height'] ?? 1920;
+			$image->resize( $max_width, $max_height, false );
+
+			// Suffix the name when another entry has it. The name is picked here, just before
+			// the write, to keep the gap for a concurrent upload small.
+			$filename    = wp_unique_filename( $directory, $filename );
+			$target_path = trailingslashit( $directory ) . $filename;
+			$saved       = $image->save( $target_path );
+
+			if ( is_wp_error( $saved ) ) {
+				wp_delete_attachment( $attachment_id, true );
+				return new WP_Error( 'save_failed', __( 'Could not save image.', 'photo-competition-manager' ) );
+			}
+
+			// Generate thumbnail.
+			$this->generate_thumbnail( $target_path, $directory );
+		} finally {
+			remove_filter( 'wp_image_editors', array( $this, 'use_author_stripping_editor' ) );
 		}
-
-		// Always resize to max dimensions to ensure file size compliance.
-		$max_width  = $constraints['max_width'] ?? 1920;
-		$max_height = $constraints['max_height'] ?? 1920;
-		$image->resize( $max_width, $max_height, false );
-
-		// Suffix the name when another entry has it. The name is picked here, just before
-		// the write, to keep the gap for a concurrent upload small.
-		$filename    = wp_unique_filename( $directory, $filename );
-		$target_path = trailingslashit( $directory ) . $filename;
-		$saved       = $image->save( $target_path );
-
-		if ( is_wp_error( $saved ) ) {
-			wp_delete_attachment( $attachment_id, true );
-			return new WP_Error( 'save_failed', __( 'Could not save image.', 'photo-competition-manager' ) );
-		}
-
-		// Generate thumbnail.
-		$this->generate_thumbnail( $target_path, $directory );
 
 		return array(
 			'filename'      => $filename,
 			'attachment_id' => $attachment_id,
 		);
+	}
+
+	/**
+	 * Put the author-stripping editor ahead of WordPress's Imagick one.
+	 *
+	 * Hooked to wp_image_editors for the length of process() only, so the original is saved as before.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param string[] $editors Image editor class names, in order of preference.
+	 * @return string[]
+	 */
+	public function use_author_stripping_editor( array $editors ): array {
+		return array_merge( array( Author_Stripping_Image_Editor::class ), $editors );
 	}
 
 	/**

@@ -7,6 +7,8 @@
 
 namespace PhotoCompetitionManager\Tests\Support;
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_UnitTestCase;
 
@@ -180,6 +182,20 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertTrue( $result );
 	}
 
+	public function test_validate_accepts_judges_auth_mode(): void {
+		$settings                        = Competition_Settings::defaults();
+		$settings['voting']['auth_mode'] = 'judges';
+
+		$this->assertTrue( Competition_Settings::validate( $settings ) );
+	}
+
+	public function test_validate_rejects_unknown_auth_mode(): void {
+		$settings                        = Competition_Settings::defaults();
+		$settings['voting']['auth_mode'] = 'carrier-pigeon';
+
+		$this->assertSame( 'invalid_auth_mode', Competition_Settings::validate( $settings )->get_error_code() );
+	}
+
 	public function test_validate_rejects_missing_categories(): void {
 		$settings = Competition_Settings::defaults();
 		unset( $settings['categories'] );
@@ -256,7 +272,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_empty_grades(): void {
-		$settings          = Competition_Settings::defaults();
+		$settings           = Competition_Settings::defaults();
 		$settings['grades'] = array();
 
 		$result = Competition_Settings::validate( $settings );
@@ -288,7 +304,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_file_size(): void {
-		$settings                           = Competition_Settings::defaults();
+		$settings                               = Competition_Settings::defaults();
 		$settings['upload']['max_file_size_mb'] = 0;
 
 		$result = Competition_Settings::validate( $settings );
@@ -298,7 +314,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_score_matrix(): void {
-		$settings                       = Competition_Settings::defaults();
+		$settings                           = Competition_Settings::defaults();
 		$settings['voting']['score_matrix'] = array();
 
 		$result = Competition_Settings::validate( $settings );
@@ -308,13 +324,61 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_rejects_invalid_voting_ui_type(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'slider';
 
 		$result = Competition_Settings::validate( $settings );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'invalid_voting_ui_type', $result->get_error_code() );
+	}
+
+	public function test_a_type_saved_before_interclub_settings_is_an_individual_competition(): void {
+		$type = (object) array( 'settings' => array( 'categories' => Competition_Settings::defaults()['categories'] ) );
+
+		$this->assertFalse( Competition_Settings::type_settings( $type )['interclub']['enabled'] );
+	}
+
+	public function test_a_competition_takes_substitutes_only_while_interclub_is_on(): void {
+		$settings              = Competition_Settings::defaults();
+		$settings['interclub'] = array(
+			'enabled'            => true,
+			'substitutes'        => 2,
+			'photographer_limit' => 0,
+		);
+		$this->assertSame( 2, Competition_Settings::substitutes( $settings ) );
+
+		// Switching interclub off keeps the number for switching it back on.
+		$settings['interclub']['enabled'] = false;
+		$this->assertSame( 0, Competition_Settings::substitutes( $settings ) );
+	}
+
+	/**
+	 * @dataProvider invalid_interclub_numbers
+	 *
+	 * @param string $key   Interclub setting.
+	 * @param mixed  $value Its invalid value.
+	 */
+	public function test_validate_type_settings_rejects_an_invalid_interclub_number( string $key, $value ): void {
+		$settings                      = Competition_Settings::type_settings( (object) array() );
+		$settings['interclub'][ $key ] = $value;
+
+		$result = Competition_Settings::validate_type_settings( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_interclub', $result->get_error_code() );
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: mixed}>
+	 */
+	public function invalid_interclub_numbers(): array {
+		return array(
+			'negative substitutes'          => array( 'substitutes', -1 ),
+			'non-numeric substitutes'       => array( 'substitutes', 'two' ),
+			'negative photographer limit'   => array( 'photographer_limit', -2 ),
+			'fractional photographer limit' => array( 'photographer_limit', 1.5 ),
+		);
 	}
 
 	public function test_validate_rejects_non_string_voting_password(): void {
@@ -440,14 +504,14 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_get_voting_ui_type_respects_competition_override(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'dropdown';
 
 		$this->assertSame( 'dropdown', Competition_Settings::get_voting_ui_type( $settings ) );
 	}
 
 	public function test_get_voting_ui_type_falls_back_to_global_option(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'default';
 
 		update_option( 'photo_comp_voting_ui_type', 'dropdown' );
@@ -458,7 +522,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	}
 
 	public function test_get_voting_ui_type_defaults_to_buttons_when_global_invalid(): void {
-		$settings = Competition_Settings::defaults();
+		$settings                      = Competition_Settings::defaults();
 		$settings['voting']['ui_type'] = 'default';
 
 		update_option( 'photo_comp_voting_ui_type', 'slider' );
@@ -583,7 +647,7 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 	public function test_parse_empty_and_empty_object_return_same_urls(): void {
 		$page_id = $this->create_page( '[competition_voting]' );
 
-		$empty_result       = Competition_Settings::parse( '' );
+		$empty_result        = Competition_Settings::parse( '' );
 		$empty_object_result = Competition_Settings::parse( '{}' );
 
 		$this->assertSame( $empty_object_result['urls'], $empty_result['urls'] );
@@ -752,5 +816,141 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 
 		$this->assertSame( get_permalink( $page_id ), Competition_Settings::find_page_url_with_shortcode( 'gallery' ) );
 		$this->assertSame( '', Competition_Settings::find_page_url_with_shortcode( 'no_such_shortcode' ) );
+	}
+
+	// ---------------------------------------------------------------
+	// page_url(): one rule for the voting, upload and results pages.
+	// ---------------------------------------------------------------
+
+	/**
+	 * Create a competition and load it back.
+	 *
+	 * @param array<string, string> $urls The competition's own page URLs.
+	 * @return object Competition row.
+	 */
+	private function competition_with_urls( array $urls ): object {
+		$repo = new Competitions_Repository();
+		$id   = $repo->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'    => 'Links',
+				'slug'     => 'links-' . wp_generate_password( 6, false ),
+				'settings' => array( 'urls' => $urls ),
+			)
+		);
+
+		return $repo->find( (int) $id );
+	}
+
+	/**
+	 * Save the club's page URLs.
+	 *
+	 * @param array<string, string> $urls Club page URLs.
+	 */
+	private function set_club_urls( array $urls ): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => $urls ) ) );
+	}
+
+	public function test_page_url_prefers_the_competitions_own_page(): void {
+		$this->create_page( '[competition_voting]' );
+		$this->set_club_urls( array( 'voting_page' => 'https://example.com/club-vote/' ) );
+		$competition = $this->competition_with_urls( array( 'voting_page' => 'https://example.com/comp-vote/' ) );
+
+		$this->assertSame( 'https://example.com/comp-vote/', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_uses_the_clubs_page_before_a_shortcode_page(): void {
+		$this->create_page( '[competition_voting]' );
+		$this->set_club_urls( array( 'voting_page' => 'https://example.com/club-vote/' ) );
+		$competition = $this->competition_with_urls( array( 'voting_page' => '' ) );
+
+		$this->assertSame( 'https://example.com/club-vote/', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_falls_back_to_a_page_with_the_shortcode(): void {
+		$voting      = $this->create_page( '[competition_voting]' );
+		$upload      = $this->create_page( '[competition_upload]' );
+		$results     = $this->create_page( '[competition_results]' );
+		$competition = $this->competition_with_urls( array() );
+
+		$this->assertSame( get_permalink( $voting ), Competition_Settings::page_url( 'voting_page', $competition ) );
+		$this->assertSame( get_permalink( $upload ), Competition_Settings::page_url( 'upload_page', $competition ) );
+		$this->assertSame( get_permalink( $results ), Competition_Settings::page_url( 'results_page', $competition ) );
+	}
+
+	public function test_page_url_is_empty_when_no_page_can_be_found(): void {
+		$this->create_page( '[competition_upload]' );
+		$competition = $this->competition_with_urls( array() );
+
+		$this->assertSame( '', Competition_Settings::page_url( 'voting_page', $competition ) );
+	}
+
+	public function test_page_url_without_a_competition_uses_the_clubs_page(): void {
+		$this->set_club_urls( array( 'results_page' => 'https://example.com/results/' ) );
+
+		$this->assertSame( 'https://example.com/results/', Competition_Settings::page_url( 'results_page' ) );
+	}
+
+	/**
+	 * @dataProvider php_upload_limit_cases
+	 */
+	public function test_php_upload_limit_is_the_lower_of_the_two_ini_values( string $upload_max_filesize, string $post_max_size, int $expected ): void {
+		$this->assertSame( $expected, Competition_Settings::php_upload_limit( $upload_max_filesize, $post_max_size ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string, int}>
+	 */
+	public function php_upload_limit_cases(): array {
+		return array(
+			'upload_max_filesize is lower'  => array( '2M', '8M', 2 * MB_IN_BYTES ),
+			'post_max_size is lower'        => array( '8M', '2M', 2 * MB_IN_BYTES ),
+			'upload_max_filesize is 0'      => array( '0', '8M', 8 * MB_IN_BYTES ),
+			'post_max_size is 0'            => array( '8M', '0', 8 * MB_IN_BYTES ),
+			'neither has a limit'           => array( '0', '0', 0 ),
+			'gigabytes and bytes are mixed' => array( '1G', '3145728', 3 * MB_IN_BYTES ),
+		);
+	}
+
+	public function test_settings_for_new_competition_copies_type_and_club_urls(): void {
+		update_option(
+			'photo_comp_default_settings',
+			wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) )
+		);
+		$type = (object) array(
+			'settings' => array(
+				'categories' => array(
+					array(
+						'slug'  => 'open',
+						'label' => 'Open',
+						'quota' => 3,
+					),
+				),
+				'voting'     => array( 'score_matrix' => array( 10, 8 ) ),
+			),
+		);
+
+		$settings = Competition_Settings::settings_for_new_competition( $type );
+
+		$this->assertSame( 'open', $settings['categories'][0]['slug'] );
+		$this->assertSame( array( 10, 8 ), $settings['voting']['score_matrix'] );
+		$this->assertSame( Competition_Settings::defaults()['voting']['auth_mode'], $settings['voting']['auth_mode'] );
+		$this->assertSame( 'https://example.com/upload/', $settings['urls']['upload_page'] );
+		$this->assertArrayNotHasKey( 'grades', $settings );
+		$this->assertEqualsCanonicalizing(
+			array_merge( Competition_Settings::TYPE_KEYS, array( 'urls' ) ),
+			array_keys( $settings )
+		);
+	}
+
+	public function test_validate_type_settings_rejects_empty_score_matrix(): void {
+		$settings                           = Competition_Settings::type_settings( (object) array( 'settings' => array() ) );
+		$settings['voting']['score_matrix'] = array();
+
+		$result = Competition_Settings::validate_type_settings( $settings );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_score_matrix', $result->get_error_code() );
+		$this->assertTrue( Competition_Settings::validate_type_settings( Competition_Settings::type_settings( (object) array( 'settings' => array() ) ) ) );
 	}
 }

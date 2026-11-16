@@ -40,13 +40,15 @@ class Upload_Token_Repository extends Abstract_Repository {
 			return new WP_Error( 'invalid_data', __( 'Invalid member or competition ID.', 'photo-competition-manager' ) );
 		}
 
-		// Try to find existing token.
+		// Try to find existing token. A table whose upgrade to the unique key
+		// hasn't run may hold more than one: the earliest is the member's.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$existing = $wpdb->get_row(
 			$wpdb->prepare(
 				'SELECT * FROM %i
 				WHERE member_id = %d
 				AND competition_id = %d
+				ORDER BY id
 				LIMIT 1',
 				$this->table(),
 				$member_id,
@@ -299,7 +301,8 @@ class Upload_Token_Repository extends Abstract_Repository {
 	/**
 	 * Get tracking data for all members in a competition.
 	 *
-	 * Returns array indexed by member_id with link sent/opened status.
+	 * Returns array indexed by member_id with when the member first opened
+	 * their link, or null if they haven't.
 	 *
 	 * @since 0.1.0
 	 * @param int $competition_id Competition ID.
@@ -317,9 +320,7 @@ class Upload_Token_Repository extends Abstract_Repository {
 			$wpdb->prepare(
 				'SELECT
 					member_id,
-					MIN(created_at) as first_sent_at,
-					MIN(first_accessed_at) as first_opened_at,
-					COUNT(*) as token_count
+					MIN(first_accessed_at) as first_opened_at
 				FROM %i
 				WHERE competition_id = %d
 				GROUP BY member_id',
@@ -357,6 +358,44 @@ class Upload_Token_Repository extends Abstract_Repository {
 		);
 
 		return false !== $deleted;
+	}
+
+	/**
+	 * Delete a member's upload token for one competition, revoking their link.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id      Member ID.
+	 * @param int $competition_id Competition ID.
+	 * @return bool
+	 */
+	public function delete_for( int $member_id, int $competition_id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->delete(
+			$this->table(),
+			array(
+				'member_id'      => $member_id,
+				'competition_id' => $competition_id,
+			),
+			array( '%d', '%d' )
+		);
+	}
+
+	/**
+	 * Delete all of a member's upload tokens.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return bool
+	 */
+	public function delete_by_member( int $member_id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->delete( $this->table(), array( 'member_id' => $member_id ), array( '%d' ) );
 	}
 
 	/**

@@ -15,8 +15,12 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
+use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
  * Manage submissions viewing page.
@@ -115,7 +119,7 @@ class Submissions_Controller {
 		wp_enqueue_style( 'photo-comp-submissions-style' );
 
 		// Add inline CSS for thumbnails.
-		$inline_css = '.photo-comp-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .photo-comp-thumbnail{width:140px;}';
+		$inline_css = '.photo-comp-thumbnail img{max-width:120px;height:auto;border:1px solid #ccd0d4;padding:2px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.08);} .photo-comp-thumbnail{width:140px;} .photo-comp-photographer-field{width:12em;max-width:100%;} .photo-comp-entry-status .button{display:block;margin-top:4px;white-space:nowrap;}';
 		wp_add_inline_style( 'photo-comp-submissions-style', $inline_css );
 
 		// Register and enqueue a dummy script handle to attach inline scripts to.
@@ -150,7 +154,7 @@ class Submissions_Controller {
 				});
 			}
 			document.addEventListener('click', function(e) {
-				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals')) {
+				if (e.target.classList.contains('photo-comp-regenerate') || e.target.classList.contains('photo-comp-delete-originals') || e.target.classList.contains('photo-comp-entry-status-button')) {
 					var confirmMessage = e.target.getAttribute('data-confirm');
 					if (confirmMessage && !confirm(confirmMessage)) {
 						e.preventDefault();
@@ -194,7 +198,7 @@ class Submissions_Controller {
 				$this->redirect_with_settings_errors( admin_url( 'admin.php?page=photo-competition-manager-submissions' ) );
 			}
 
-			$result = $this->images->regenerate_member_numbers( $competition_id );
+			$result = $this->entries->regenerate_numbers( Actor::admin(), $competition_id );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -380,6 +384,46 @@ class Submissions_Controller {
 			);
 		}
 
+		if ( 'change_photographer' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'photo_competition_photographer_' . $competition_id );
+
+			$image_id     = isset( $_POST['image_id'] ) ? absint( $_POST['image_id'] ) : 0;
+			$photographer = isset( $_POST['photographer'] ) ? sanitize_text_field( wp_unslash( $_POST['photographer'] ) ) : '';
+
+			$this->notice_and_redirect(
+				'photo_competition_submissions',
+				$this->entries->set_photographer( Actor::admin(), $competition_id, $image_id, $photographer ),
+				'photographer_changed',
+				__( 'Photographer saved.', 'photo-competition-manager' ),
+				$this->entry_change_url( $competition_id )
+			);
+		}
+
+		if ( 'change_entry_status' === $action ) {
+			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+			check_admin_referer( 'photo_competition_entry_status_' . $competition_id );
+
+			// Each row's buttons post entry_status[<image ID>] = <new status>; only the pressed one is sent.
+			$changes      = isset( $_POST['entry_status'] ) && is_array( $_POST['entry_status'] ) ? wp_unslash( $_POST['entry_status'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The key is absint()ed and the value sanitize_key()ed below.
+			$image_id     = absint( (string) key( $changes ) );
+			$entry_status = sanitize_key( (string) current( $changes ) );
+
+			$this->notice_and_redirect(
+				'photo_competition_submissions',
+				$this->entries->set_entry_status( Actor::admin(), $competition_id, $image_id, $entry_status ),
+				'entry_status_changed',
+				sprintf(
+					/* translators: %s: the entry's new status, such as Disqualified */
+					__( 'The entry is now %s.', 'photo-competition-manager' ),
+					Images_Repository::entry_status_label( $entry_status )
+				),
+				$this->entry_change_url( $competition_id )
+			);
+		}
+
 		if ( 'admin_upload' === $action ) {
 			$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
@@ -424,8 +468,12 @@ class Submissions_Controller {
 						'error'
 					);
 				} else {
+					$details = array(
+						'photographer' => isset( $_POST['photographer'] ) ? sanitize_text_field( wp_unslash( $_POST['photographer'] ) ) : '',
+						'substitute'   => ! empty( $_POST['substitute'] ),
+					);
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- File array validated by Entries::add().
-					$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ) );
+					$result = $this->entries->add( Actor::admin(), $competition_id, $member_id, $category, wp_unslash( $_FILES['image_file'] ), $details );
 
 					if ( is_wp_error( $result ) ) {
 						add_settings_error(
@@ -514,7 +562,7 @@ class Submissions_Controller {
 		$scores_data = array();
 		if ( $competition_id ) {
 			$member_filter = $member_id > 0 ? $member_id : null;
-			$submissions   = $this->images->find_by_competition( $competition_id, null, $member_filter );
+			$submissions   = $this->images->find_uploads( $competition_id, null, $member_filter );
 
 			// Sort submissions by member name.
 			usort(
@@ -532,89 +580,87 @@ class Submissions_Controller {
 
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
 
+		// The members who may enter: the type's members, or the competition's selected entrants.
+		$eligible  = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $selected_competition ) : array();
+		$may_enter = array_map( 'intval', wp_list_pluck( $eligible, 'id' ) );
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
+		$categories   = array();
+		$is_interclub = false;
+
 		if ( $selected_competition ) {
+			// The competition's settings, parsed once. A competition without its own categories takes the club's.
+			$settings     = Competition_Settings::parse( $selected_competition->settings );
+			$is_interclub = (bool) $settings['interclub']['enabled'];
+			$categories   = Competition_Settings::get_categories( $settings );
+
 			printf(
 				'<h2>%s</h2>',
-				esc_html( $selected_competition->title )
+				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
 			);
 
 			// Add regenerate numbers button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_regenerate_numbers_form( $competition_id );
+			echo $this->render_regenerate_numbers_form( $competition_id, $is_interclub );
 
 			// Add delete original images button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_delete_originals_form( $competition_id );
 
-			// Get competition settings for categories.
-			$categories = array();
-			if ( ! empty( $selected_competition->settings ) ) {
-				$settings = json_decode( $selected_competition->settings, true );
-				if ( is_array( $settings ) ) {
-					$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-				}
-			}
-
 			// Add admin upload form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_admin_upload_form( $competition_id, $members, $categories );
+			echo $this->render_admin_upload_form( $competition_id, $members, $categories, $settings['interclub'] );
 		}
 
-		// Add quota/status summary section.
-		if ( $selected_competition && ! empty( $selected_competition->settings ) ) {
-			$settings = json_decode( $selected_competition->settings, true );
-			if ( is_array( $settings ) ) {
-				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-
-				if ( ! empty( $categories ) ) {
-					// Build submission counts by member and category.
-					$member_counts = array();
-					foreach ( $submissions as $submission ) {
-						$mid = (int) $submission->member_id;
-						$cat = (string) $submission->category;
-
-						if ( ! isset( $member_counts[ $mid ] ) ) {
-							$member_counts[ $mid ] = array();
-						}
-						if ( ! isset( $member_counts[ $mid ][ $cat ] ) ) {
-							$member_counts[ $mid ][ $cat ] = 0;
-						}
-						++$member_counts[ $mid ][ $cat ];
-					}
-
-					// Get link tracking data.
-					$upload_token_repo = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
-					$voting_token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
-					$upload_tracking   = $upload_token_repo->get_tracking_by_competition( $competition_id );
-					$voting_tracking   = $voting_token_repo->get_tracking_by_competition( $competition_id );
-
-					// Build quota map.
-					$quota_map = array();
-					foreach ( $categories as $cat_config ) {
-						$quota_map[ $cat_config['slug'] ] = array(
-							'label' => $cat_config['label'],
-							'quota' => $cat_config['quota'],
-						);
-					}
-
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-					echo $this->render_submission_status( $categories, $member_id, $members, $member_counts, $upload_tracking, $voting_tracking );
-				}
-			}
-		}
-
+		// The photos come first, as what an admin comes to see; the status summary follows them.
 		if ( empty( $submissions ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
-			echo '</div>';
-			return;
+		} else {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter, $is_interclub );
 		}
 
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_submissions_table( $competition_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup );
+		// The quota/status summary. Every competition has categories: its own, or the club's.
+		if ( $selected_competition ) {
+			// Count each member's entered images by category: substitutes and disqualified images take no place in the quota.
+			$member_counts = array();
+			foreach ( $submissions as $submission ) {
+				if ( 'entered' !== $submission->entry_status ) {
+					continue;
+				}
+
+				$mid = (int) $submission->member_id;
+				$cat = (string) $submission->category;
+
+				if ( ! isset( $member_counts[ $mid ] ) ) {
+					$member_counts[ $mid ] = array();
+				}
+				if ( ! isset( $member_counts[ $mid ][ $cat ] ) ) {
+					$member_counts[ $mid ][ $cat ] = 0;
+				}
+				++$member_counts[ $mid ][ $cat ];
+			}
+
+			// Get link tracking data.
+			$upload_token_repo = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
+			$voting_token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
+			$upload_tracking   = $upload_token_repo->get_tracking_by_competition( $competition_id );
+			$voting_tracking   = $voting_token_repo->get_tracking_by_competition( $competition_id );
+
+			// The members who may enter, then anyone else who has entries, such as a member deactivated since.
+			$entrants = $eligible;
+			$listed   = array_flip( $may_enter );
+			foreach ( array_unique( array_map( 'intval', array_column( $submissions, 'member_id' ) ) ) as $entered_id ) {
+				if ( ! isset( $listed[ $entered_id ] ) && isset( $member_map[ $entered_id ] ) ) {
+					$entrants[] = $member_map[ $entered_id ];
+				}
+			}
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_submission_status( $categories, $member_id, $entrants, $member_counts, $upload_tracking, $voting_tracking );
+		}
 
 		echo '</div>';
 	}
@@ -643,13 +689,17 @@ class Submissions_Controller {
 	/**
 	 * Render the regenerate-random-numbers form.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int  $competition_id Competition ID.
+	 * @param bool $interclub      Whether the competition numbers each image rather than each member.
 	 * @return string
 	 */
-	private function render_regenerate_numbers_form( int $competition_id ): string {
+	private function render_regenerate_numbers_form( int $competition_id, bool $interclub ): string {
 		return $this->render_template(
 			'admin/submissions/regenerate-numbers-form.php',
-			array( 'competition_id' => $competition_id )
+			array(
+				'competition_id' => $competition_id,
+				'interclub'      => $interclub,
+			)
 		);
 	}
 
@@ -672,15 +722,17 @@ class Submissions_Controller {
 	 * @param int               $competition_id Competition ID.
 	 * @param array<int,object> $members        All members.
 	 * @param array<int,array>  $categories     Category config for the competition.
+	 * @param array             $interclub      The competition's interclub settings.
 	 * @return string
 	 */
-	private function render_admin_upload_form( int $competition_id, array $members, array $categories ): string {
+	private function render_admin_upload_form( int $competition_id, array $members, array $categories, array $interclub ): string {
 		return $this->render_template(
 			'admin/submissions/admin-upload-form.php',
 			array(
 				'competition_id' => $competition_id,
 				'members'        => $members,
 				'categories'     => $categories,
+				'interclub'      => $interclub,
 			)
 		);
 	}
@@ -714,25 +766,26 @@ class Submissions_Controller {
 	 * Render the submissions table (with its wrapping bulk-delete form).
 	 *
 	 * @param int               $competition_id       Competition ID.
+	 * @param int               $member_id            The member the list is filtered to, or 0.
 	 * @param array<int,object> $submissions          Submission records for the competition.
 	 * @param array<int,object> $member_map           Members indexed by member id.
 	 * @param array             $scores_data          Score/vote-count data indexed by image id.
 	 * @param object|null       $selected_competition Currently selected competition, if any.
 	 * @param array<int,object> $competition_lookup   Competitions indexed by competition id.
+	 * @param int[]             $may_enter            IDs of the members who may enter the selected competition.
+	 * @param bool              $interclub            Whether the selected competition is interclub.
 	 * @return string
 	 */
-	private function render_submissions_table( int $competition_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup ): string {
-		// Generate upload URLs for each member.
-		$upload_token_repo  = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
+	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup, array $may_enter, bool $interclub ): string {
+		// Each member's upload link, the same one their upload link emails carry,
+		// for the members who may still enter: the upload page refuses anyone else's.
+		$upload_links       = new Upload_Link_Service();
 		$member_upload_urls = array();
-
-		// Get upload page URL - assume it's at /photo-upload/.
-		$upload_page_url = home_url( '/photo-upload/' );
 
 		foreach ( $submissions as $submission ) {
 			$submission_member_id = (int) $submission->member_id;
-			if ( ! isset( $member_upload_urls[ $submission_member_id ] ) ) {
-				$upload_url = $upload_token_repo->generate_upload_url( $competition_id, $submission_member_id, $upload_page_url );
+			if ( $selected_competition && ! isset( $member_upload_urls[ $submission_member_id ] ) && in_array( $submission_member_id, $may_enter, true ) ) {
+				$upload_url = $upload_links->upload_url( $selected_competition, $submission_member_id );
 				if ( ! is_wp_error( $upload_url ) ) {
 					$member_upload_urls[ $submission_member_id ] = $upload_url;
 				}
@@ -741,6 +794,8 @@ class Submissions_Controller {
 
 		$current_member_id = null;
 		$rows              = array();
+		// The changes allowed depend only on an entry's category and status, so work them out once for each.
+		$status_actions = array();
 
 		foreach ( $submissions as $submission ) {
 			$member_name = isset( $member_map[ $submission->member_id ] )
@@ -774,6 +829,11 @@ class Submissions_Controller {
 				$vote_count  = $score_info['vote_count'];
 			}
 
+			$status_key = $submission->category . ':' . $submission->entry_status;
+			if ( ! isset( $status_actions[ $status_key ] ) ) {
+				$status_actions[ $status_key ] = $current_competition ? $this->status_actions( $current_competition, $submission ) : array();
+			}
+
 			$rows[] = (object) array(
 				'image_id'             => $image_id,
 				'member_name'          => $member_name,
@@ -787,6 +847,9 @@ class Submissions_Controller {
 				'total_score'          => $total_score,
 				'vote_count'           => $vote_count,
 				'formatted_created_at' => $this->format_datetime( $submission->created_at ),
+				'photographer'         => (string) $submission->photographer,
+				'status_label'         => Images_Repository::entry_status_label( (string) $submission->entry_status ),
+				'status_actions'       => $status_actions[ $status_key ],
 			);
 		}
 
@@ -794,8 +857,60 @@ class Submissions_Controller {
 			'admin/submissions/submissions-table.php',
 			array(
 				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+				'interclub'      => $interclub,
 				'rows'           => $rows,
 			)
 		);
+	}
+
+	/**
+	 * The Submissions list an entry was changed from, with its member filter.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function entry_change_url( int $competition_id ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The caller checked the nonce.
+		$member_id = isset( $_POST['member_id'] ) ? absint( $_POST['member_id'] ) : 0;
+
+		return add_query_arg(
+			array_filter(
+				array(
+					'page'           => 'photo-competition-manager-submissions',
+					'competition_id' => $competition_id,
+					'member_id'      => $member_id,
+				)
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * The buttons that change an entry's status, as the competition stands.
+	 *
+	 * @param object $competition Competition row.
+	 * @param object $entry       Entry row.
+	 * @return array<int, array{status: string, label: string, confirm: string}>
+	 */
+	private function status_actions( object $competition, object $entry ): array {
+		$actions = array();
+		foreach ( $this->entries->entry_status_options( $competition, $entry ) as $entry_status ) {
+			if ( 'disqualified' === $entry_status ) {
+				$label = __( 'Disqualify', 'photo-competition-manager' );
+			} elseif ( 'entered' === $entry_status ) {
+				$label = 'substitute' === $entry->entry_status ? __( 'Promote', 'photo-competition-manager' ) : __( 'Reinstate', 'photo-competition-manager' );
+			} else {
+				$label = 'entered' === $entry->entry_status ? __( 'Make substitute', 'photo-competition-manager' ) : __( 'Reinstate as substitute', 'photo-competition-manager' );
+			}
+
+			$actions[] = array(
+				'status'  => $entry_status,
+				'label'   => $label,
+				'confirm' => 'disqualified' === $entry_status ? __( 'Disqualify this entry? Once its category has votes, it can\'t be brought back without clearing them.', 'photo-competition-manager' ) : '',
+			);
+		}
+
+		return $actions;
 	}
 }

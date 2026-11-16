@@ -8,10 +8,13 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Top3_Shortcode;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -38,6 +41,7 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Top3 Comp',
 				'slug'      => 'top3-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -90,6 +94,49 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'votes)', $html );
 	}
 
+	public function test_an_interclub_podium_shows_the_photographer_and_club(): void {
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => '2019-01-01 00:00:00',
+				'close_date' => '2019-02-01 00:00:00',
+				'settings'   => array(
+					'interclub'  => array( 'enabled' => true ),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		$club_id        = (int) ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Lee Camera Club',
+				'email' => 'lee@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $club_id,
+				'category'       => 'colour',
+				'filename'       => 'lee-colour.jpg',
+				'photographer'   => 'Ann Murphy',
+			)
+		);
+		Workflow_Fixtures::publish_results( $competition_id );
+
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		$this->assertStringContainsString( '<div class="member-name">Ann Murphy — Lee Camera Club</div>', $html );
+	}
+
 	/**
 	 * Results night when next month's competition was created early: with
 	 * no competition named, the page shows the competition whose results
@@ -102,6 +149,7 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$GLOBALS['wpdb']->update( $competitions->table(), array( 'created_at' => '2020-01-01 00:00:00' ), array( 'id' => $published->id ) );
 		$competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Next Month',
 				'slug'      => 'next-month',
 				'open_date' => '2020-02-01 00:00:00',
@@ -194,6 +242,67 @@ class Top3_Shortcode_Test extends WP_UnitTestCase {
 		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
 
 		$this->assertStringNotContainsString( 'No Grade', $html );
+		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
+	}
+
+	/**
+	 * A member deleted after results are published stays in their place,
+	 * as a former member without an image, and nobody moves up.
+	 */
+	public function test_a_deleted_members_entry_keeps_its_place_as_a_former_member(): void {
+		$winner    = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Zed Winner', 'beginner', array( 9 ) );
+		$member_id = (int) ( new Images_Repository() )->find( $winner )->member_id;
+		( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		( new Entries() )->remove_member_entries( Actor::admin(), $member_id );
+		( new Members_Repository() )->delete( $member_id );
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		$this->assertStringContainsString( '<div class="member-name">Former member</div>', $html );
+		$this->assertStringNotContainsString( 'Zed Winner', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+		$this->assertMatchesRegularExpression( '/Former member.*Ann Example/s', $html );
+	}
+
+	/**
+	 * Recorded results stay on the page after every entry is removed, as
+	 * they do on the Results screen.
+	 */
+	public function test_recorded_results_are_shown_after_every_entry_is_removed(): void {
+		( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+		$image = ( new Images_Repository() )->find_entered( $this->competition_id )[0];
+
+		( new Entries() )->remove( Actor::admin(), $this->competition_id, (int) $image->id );
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		$this->assertStringNotContainsString( 'No images submitted', $html );
+		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
+		$this->assertStringContainsString( 'Image unavailable', $html );
+	}
+
+	/**
+	 * A recorded entry keeps the grade it was entered in, even once that
+	 * grade is gone from the club's list.
+	 */
+	public function test_recorded_entries_in_a_grade_since_removed_are_shown(): void {
+		( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				)
+			)
+		);
+
+		$html = ( new Top3_Shortcode() )->render( array( 'competition' => 'top3-comp' ) );
+
+		$this->assertStringContainsString( '<h4>beginner</h4>', $html );
 		$this->assertStringContainsString( '<div class="member-name">Ann Example</div>', $html );
 	}
 }

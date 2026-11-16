@@ -14,6 +14,7 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Submissions_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -107,6 +108,7 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		return $this->competitions->create(
 			array_merge(
 				array(
+					'type_id'    => Type_Fixtures::id(),
 					'title'      => $title,
 					'slug'       => $slug,
 					// Null dates keep is_open() clock-independent, consistent with the
@@ -523,6 +525,104 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->expectException( \WPDieException::class );
 		$this->controller->handle_actions();
+	}
+
+	/*
+	 * -----------------------------------------------------------------
+	 * change_entry_status.
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Post a status change for one entry.
+	 *
+	 * @param int    $image_id     Image ID.
+	 * @param string $entry_status New status.
+	 * @param int    $member_id    The member the list is filtered to, or 0.
+	 * @return string Where it redirected.
+	 */
+	private function post_entry_status( int $image_id, string $entry_status, int $member_id = 0 ): string {
+		$this->set_request(
+			array(
+				'action'         => 'change_entry_status',
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member_id,
+				'entry_status'   => array( $image_id => $entry_status ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_entry_status_' . $this->competition_id );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_an_admin_disqualifies_an_entry_from_the_submissions_screen(): void {
+		$image_id = $this->seed_image( $this->competition_id );
+
+		$this->post_entry_status( $image_id, 'disqualified' );
+
+		$this->assertContains( 'entry_status_changed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'disqualified', $this->images->find( $image_id )->entry_status );
+	}
+
+	public function test_a_status_change_comes_back_to_the_same_members_entries(): void {
+		$image_id = $this->seed_image( $this->competition_id );
+
+		$location = $this->post_entry_status( $image_id, 'disqualified', 42 );
+
+		$this->assertStringContainsString( 'member_id=42', $location );
+	}
+
+	public function test_a_refused_status_change_says_why(): void {
+		$image_id = $this->seed_image( $this->competition_id );
+
+		$this->post_entry_status( $image_id, 'substitute' );
+
+		$this->assertSame( array( 'no_substitutes' ), $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'entered', $this->images->find( $image_id )->entry_status );
+	}
+
+	public function test_an_admin_saves_an_entrys_photographer_from_the_submissions_screen(): void {
+		$image_id = $this->seed_image( $this->competition_id, array( 'photographer' => 'Anne Murphy' ) );
+		$this->set_request(
+			array(
+				'action'         => 'change_photographer',
+				'competition_id' => $this->competition_id,
+				'image_id'       => $image_id,
+				'photographer'   => 'Ann Murphy',
+			)
+		);
+		$this->set_nonce( 'photo_competition_photographer_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertContains( 'photographer_changed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'Ann Murphy', $this->images->find( $image_id )->photographer );
+	}
+
+	public function test_a_status_change_without_a_nonce_dies(): void {
+		$image_id = $this->seed_image( $this->competition_id );
+		$this->set_request(
+			array(
+				'action'         => 'change_entry_status',
+				'competition_id' => $this->competition_id,
+				'entry_status'   => array( $image_id => 'disqualified' ),
+			)
+		);
+
+		try {
+			$this->controller->handle_actions();
+			$this->fail( 'Expected wp_die().' );
+		} catch ( \WPDieException $e ) {
+			$this->assertSame( 'entered', $this->images->find( $image_id )->entry_status );
+		}
 	}
 
 	/*

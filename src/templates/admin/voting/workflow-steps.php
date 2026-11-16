@@ -2,7 +2,7 @@
 /**
  * Workflow steps partial for the admin voting controls page.
  *
- * Reads $data keys: comp_id, competition, category_slug, category_label,
+ * Reads $data keys: comp_id, category_slug, category_label,
  * total_categories, image_count, prereq_refusal, current_step,
  * steps, open_voting_hint, voting_open_here, open_voting_url,
  * close_voting_url, reset_url, has_votes.
@@ -12,11 +12,12 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 $is_ready = '' === $data['prereq_refusal'];
 ?>
 		<div id="focus-panel" class="postbox photo-comp-workflow-card"
 			data-competition-id="<?php echo esc_attr( $data['comp_id'] ); ?>"
-			data-competition-slug="<?php echo esc_attr( $data['competition']->slug ); ?>"
 			data-category="<?php echo esc_attr( $data['category_slug'] ); ?>"
 			data-category-label="<?php echo esc_attr( $data['category_label'] ); ?>">
 
@@ -97,7 +98,6 @@ $is_ready = '' === $data['prereq_refusal'];
 										<?php if ( 'slideshow' === $step['type'] ) : ?>
 											<button type="button" class="button button-primary photo-competition-manager-start-slideshow"
 												data-competition-id="<?php echo esc_attr( $data['comp_id'] ); ?>"
-												data-competition-slug="<?php echo esc_attr( $data['competition']->slug ); ?>"
 												data-category="<?php echo esc_attr( $data['category_slug'] ); ?>"
 												data-category-label="<?php echo esc_attr( $data['category_label'] ); ?>">
 												<?php

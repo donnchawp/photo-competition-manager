@@ -14,8 +14,11 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Members_Controller;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Dependencies;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
@@ -51,8 +54,9 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 *                                        byte-exact comparison would
 	 *                                        otherwise churn on every run.
 	 * @param array<int,int> $member_ids      Member IDs to normalize, same reason.
+	 * @param array<int,int> $type_ids        Type IDs to normalize, same reason.
 	 */
-	private function render_normalized( array $competition_ids = array(), array $member_ids = array() ): string {
+	private function render_normalized( array $competition_ids = array(), array $member_ids = array(), array $type_ids = array() ): string {
 		ob_start();
 		$this->controller->render();
 		$html = (string) ob_get_clean();
@@ -104,6 +108,13 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 			$html       = preg_replace( '/name="member_id" value="' . $id_pattern . '"/', 'name="member_id" value="ID"', $html );
 		}
 
+		// Normalize type IDs, after the member IDs so the two can't be confused.
+		foreach ( array_values( $type_ids ) as $index => $id ) {
+			$id_pattern = preg_quote( (string) $id, '/' );
+			$html       = preg_replace( '/value="' . $id_pattern . '"/', 'value="TYPE' . ( $index + 1 ) . '"', $html );
+			$html       = preg_replace( '/type=' . $id_pattern . '(?!\d)/', 'type=TYPE' . ( $index + 1 ), $html );
+		}
+
 		// Fold numeric &#038; to &amp; so snapshots are agnostic to which
 		// ampersand entity WordPress emits (esc_url uses &#038;, esc_attr
 		// &amp;; core has changed usage between releases).
@@ -118,11 +129,12 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param string         $scenario        Snapshot scenario name.
 	 * @param array<int,int> $competition_ids Competition IDs to normalize before comparing.
 	 * @param array<int,int> $member_ids      Member IDs to normalize before comparing.
+	 * @param array<int,int> $type_ids        Type IDs to normalize before comparing.
 	 */
-	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $member_ids = array() ): void {
+	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $member_ids = array(), array $type_ids = array() ): void {
 		$dir  = __DIR__ . '/../fixtures/members-render';
 		$file = $dir . '/' . $scenario . '.html';
-		$html = $this->render_normalized( $competition_ids, $member_ids );
+		$html = $this->render_normalized( $competition_ids, $member_ids, $type_ids );
 
 		if ( ! file_exists( $file ) ) {
 			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
@@ -153,6 +165,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	private function seed_competition( string $title, string $slug, array $settings = array() ): int {
 		$id = $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => $title,
 				'slug'       => $slug,
 				'open_date'  => null,
@@ -222,6 +235,39 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-uploads-open', array( $comp_id ), array( $ada, $bob, $carol ) );
 	}
 
+	public function test_upload_link_matches_the_one_the_reminder_job_sends(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/club-upload/' ) ) ) );
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_upload]',
+			)
+		);
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$bodies = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$bodies ) {
+				$bodies[] = $atts['message'];
+				return true;
+			},
+			10,
+			2
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+		$jobs = ( new Dependencies() )->email_job_manager;
+		$jobs->process_batch( ( new Upload_Link_Service() )->queue_reminders( $comp_id, $jobs ) );
+
+		$this->assertMatchesRegularExpression( '#<a href="https://example.com/club-upload/\?[^"]+" target="_blank"#', $html );
+		$this->assertCount( 1, $bodies );
+		$this->assertMatchesRegularExpression( '#href="https://example.com/club-upload/\?[^"]+"#', $bodies[0] );
+	}
+
 	public function test_render_list_uploads_closed(): void {
 		// Active, open competition with uploads explicitly closed: exercises
 		// the "Uploads are closed" / "Open Uploads" notice-warning branch.
@@ -243,6 +289,36 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( '<button type="button" class="button" disabled title="Hide results before reopening uploads.">Open Uploads</button>', $html );
+		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
+	}
+
+	public function test_render_greys_out_open_uploads_once_a_category_has_started_voting(): void {
+		$comp_id = $this->seed_competition(
+			'Winter Salon',
+			'winter-salon',
+			array(
+				'categories' => array(
+					array(
+						'slug'  => 'colour',
+						'label' => 'Colour',
+					),
+				),
+			)
+		);
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => 'critique' ),
+			)
+		);
+		$this->seed_member( 'Dave Evans', 'dave@example.com' );
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( '<button type="button" class="button" disabled title="Voting has started in Colour. Reset that category before reopening uploads.">Open Uploads</button>', $html );
 		$this->assertStringNotContainsString( 'action=toggle_uploads', $html );
 	}
 
@@ -309,5 +385,35 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assert_matches_snapshot( 'edit-member-not-found' );
+	}
+
+	public function test_render_list_two_types(): void {
+		// Several types: the type filter, the Types column, the bulk type
+		// actions and the untagged-members notice appear.
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced', 'type_ids' => array( $individual ) ) );
+		$bob = $this->seed_member( 'Bob Baker', 'bob@example.com' );
+
+		$this->assert_matches_snapshot( 'list-two-types', array(), array( $ada, $bob ), array( $individual, $team ) );
+	}
+
+	public function test_render_edit_two_types(): void {
+		// Several types: the edit form carries a checkbox per type.
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'type_ids' => array( $individual ) ) );
+
+		$this->set_request(
+			array(
+				'page'          => 'photo-competition-manager-members',
+				'member_action' => 'edit',
+				'member'        => (string) $ada,
+			)
+		);
+
+		$this->assert_matches_snapshot( 'edit-two-types', array(), array( $ada ), array( $individual, $team ) );
 	}
 }

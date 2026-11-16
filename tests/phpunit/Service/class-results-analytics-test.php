@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Install\Activator;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -113,6 +114,7 @@ class Results_Analytics_Test extends WP_UnitTestCase {
 	public function test_image_details(): void {
 		$competition_id = (int) $this->competitions->create(
 			array(
+				'type_id'    => Type_Fixtures::id(),
 				'title'      => 'Spring Show',
 				'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
 				'open_date'  => null,
@@ -145,5 +147,55 @@ class Results_Analytics_Test extends WP_UnitTestCase {
 		$this->assertSame( $member_id, (int) $details['member']->id );
 		$this->assertEquals( $this->votes->find_by_image( $image_id ), $details['votes'] );
 		$this->assertSame( self::NINE_SEVEN_SIX_FIVE, $details['statistics'] );
+	}
+	public function test_votes_on_a_disqualified_image_dont_count(): void {
+		$competition_id = (int) $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show-' . wp_generate_password( 6, false ),
+				'open_date'  => null,
+				'close_date' => null,
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		$entered        = (int) $this->images->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => 1,
+				'category'       => 'colour',
+				'filename'       => 'entered.jpg',
+			)
+		);
+		$disqualified   = (int) $this->images->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => 2,
+				'category'       => 'colour',
+				'filename'       => 'disqualified.jpg',
+				'entry_status'   => 'disqualified',
+			)
+		);
+		$this->votes->create( $competition_id, 'colour', 'Judge 1', $entered, 8 );
+		$this->votes->create( $competition_id, 'colour', 'Judge 2', $entered, 6 );
+		$this->votes->create( $competition_id, 'colour', 'Judge 1', $disqualified, 10 );
+
+		$summary   = $this->analytics->get_competition_summary( $competition_id );
+		$breakdown = $this->analytics->get_category_breakdown( $competition_id, 'colour' );
+
+		$this->assertSame( 2, $summary['total_votes'] );
+		$this->assertSame( 7.0, $summary['average_score'] );
+		$this->assertSame( 2, $summary['categories']['colour']['votes'] );
+		$this->assertSame( 2, $breakdown['votes'] );
+		$this->assertSame( 8.0, $breakdown['max_score'] );
+		$this->assertSame( 100.0, $breakdown['participation_rate'] );
 	}
 }

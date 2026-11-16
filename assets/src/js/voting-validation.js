@@ -3,8 +3,24 @@
  *
  * Ensures all images have received a vote before allowing form submission.
  */
+import { __, _n, sprintf } from '@wordpress/i18n';
+
 (function () {
 	'use strict';
+
+	/**
+	 * Make a paragraph holding the given text, so a translation can't add markup.
+	 *
+	 * @param {string} text      The paragraph's text.
+	 * @param {string} className The paragraph's class, if any.
+	 * @return {HTMLParagraphElement} The paragraph.
+	 */
+	function paragraph(text, className = '') {
+		const p = document.createElement('p');
+		p.className = className;
+		p.textContent = text;
+		return p;
+	}
 
 	/**
 	 * Initialize voting form validation.
@@ -13,25 +29,13 @@
 		const votingForms = document.querySelectorAll('.voting-form');
 
 		if (votingForms.length === 0) {
-			// eslint-disable-next-line no-console
-			console.log('Photo Competition: No voting forms found on page');
 			return;
 		}
-
-		// eslint-disable-next-line no-console
-		console.log(
-			`Photo Competition: Initializing validation for ${votingForms.length} voting form(s)`
-		);
 
 		votingForms.forEach((form) => {
 			// Track vote changes to provide real-time feedback
 			const voteInputs = form.querySelectorAll(
 				'input[name^="votes["], select[name^="votes["]'
-			);
-
-			// eslint-disable-next-line no-console
-			console.log(
-				`Photo Competition: Found ${voteInputs.length} vote inputs in form`
 			);
 
 			voteInputs.forEach((input) => {
@@ -55,26 +59,12 @@
 					e.target.classList &&
 					e.target.classList.contains('voting-form')
 				) {
-					// eslint-disable-next-line no-console
-					console.log(
-						'Photo Competition: Form submit triggered (via delegation)'
-					);
-
 					if (!validateAllImagesVoted(e.target)) {
-						// eslint-disable-next-line no-console
-						console.log(
-							'Photo Competition: Validation failed, preventing submit'
-						);
 						e.preventDefault();
 						e.stopPropagation();
 						e.stopImmediatePropagation();
 						showValidationError(e.target);
 						return false;
-					} else {
-						// eslint-disable-next-line no-console
-						console.log(
-							'Photo Competition: Validation passed, allowing submit'
-						);
 					}
 				}
 			},
@@ -184,9 +174,32 @@
 		const totalImages = imageItems.length;
 		const allVoted = votedCount === totalImages;
 
-		counter.innerHTML = allVoted
-			? `<p class="vote-counter-complete">✓ All ${totalImages} images have been voted for.</p>`
-			: `<p class="vote-counter-incomplete">You have voted for ${votedCount} of ${totalImages} images. Please vote for all images before submitting.</p>`;
+		counter.replaceChildren(
+			allVoted
+				? paragraph(
+						'✓ ' +
+							sprintf(
+								/* translators: %d: number of images in the competition */
+								_n('All %d image has been voted for.', 'All %d images have been voted for.', totalImages, 'photo-competition-manager'),
+								totalImages
+							),
+						'vote-counter-complete'
+					)
+				: paragraph(
+						sprintf(
+							/* translators: 1: number of images voted for, 2: number of images in the competition */
+							_n(
+								'You have voted for %1$d of %2$d image. Please vote for all images before submitting.',
+								'You have voted for %1$d of %2$d images. Please vote for all images before submitting.',
+								totalImages,
+								'photo-competition-manager'
+							),
+							votedCount,
+							totalImages
+						),
+						'vote-counter-incomplete'
+					)
+		);
 
 		// Update submit button state
 		const submitButton = form.querySelector('button[type="submit"]');
@@ -207,9 +220,6 @@
 	 * @param {HTMLFormElement} form The voting form.
 	 */
 	function showValidationError(form) {
-		// eslint-disable-next-line no-console
-		console.log('Photo Competition: Showing validation error');
-
 		// Remove any existing error
 		const existingError = form.querySelector('.voting-validation-error');
 		if (existingError) {
@@ -225,7 +235,26 @@
 		error.className = 'voting-validation-error error';
 		error.style.cssText =
 			'background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; padding: 15px 20px; margin: 20px 0; border-radius: 4px; font-size: 16px;';
-		error.innerHTML = `<p style="margin: 0 0 10px 0;"><strong>⚠️ Please vote for all images before submitting.</strong></p><p style="margin: 0;">You need to vote for ${missingItems.length} more image(s) out of ${imageItems.length} total. Images missing votes are highlighted with a red border below.</p>`;
+		const heading = paragraph('');
+		heading.style.margin = '0 0 10px 0';
+		const strong = document.createElement('strong');
+		strong.textContent = '⚠️ ' + __('Please vote for all images before submitting.', 'photo-competition-manager');
+		heading.append(strong);
+		const detail = paragraph(
+			sprintf(
+				/* translators: 1: number of images still needing a vote, 2: number of images in the competition */
+				_n(
+					'You need to vote for %1$d more image out of %2$d total. Images missing votes are highlighted with a red border below.',
+					'You need to vote for %1$d more images out of %2$d total. Images missing votes are highlighted with a red border below.',
+					missingItems.length,
+					'photo-competition-manager'
+				),
+				missingItems.length,
+				imageItems.length
+			)
+		);
+		detail.style.margin = '0';
+		error.append(heading, detail);
 
 		// Insert error before submit button or at top of form
 		const submitSection = form.querySelector('.voting-submit');
@@ -238,7 +267,17 @@
 
 		// Also show alert for visibility
 		alert(
-			`Please vote for all ${imageItems.length} images before submitting.\n\nYou still need to vote for ${missingItems.length} more image(s).`
+			sprintf(
+				/* translators: %d: number of images in the competition */
+				_n('Please vote for all %d image before submitting.', 'Please vote for all %d images before submitting.', imageItems.length, 'photo-competition-manager'),
+				imageItems.length
+			) +
+				'\n\n' +
+				sprintf(
+					/* translators: %d: number of images still needing a vote */
+					_n('You still need to vote for %d more image.', 'You still need to vote for %d more images.', missingItems.length, 'photo-competition-manager'),
+					missingItems.length
+				)
 		);
 
 		// Scroll to first missing vote

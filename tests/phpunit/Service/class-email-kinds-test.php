@@ -1,0 +1,88 @@
+<?php
+/**
+ * Tests for the table of email kinds.
+ *
+ * @package PhotoCompetitionManager\Tests\Service
+ */
+
+namespace PhotoCompetitionManager\Tests\Service;
+
+use PhotoCompetitionManager\Service\Email_Kinds;
+use WP_UnitTestCase;
+
+/**
+ * Each kind's defaults agree with the tags it declares.
+ */
+class Email_Kinds_Test extends WP_UnitTestCase {
+
+	/**
+	 * The plugin sends seven kinds of email: two notifications and five requested emails.
+	 */
+	public function test_there_are_seven_kinds_of_email() {
+		$notifications = array_filter(
+			Email_Kinds::all(),
+			function ( $kind ) {
+				return $kind['notification'];
+			}
+		);
+
+		$this->assertSame(
+			array( 'upload_reminder', 'voting_opened', 'voting_link', 'results_published', 'results_detailed', 'submission_confirmed', 'judge_link' ),
+			array_keys( Email_Kinds::all() )
+		);
+		$this->assertSame( array( 'voting_opened', 'submission_confirmed' ), array_keys( $notifications ) );
+	}
+
+	/**
+	 * Voting-opened emails go to the competition type's members, and the description says so.
+	 */
+	public function test_voting_opened_description_names_the_competition_types_members() {
+		$this->assertSame(
+			'Sent to the competition type\'s active members when voting opens in a category.',
+			Email_Kinds::get( 'voting_opened' )['description']
+		);
+	}
+
+	/**
+	 * The judge link is a requested email with the judge's link and name.
+	 */
+	public function test_judge_link_kind_declares_tags() {
+		$kind = Email_Kinds::get( 'judge_link' );
+
+		$this->assertFalse( $kind['notification'] );
+		$this->assertSame( 'Judge link', $kind['label'] );
+		$this->assertSame( 'Your judging link for {competition_title}', $kind['subject'] );
+		$this->assertSame( array( '{judge_link}', '{judge_name}' ), array_keys( $kind['tags'] ) );
+		$this->assertSame( 'link', $kind['tags']['{judge_link}']['type'] );
+		$this->assertSame( 'text', $kind['tags']['{judge_name}']['type'] );
+	}
+
+	/**
+	 * A default subject and body use only the kind's own tags and the shared ones.
+	 *
+	 * @dataProvider kinds
+	 *
+	 * @param string $kind Kind key.
+	 */
+	public function test_a_kinds_defaults_use_only_tags_it_takes( string $kind ) {
+		$definition = Email_Kinds::get( $kind );
+		$allowed    = array_merge( array_keys( Email_Kinds::shared_tags() ), array_keys( $definition['tags'] ) );
+
+		preg_match_all( '/\{[a-z_]+\}/', $definition['subject'] . $definition['body'], $used );
+
+		$this->assertSame( array(), array_values( array_diff( array_unique( $used[0] ), $allowed ) ) );
+	}
+
+	/**
+	 * Every kind's key.
+	 *
+	 * @return array<string, array<int, string>>
+	 */
+	public function kinds(): array {
+		$kinds = array();
+		foreach ( array( 'upload_reminder', 'voting_opened', 'voting_link', 'results_published', 'results_detailed', 'submission_confirmed', 'judge_link' ) as $kind ) {
+			$kinds[ $kind ] = array( $kind );
+		}
+		return $kinds;
+	}
+}

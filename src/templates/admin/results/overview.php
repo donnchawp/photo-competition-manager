@@ -7,11 +7,11 @@
  * $data['competition_options'] array<int, array{url: string, selected: bool, title: string}> Competition selector options.
  * $data['summary_cards_html']  string Pre-rendered summary card HTML (trusted, pre-escaped).
  * $data['ungraded_notice_html'] string Pre-rendered warning about ungraded entries in any category (trusted, pre-escaped); empty when there are none.
+ * $data['club_standings_html'] string Pre-rendered club standings of an interclub competition (trusted, pre-escaped); empty otherwise.
  * $data['category_tabs']       array<int, array{url: string, label: string, active: bool, count: int}> Category tab data; empty when the competition has no categories.
  * $data['selected_category']   string Selected category slug, empty when there are no categories.
  * $data['breakdown']           array{images?: int, votes?: int, average_score?: float, min_score?: float, max_score?: float, participation_rate?: float} Category breakdown stats; empty when no category is selected.
  * $data['results_table_html'] string Pre-rendered results table HTML (trusted, pre-escaped); empty when no category is selected.
- * $data['recalculate_url']    string Nonced recalculate-scores URL.
  * $data['export_url']         string Nonced CSV export URL.
  * $data['email_url']          string Nonced email-results URL.
  * $data['share_hash']         string Competition share hash, empty when not generated.
@@ -19,9 +19,12 @@
  * $data['share_url']          string Share link URL; only set when both share_hash and results_page are present.
  * $data['send_committee_url'] string Nonced send-to-committee URL; only set when both share_hash and results_page are present.
  * $data['send_all_url']       string Nonced send-to-all URL; only set when both share_hash and results_page are present.
+ * $data['send_all_confirm']   string Confirmation text for the send-to-all link.
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 
 echo '<div class="wrap photo-competition-manager-results-dashboard">';
 echo '<h1>' . esc_html__( 'Results Dashboard', 'photo-competition-manager' ) . '</h1>';
@@ -48,6 +51,9 @@ echo '</div>';
 // Ungraded entries warning, for every category.
 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 echo $data['ungraded_notice_html'];
+
+// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+echo $data['club_standings_html'];
 
 // Category tabs.
 if ( ! empty( $data['category_tabs'] ) ) {
@@ -89,11 +95,6 @@ if ( ! empty( $data['selected_category'] ) ) {
 // Action buttons.
 echo '<div class="photo-comp-actions" style="margin: 20px 0;">';
 
-echo '<a href="' . esc_url( $data['recalculate_url'] ) . '" class="button button-secondary">';
-echo '<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> ';
-echo esc_html__( 'Recalculate Scores', 'photo-competition-manager' );
-echo '</a> ';
-
 echo '<a href="' . esc_url( $data['export_url'] ) . '" class="button button-primary">';
 echo '<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> ';
 echo esc_html__( 'Export Results (CSV)', 'photo-competition-manager' );
@@ -120,7 +121,7 @@ if ( ! empty( $data['share_hash'] ) && ! empty( $data['results_page'] ) ) {
 	echo '<span class="dashicons dashicons-groups" style="margin-top: 4px;"></span> ';
 	echo esc_html__( 'Send to Committee', 'photo-competition-manager' );
 	echo '</a> ';
-	echo '<a href="' . esc_url( $data['send_all_url'] ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' ) ) . '\');">';
+	echo '<a href="' . esc_url( $data['send_all_url'] ) . '" class="button" onclick="return confirm(\'' . esc_js( $data['send_all_confirm'] ) . '\');">';
 	echo '<span class="dashicons dashicons-email" style="margin-top: 4px;"></span> ';
 	echo esc_html__( 'Send to All Members', 'photo-competition-manager' );
 	echo '</a>';
