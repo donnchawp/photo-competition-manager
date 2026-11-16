@@ -179,7 +179,7 @@ class Entries {
 		$entry_status = empty( $details['substitute'] ) ? 'entered' : 'substitute';
 		$photographer = $interclub['enabled'] ? sanitize_text_field( (string) ( $details['photographer'] ?? '' ) ) : '';
 
-		if ( 'substitute' === $entry_status && ( ! $interclub['enabled'] || $interclub['substitutes'] < 1 ) ) {
+		if ( 'substitute' === $entry_status && Competition_Settings::substitutes( $settings ) < 1 ) {
 			return new WP_Error( 'no_substitutes', __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ) );
 		}
 
@@ -187,7 +187,7 @@ class Entries {
 			return new WP_Error( 'photographer_missing', __( 'Please give the photographer\'s name.', 'photo-competition-manager' ) );
 		}
 
-		$panel         = $this->panel( $competition_id, $member_id, $category );
+		$panel         = $this->images_repo->find_in_panels( $competition_id, $category, $member_id );
 		$current_count = count( $panel );
 		$quota         = $category_config['quota'] ?? 1;
 
@@ -574,17 +574,6 @@ class Entries {
 
 		// The member's entries in this competition: the only ones they can move, and what quota counts.
 		$entries = array_column( $this->images_repo->find_uploads( $competition_id, null, $member_id ), null, 'id' );
-		$counts  = array_count_values(
-			array_column(
-				array_filter(
-					$entries,
-					static function ( object $entry ): bool {
-						return 'disqualified' !== $entry->entry_status;
-					}
-				),
-				'category'
-			)
-		);
 		$moves   = array();
 
 		foreach ( $changes as $entry_id => $new_category ) {
@@ -609,8 +598,6 @@ class Entries {
 			}
 
 			$moves[] = array( $entry, $new_category );
-			--$counts[ $entry->category ];
-			$counts[ $new_category ] = ( $counts[ $new_category ] ?? 0 ) + 1;
 		}
 
 		if ( $actor->is_admin() ) {
@@ -640,20 +627,21 @@ class Entries {
 
 			$category_config = Competition_Settings::find_category( $settings, $new_category );
 			$quota           = $category_config['quota'] ?? 1;
+			$panel           = $this->panel_after_moves( $entries, $moves, $new_category );
 
 			if ( $settings['interclub']['enabled'] ) {
-				$refused = $this->panel_error( $settings, $category_config, $this->panel_after_moves( $entries, $moves, $new_category ) );
+				$refused = $this->panel_error( $settings, $category_config, $panel );
 				if ( $refused ) {
 					return $refused;
 				}
-			} elseif ( $counts[ $new_category ] > $quota ) {
+			} elseif ( count( $panel ) > $quota ) {
 				return new WP_Error(
 					'quota_exceeded',
 					sprintf(
 						/* translators: 1: category label, 2: number of entries, 3: quota limit */
 						__( 'That would leave %1$s with %2$d entries, but the limit is %3$d.', 'photo-competition-manager' ),
 						$category_config['label'],
-						$counts[ $new_category ],
+						count( $panel ),
 						$quota
 					)
 				);
@@ -677,26 +665,6 @@ class Entries {
 		}
 
 		return true;
-	}
-
-	/**
-	 * A member's uploads in a category that are still in the competition:
-	 * entered images and substitutes. A disqualified image takes no place.
-	 *
-	 * @param int    $competition_id Competition ID.
-	 * @param int    $member_id      Member ID.
-	 * @param string $category       Category slug.
-	 * @return array<int, object> Image records.
-	 */
-	private function panel( int $competition_id, int $member_id, string $category ): array {
-		return array_values(
-			array_filter(
-				$this->images_repo->find_uploads( $competition_id, $category, $member_id ),
-				static function ( object $image ): bool {
-					return 'disqualified' !== $image->entry_status;
-				}
-			)
-		);
 	}
 
 	/**
@@ -739,7 +707,7 @@ class Entries {
 	 */
 	private function panel_error( array $settings, array $category_config, array $panel ): ?WP_Error {
 		$quota       = (int) ( $category_config['quota'] ?? 1 );
-		$substitutes = (int) $settings['interclub']['substitutes'];
+		$substitutes = Competition_Settings::substitutes( $settings );
 		$limit       = (int) $settings['interclub']['photographer_limit'];
 
 		$entered       = 0;
@@ -1024,14 +992,12 @@ class Entries {
 	 */
 	public function get_quota_status( object $competition, int $member_id ): array {
 		$settings    = Competition_Settings::parse( $competition->settings );
-		$substitutes = $settings['interclub']['enabled'] ? (int) $settings['interclub']['substitutes'] : 0;
+		$substitutes = Competition_Settings::substitutes( $settings );
 
-		// One query for every category: a disqualified image takes no place.
+		// One query for every category.
 		$panels = array();
-		foreach ( $this->images_repo->find_uploads( (int) $competition->id, null, $member_id ) as $image ) {
-			if ( 'disqualified' !== $image->entry_status ) {
-				$panels[ $image->category ][] = $image;
-			}
+		foreach ( $this->images_repo->find_in_panels( (int) $competition->id, null, $member_id ) as $image ) {
+			$panels[ $image->category ][] = $image;
 		}
 
 		$quota_status = array();

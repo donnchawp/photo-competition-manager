@@ -647,6 +647,19 @@ class Competition_Settings {
 	}
 
 	/**
+	 * How many substitutes each panel takes: none unless it's an interclub
+	 * competition, whatever number the type keeps for when it is.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $settings Parsed settings.
+	 * @return int
+	 */
+	public static function substitutes( array $settings ): int {
+		return empty( $settings['interclub']['enabled'] ) ? 0 : (int) $settings['interclub']['substitutes'];
+	}
+
+	/**
 	 * Get upload constraints from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.

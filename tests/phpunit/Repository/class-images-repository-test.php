@@ -348,6 +348,15 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		}
 	}
 
+	public function test_a_panel_holds_entered_images_and_substitutes_but_not_disqualified_ones(): void {
+		$ids = $this->create_one_of_each_status();
+
+		$panel = array_map( 'intval', array_column( $this->images_repo->find_in_panels( $this->competition_id, 'colour', $this->member_id ), 'id' ) );
+
+		sort( $panel );
+		$this->assertSame( array( $ids['entered'], $ids['substitute'] ), $panel );
+	}
+
 	public function test_an_image_without_a_status_is_entered_with_no_photographer(): void {
 		$id = $this->images_repo->create(
 			array(

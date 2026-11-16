@@ -339,6 +339,20 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		$this->assertFalse( Competition_Settings::type_settings( $type )['interclub']['enabled'] );
 	}
 
+	public function test_a_competition_takes_substitutes_only_while_interclub_is_on(): void {
+		$settings              = Competition_Settings::defaults();
+		$settings['interclub'] = array(
+			'enabled'            => true,
+			'substitutes'        => 2,
+			'photographer_limit' => 0,
+		);
+		$this->assertSame( 2, Competition_Settings::substitutes( $settings ) );
+
+		// Switching interclub off keeps the number for switching it back on.
+		$settings['interclub']['enabled'] = false;
+		$this->assertSame( 0, Competition_Settings::substitutes( $settings ) );
+	}
+
 	/**
 	 * @dataProvider invalid_interclub_numbers
 	 *
