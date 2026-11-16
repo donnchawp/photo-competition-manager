@@ -333,8 +333,8 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 	public function test_render_no_submissions(): void {
 		// Competition exists (global default categories, since none are set
-		// explicitly) but has no submissions: filters, action forms, a
-		// zero-state submission-status table, then the "no submissions" notice.
+		// explicitly) but has no submissions: filters, action forms, the
+		// "no submissions" notice, then a zero-state submission-status table.
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
 
 		$this->assert_matches_snapshot( 'no-submissions', array( $comp_id ) );
@@ -582,6 +582,42 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertMatchesRegularExpression( '#font-weight: bold;">1/2</td>#', $html );
+	}
+
+	public function test_the_submitted_photos_come_before_the_submission_status(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_image( $comp_id, array( 'member_id' => $this->seed_member( 'Ada Lovelace', 'ada@example.com' ) ) );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Submission Status', $html );
+		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'id="bulk-delete-form"' ) );
+	}
+
+	public function test_with_no_submissions_the_notice_comes_before_the_submission_status(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show' );
+		$this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Ada Lovelace', substr( $html, (int) strpos( $html, 'Submission Status' ) ) );
+		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'No submissions' ) );
 	}
 
 	public function test_each_entry_shows_its_photographer_and_the_status_changes_it_allows(): void {
