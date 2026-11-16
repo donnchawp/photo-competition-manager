@@ -587,12 +587,15 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
-		// The competition's settings, parsed once. A competition without its own categories takes the club's.
-		$settings     = Competition_Settings::parse( $selected_competition->settings ?? null );
-		$is_interclub = (bool) $settings['interclub']['enabled'];
-		$categories   = $selected_competition ? Competition_Settings::get_categories( $settings ) : array();
+		$categories   = array();
+		$is_interclub = false;
 
 		if ( $selected_competition ) {
+			// The competition's settings, parsed once. A competition without its own categories takes the club's.
+			$settings     = Competition_Settings::parse( $selected_competition->settings );
+			$is_interclub = (bool) $settings['interclub']['enabled'];
+			$categories   = Competition_Settings::get_categories( $settings );
+
 			printf(
 				'<h2>%s</h2>',
 				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
