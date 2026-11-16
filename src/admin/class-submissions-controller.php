@@ -587,10 +587,10 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
-		// The competition's settings, parsed once. A competition with no settings has no categories here.
-		$settings   = $selected_competition ? Competition_Settings::parse( $selected_competition->settings ) : array();
-		$interclub  = (bool) ( $settings['interclub']['enabled'] ?? false );
-		$categories = $selected_competition && ! empty( $selected_competition->settings ) ? Competition_Settings::get_categories( $settings ) : array();
+		// The competition's settings, parsed once. A competition without its own categories takes the club's.
+		$settings     = Competition_Settings::parse( $selected_competition->settings ?? null );
+		$is_interclub = (bool) $settings['interclub']['enabled'];
+		$categories   = $selected_competition ? Competition_Settings::get_categories( $settings ) : array();
 
 		if ( $selected_competition ) {
 			printf(
@@ -600,7 +600,7 @@ class Submissions_Controller {
 
 			// Add regenerate numbers button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_regenerate_numbers_form( $competition_id, $interclub );
+			echo $this->render_regenerate_numbers_form( $competition_id, $is_interclub );
 
 			// Add delete original images button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -617,7 +617,7 @@ class Submissions_Controller {
 			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter, $interclub );
+			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter, $is_interclub );
 		}
 
 		// The quota/status summary.
