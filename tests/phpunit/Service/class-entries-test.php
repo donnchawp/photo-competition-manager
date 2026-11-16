@@ -1083,6 +1083,61 @@ class Entries_Test extends WP_UnitTestCase {
 		$this->fail( "No image numbered {$number} in {$category}." );
 	}
 
+	public function test_deleting_a_club_with_several_images_in_a_category_keeps_the_numbers_1_to_n(): void {
+		$competition_id = $this->create_interclub_competition( 'numbers-delete-club-comp', 2 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$bandon_id      = $this->create_member( 'Bandon Camera Club', 'bandon@example.com' );
+		// Lee's images below and above one of Bandon's, so removing the first moves the second.
+		foreach ( array( array( $lee_id, 1 ), array( $bandon_id, 2 ), array( $lee_id, 3 ), array( $bandon_id, 4 ) ) as list( $member_id, $number ) ) {
+			$this->images_repo->update_number( $this->seed_entry( $competition_id, $member_id ), $number );
+		}
+
+		$this->assertTrue( $this->entries->remove_member_entries( Actor::admin(), $lee_id ) );
+
+		$this->assertSame( array( 'colour' => array( 1, 2 ) ), $this->numbers_by_category( $competition_id ) );
+	}
+
+	public function test_an_interclub_upload_that_fails_to_save_leaves_the_numbers_1_to_n(): void {
+		global $wpdb;
+		$competition_id = $this->create_interclub_competition( 'numbers-failed-upload-comp', 5 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$this->add_to_panel( $competition_id, $lee_id, 'Ann' );
+		$this->add_to_panel( $competition_id, $lee_id, 'Bob' );
+		$break_insert = static function ( $query ) {
+			return 0 === strpos( $query, 'INSERT' ) && false !== strpos( $query, 'photocomp_images' )
+				? 'INSERT INTO photocomp_no_such_table (id) VALUES (1)'
+				: $query;
+		};
+		add_filter( 'query', $break_insert );
+		$suppress = $wpdb->suppress_errors( true );
+
+		// Each failed upload would have opened a slot at random, so try a few times.
+		$results = array();
+		for ( $i = 0; $i < 3; $i++ ) {
+			$results[] = $this->add_to_panel( $competition_id, $lee_id, 'Cat' );
+		}
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_insert );
+		foreach ( $results as $result ) {
+			$this->assertWPError( $result );
+		}
+		$this->assertSame( array( 'colour' => array( 1, 2 ) ), $this->numbers_by_category( $competition_id ) );
+	}
+
+	public function test_numbers_cant_be_regenerated_while_a_category_has_votes(): void {
+		$competition_id = $this->create_interclub_competition( 'renumber-votes-comp', 2 );
+		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $lee_id );
+		// A category reset keeping its votes: voting isn't under way, but the votes still know the numbers.
+		( new Votes_Repository() )->create( $competition_id, 'colour', 'A Voter', $entry_id, 5 );
+
+		$result = $this->entries->regenerate_numbers( Actor::admin(), $competition_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'category_has_votes', $result->get_error_code() );
+	}
+
 	public function test_renumbering_an_interclub_competition_gives_every_image_its_own_number(): void {
 		$competition_id = $this->create_interclub_competition( 'renumber-comp', 2 );
 		$lee_id         = $this->create_member( 'Lee Camera Club', 'lee@example.com' );

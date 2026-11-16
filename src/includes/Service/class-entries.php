@@ -252,6 +252,8 @@ class Entries {
 		$filename      = $result['filename'];
 		$attachment_id = $result['attachment_id'];
 
+		// An interclub image takes a number of its own, opened before the row arrives so it isn't counted twice.
+		$number   = $interclub['enabled'] ? $this->images_repo->open_number_slot( $competition_id, $category ) : 0;
 		$entry_id = $this->images_repo->create(
 			array(
 				'competition_id'         => $competition_id,
@@ -261,10 +263,13 @@ class Entries {
 				'original_attachment_id' => $attachment_id,
 				'photographer'           => $photographer,
 				'entry_status'           => $entry_status,
-			) + ( $interclub['enabled'] ? array( 'random_number' => $this->images_repo->open_number_slot( $competition_id, $category ) ) : array() )
+			) + ( $number ? array( 'random_number' => $number ) : array() )
 		);
 
 		if ( is_wp_error( $entry_id ) ) {
+			if ( $number ) {
+				$this->images_repo->close_number_slot( $competition_id, $category, $number );
+			}
 			$this->delete_files( $competition, $category, $filename, $attachment_id );
 			return $entry_id;
 		}
@@ -437,6 +442,11 @@ class Entries {
 		// Voters, judges and results already know the entries by their numbers.
 		if ( $this->workflow->has_any_voting_started( $competition ) ) {
 			return new WP_Error( 'voting_started', __( 'Voting has started, so the numbers can\'t change. Reset the competition\'s voting first.', 'photo-competition-manager' ) );
+		}
+
+		// A category reset can keep its votes, and they were cast for the numbers as they are.
+		if ( $this->votes_repo->has_votes( $competition_id ) ) {
+			return new WP_Error( 'category_has_votes', __( 'This competition has votes, so the numbers can\'t change. Reset its categories and clear their votes first.', 'photo-competition-manager' ) );
 		}
 
 		if ( self::numbers_each_image( $competition ) ) {
@@ -718,6 +728,10 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	private function remove_entry( ?object $competition, object $entry ) {
+		// Read afresh: removing another of the member's entries may have closed a gap below this one.
+		$current = $this->images_repo->find( (int) $entry->id );
+		$number  = $current ? (int) $current->random_number : (int) $entry->random_number;
+
 		$deleted = $this->images_repo->delete( (int) $entry->id );
 		if ( is_wp_error( $deleted ) ) {
 			return $deleted;
@@ -728,7 +742,7 @@ class Entries {
 
 			// Close the gap, unless the category has been voted on: then its numbers are known.
 			if ( self::numbers_each_image( $competition ) && ! $this->workflow->has_voting_started( $competition, (string) $entry->category ) && ! $this->votes_repo->has_votes_in_category( (int) $competition->id, (string) $entry->category ) ) {
-				$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, (int) $entry->random_number );
+				$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $number );
 			}
 		} else {
 			// Without its competition there's no folder to look in, but the original is in the media library.

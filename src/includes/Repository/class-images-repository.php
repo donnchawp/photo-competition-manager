@@ -420,13 +420,13 @@ class Images_Repository extends Abstract_Repository {
 	 *
 	 * @param int $id     Image ID.
 	 * @param int $number Its number.
-	 * @return void
+	 * @return true|WP_Error
 	 */
-	public function update_number( int $id, int $number ): void {
+	public function update_number( int $id, int $number ) {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->update(
+		$updated = $wpdb->update(
 			$this->table(),
 			array(
 				'random_number' => $number,
@@ -436,6 +436,12 @@ class Images_Repository extends Abstract_Repository {
 			array( '%d', '%s' ),
 			array( '%d' )
 		);
+
+		if ( false === $updated ) {
+			return new WP_Error( 'db_update_failed', __( 'Could not update the image\'s number.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
 	}
 
 	/**
@@ -459,7 +465,10 @@ class Images_Repository extends Abstract_Repository {
 			shuffle( $image_ids );
 
 			foreach ( $image_ids as $index => $image_id ) {
-				$this->update_number( $image_id, $index + 1 );
+				$updated = $this->update_number( $image_id, $index + 1 );
+				if ( is_wp_error( $updated ) ) {
+					return $updated;
+				}
 			}
 		}
 

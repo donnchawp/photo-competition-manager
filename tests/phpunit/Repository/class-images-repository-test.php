@@ -730,6 +730,25 @@ class Images_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( 'no_images', $result->get_error_code() );
 	}
 
+	public function test_regenerating_image_numbers_reports_a_number_it_couldnt_save(): void {
+		global $wpdb;
+		$this->create_one_of_each_status();
+		$break_update = static function ( $query ) {
+			return 0 === strpos( $query, 'UPDATE' ) && false !== strpos( $query, 'photocomp_images' )
+				? 'UPDATE photocomp_no_such_table SET id = 1'
+				: $query;
+		};
+		add_filter( 'query', $break_update );
+		$suppress = $wpdb->suppress_errors( true );
+
+		$result = $this->images_repo->regenerate_image_numbers( $this->competition_id );
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break_update );
+		$this->assertWPError( $result );
+		$this->assertSame( 'db_update_failed', $result->get_error_code() );
+	}
+
 	public function test_create_assigns_random_number_automatically(): void {
 		$image_id = $this->images_repo->create(
 			array(
