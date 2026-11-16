@@ -387,7 +387,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'categories' => array( array( 'slug' => 'nature', 'label' => 'Nature', 'quota' => 1 ) ) ) ) );
 		$comp_id = $this->seed_competition( 'No Settings Show', 'no-settings-show' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->update( $this->competitions->table(), array( 'settings' => null ), array( 'id' => $comp_id ), array( '%s' ), array( '%d' ) );
+		$this->assertSame( 1, $wpdb->update( $this->competitions->table(), array( 'settings' => null ), array( 'id' => $comp_id ), array( '%s' ), array( '%d' ) ) );
 		$this->set_request(
 			array(
 				'page'           => 'photo-competition-manager-submissions',
@@ -400,7 +400,8 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertMatchesRegularExpression( '#<select name="category" id="admin-upload-category"[^>]*>.*<option value="nature">Nature</option>#s', $html );
-		$this->assertStringContainsString( 'Submission Status', $html );
+		// The status summary has a column for the club's category.
+		$this->assertStringContainsString( '<th>Nature</th>', $html );
 	}
 
 	public function test_render_happy_path(): void {

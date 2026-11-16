@@ -623,8 +623,8 @@ class Submissions_Controller {
 			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter, $is_interclub );
 		}
 
-		// The quota/status summary.
-		if ( ! empty( $categories ) ) {
+		// The quota/status summary. Every competition has categories: its own, or the club's.
+		if ( $selected_competition ) {
 			// Count each member's entered images by category: substitutes and disqualified images take no place in the quota.
 			$member_counts = array();
 			foreach ( $submissions as $submission ) {
