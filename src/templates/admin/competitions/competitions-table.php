@@ -5,11 +5,11 @@
  * Reads $data['views'] (array<int, array{label: string, count: int, url:
  * string, is_current: bool}>): the Active/Archived view-switcher links.
  * $data['rows'] (array<int, array{title: string, opens: string, closes:
- * string, last_updated: string, edit_url: string, is_archived: bool,
+ * string, last_updated: string, edit_url: string (unused when archived), is_archived: bool,
  * toggle_uploads_url: string, uploads_closed: bool, reopen_refusal: string
  * (why uploads can't reopen; empty when they can), is_open: bool,
  * send_email_url: string, email_judges_url: string (empty unless judges
- * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string,
+ * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string (unused when archived),
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
@@ -113,13 +113,15 @@ foreach ( $data['rows'] as $row ) {
 		);
 	}
 
-	// Generate Results Link action.
-	$actions[] = sprintf(
-		'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
-		esc_url( $row['generate_link_url'] ),
-		esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
-		esc_html__( 'Generate Results Link', 'photo-competition-manager' )
-	);
+	// Generate Results Link action. Like Edit, it can't find an archived competition.
+	if ( ! $row['is_archived'] ) {
+		$actions[] = sprintf(
+			'<a href="%s" class="photo-comp-regenerate-hash" data-confirm="%s">%s</a>',
+			esc_url( $row['generate_link_url'] ),
+			esc_attr( __( 'This will generate a new results link and invalidate any previously shared link. Continue?', 'photo-competition-manager' ) ),
+			esc_html__( 'Generate Results Link', 'photo-competition-manager' )
+		);
+	}
 
 	if ( $row['is_archived'] ) {
 		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['restore_url'] ), esc_html__( 'Restore', 'photo-competition-manager' ) );

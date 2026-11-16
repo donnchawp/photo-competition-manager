@@ -479,8 +479,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-archived-view', array( $comp_id ) );
 	}
 
-	public function test_render_list_archived_view_offers_no_edit_link(): void {
-		// The edit screen can't open an archived competition, so its row doesn't link there.
+	public function test_render_list_archived_view_offers_no_action_that_cant_find_the_competition(): void {
+		// The edit screen and the results-link action can't find an archived competition, so its row doesn't offer them.
 		$comp_id = $this->seed_competition( 'Retired Salon', 'retired-salon', array(), array( 'deleted_at' => '2026-03-01 00:00:00' ) );
 		$this->set_request( array( 'view' => 'archived' ) );
 
@@ -489,7 +489,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'Retired Salon', $html );
-		$this->assertDoesNotMatchRegularExpression( '/action=edit&(#038;|amp;)?competition=' . $comp_id . '\b/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/action=(edit|generate_results_link)&(#038;|amp;)?competition=' . $comp_id . '\b/', $html );
 	}
 
 	public function test_render_list_with_settings_error(): void {
