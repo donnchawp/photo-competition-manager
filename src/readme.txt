@@ -240,6 +240,11 @@ Yes. Visit **Competitions → Export** to download:
   * On the Submissions screen an admin can disqualify an entry, promote a substitute, reinstate a disqualified entry, or make an entry a substitute. A disqualified entry leaves the ballot and the results, and its votes stay but no longer count. The club still sees it on its upload page
   * An entry can be disqualified until the competition's results are recorded. The other changes follow the rules for adding an entry: only before the category's voting starts, while it has no votes, and within the panel's rules. Every change is logged
   * Existing entries are entered, with no photographer
+  * Results show each image's photographer with the club's name, as "Photographer — Club", on the results page and the Top 3. The Results screen gives them their own Photographer and Club columns, and the results CSV adds a Photographer column
+  * Club standings rank each grade's clubs by each panel's total and by their overall total, with tied clubs sharing a place. A club that skipped a panel another club in its grade entered gets no overall place. The results page and the Results screen show the standings, and each club's results email shows its own panels and place, such as "place 2 of 5"
+  * A results page with `hide_names` leaves out photographers, clubs and the standings
+  * An admin can correct or clear an entry's photographer on the Submissions screen at any time, even after the results are recorded
+  * Each image in an interclub competition has its own number in its category, so a club's images don't share one. Regenerate Random Numbers shuffles them, and isn't allowed once voting has started or while the competition has votes
 
 * **Results**
   * Tied entries share a position in the results email
