@@ -290,6 +290,7 @@ class DragDropUpload {
 			checkbox.addEventListener('change', (e) => {
 				fileData.substitute = e.target.checked;
 				this.updateUploadButton();
+				this.updateQuotaWarning();
 			});
 			substituteLabel.append(checkbox, ' ', __('Substitute', 'photo-competition-manager'));
 			container.appendChild(substituteLabel);
@@ -468,13 +469,11 @@ class DragDropUpload {
 			existingWarning.remove();
 		}
 
-		if (!this.validateQuotas()) {
+		const problem = this.quotaProblem();
+		if (problem) {
 			const warning = document.createElement('div');
 			warning.className = 'photo-comp-quota-warning';
-			warning.textContent = __(
-				'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
-				'photo-competition-manager'
-			);
+			warning.textContent = problem;
 			this.previewGrid.parentNode.insertBefore(warning, this.previewGrid);
 		}
 	}
@@ -547,41 +546,86 @@ class DragDropUpload {
 	}
 
 	validateQuotas() {
-		// Count files per category.
-		const categoryCount = {};
+		return this.quotaProblem() === '';
+	}
+
+	/**
+	 * What's wrong with the selection's categories, if anything.
+	 *
+	 * @return {string} The warning to show, or an empty string.
+	 */
+	quotaProblem() {
+		const tooMany = __(
+			'Warning: You have assigned more images to a category than your remaining quota allows. Please adjust your selections.',
+			'photo-competition-manager'
+		);
+
+		// Count files per category, and in an interclub panel its entries and substitutes apart.
+		const counts = {};
 		this.selectedFiles.forEach((fileData) => {
 			if (fileData.category) {
-				categoryCount[fileData.category] = (categoryCount[fileData.category] || 0) + 1;
+				const count = (counts[fileData.category] ||= { all: 0, entered: 0, substitutes: 0 });
+				++count.all;
+				++count[fileData.substitute ? 'substitutes' : 'entered'];
 			}
 		});
 
-		// Check if any category exceeds quota.
-		for (const [category, count] of Object.entries(categoryCount)) {
+		for (const [category, count] of Object.entries(counts)) {
 			const quota = this.quotas[category];
-			if (!quota || count > quota.remaining) {
-				return false;
+			if (!quota || count.all > quota.remaining) {
+				return tooMany;
+			}
+
+			if (!this.interclub.enabled) {
+				continue;
+			}
+
+			const label = this.categories.find((cat) => cat.slug === category)?.label ?? category;
+
+			if (count.entered > quota.entered_remaining) {
+				if (0 === quota.entered_remaining) {
+					return sprintf(
+						/* translators: 1: category label, 2: substitutes the panel still takes. */
+						_n(
+							'The %1$s panel has all its entries, but has room for %2$d substitute. Tick Substitute on an image to add it as one.',
+							'The %1$s panel has all its entries, but has room for %2$d substitutes. Tick Substitute on an image to add it as one.',
+							quota.substitutes_remaining,
+							'photo-competition-manager'
+						),
+						label,
+						quota.substitutes_remaining
+					);
+				}
+
+				return sprintf(
+					/* translators: 1: category label, 2: entries the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more entry.',
+						'The %1$s panel has room for %2$d more entries.',
+						quota.entered_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.entered_remaining
+				);
+			}
+
+			if (count.substitutes > quota.substitutes_remaining) {
+				return sprintf(
+					/* translators: 1: category label, 2: substitutes the panel still takes. */
+					_n(
+						'The %1$s panel has room for %2$d more substitute.',
+						'The %1$s panel has room for %2$d more substitutes.',
+						quota.substitutes_remaining,
+						'photo-competition-manager'
+					),
+					label,
+					quota.substitutes_remaining
+				);
 			}
 		}
 
-		// An interclub panel has places for entries and for substitutes apart.
-		if (this.interclub.enabled) {
-			const kindCount = {};
-			this.selectedFiles.forEach((fileData) => {
-				if (fileData.category) {
-					const key = `${fileData.category}:${fileData.substitute ? 'substitutes' : 'entered'}`;
-					kindCount[key] = (kindCount[key] || 0) + 1;
-				}
-			});
-
-			for (const [key, count] of Object.entries(kindCount)) {
-				const [category, kind] = key.split(':');
-				if (count > (this.quotas[category][`${kind}_remaining`] ?? 0)) {
-					return false;
-				}
-			}
-		}
-
-		return true;
+		return '';
 	}
 
 	async uploadAll() {

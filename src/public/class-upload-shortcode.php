@@ -300,7 +300,7 @@ class Upload_Shortcode {
 				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
 				'substitute'   => ! empty( $_POST['substitute'] ),
 			);
-			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file, $details );
+			$this->handle_token_upload( (int) $competition->id, (int) $member->id, $category, $image_file, $details, Competition_Settings::substitutes( $settings ) > 0 );
 		}
 
 		// Handle deletion with token (redirects, doesn't return).
@@ -353,9 +353,10 @@ class Upload_Shortcode {
 	 * @param string     $category       Selected category (sanitized).
 	 * @param array|null $image_file     Uploaded file array from $_FILES or null.
 	 * @param array      $details        Interclub details, as Entries::add() takes them.
+	 * @param bool       $takes_substitutes Whether the competition's panels take substitutes.
 	 * @return void Redirects after processing.
 	 */
-	private function handle_token_upload( int $competition_id, int $member_id, string $category, $image_file, array $details ): void {
+	private function handle_token_upload( int $competition_id, int $member_id, string $category, $image_file, array $details, bool $takes_substitutes ): void {
 		if ( empty( $category ) ) {
 			$this->redirect_with_message( 'error', 'category_missing' );
 			return;
@@ -371,7 +372,14 @@ class Upload_Shortcode {
 		$result = $this->entries->add( Actor::for_upload_link( $member_id ), $competition_id, $member_id, $category, $image_file, $details );
 
 		if ( is_wp_error( $result ) ) {
-			$this->redirect_with_message( 'error', self::UPLOAD_REFUSALS[ $result->get_error_code() ] ?? 'upload_failed' );
+			$key = self::UPLOAD_REFUSALS[ $result->get_error_code() ] ?? 'upload_failed';
+
+			// A full panel may still take this image as a substitute.
+			if ( 'quota_exceeded' === $key && $takes_substitutes && empty( $details['substitute'] ) ) {
+				$key = 'entries_full';
+			}
+
+			$this->redirect_with_message( 'error', $key );
 			return;
 		}
 
@@ -444,6 +452,7 @@ class Upload_Shortcode {
 			'photographer_missing' => __( 'Please give the photographer\'s name.', 'photo-competition-manager' ),
 			'no_substitutes'       => __( 'This competition doesn\'t take substitutes.', 'photo-competition-manager' ),
 			'substitutes_full'     => __( 'This panel already has all its substitutes.', 'photo-competition-manager' ),
+			'entries_full'         => __( 'This panel has all its entries. To add this image as a substitute, tick “This is a substitute” and upload it again.', 'photo-competition-manager' ),
 			'photographer_limit'   => __( 'That photographer already has as many images in this panel as they\'re allowed. Substitutes don\'t count.', 'photo-competition-manager' ),
 		);
 

@@ -535,6 +535,21 @@ describe( 'drag-and-drop upload', () => {
 
 			expect( button.disabled ).toBe( false );
 		} );
+
+		it( 'says only a substitute place is left, until the image is a substitute', async () => {
+			pickFiles( [ 'one.jpg' ] );
+			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-substitute-checkbox' ); i++ ) {
+				await settle();
+			}
+			const warning = () => document.querySelector( '.photo-comp-quota-warning' );
+			expect( warning().textContent ).toBe( 'The Colour panel has all its entries, but has room for 1 substitute. Tick Substitute on an image to add it as one.' );
+
+			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
+			substitute.checked = true;
+			substitute.dispatchEvent( new Event( 'change' ) );
+
+			expect( warning() ).toBeNull();
+		} );
 	} );
 
 	it( 'asks for no photographer in an individual competition', async () => {

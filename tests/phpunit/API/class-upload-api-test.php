@@ -290,10 +290,11 @@ class Upload_API_Test extends WP_UnitTestCase {
 	/**
 	 * An open interclub competition whose colour panel takes the given images and one substitute, and a club's upload token for it.
 	 *
-	 * @param int $quota Images in the colour panel.
+	 * @param int  $quota     Images in the colour panel.
+	 * @param bool $interclub Whether the competition is interclub; an individual one keeps the same numbers.
 	 * @return string Upload token.
 	 */
-	private function interclub_token( int $quota ): string {
+	private function interclub_token( int $quota, bool $interclub = true ): string {
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
 				'type_id'   => Type_Fixtures::id(),
@@ -309,7 +310,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 						),
 					),
 					'interclub'  => array(
-						'enabled'            => true,
+						'enabled'            => $interclub,
 						'substitutes'        => 1,
 						'photographer_limit' => 0,
 					),
@@ -338,6 +339,12 @@ class Upload_API_Test extends WP_UnitTestCase {
 		$image = ( new Images_Repository() )->find( $response->get_data()['results']['file_0']['image_id'] );
 		$this->assertSame( 'substitute', $image->entry_status );
 		$this->assertSame( 'Bob', $image->photographer );
+	}
+
+	public function test_a_substitute_sent_to_an_individual_competition_is_told_it_takes_none(): void {
+		$response = rest_do_request( $this->upload_request( $this->interclub_token( 2, false ), 'Ann', true ) );
+
+		$this->assertSame( 'This competition doesn\'t take substitutes.', $response->get_data()['results']['file_0']['error'] ?? wp_json_encode( $response->get_data() ) );
 	}
 
 	public function test_a_batch_with_more_entries_than_the_panel_takes_saves_none_of_them(): void {

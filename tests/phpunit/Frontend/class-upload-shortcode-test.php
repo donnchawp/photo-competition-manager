@@ -401,6 +401,17 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'That photographer already has as many images in this panel as they&#039;re allowed.', $output );
 	}
 
+	public function test_an_entry_refused_by_a_full_panel_points_to_the_substitute_box(): void {
+		$this->make_interclub( 1, 1 );
+		$token = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$_POST['photographer'] = 'Bob Byrne';
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'This panel has all its entries. To add this image as a substitute, tick “This is a substitute” and upload it again.', $output );
+	}
+
 	public function test_an_upload_over_quota_shows_the_quota_message(): void {
 		$token = $this->issue_token( true );
 		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
