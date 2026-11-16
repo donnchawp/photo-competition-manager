@@ -1477,7 +1477,8 @@ class Competitions_Controller {
 			$is_archived = ! empty( $competition->deleted_at );
 			$comp_id     = (int) $competition->id;
 
-			$edit_url = $this->edit_url( $comp_id );
+			// The edit screen and the results-link action can't find an archived competition.
+			$edit_url = $is_archived ? '' : $this->edit_url( $comp_id );
 
 			$toggle_uploads_url = '';
 			$uploads_closed     = false;
@@ -1545,7 +1546,7 @@ class Competitions_Controller {
 				);
 			}
 
-			$generate_link_url = wp_nonce_url(
+			$generate_link_url = $is_archived ? '' : wp_nonce_url(
 				add_query_arg(
 					array(
 						'page'        => 'photo-competition-manager',
