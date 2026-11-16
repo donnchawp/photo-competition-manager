@@ -292,13 +292,13 @@ class Export_Screen {
 		// every image under their one number, so a number can hold more than one image in a category.
 		usort( $images, static fn( $a, $b ) => (int) $a->id <=> (int) $b->id );
 		$image_ids_by_cat = array(); // category => random_number => image IDs.
-		$image_map        = array(); // image_id => filename, for the images still entered.
+		$filename_by_id   = array(); // image_id => filename, for the images still entered.
 		$widths           = array(); // random_number => columns: its most images in one category.
 		foreach ( $images as $image ) {
 			$random_number = (int) $image->random_number;
 
 			$image_ids_by_cat[ $image->category ][ $random_number ][] = (int) $image->id;
-			$image_map[ (int) $image->id ]                            = (string) ( $image->filename ?? '' );
+			$filename_by_id[ (int) $image->id ]                       = (string) ( $image->filename ?? '' );
 			$widths[ $random_number ]                                 = max( $widths[ $random_number ] ?? 0, count( $image_ids_by_cat[ $image->category ][ $random_number ] ) );
 		}
 		ksort( $widths, SORT_NUMERIC );
@@ -306,10 +306,14 @@ class Export_Screen {
 		// A number with more than one image in a category gets a column per image in every
 		// category, so the columns line up: Image #7, or Image #7a and Image #7b. A split column's
 		// header names its file in each category, since voting shows both images as #7.
-		$columns = array(); // Each a header, a number, which of the number's images, and whether it's split.
+		$columns = array();
 		foreach ( $widths as $random_number => $width ) {
-			for ( $i = 0; $i < $width; $i++ ) {
-				$columns[] = array( 'Image #' . $random_number . ( $width > 1 ? chr( ord( 'a' ) + $i ) : '' ), $random_number, $i, $width > 1 );
+			for ( $slot = 0; $slot < $width; $slot++ ) {
+				$columns[] = array(
+					'number' => $random_number,
+					'slot'   => $slot,
+					'suffix' => $width > 1 ? chr( ord( 'a' ) + $slot ) : '',
+				);
 			}
 		}
 
@@ -322,7 +326,7 @@ class Export_Screen {
 			$image_id = (int) $vote->image_id;
 
 			// Skip votes for deleted/non-existent images.
-			if ( ! isset( $image_map[ $image_id ] ) ) {
+			if ( ! isset( $filename_by_id[ $image_id ] ) ) {
 				continue;
 			}
 
@@ -350,9 +354,11 @@ class Export_Screen {
 
 			// The same columns in every category.
 			$header = array( 'Voter' );
-			foreach ( $columns as list( $label, $random_number, $i, $split ) ) {
-				$image_id = $image_ids_by_cat[ $category ][ $random_number ][ $i ] ?? null;
-				$header[] = $split && null !== $image_id && '' !== $image_map[ $image_id ] ? $label . ' (' . $image_map[ $image_id ] . ')' : $label;
+			foreach ( $columns as $column ) {
+				$label    = 'Image #' . $column['number'] . $column['suffix'];
+				$image_id = $image_ids_by_cat[ $category ][ $column['number'] ][ $column['slot'] ] ?? null;
+				$filename = null === $image_id ? '' : $filename_by_id[ $image_id ];
+				$header[] = '' !== $column['suffix'] && '' !== $filename ? $label . ' (' . $filename . ')' : $label;
 			}
 			$rows[] = $header;
 
@@ -360,15 +366,15 @@ class Export_Screen {
 			ksort( $votes_by_voter ); // Sort voters alphabetically.
 			foreach ( $votes_by_voter as $voter => $voter_votes ) {
 				$row = array( $voter_labels[ $voter ] ?? $voter );
-				foreach ( $columns as list( , $random_number, $i ) ) {
-					$image_id_for_random = $image_ids_by_cat[ $category ][ $random_number ][ $i ] ?? null;
+				foreach ( $columns as $column ) {
+					$image_id = $image_ids_by_cat[ $category ][ $column['number'] ][ $column['slot'] ] ?? null;
 
-					if ( null === $image_id_for_random ) {
+					if ( null === $image_id ) {
 						// Member didn't upload to this category - show 0.
 						$row[] = 0;
-					} elseif ( isset( $voter_votes[ $image_id_for_random ] ) ) {
+					} elseif ( isset( $voter_votes[ $image_id ] ) ) {
 						// Voter voted for this image.
-						$row[] = (int) $voter_votes[ $image_id_for_random ];
+						$row[] = (int) $voter_votes[ $image_id ];
 					} else {
 						// Image exists but voter didn't vote for it.
 						$row[] = '';
