@@ -126,6 +126,36 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_a_number_split_in_one_category_has_the_same_columns_in_every_category(): void {
+		// Member 7 has two colour images and one mono image.
+		$images = array();
+		foreach ( array( 21 => 'colour', 22 => 'colour', 23 => 'mono' ) as $id => $category ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => 7,
+				'category'      => $category,
+				'filename'      => 'photo-' . $id . '.jpg',
+			);
+		}
+		$mono = $this->vote( 23, 8, 'Ann' );
+
+		$mono->category = 'mono';
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
+				array( 'Ann', 5, 6 ),
+				array( '' ),
+				array( 'Category: mono' ),
+				array( 'Voter', 'Image #7a (photo-23.jpg)', 'Image #7b' ),
+				array( 'Ann', 8, 0 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( array( $this->vote( 21, 5, 'Ann' ), $this->vote( 22, 6, 'Ann' ), $mono ), $images )
+		);
+	}
+
 	public function test_every_judge_gets_their_own_row_in_the_votes_csv(): void {
 		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
 		$ann    = $judges->create( 'Ann', 'ann@example.com' );
