@@ -617,7 +617,16 @@ class Submissions_Controller {
 			echo $this->render_admin_upload_form( $competition_id, $members, $categories, $interclub );
 		}
 
-		// Add quota/status summary section.
+		// The photos come first, as what an admin comes to see; the status summary follows them.
+		if ( empty( $submissions ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
+		} else {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter );
+		}
+
+		// The quota/status summary.
 		if ( $selected_competition && ! empty( $selected_competition->settings ) ) {
 			$settings = json_decode( $selected_competition->settings, true );
 			if ( is_array( $settings ) ) {
@@ -671,16 +680,6 @@ class Submissions_Controller {
 				}
 			}
 		}
-
-		if ( empty( $submissions ) ) {
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
-			echo '</div>';
-			return;
-		}
-
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter );
 
 		echo '</div>';
 	}
