@@ -599,6 +599,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'Submission Status', $html );
+		$this->assertStringContainsString( 'id="bulk-delete-form"', $html );
 		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'id="bulk-delete-form"' ) );
 	}
 
@@ -617,6 +618,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'Ada Lovelace', substr( $html, (int) strpos( $html, 'Submission Status' ) ) );
+		$this->assertStringContainsString( 'No submissions', $html );
 		$this->assertLessThan( strpos( $html, 'Submission Status' ), strpos( $html, 'No submissions' ) );
 	}
 
