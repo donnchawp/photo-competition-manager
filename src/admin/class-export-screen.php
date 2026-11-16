@@ -288,28 +288,23 @@ class Export_Screen {
 	 * @return array<int, array<int, int|string>> Rows, not yet made safe for a spreadsheet.
 	 */
 	public function votes_csv_rows( array $votes, array $images ): array {
-		// Each image is filed under its category and number. A member enters every image under
-		// their one number, so a number can hold more than one image in a category.
+		// Each image is filed under its category and number, in image ID order. A member enters
+		// every image under their one number, so a number can hold more than one image in a category.
+		usort( $images, static fn( $a, $b ) => (int) $a->id <=> (int) $b->id );
 		$image_ids_by_cat = array(); // category => random_number => image IDs.
 		$image_map        = array(); // image_id => true, for the images still entered.
+		$widths           = array(); // random_number => columns: its most images in one category.
 		foreach ( $images as $image ) {
-			$image_ids_by_cat[ $image->category ][ (int) $image->random_number ][] = (int) $image->id;
-			$image_map[ (int) $image->id ] = true;
-		}
+			$random_number = (int) $image->random_number;
 
-		// A number gets as many columns as it has images in its fullest category, so the columns
-		// line up across categories: Image #7, or Image #7a and Image #7b.
-		$widths = array(); // random_number => columns.
-		foreach ( $image_ids_by_cat as &$numbers ) {
-			foreach ( $numbers as $random_number => &$image_ids ) {
-				sort( $image_ids, SORT_NUMERIC );
-				$widths[ $random_number ] = max( $widths[ $random_number ] ?? 0, count( $image_ids ) );
-			}
-			unset( $image_ids );
+			$image_ids_by_cat[ $image->category ][ $random_number ][] = (int) $image->id;
+			$image_map[ (int) $image->id ]                            = true;
+			$widths[ $random_number ]                                 = max( $widths[ $random_number ] ?? 0, count( $image_ids_by_cat[ $image->category ][ $random_number ] ) );
 		}
-		unset( $numbers );
 		ksort( $widths, SORT_NUMERIC );
 
+		// A number with more than one image in a category gets a column per image in every
+		// category, so the columns line up: Image #7, or Image #7a and Image #7b.
 		$columns = array(); // Each a header, a number and which of the number's images.
 		foreach ( $widths as $random_number => $width ) {
 			for ( $i = 0; $i < $width; $i++ ) {
