@@ -587,34 +587,31 @@ class Submissions_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
 
+		$categories   = array();
+		$is_interclub = false;
+
 		if ( $selected_competition ) {
+			// The competition's settings, parsed once. A competition without its own categories takes the club's.
+			$settings     = Competition_Settings::parse( $selected_competition->settings );
+			$is_interclub = (bool) $settings['interclub']['enabled'];
+			$categories   = Competition_Settings::get_categories( $settings );
+
 			printf(
 				'<h2>%s</h2>',
 				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
 			);
 
-			$interclub = Competition_Settings::parse( $selected_competition->settings )['interclub'];
-
 			// Add regenerate numbers button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_regenerate_numbers_form( $competition_id, (bool) $interclub['enabled'] );
+			echo $this->render_regenerate_numbers_form( $competition_id, $is_interclub );
 
 			// Add delete original images button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_delete_originals_form( $competition_id );
 
-			// Get competition settings for categories.
-			$categories = array();
-			if ( ! empty( $selected_competition->settings ) ) {
-				$settings = json_decode( $selected_competition->settings, true );
-				if ( is_array( $settings ) ) {
-					$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
-				}
-			}
-
 			// Add admin upload form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_admin_upload_form( $competition_id, $members, $categories, $interclub );
+			echo $this->render_admin_upload_form( $competition_id, $members, $categories, $settings['interclub'] );
 		}
 
 		// The photos come first, as what an admin comes to see; the status summary follows them.
@@ -623,62 +620,46 @@ class Submissions_Controller {
 			echo $this->render_template( 'admin/submissions/notice-no-submissions.php' );
 		} else {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter );
+			echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter, $is_interclub );
 		}
 
-		// The quota/status summary.
-		if ( $selected_competition && ! empty( $selected_competition->settings ) ) {
-			$settings = json_decode( $selected_competition->settings, true );
-			if ( is_array( $settings ) ) {
-				$categories = \PhotoCompetitionManager\Support\Competition_Settings::get_categories( $settings );
+		// The quota/status summary. Every competition has categories: its own, or the club's.
+		if ( $selected_competition ) {
+			// Count each member's entered images by category: substitutes and disqualified images take no place in the quota.
+			$member_counts = array();
+			foreach ( $submissions as $submission ) {
+				if ( 'entered' !== $submission->entry_status ) {
+					continue;
+				}
 
-				if ( ! empty( $categories ) ) {
-					// Count each member's entered images by category: substitutes and disqualified images take no place in the quota.
-					$member_counts = array();
-					foreach ( $submissions as $submission ) {
-						if ( 'entered' !== $submission->entry_status ) {
-							continue;
-						}
+				$mid = (int) $submission->member_id;
+				$cat = (string) $submission->category;
 
-						$mid = (int) $submission->member_id;
-						$cat = (string) $submission->category;
+				if ( ! isset( $member_counts[ $mid ] ) ) {
+					$member_counts[ $mid ] = array();
+				}
+				if ( ! isset( $member_counts[ $mid ][ $cat ] ) ) {
+					$member_counts[ $mid ][ $cat ] = 0;
+				}
+				++$member_counts[ $mid ][ $cat ];
+			}
 
-						if ( ! isset( $member_counts[ $mid ] ) ) {
-							$member_counts[ $mid ] = array();
-						}
-						if ( ! isset( $member_counts[ $mid ][ $cat ] ) ) {
-							$member_counts[ $mid ][ $cat ] = 0;
-						}
-						++$member_counts[ $mid ][ $cat ];
-					}
+			// Get link tracking data.
+			$upload_token_repo = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
+			$voting_token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
+			$upload_tracking   = $upload_token_repo->get_tracking_by_competition( $competition_id );
+			$voting_tracking   = $voting_token_repo->get_tracking_by_competition( $competition_id );
 
-					// Get link tracking data.
-					$upload_token_repo = new \PhotoCompetitionManager\Repository\Upload_Token_Repository();
-					$voting_token_repo = new \PhotoCompetitionManager\Repository\Voting_Token_Repository();
-					$upload_tracking   = $upload_token_repo->get_tracking_by_competition( $competition_id );
-					$voting_tracking   = $voting_token_repo->get_tracking_by_competition( $competition_id );
-
-					// Build quota map.
-					$quota_map = array();
-					foreach ( $categories as $cat_config ) {
-						$quota_map[ $cat_config['slug'] ] = array(
-							'label' => $cat_config['label'],
-							'quota' => $cat_config['quota'],
-						);
-					}
-
-					// The members who may enter, then anyone else who has entries, such as a member deactivated since.
-					$entrants = $eligible;
-					$listed   = array_flip( $may_enter );
-					foreach ( array_unique( array_map( 'intval', array_column( $submissions, 'member_id' ) ) ) as $entered_id ) {
-						if ( ! isset( $listed[ $entered_id ] ) && isset( $member_map[ $entered_id ] ) ) {
-							$entrants[] = $member_map[ $entered_id ];
-						}
-					}
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-					echo $this->render_submission_status( $categories, $member_id, $entrants, $member_counts, $upload_tracking, $voting_tracking );
+			// The members who may enter, then anyone else who has entries, such as a member deactivated since.
+			$entrants = $eligible;
+			$listed   = array_flip( $may_enter );
+			foreach ( array_unique( array_map( 'intval', array_column( $submissions, 'member_id' ) ) ) as $entered_id ) {
+				if ( ! isset( $listed[ $entered_id ] ) && isset( $member_map[ $entered_id ] ) ) {
+					$entrants[] = $member_map[ $entered_id ];
 				}
 			}
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+			echo $this->render_submission_status( $categories, $member_id, $entrants, $member_counts, $upload_tracking, $voting_tracking );
 		}
 
 		echo '</div>';
@@ -792,9 +773,10 @@ class Submissions_Controller {
 	 * @param object|null       $selected_competition Currently selected competition, if any.
 	 * @param array<int,object> $competition_lookup   Competitions indexed by competition id.
 	 * @param int[]             $may_enter            IDs of the members who may enter the selected competition.
+	 * @param bool              $interclub            Whether the selected competition is interclub.
 	 * @return string
 	 */
-	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup, array $may_enter ): string {
+	private function render_submissions_table( int $competition_id, int $member_id, array $submissions, array $member_map, array $scores_data, ?object $selected_competition, array $competition_lookup, array $may_enter, bool $interclub ): string {
 		// Each member's upload link, the same one their upload link emails carry,
 		// for the members who may still enter: the upload page refuses anyone else's.
 		$upload_links       = new Upload_Link_Service();
@@ -812,7 +794,6 @@ class Submissions_Controller {
 
 		$current_member_id = null;
 		$rows              = array();
-		$interclub         = $selected_competition && Competition_Settings::parse( $selected_competition->settings )['interclub']['enabled'];
 		// The changes allowed depend only on an entry's category and status, so work them out once for each.
 		$status_actions = array();
 

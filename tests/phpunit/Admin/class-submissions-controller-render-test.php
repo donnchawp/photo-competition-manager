@@ -381,6 +381,29 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'name="competition_id" value="' . $comp_id . '"', $html );
 	}
 
+	public function test_a_competition_with_no_settings_offers_the_clubs_categories(): void {
+		// Like the upload page, a competition without settings takes the club's categories.
+		global $wpdb;
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'categories' => array( array( 'slug' => 'nature', 'label' => 'Nature', 'quota' => 1 ) ) ) ) );
+		$comp_id = $this->seed_competition( 'No Settings Show', 'no-settings-show' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$this->assertSame( 1, $wpdb->update( $this->competitions->table(), array( 'settings' => null ), array( 'id' => $comp_id ), array( '%s' ), array( '%d' ) ) );
+		$this->set_request(
+			array(
+				'page'           => 'photo-competition-manager-submissions',
+				'competition_id' => (string) $comp_id,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '#<select name="category" id="admin-upload-category"[^>]*>.*<option value="nature">Nature</option>#s', $html );
+		// The status summary has a column for the club's category.
+		$this->assertStringContainsString( '<th>Nature</th>', $html );
+	}
+
 	public function test_render_happy_path(): void {
 		// Two competitions, one archived (exercises the "(Archived)" label in
 		// the filter dropdown). Explicit, distinct created_at values keep the
