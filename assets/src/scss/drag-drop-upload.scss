@@ -135,6 +135,7 @@
 	}
 
 	.photo-comp-photographer-input {
+		box-sizing: border-box;
 		width: 100%;
 		padding: 8px;
 		border: 1px solid #ddd;
@@ -345,6 +346,16 @@
 	p {
 		color: #666;
 		margin-bottom: 20px;
+	}
+
+	input[type="text"] {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 400px;
+		padding: 8px;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		font-size: 16px;
 	}
 }
 
