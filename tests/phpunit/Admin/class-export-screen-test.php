@@ -96,6 +96,35 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_each_of_a_members_images_in_a_category_gets_its_own_votes_csv_column(): void {
+		// Member 7's images 22 and 21 share their number; member 3 has one image.
+		$images = array();
+		foreach ( array( 22 => 7, 23 => 3, 21 => 7 ) as $id => $random_number ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => $random_number,
+				'category'      => 'colour',
+			);
+		}
+		$votes = array(
+			$this->vote( 21, 5, 'Ann' ),
+			$this->vote( 22, 7, 'Ann' ),
+			$this->vote( 23, 9, 'Ann' ),
+			$this->vote( 22, 6, 'Bob' ),
+		);
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #3', 'Image #7a', 'Image #7b' ),
+				array( 'Ann', 9, 5, 7 ),
+				array( 'Bob', '', '', 6 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( $votes, $images )
+		);
+	}
+
 	public function test_every_judge_gets_their_own_row_in_the_votes_csv(): void {
 		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
 		$ann    = $judges->create( 'Ann', 'ann@example.com' );

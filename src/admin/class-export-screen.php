@@ -276,8 +276,9 @@ class Export_Screen {
 	 * The votes CSV's rows, one section per category.
 	 *
 	 * Columns are aligned across all categories using the entries' random_number: a member's one
-	 * number, or in an interclub competition each image's number within its category.
-	 * If a number has no entry in a category, its column shows 0 for all voters.
+	 * number, or in an interclub competition each image's number within its category. A number
+	 * with more than one image in a category gets a column per image (Image #7a, Image #7b),
+	 * in image ID order. If a column has no entry in a category, it shows 0 for all voters.
 	 * Votes for entries that no longer exist are left out.
 	 *
 	 * @since 0.4.0
@@ -287,32 +288,34 @@ class Export_Screen {
 	 * @return array<int, array<int, int|string>> Rows, not yet made safe for a spreadsheet.
 	 */
 	public function votes_csv_rows( array $votes, array $images ): array {
-		// Build mappings for alignment across categories.
-		$image_map              = array(); // image_id => random_number.
-		$all_random_numbers     = array(); // All unique random_numbers in competition.
-		$random_to_image_by_cat = array(); // category => random_number => image_id.
-
+		// Each image is filed under its category and number. A member enters every image under
+		// their one number, so a number can hold more than one image in a category.
+		$image_ids_by_cat = array(); // category => random_number => image IDs.
+		$image_map        = array(); // image_id => true, for the images still entered.
 		foreach ( $images as $image ) {
-			$image_id      = (int) $image->id;
-			$random_number = (int) $image->random_number;
-			$category      = $image->category;
-
-			$image_map[ $image_id ] = $random_number;
-
-			// Track all unique random_numbers.
-			if ( ! in_array( $random_number, $all_random_numbers, true ) ) {
-				$all_random_numbers[] = $random_number;
-			}
-
-			// Map random_number to image_id per category.
-			if ( ! isset( $random_to_image_by_cat[ $category ] ) ) {
-				$random_to_image_by_cat[ $category ] = array();
-			}
-			$random_to_image_by_cat[ $category ][ $random_number ] = $image_id;
+			$image_ids_by_cat[ $image->category ][ (int) $image->random_number ][] = (int) $image->id;
+			$image_map[ (int) $image->id ] = true;
 		}
 
-		// Sort random numbers for consistent column order.
-		sort( $all_random_numbers, SORT_NUMERIC );
+		// A number gets as many columns as it has images in its fullest category, so the columns
+		// line up across categories: Image #7, or Image #7a and Image #7b.
+		$widths = array(); // random_number => columns.
+		foreach ( $image_ids_by_cat as &$numbers ) {
+			foreach ( $numbers as $random_number => &$image_ids ) {
+				sort( $image_ids, SORT_NUMERIC );
+				$widths[ $random_number ] = max( $widths[ $random_number ] ?? 0, count( $image_ids ) );
+			}
+			unset( $image_ids );
+		}
+		unset( $numbers );
+		ksort( $widths, SORT_NUMERIC );
+
+		$columns = array(); // Each a header, a number and which of the number's images.
+		foreach ( $widths as $random_number => $width ) {
+			for ( $i = 0; $i < $width; $i++ ) {
+				$columns[] = array( 'Image #' . $random_number . ( $width > 1 ? chr( ord( 'a' ) + $i ) : '' ), $random_number, $i );
+			}
+		}
 
 		// Group votes by category, then by voter, then by image_id.
 		// Skip votes for images that no longer exist.
@@ -349,20 +352,15 @@ class Export_Screen {
 			// Category header.
 			$rows[] = array( 'Category: ' . $category );
 
-			// Column header with ALL random numbers (aligned across categories).
-			$header = array( 'Voter' );
-			foreach ( $all_random_numbers as $random_number ) {
-				$header[] = 'Image #' . $random_number;
-			}
-			$rows[] = $header;
+			// The same columns in every category.
+			$rows[] = array_merge( array( 'Voter' ), array_column( $columns, 0 ) );
 
 			// Rows for this category, with votes in random_number order.
 			ksort( $votes_by_voter ); // Sort voters alphabetically.
 			foreach ( $votes_by_voter as $voter => $voter_votes ) {
 				$row = array( $voter_labels[ $voter ] ?? $voter );
-				foreach ( $all_random_numbers as $random_number ) {
-					// Check if this random_number has an image in this category.
-					$image_id_for_random = $random_to_image_by_cat[ $category ][ $random_number ] ?? null;
+				foreach ( $columns as list( , $random_number, $i ) ) {
+					$image_id_for_random = $image_ids_by_cat[ $category ][ $random_number ][ $i ] ?? null;
 
 					if ( null === $image_id_for_random ) {
 						// Member didn't upload to this category - show 0.
