@@ -137,7 +137,8 @@ class Images_Repository extends Abstract_Repository {
 			$prepare_args[] = $member_id;
 		}
 
-		$query .= ' ORDER BY category, random_number';
+		// Images sharing a number (a member's entries) come in ID order, as the votes CSV's a/b columns do.
+		$query .= ' ORDER BY category, random_number, id';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query contains only placeholders (%d, %s), not user input.
 		return $wpdb->get_results( $wpdb->prepare( $query, ...$prepare_args ) );

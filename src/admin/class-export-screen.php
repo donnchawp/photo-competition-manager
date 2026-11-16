@@ -278,7 +278,8 @@ class Export_Screen {
 	 * Columns are aligned across all categories using the entries' random_number: a member's one
 	 * number, or in an interclub competition each image's number within its category. A number
 	 * with more than one image in a category gets a column per image (Image #7a, Image #7b),
-	 * in image ID order, and each category's header names the file in those columns. If a column has no entry in a category, it shows 0 for all voters.
+	 * in image ID order, and each category's header names the file in those columns. If a
+	 * column has no entry in a category, it shows 0 for all voters.
 	 * Votes for entries that no longer exist are left out.
 	 *
 	 * @since 0.4.0
