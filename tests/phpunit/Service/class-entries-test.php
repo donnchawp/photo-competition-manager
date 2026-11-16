@@ -1589,6 +1589,28 @@ class Entries_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'results_recorded', $result->get_error_code() );
+		$this->assertStringContainsString( 'Hide its results first.', $result->get_error_message() );
+		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
+	}
+
+	public function test_a_closed_competitions_refusal_says_to_move_its_close_date(): void {
+		$competition_id = $this->create_competition( 'dq-closed-comp' );
+		$member_id      = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entry_id       = $this->seed_entry( $competition_id, $member_id );
+		$this->competitions_repo->update(
+			$competition_id,
+			array(
+				'open_date'  => gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS ),
+				'close_date' => gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ),
+			)
+		);
+
+		$result = $this->entries->set_entry_status( Actor::admin(), $competition_id, $entry_id, 'disqualified' );
+
+		// Its results were never published, so there are none to hide: only a later close date reopens it.
+		$this->assertWPError( $result );
+		$this->assertSame( 'results_recorded', $result->get_error_code() );
+		$this->assertSame( 'This competition has closed, so its entries can\'t change status. To change one, move its close date into the future first.', $result->get_error_message() );
 		$this->assertSame( 'entered', $this->images_repo->find( $entry_id )->entry_status );
 	}
 
