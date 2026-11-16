@@ -74,12 +74,13 @@ foreach ( $data['rows'] as $row ) {
 	echo '<td>' . esc_html( $row['closes'] ) . '</td>';
 	echo '<td>' . esc_html( $row['last_updated'] ) . '</td>';
 
-	$actions = array(
-		sprintf( '<a href="%s">%s</a>', esc_url( $row['edit_url'] ), esc_html__( 'Edit', 'photo-competition-manager' ) ),
-	);
+	$actions = array();
 
-	// Toggle uploads action.
+	// The edit screen can't open an archived competition; Restore is the way back.
 	if ( ! $row['is_archived'] ) {
+		$actions[] = sprintf( '<a href="%s">%s</a>', esc_url( $row['edit_url'] ), esc_html__( 'Edit', 'photo-competition-manager' ) );
+
+		// Toggle uploads action.
 		$toggle_label = $row['uploads_closed']
 			? __( 'Open Uploads', 'photo-competition-manager' )
 			: __( 'Close Uploads', 'photo-competition-manager' );
