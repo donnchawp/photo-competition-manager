@@ -97,13 +97,14 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_each_of_a_members_images_in_a_category_gets_its_own_votes_csv_column(): void {
-		// Member 7's images 22 and 21 share their number; member 3 has one image.
+		// Member 7's images 22 and 21 share their number, so their headers name the file; member 3 has one image.
 		$images = array();
 		foreach ( array( 22 => 7, 23 => 3, 21 => 7 ) as $id => $random_number ) {
 			$images[] = (object) array(
 				'id'            => $id,
 				'random_number' => $random_number,
 				'category'      => 'colour',
+				'filename'      => 'photo-' . $id . '.jpg',
 			);
 		}
 		$votes = array(
@@ -116,7 +117,7 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		$this->assertSame(
 			array(
 				array( 'Category: colour' ),
-				array( 'Voter', 'Image #3', 'Image #7a', 'Image #7b' ),
+				array( 'Voter', 'Image #3', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
 				array( 'Ann', 9, 5, 7 ),
 				array( 'Bob', '', '', 6 ),
 				array( '' ),
