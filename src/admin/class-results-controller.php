@@ -479,7 +479,7 @@ class Results_Controller {
 			$breakdown = $this->analytics->get_category_breakdown( (int) $competition->id, $selected_category );
 
 			$groups             = $rankings[ $selected_category ] ?? $this->ranking->rank_category( (int) $competition->id, $selected_category );
-			$results_table_html = $this->render_results_table( $competition, $selected_category, $groups );
+			$results_table_html = $this->render_results_table( $competition, $selected_category, $groups, (bool) $settings['interclub']['enabled'] );
 		}
 
 		// Action buttons.
@@ -663,17 +663,7 @@ class Results_Controller {
 		foreach ( $this->ranking->rank_clubs( (int) $competition->id, $rankings ) as $grade ) {
 			$grades[] = array(
 				'label' => $labels->admin_grade_label( $competition, $grade['slug'] ),
-				'clubs' => array_map(
-					static function ( array $club ): array {
-						return array(
-							'name'     => $club['member']->name,
-							'panels'   => $club['panels'],
-							'total'    => $club['total'],
-							'position' => $club['position'],
-						);
-					},
-					$grade['clubs']
-				),
+				'clubs' => $grade['clubs'],
 			);
 		}
 
@@ -696,12 +686,12 @@ class Results_Controller {
 	 * @param object            $competition Competition record.
 	 * @param string            $category    Category slug.
 	 * @param array<int, array> $groups      The category's Results_Ranking::rank_category() groups.
+	 * @param bool              $interclub   Whether entries show their photographer and club.
 	 * @return string
 	 */
-	private function render_results_table( object $competition, string $category, array $groups ): string {
+	private function render_results_table( object $competition, string $category, array $groups, bool $interclub ): string {
 		$grade_tables = array();
 		$labels       = new Competition_Labels();
-		$interclub    = Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
 
 		foreach ( $groups as $group ) {
 			$rows = array();

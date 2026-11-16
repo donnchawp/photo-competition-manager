@@ -567,13 +567,8 @@ class Results_Ranking {
 			}
 		);
 
-		$position       = 0;
-		$previous_score = null;
-		foreach ( $entries as $index => $entry ) {
-			if ( $entry['total_score'] !== $previous_score ) {
-				++$position;
-				$previous_score = $entry['total_score'];
-			}
+		$positions = self::dense_positions( array_column( $entries, 'total_score' ) );
+		foreach ( $positions as $index => $position ) {
 			$entries[ $index ]['position'] = $position;
 		}
 

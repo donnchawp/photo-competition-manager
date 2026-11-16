@@ -184,7 +184,7 @@ class Results_Shortcode {
 
 		?>
 		<div class="photo-comp-results">
-			<h2><?php echo esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
+			<h2><?php echo esc_html( $labels->title_for_everyone( $competition ) ); ?> - <?php esc_html_e( 'Results', 'photo-competition-manager' ); ?></h2>
 
 			<?php if ( $club_rankings ) : ?>
 				<div class="results-category-section results-club-standings">

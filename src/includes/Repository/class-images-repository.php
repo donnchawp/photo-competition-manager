@@ -386,7 +386,9 @@ class Images_Repository extends Abstract_Repository {
 	public function open_number_slot( int $competition_id, string $category ): int {
 		global $wpdb;
 
-		$number = wp_rand( 1, count( $this->find_uploads( $competition_id, $category ) ) + 1 );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count  = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE competition_id = %d AND category = %s', $this->table(), $competition_id, $category ) );
+		$number = wp_rand( 1, $count + 1 );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET random_number = random_number + 1 WHERE competition_id = %d AND category = %s AND random_number >= %d', $this->table(), $competition_id, $category, $number ) );

@@ -581,7 +581,8 @@ class Submissions_Controller {
 		$selected_competition = $competition_id && isset( $competition_lookup[ $competition_id ] ) ? $competition_lookup[ $competition_id ] : null;
 
 		// The members who may enter: the type's members, or the competition's selected entrants.
-		$eligible = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $selected_competition ) : array();
+		$eligible  = $selected_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $selected_competition ) : array();
+		$may_enter = array_map( 'intval', wp_list_pluck( $eligible, 'id' ) );
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_filters( $competitions, $competition_id, $members, $member_id );
@@ -592,9 +593,11 @@ class Submissions_Controller {
 				esc_html( ( new Competition_Labels() )->title_for_everyone( $selected_competition ) )
 			);
 
+			$interclub = Competition_Settings::parse( $selected_competition->settings )['interclub'];
+
 			// Add regenerate numbers button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_regenerate_numbers_form( $competition_id, Competition_Settings::parse( $selected_competition->settings )['interclub']['enabled'] );
+			echo $this->render_regenerate_numbers_form( $competition_id, (bool) $interclub['enabled'] );
 
 			// Add delete original images button.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -611,7 +614,7 @@ class Submissions_Controller {
 
 			// Add admin upload form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_admin_upload_form( $competition_id, $members, $categories, Competition_Settings::parse( $selected_competition->settings )['interclub'] );
+			echo $this->render_admin_upload_form( $competition_id, $members, $categories, $interclub );
 		}
 
 		// Add quota/status summary section.
@@ -657,11 +660,10 @@ class Submissions_Controller {
 
 					// The members who may enter, then anyone else who has entries, such as a member deactivated since.
 					$entrants = $eligible;
-					$listed   = array_flip( array_map( 'intval', wp_list_pluck( $eligible, 'id' ) ) );
+					$listed   = array_flip( $may_enter );
 					foreach ( array_unique( array_map( 'intval', array_column( $submissions, 'member_id' ) ) ) as $entered_id ) {
 						if ( ! isset( $listed[ $entered_id ] ) && isset( $member_map[ $entered_id ] ) ) {
-							$entrants[]            = $member_map[ $entered_id ];
-							$listed[ $entered_id ] = true;
+							$entrants[] = $member_map[ $entered_id ];
 						}
 					}
 					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
@@ -678,7 +680,7 @@ class Submissions_Controller {
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, array_map( 'intval', wp_list_pluck( $eligible, 'id' ) ) );
+		echo $this->render_submissions_table( $competition_id, $member_id, $submissions, $member_map, $scores_data, $selected_competition, $competition_lookup, $may_enter );
 
 		echo '</div>';
 	}

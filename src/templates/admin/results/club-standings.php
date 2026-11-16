@@ -6,7 +6,7 @@
  *
  * $data['categories'] array<int, array{slug: string, label: string}> The competition's categories, in order.
  * $data['grades']     array<int, array{label: string, clubs: array<int, array{
- *     name: string,
+ *     member: object,
  *     panels: array<string, array{total: int, position: int}|null>,
  *     total: int|null,
  *     position: int|null,
@@ -37,7 +37,7 @@ foreach ( $data['grades'] as $grade ) {
 	foreach ( $grade['clubs'] as $club ) {
 		echo '<tr class="club-standing">';
 		echo '<td><strong>' . esc_html( null === $club['position'] ? '—' : (string) $club['position'] ) . '</strong></td>';
-		echo '<td>' . esc_html( $club['name'] ) . '</td>';
+		echo '<td>' . esc_html( $club['member']->name ) . '</td>';
 		foreach ( $data['categories'] as $category ) {
 			$panel = $club['panels'][ $category['slug'] ] ?? null;
 			echo '<td>' . ( $panel ? esc_html( number_format( $panel['total'], 0 ) . ' (' . $panel['position'] . ')' ) : '—' ) . '</td>';
