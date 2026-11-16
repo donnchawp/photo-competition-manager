@@ -139,6 +139,8 @@ class Top3_Shortcode {
 	 * @return void
 	 */
 	private function render_top3_results( object $competition, string $share_hash ): void {
+		$labels = new Competition_Labels();
+
 		$settings   = Competition_Settings::parse( $competition->settings );
 		$categories = Competition_Settings::get_categories( $settings );
 
@@ -250,7 +252,7 @@ class Top3_Shortcode {
 													<?php endif; ?>
 												</div>
 												<div class="member-info">
-													<div class="member-name"><?php echo esc_html( $member ? $member->name : __( 'Former member', 'photo-competition-manager' ) ); ?></div>
+													<div class="member-name"><?php echo esc_html( $labels->entry_by( $competition, $result['image'], $member ) ); ?></div>
 													<div class="score-info">
 														<span class="score"><?php echo esc_html( number_format( $total_score, 0 ) ); ?></span>
 													</div>

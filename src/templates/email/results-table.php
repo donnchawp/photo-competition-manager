@@ -9,9 +9,14 @@
  * @package PhotoCompetitionManager
  *
  * $data['judged'] bool Whether judges scored the competition. Their votes aren't broken down, so the vote count is left out.
+ * $data['club'] array{grade: string, panels: array<int, array{label: string, total: int|null, position: int|null, of: int}>, total: int|null, position: int|null, of: int}|null
+ *     In an interclub competition, the club's panel totals and places, and its overall total and place, each out of
+ *     the clubs in its grade that have one. A panel with no total was skipped, and a club with no total has no
+ *     overall place. Null otherwise.
  * $data['images'] array<int, array{
  *     category_label: string,
  *     image_number: int|string,
+ *     photographer: string,
  *     rank: int|null,
  *     total_in_grade: int,
  *     grade: string,
@@ -30,6 +35,31 @@
 
 defined( 'ABSPATH' ) || exit;
 ?>
+<?php if ( ! empty( $data['club'] ) ) : ?>
+				<div style="margin: 30px 0; padding: 20px; background-color: #f9f9f9; border-left: 4px solid #0073aa;">
+					<h3 style="margin-top: 0; color: #0073aa;">
+						<?php
+						printf(
+							/* translators: %s: grade name */
+							esc_html__( 'Your club\'s results (%s)', 'photo-competition-manager' ),
+							esc_html( $data['club']['grade'] )
+						);
+						?>
+					</h3>
+					<table style="width: 100%; border-collapse: collapse;">
+						<?php foreach ( $data['club']['panels'] as $panel ) : ?>
+							<tr>
+								<td style="padding: 8px 0; font-weight: bold; width: 40%;"><?php echo esc_html( $panel['label'] ); ?>:</td>
+								<td style="padding: 8px 0;"><?php echo null === $panel['total'] ? esc_html__( 'No panel', 'photo-competition-manager' ) : esc_html( sprintf( /* translators: 1: panel total, 2: its place, 3: number of panels placed */ __( '%1$s, place %2$d of %3$d', 'photo-competition-manager' ), number_format( $panel['total'], 0 ), $panel['position'], $panel['of'] ) ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						<tr>
+							<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Total:', 'photo-competition-manager' ); ?></td>
+							<td style="padding: 8px 0;"><?php echo null === $data['club']['total'] ? esc_html__( 'No overall place: a panel is missing', 'photo-competition-manager' ) : esc_html( sprintf( /* translators: 1: club total, 2: its place, 3: number of clubs placed */ __( '%1$s, place %2$d of %3$d', 'photo-competition-manager' ), number_format( $data['club']['total'], 0 ), $data['club']['position'], $data['club']['of'] ) ); ?></td>
+						</tr>
+					</table>
+				</div>
+<?php endif; ?>
 				<?php if ( empty( $data['images'] ) ) : ?>
 					<p><em><?php esc_html_e( 'You did not submit any images for this competition.', 'photo-competition-manager' ); ?></em></p>
 				<?php else : ?>
@@ -73,7 +103,12 @@ defined( 'ABSPATH' ) || exit;
 											?>
 										</td>
 									</tr>
-								<?php endif; ?>
+								<?php endif; ?><?php if ( '' !== $image_data['photographer'] ) : ?>
+								<tr>
+									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Photographer:', 'photo-competition-manager' ); ?></td>
+									<td style="padding: 8px 0;"><?php echo esc_html( $image_data['photographer'] ); ?></td>
+								</tr>
+<?php endif; ?>
 								<tr>
 									<td style="padding: 8px 0; font-weight: bold;"><?php esc_html_e( 'Final Score:', 'photo-competition-manager' ); ?></td>
 									<td style="padding: 8px 0;"><strong><?php echo esc_html( number_format( $image_data['total_score'], 0 ) ); ?></strong></td>

@@ -10,6 +10,7 @@
  *         rank: int,
  *         image_url: string,
  *         member_name: string|null,
+ *         photographer: string,
  *         total_score: int,
  *         vote_count: int,
  *         detail_url: string,
@@ -18,7 +19,7 @@
  * }> Per-grade result tables to render; grades with no results are omitted.
  * A recorded row with no member name is a former member's; an unrecorded one
  * has lost its member, a data error. A row with no detail URL is a recorded
- * entry removed since.
+ * entry removed since. $data['interclub'] (bool) adds the photographer column.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -33,7 +34,12 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 	echo '<tr>';
 	echo '<th style="width: 60px;">' . esc_html__( 'Rank', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 80px;">' . esc_html__( 'Image', 'photo-competition-manager' ) . '</th>';
-	echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
+	if ( $data['interclub'] ) {
+		echo '<th>' . esc_html__( 'Photographer', 'photo-competition-manager' ) . '</th>';
+		echo '<th>' . esc_html__( 'Club', 'photo-competition-manager' ) . '</th>';
+	} else {
+		echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
+	}
 	echo '<th style="width: 100px;">' . esc_html__( 'Score', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 80px;">' . esc_html__( 'Votes', 'photo-competition-manager' ) . '</th>';
 	echo '<th style="width: 120px;">' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
@@ -52,6 +58,10 @@ foreach ( $data['grade_tables'] as $grade_table ) {
 			echo '<span class="dashicons dashicons-format-image" style="font-size: 40px; color: #ddd;"></span>';
 		}
 		echo '</td>';
+
+		if ( $data['interclub'] ) {
+			echo '<td>' . esc_html( $row['photographer'] ) . '</td>';
+		}
 
 		echo '<td>';
 		if ( null !== $row['member_name'] ) {

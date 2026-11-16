@@ -189,4 +189,26 @@ class Competition_Labels {
 
 		return $this->names[ $type_id ];
 	}
+
+	/**
+	 * Who an entry is by, as results show it: its member, or in an interclub competition its
+	 * photographer and club ("Photographer — Club"). A member deleted since is a former member.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object      $competition Competition row.
+	 * @param object|null $entry       The entry, or null for a recorded entry removed since.
+	 * @param object|null $member      The entry's member, or null for a former member.
+	 * @return string
+	 */
+	public function entry_by( object $competition, ?object $entry, ?object $member ): string {
+		$name = $member ? (string) $member->name : __( 'Former member', 'photo-competition-manager' );
+
+		if ( ! $entry || '' === (string) $entry->photographer || ! Competition_Settings::parse( $competition->settings )['interclub']['enabled'] ) {
+			return $name;
+		}
+
+		/* translators: 1: photographer's name, 2: club's name */
+		return sprintf( __( '%1$s — %2$s', 'photo-competition-manager' ), $entry->photographer, $name );
+	}
 }

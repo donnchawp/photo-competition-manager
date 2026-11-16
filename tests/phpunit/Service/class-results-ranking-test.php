@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_Error;
 use WP_UnitTestCase;
@@ -96,6 +97,155 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		}
 
 		return $summary;
+	}
+
+	/**
+	 * Seed a club's panels: each category's images, each with its votes.
+	 *
+	 * @param string                    $name   Club name.
+	 * @param string                    $grade  Grade slug.
+	 * @param array<string, int[][]>    $panels Category slug => each image's votes.
+	 * @return int The club's member ID.
+	 */
+	private function seed_club( string $name, string $grade, array $panels ): int {
+		$club_id = Member_Fixtures::insert_with_grade( $name, sanitize_title( $name ) . '@example.com', $grade );
+		foreach ( $panels as $category => $images ) {
+			foreach ( $images as $scores ) {
+				Entry_Fixtures::insert_entry( $this->competition_id, $category, $club_id, $scores );
+			}
+		}
+
+		return $club_id;
+	}
+
+	/**
+	 * Map club standings to "grade" => array of "Club: colour total/position, black-white total/position = total/position".
+	 *
+	 * @param array<int, array> $groups Results_Ranking::rank_clubs() groups.
+	 * @return array<string, array<int, string>>
+	 */
+	private function summarize_clubs( array $groups ): array {
+		$summary = array();
+		foreach ( $groups as $group ) {
+			$summary[ $group['slug'] ] = array_map(
+				static function ( array $club ): string {
+					$panels = array();
+					foreach ( $club['panels'] as $category => $panel ) {
+						$panels[] = $category . ' ' . ( $panel ? $panel['total'] . '/' . $panel['position'] : '-' );
+					}
+
+					return $club['member']->name . ': ' . implode( ', ', $panels ) . ' = ' . ( null === $club['total'] ? '-' : $club['total'] . '/' . $club['position'] );
+				},
+				$group['clubs']
+			);
+		}
+
+		return $summary;
+	}
+
+	public function test_a_clubs_panel_adds_up_its_images_and_its_total_adds_up_its_panels(): void {
+		$this->seed_club(
+			'Lee',
+			'beginner',
+			array(
+				'colour'      => array( array( 9, 8 ), array( 7 ) ),
+				'black-white' => array( array( 5 ) ),
+			)
+		);
+		$this->seed_club(
+			'Bandon',
+			'beginner',
+			array(
+				'colour'      => array( array( 6 ) ),
+				'black-white' => array( array( 9 ), array( 9 ) ),
+			)
+		);
+
+		$this->assertSame(
+			array(
+				'beginner' => array(
+					'Lee: colour 24/1, black-white 5/2 = 29/1',
+					'Bandon: colour 6/2, black-white 18/1 = 24/2',
+				),
+			),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
+	}
+
+	public function test_tied_clubs_share_a_place_and_the_next_total_takes_the_next(): void {
+		foreach ( array( 'Ann' => 10, 'Bob' => 10, 'Cat' => 4 ) as $name => $score ) {
+			$this->seed_club(
+				$name,
+				'beginner',
+				array(
+					'colour'      => array( array( $score ) ),
+					'black-white' => array( array( $score ) ),
+				)
+			);
+		}
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Ann: colour 10/1, black-white 10/1 = 20/1', 'Bob: colour 10/1, black-white 10/1 = 20/1', 'Cat: colour 4/2, black-white 4/2 = 8/2' ) ),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
+	}
+
+	public function test_a_club_that_skipped_a_panel_has_no_overall_place_and_comes_last(): void {
+		$this->seed_club( 'Skipper', 'beginner', array( 'colour' => array( array( 10, 10, 10 ) ) ) );
+		$this->seed_club(
+			'Lee',
+			'beginner',
+			array(
+				'colour'      => array( array( 2 ) ),
+				'black-white' => array( array( 2 ) ),
+			)
+		);
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Lee: colour 2/2, black-white 2/1 = 4/1', 'Skipper: colour 30/1, black-white - = -' ) ),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
+	}
+
+	public function test_a_panel_nobody_in_the_grade_entered_isnt_needed_for_a_place(): void {
+		$this->seed_club( 'Lee', 'beginner', array( 'colour' => array( array( 5 ) ) ) );
+		$this->seed_club( 'Bandon', 'advanced', array( 'black-white' => array( array( 6 ) ) ) );
+
+		$this->assertSame(
+			array(
+				'beginner' => array( 'Lee: colour 5/1, black-white - = 5/1' ),
+				'advanced' => array( 'Bandon: colour -, black-white 6/1 = 6/1' ),
+			),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
+	}
+
+	public function test_clubs_are_ranked_within_their_grade_and_ungraded_ones_are_left_out(): void {
+		$this->seed_club( 'Shield', 'intermediate', array( 'colour' => array( array( 9 ) ) ) );
+		$this->seed_club( 'Cup', 'advanced', array( 'colour' => array( array( 3 ) ) ) );
+		$this->seed_club( 'Nowhere', 'no-such-grade', array( 'colour' => array( array( 10 ) ) ) );
+
+		$this->assertSame(
+			array(
+				'intermediate' => array( 'Shield: colour 9/1, black-white - = 9/1' ),
+				'advanced'     => array( 'Cup: colour 3/1, black-white - = 3/1' ),
+			),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
+	}
+
+	public function test_published_club_standings_dont_change_with_later_votes(): void {
+		$this->seed_club( 'Lee', 'beginner', array( 'colour' => array( array( 5 ) ) ) );
+		$bandon       = $this->seed_club( 'Bandon', 'beginner', array( 'colour' => array( array( 4 ) ) ) );
+		$bandon_image = (int) $this->images->find_entered( $this->competition_id, 'colour', $bandon )[0]->id;
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$this->late_vote( $bandon_image, 10 );
+
+		$this->assertSame(
+			array( 'beginner' => array( 'Lee: colour 5/1, black-white - = 5/1', 'Bandon: colour 4/2, black-white - = 4/2' ) ),
+			$this->summarize_clubs( $this->ranking->rank_clubs( $this->competition_id ) )
+		);
 	}
 
 	public function test_tied_scores_share_a_position_and_the_next_score_takes_the_next(): void {

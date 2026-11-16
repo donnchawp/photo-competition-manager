@@ -199,6 +199,45 @@ class Results_Table_Render_Test extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Total Votes', $html );
 	}
 
+	public function test_a_clubs_results_show_its_photographers_and_its_panels_and_place(): void {
+		( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+						array(
+							'slug'  => 'mono',
+							'label' => 'Black & White',
+						),
+					),
+				),
+			)
+		);
+		$lee    = $this->seed_member( 'Lee Camera Club', 'lee@example.com' );
+		$bandon = $this->seed_member( 'Bandon Camera Club', 'bandon@example.com' );
+		$entry  = $this->seed_image( $lee, 'colour', 'lee-colour.jpg', 1 );
+		$this->images->update_photographer( $entry, 'Ann Murphy' );
+		$this->vote( 'colour', $entry, 'Judge A', 9, '2026-01-01 10:00:00' );
+		$this->vote( 'colour', $this->seed_image( $bandon, 'colour', 'bandon-colour.jpg', 2 ), 'Judge A', 4, '2026-01-01 10:01:00' );
+		$this->vote( 'mono', $this->seed_image( $bandon, 'mono', 'bandon-mono.jpg', 2 ), 'Judge A', 5, '2026-01-01 10:02:00' );
+
+		$html = $this->results_table_for( $lee );
+
+		$this->assertMatchesRegularExpression( '#Photographer:</td>\s*<td[^>]*>Ann Murphy</td>#', $html );
+		$this->assertMatchesRegularExpression( '#Colour:</td>\s*<td[^>]*>9, place 1 of 2</td>#', $html );
+		$this->assertMatchesRegularExpression( '#Black &amp; White:</td>\s*<td[^>]*>No panel</td>#', $html );
+		$this->assertMatchesRegularExpression( '#Total:</td>\s*<td[^>]*>No overall place: a panel is missing</td>#', $html );
+	}
+
 	public function test_results_table_for_a_member_with_no_entries(): void {
 		$member = $this->seed_member( 'Ada', 'ada@example.com' );
 

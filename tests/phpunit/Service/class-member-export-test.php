@@ -130,6 +130,28 @@ class Member_Export_Test extends WP_UnitTestCase {
 		$this->assertArrayNotHasKey( 'Original', $by_id[ (string) $mono ] );
 	}
 
+	public function test_exporting_a_club_gives_each_entrys_photographer_and_status(): void {
+		$competition_id = $this->create_competition( 'export-club', 'Interclub' );
+		$club_id        = $this->create_member( 'Lee Camera Club', 'lee@example.com' );
+		$entries        = new Images_Repository();
+		$entry_id       = (int) $entries->create(
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $club_id,
+				'category'       => 'colour',
+				'filename'       => 'lee-colour.jpg',
+				'photographer'   => 'Ann Murphy',
+				'entry_status'   => 'substitute',
+			)
+		);
+
+		$exported = $this->only( $this->export( 'lee@example.com' ), 'photo-competition-entries' );
+
+		$this->assertSame( (string) $entry_id, (string) $exported[0]['Entry ID'] );
+		$this->assertSame( 'Ann Murphy', $exported[0]['Photographer'] );
+		$this->assertSame( 'Substitute', $exported[0]['Status'] );
+	}
+
 	public function test_exporting_a_large_original_gives_the_full_size_file_not_the_scaled_copy(): void {
 		$competition_id = $this->create_competition( 'export-scaled', 'Spring Open' );
 		$jane_id        = $this->create_member( 'Jane Doe', 'jane@example.com' );

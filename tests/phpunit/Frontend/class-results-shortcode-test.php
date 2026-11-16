@@ -109,6 +109,83 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Create a closed interclub competition with published results: Lee's colour entry by Ann
+	 * Murphy scores 9, and Bandon's by Bob Byrne scores 4.
+	 */
+	private function create_interclub_results(): void {
+		$competition_id = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Interclub',
+				'slug'       => 'interclub',
+				'open_date'  => '2019-01-01 00:00:00',
+				'close_date' => '2019-02-01 00:00:00',
+				'settings'   => array(
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => 0,
+						'photographer_limit' => 0,
+					),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+				),
+			)
+		);
+		foreach ( array( 'Lee Camera Club' => array( 'Ann Murphy', 9 ), 'Bandon Camera Club' => array( 'Bob Byrne', 4 ) ) as $club => list( $photographer, $score ) ) {
+			$club_id  = (int) ( new Members_Repository() )->create(
+				array(
+					'name'  => $club,
+					'email' => sanitize_title( $club ) . '@example.com',
+					'grade' => 'beginner',
+				)
+			);
+			$image_id = Entry_Fixtures::insert_entry( $competition_id, 'colour', $club_id, array( $score ) );
+			( new Images_Repository() )->update_photographer( $image_id, $photographer );
+		}
+		Workflow_Fixtures::publish_results( $competition_id );
+	}
+
+	public function test_an_interclub_entry_shows_its_photographer_and_club(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		$this->assertMatchesRegularExpression( '#<td class="member-name"[^>]*>Ann Murphy — Lee Camera Club</td>#u', $html );
+	}
+
+	public function test_interclub_results_show_each_grades_club_standings(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render( array( 'competition' => 'interclub' ) );
+
+		preg_match_all( '#<tr class="club-standing">\s*<td class="position">(\d+|—)</td>\s*<td class="club-name"[^>]*>([^<]+)</td>\s*<td class="panel-total"[^>]*>\s*(\d+) <span class="panel-position">\((\d+)\)</span>\s*</td>\s*<td class="club-total"[^>]*>(\d+|—)</td>\s*</tr>#u', $html, $rows, PREG_SET_ORDER );
+		$this->assertSame(
+			array( array( '1', 'Lee Camera Club', '9', '1', '9' ), array( '2', 'Bandon Camera Club', '4', '2', '4' ) ),
+			array_map( static fn( array $row ): array => array_slice( $row, 1 ), $rows )
+		);
+	}
+
+	public function test_hidden_names_leave_out_photographers_clubs_and_the_club_standings(): void {
+		$this->create_interclub_results();
+
+		$html = ( new Results_Shortcode() )->render(
+			array(
+				'competition' => 'interclub',
+				'hide_names'  => 'true',
+			)
+		);
+
+		$this->assertStringContainsString( 'data-label="Score">9</td>', $html );
+		$this->assertStringNotContainsString( 'Ann Murphy', $html );
+		$this->assertStringNotContainsString( 'Lee Camera Club', $html );
+	}
+
+	/**
 	 * Results night when next month's competition was created early: with
 	 * no competition named, the page shows the competition whose results
 	 * are out, not the newest one.

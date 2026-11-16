@@ -746,6 +746,30 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_an_interclub_export_names_each_entrys_photographer(): void {
+		$this->competition_id = $this->create_competition(
+			array(
+				'settings' => array(
+					'interclub'  => array( 'enabled' => true ),
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+				),
+			)
+		);
+		$image_id = Entry_Fixtures::insert_scored_entry( $this->competition_id, 'colour', 'Lee Camera Club', 'beginner', array( 9 ) );
+		( new Images_Repository() )->update_photographer( $image_id, 'Ann Murphy' );
+
+		$rows = $this->controller->get_export_rows( $this->competitions->find( $this->competition_id ) );
+
+		$by_header = array_combine( $rows[0], $rows[1] );
+		$this->assertSame( 'Lee Camera Club', $by_header['Member Name'] );
+		$this->assertSame( 'Ann Murphy', $by_header['Photographer'] );
+	}
+
 	/**
 	 * Rows are grouped by grade (configured order), then category; ranks restart
 	 * for each grade within each category.

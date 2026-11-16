@@ -147,6 +147,13 @@ class Email_Job_Manager {
 	private $rankings = array();
 
 	/**
+	 * Club standings for the batch being sent, keyed by competition ID, like $rankings.
+	 *
+	 * @var array<int, array<int, array>>
+	 */
+	private $club_rankings = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository  $competitions    Competitions repository.
@@ -356,7 +363,8 @@ class Email_Job_Manager {
 		$batch     = array_slice( $remaining, 0, $this->get_batch_size() );
 		$members   = $this->members->find_many( $batch );
 
-		$this->rankings = array();
+		$this->rankings      = array();
+		$this->club_rankings = array();
 
 		// Process each member in batch.
 		foreach ( $batch as $member_id ) {
@@ -532,8 +540,10 @@ class Email_Job_Manager {
 		// Judges' scores aren't shown per vote, only the total.
 		$judged = Ballots::is_judged( $competition );
 
+		$interclub      = $settings['interclub']['enabled'];
 		$member_results = array(
 			'judged' => $judged,
+			'club'   => $interclub ? $this->club_results( $competition_id, $member_id, $categories ) : null,
 			'images' => array(),
 		);
 
@@ -564,6 +574,7 @@ class Email_Job_Manager {
 					$member_results['images'][] = array(
 						'category_label' => $category_label,
 						'image_number'   => $image->random_number,
+						'photographer'   => $interclub ? (string) $image->photographer : '',
 						'rank'           => $group['ungraded'] ? null : $entry['position'],
 						'total_in_grade' => count( $group['entries'] ),
 						'grade'          => $group['label'],
@@ -578,6 +589,56 @@ class Email_Job_Manager {
 		}
 
 		return render_template( 'email/results-table.php', $member_results );
+	}
+
+	/**
+	 * A club's panels and overall place in an interclub competition, or null when it has none.
+	 *
+	 * @param int               $competition_id Competition ID.
+	 * @param int               $member_id      The club's member ID.
+	 * @param array<int, array> $categories     The competition's categories.
+	 * @return array{grade: string, panels: array<int, array{label: string, total: int|null, position: int|null, of: int}>, total: int|null, position: int|null, of: int}|null
+	 */
+	private function club_results( int $competition_id, int $member_id, array $categories ): ?array {
+		if ( ! isset( $this->club_rankings[ $competition_id ] ) ) {
+			$rankings = array();
+			foreach ( $categories as $category ) {
+				$slug              = (string) ( $category['slug'] ?? '' );
+				$rankings[ $slug ] = $this->get_ranking( $competition_id, $slug );
+			}
+
+			$this->club_rankings[ $competition_id ] = $this->ranking->rank_clubs( $competition_id, $rankings );
+		}
+
+		foreach ( $this->club_rankings[ $competition_id ] as $grade ) {
+			foreach ( $grade['clubs'] as $club ) {
+				if ( (int) $club['member']->id !== $member_id ) {
+					continue;
+				}
+
+				$panels = array();
+				foreach ( $categories as $category ) {
+					$slug     = (string) ( $category['slug'] ?? '' );
+					$panel    = $club['panels'][ $slug ] ?? null;
+					$panels[] = array(
+						'label'    => (string) ( $category['label'] ?? $slug ),
+						'total'    => $panel ? $panel['total'] : null,
+						'position' => $panel ? $panel['position'] : null,
+						'of'       => count( array_filter( array_column( array_column( $grade['clubs'], 'panels' ), $slug ) ) ),
+					);
+				}
+
+				return array(
+					'grade'    => $grade['label'],
+					'panels'   => $panels,
+					'total'    => $club['total'],
+					'position' => $club['position'],
+					'of'       => count( array_filter( array_column( $grade['clubs'], 'position' ) ) ),
+				);
+			}
+		}
+
+		return null;
 	}
 
 	/**

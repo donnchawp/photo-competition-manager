@@ -93,6 +93,25 @@ class Competition_Labels_Test extends WP_UnitTestCase {
 		return $competition->find( $id );
 	}
 
+	public function test_an_interclub_entry_is_by_its_photographer_and_its_club(): void {
+		$labels      = new Competition_Labels();
+		$competition = (object) array( 'settings' => wp_json_encode( array( 'interclub' => array( 'enabled' => true ) ) ) );
+		$club        = (object) array( 'name' => 'Lee Camera Club' );
+
+		$this->assertSame( 'Ann Murphy — Lee Camera Club', $labels->entry_by( $competition, (object) array( 'photographer' => 'Ann Murphy' ), $club ) );
+		$this->assertSame( 'Lee Camera Club', $labels->entry_by( $competition, (object) array( 'photographer' => '' ), $club ) );
+		$this->assertSame( 'Ann Murphy — Former member', $labels->entry_by( $competition, (object) array( 'photographer' => 'Ann Murphy' ), null ) );
+		$this->assertSame( 'Former member', $labels->entry_by( $competition, null, null ) );
+	}
+
+	public function test_an_individual_entry_is_by_its_member(): void {
+		$labels      = new Competition_Labels();
+		$competition = (object) array( 'settings' => wp_json_encode( array() ) );
+
+		$this->assertSame( 'Ann Example', $labels->entry_by( $competition, (object) array( 'photographer' => 'Someone Else' ), (object) array( 'name' => 'Ann Example' ) ) );
+		$this->assertSame( 'Former member', $labels->entry_by( $competition, (object) array( 'photographer' => '' ), null ) );
+	}
+
 	public function test_title_without_placeholder_unchanged(): void {
 		$labels = new Competition_Labels();
 

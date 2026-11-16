@@ -252,6 +252,8 @@ class Entries {
 		$filename      = $result['filename'];
 		$attachment_id = $result['attachment_id'];
 
+		// An interclub image takes a number of its own, opened before the row arrives so it isn't counted twice.
+		$number   = $interclub['enabled'] ? $this->images_repo->open_number_slot( $competition_id, $category ) : 0;
 		$entry_id = $this->images_repo->create(
 			array(
 				'competition_id'         => $competition_id,
@@ -261,10 +263,13 @@ class Entries {
 				'original_attachment_id' => $attachment_id,
 				'photographer'           => $photographer,
 				'entry_status'           => $entry_status,
-			)
+			) + ( $number ? array( 'random_number' => $number ) : array() )
 		);
 
 		if ( is_wp_error( $entry_id ) ) {
+			if ( $number ) {
+				$this->images_repo->close_number_slot( $competition_id, $category, $number );
+			}
 			$this->delete_files( $competition, $category, $filename, $attachment_id );
 			return $entry_id;
 		}
@@ -302,7 +307,7 @@ class Entries {
 		if ( is_wp_error( $found ) ) {
 			return $found;
 		}
-		list( $competition, $entry ) = $found;
+		list( $entry, $competition ) = $found;
 
 		if ( ! $actor->is_admin() ) {
 			if ( ! $actor->is_member( (int) $entry->member_id ) ) {
@@ -327,7 +332,7 @@ class Entries {
 	 *
 	 * @param int $competition_id Competition ID.
 	 * @param int $entry_id       Entry ID.
-	 * @return array{0: object, 1: object}|WP_Error The competition and the entry.
+	 * @return array{0: object, 1: object}|WP_Error The entry and its competition.
 	 */
 	private function find_competition_entry( int $competition_id, int $entry_id ) {
 		$entry = $this->images_repo->find( $entry_id );
@@ -344,7 +349,7 @@ class Entries {
 			return new WP_Error( 'invalid_competition', __( 'Competition not found.', 'photo-competition-manager' ) );
 		}
 
-		return array( $competition, $entry );
+		return array( $entry, $competition );
 	}
 
 	/**
@@ -366,15 +371,11 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	public function set_entry_status( Actor $actor, int $competition_id, int $entry_id, string $entry_status ) {
-		if ( ! $actor->is_admin() ) {
-			return new WP_Error( 'not_authorized', __( 'Only an admin can change an entry\'s status.', 'photo-competition-manager' ) );
-		}
-
-		$found = $this->find_competition_entry( $competition_id, $entry_id );
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
 		if ( is_wp_error( $found ) ) {
 			return $found;
 		}
-		list( $competition, $entry ) = $found;
+		list( $entry, $competition ) = $found;
 
 		if ( $entry_status === $entry->entry_status ) {
 			return true;
@@ -413,6 +414,119 @@ class Entries {
 		);
 
 		return true;
+	}
+
+	/**
+	 * Renumber a competition's entries in a random order, so the numbers don't follow the order they were uploaded in.
+	 *
+	 * An interclub competition's images each get their own number within their category; otherwise
+	 * each member gets one number for all their images. Only an admin may do this, and not once
+	 * any category's voting has started.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor $actor          Who is renumbering.
+	 * @param int   $competition_id Competition ID.
+	 * @return true|WP_Error
+	 */
+	public function regenerate_numbers( Actor $actor, int $competition_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		$competition = $this->competitions_repo->find( $competition_id, true );
+		if ( ! $competition ) {
+			return new WP_Error( 'invalid_competition', __( 'Invalid competition ID.', 'photo-competition-manager' ) );
+		}
+
+		// Voters, judges and results already know the entries by their numbers.
+		if ( $this->workflow->has_any_voting_started( $competition ) ) {
+			return new WP_Error( 'voting_started', __( 'Voting has started, so the numbers can\'t change. Reset the competition\'s voting first.', 'photo-competition-manager' ) );
+		}
+
+		// A category reset can keep its votes, and they were cast for the numbers as they are.
+		if ( $this->votes_repo->has_votes( $competition_id ) ) {
+			return new WP_Error( 'category_has_votes', __( 'This competition has votes, so the numbers can\'t change. Reset its categories and clear their votes first.', 'photo-competition-manager' ) );
+		}
+
+		if ( self::numbers_each_image( $competition ) ) {
+			return $this->images_repo->regenerate_image_numbers( $competition_id );
+		}
+
+		return $this->images_repo->regenerate_member_numbers( $competition_id );
+	}
+
+	/**
+	 * Whether a competition numbers each image, within its category, rather than each member.
+	 *
+	 * An interclub competition does, so a club's images don't share a number that shows they're the same club's.
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	private static function numbers_each_image( object $competition ): bool {
+		return Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
+	}
+
+	/**
+	 * Correct or clear an entry's photographer.
+	 *
+	 * Only an admin may do this, at any time, even after results are recorded: results read the
+	 * name from the entry, so this is how a photographer's name is corrected or removed. It isn't
+	 * held to the panel's photographer limit. The change is logged without either name.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param Actor  $actor          Who is changing it.
+	 * @param int    $competition_id Competition the entry must belong to.
+	 * @param int    $entry_id       Entry ID.
+	 * @param string $photographer   The photographer's name, or '' to clear it.
+	 * @return true|WP_Error
+	 */
+	public function set_photographer( Actor $actor, int $competition_id, int $entry_id, string $photographer ) {
+		$found = $this->entry_for_admin( $actor, $competition_id, $entry_id );
+		if ( is_wp_error( $found ) ) {
+			return $found;
+		}
+
+		if ( Images_Repository::clean_photographer( $photographer ) === (string) $found[0]->photographer ) {
+			return true;
+		}
+
+		$updated = $this->images_repo->update_photographer( $entry_id, $photographer );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		( new Event_Logger() )->log(
+			$competition_id,
+			'photographer_changed',
+			'upload',
+			sprintf(
+				/* translators: %d: entry ID */
+				__( 'Entry #%d\'s photographer was changed.', 'photo-competition-manager' ),
+				$entry_id
+			),
+			array( 'entry_id' => $entry_id )
+		);
+
+		return true;
+	}
+
+	/**
+	 * An entry and its competition, for a change only an admin may make.
+	 *
+	 * @param Actor $actor          Who is making the change.
+	 * @param int   $competition_id Competition the entry must belong to.
+	 * @param int   $entry_id       Entry ID.
+	 * @return array{0: object, 1: object}|WP_Error The entry and its competition.
+	 */
+	private function entry_for_admin( Actor $actor, int $competition_id, int $entry_id ) {
+		if ( ! $actor->is_admin() ) {
+			return new WP_Error( 'not_authorized', __( 'Only an admin can change this.', 'photo-competition-manager' ) );
+		}
+
+		return $this->find_competition_entry( $competition_id, $entry_id );
 	}
 
 	/**
@@ -614,6 +728,10 @@ class Entries {
 	 * @return true|WP_Error
 	 */
 	private function remove_entry( ?object $competition, object $entry ) {
+		// Read afresh: removing another of the member's entries may have closed a gap below this one.
+		$current = $this->images_repo->find( (int) $entry->id );
+		$number  = $current ? (int) $current->random_number : (int) $entry->random_number;
+
 		$deleted = $this->images_repo->delete( (int) $entry->id );
 		if ( is_wp_error( $deleted ) ) {
 			return $deleted;
@@ -621,6 +739,11 @@ class Entries {
 
 		if ( $competition ) {
 			$this->delete_files( $competition, $entry->category, $entry->filename, (int) $entry->original_attachment_id );
+
+			// Close the gap, unless the category has been voted on: then its numbers are known.
+			if ( self::numbers_each_image( $competition ) && ! $this->workflow->has_voting_started( $competition, (string) $entry->category ) && ! $this->votes_repo->has_votes_in_category( (int) $competition->id, (string) $entry->category ) ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $number );
+			}
 		} else {
 			// Without its competition there's no folder to look in, but the original is in the media library.
 			$this->delete_original( (int) $entry->competition_id, (int) $entry->original_attachment_id );
@@ -917,7 +1040,12 @@ class Entries {
 			}
 
 			++$entered;
-			$name                   = mb_strtolower( trim( (string) $image->photographer ) );
+			$name = mb_strtolower( trim( (string) $image->photographer ) );
+			if ( '' === $name ) {
+				// An admin can clear a name, and an entry from before interclub has none.
+				continue;
+			}
+
 			$photographers[ $name ] = array(
 				'name'  => trim( (string) $image->photographer ),
 				'count' => ( $photographers[ $name ]['count'] ?? 0 ) + 1,
@@ -1004,10 +1132,25 @@ class Entries {
 			return $new_filename;
 		}
 
+		// A number of its own in the new category, taken before the entry arrives so it isn't counted
+		// there twice. Neither category has votes, or the move would have been refused.
+		$numbered = self::numbers_each_image( $competition );
+		$number   = $numbered ? $this->images_repo->open_number_slot( (int) $competition->id, $new_category ) : 0;
+
 		$result = $this->images_repo->update_category( (int) $entry->id, $new_category, $new_filename );
 		if ( is_wp_error( $result ) ) {
+			if ( $numbered ) {
+				$this->images_repo->close_number_slot( (int) $competition->id, $new_category, $number );
+			}
 			$this->move_back( $competition, $entry, $new_category, $new_filename );
 			return $result;
+		}
+
+		if ( $numbered ) {
+			// Read afresh: an earlier move in the same batch may have closed a gap below it.
+			$old_number = (int) $this->images_repo->find( (int) $entry->id )->random_number;
+			$this->images_repo->update_number( (int) $entry->id, $number );
+			$this->images_repo->close_number_slot( (int) $competition->id, (string) $entry->category, $old_number );
 		}
 
 		return $new_filename;

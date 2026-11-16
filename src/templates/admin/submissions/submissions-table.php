@@ -64,7 +64,10 @@ foreach ( $data['rows'] as $row ) {
 	echo '</td>';
 
 	if ( $data['interclub'] ) {
-		echo '<td>' . esc_html( $row->photographer ) . '</td>';
+		// The field and its button belong to this row's photographer form after the table, so Enter saves this row.
+		$photographer_form = 'photo-comp-photographer-form-' . $row->image_id;
+		echo '<td><input type="text" class="photo-comp-photographer-field" maxlength="191" form="' . esc_attr( $photographer_form ) . '" name="photographer" value="' . esc_attr( $row->photographer ) . '" aria-label="' . esc_attr__( 'Photographer', 'photo-competition-manager' ) . '" />';
+		echo ' <button type="submit" class="button button-small" form="' . esc_attr( $photographer_form ) . '">' . esc_html__( 'Save', 'photo-competition-manager' ) . '</button></td>';
 	}
 
 	// Category as plain text.
@@ -93,6 +96,18 @@ foreach ( $data['rows'] as $row ) {
 echo '</tbody>';
 echo '</table>';
 echo '</form>';
+
+if ( $data['interclub'] ) {
+	foreach ( $data['rows'] as $row ) {
+		echo '<form method="post" id="' . esc_attr( 'photo-comp-photographer-form-' . $row->image_id ) . '">';
+		wp_nonce_field( 'photo_competition_photographer_' . $data['competition_id'], '_wpnonce', true, true );
+		echo '<input type="hidden" name="action" value="change_photographer" />';
+		echo '<input type="hidden" name="competition_id" value="' . esc_attr( $data['competition_id'] ) . '" />';
+		echo '<input type="hidden" name="member_id" value="' . esc_attr( $data['member_id'] ) . '" />';
+		echo '<input type="hidden" name="image_id" value="' . esc_attr( $row->image_id ) . '" />';
+		echo '</form>';
+	}
+}
 
 echo '<form method="post" id="photo-comp-entry-status-form">';
 wp_nonce_field( 'photo_competition_entry_status_' . $data['competition_id'], '_wpnonce' );

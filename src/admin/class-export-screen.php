@@ -275,8 +275,9 @@ class Export_Screen {
 	/**
 	 * The votes CSV's rows, one section per category.
 	 *
-	 * Columns are aligned across all categories using the member's random_number.
-	 * If a member didn't upload to a category, their column shows 0 for all voters.
+	 * Columns are aligned across all categories using the entries' random_number: a member's one
+	 * number, or in an interclub competition each image's number within its category.
+	 * If a number has no entry in a category, its column shows 0 for all voters.
 	 * Votes for entries that no longer exist are left out.
 	 *
 	 * @since 0.4.0
