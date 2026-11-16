@@ -96,6 +96,66 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	public function test_each_of_a_members_images_in_a_category_gets_its_own_votes_csv_column(): void {
+		// Member 7's images 22 and 21 share their number, so their headers name the file; member 3 has one image.
+		$images = array();
+		foreach ( array( 22 => 7, 23 => 3, 21 => 7 ) as $id => $random_number ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => $random_number,
+				'category'      => 'colour',
+				'filename'      => 'photo-' . $id . '.jpg',
+			);
+		}
+		$votes = array(
+			$this->vote( 21, 5, 'Ann' ),
+			$this->vote( 22, 7, 'Ann' ),
+			$this->vote( 23, 9, 'Ann' ),
+			$this->vote( 22, 6, 'Bob' ),
+		);
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #3', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
+				array( 'Ann', 9, 5, 7 ),
+				array( 'Bob', '', '', 6 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( $votes, $images )
+		);
+	}
+
+	public function test_a_number_split_in_one_category_has_the_same_columns_in_every_category(): void {
+		// Member 7 has two colour images and one mono image.
+		$images = array();
+		foreach ( array( 21 => 'colour', 22 => 'colour', 23 => 'mono' ) as $id => $category ) {
+			$images[] = (object) array(
+				'id'            => $id,
+				'random_number' => 7,
+				'category'      => $category,
+				'filename'      => 'photo-' . $id . '.jpg',
+			);
+		}
+		$mono = $this->vote( 23, 8, 'Ann' );
+
+		$mono->category = 'mono';
+
+		$this->assertSame(
+			array(
+				array( 'Category: colour' ),
+				array( 'Voter', 'Image #7a (photo-21.jpg)', 'Image #7b (photo-22.jpg)' ),
+				array( 'Ann', 5, 6 ),
+				array( '' ),
+				array( 'Category: mono' ),
+				array( 'Voter', 'Image #7a (photo-23.jpg)', 'Image #7b' ),
+				array( 'Ann', 8, 0 ),
+				array( '' ),
+			),
+			( new Export_Screen() )->votes_csv_rows( array( $this->vote( 21, 5, 'Ann' ), $this->vote( 22, 6, 'Ann' ), $mono ), $images )
+		);
+	}
+
 	public function test_every_judge_gets_their_own_row_in_the_votes_csv(): void {
 		$judges = new \PhotoCompetitionManager\Repository\Judges_Repository();
 		$ann    = $judges->create( 'Ann', 'ann@example.com' );
