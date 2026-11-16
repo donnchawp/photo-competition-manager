@@ -41,7 +41,7 @@ class Images_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_entered( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
-		return $this->query_competition( $competition_id, $category, $member_id, true );
+		return $this->query_competition( $competition_id, $category, $member_id, array( 'entered' ) );
 	}
 
 	/**
@@ -55,7 +55,22 @@ class Images_Repository extends Abstract_Repository {
 	 * @return array<int, object>
 	 */
 	public function find_uploads( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
-		return $this->query_competition( $competition_id, $category, $member_id, false );
+		return $this->query_competition( $competition_id, $category, $member_id, array() );
+	}
+
+	/**
+	 * Find the images that take a place in a competition's panels: entered
+	 * images and substitutes. A disqualified image takes none.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param int         $competition_id Competition ID.
+	 * @param string|null $category       Optional category filter.
+	 * @param int|null    $member_id      Optional member filter.
+	 * @return array<int, object>
+	 */
+	public function find_in_panels( int $competition_id, ?string $category = null, ?int $member_id = null ): array {
+		return $this->query_competition( $competition_id, $category, $member_id, array( 'entered', 'substitute' ) );
 	}
 
 	/**
@@ -64,10 +79,10 @@ class Images_Repository extends Abstract_Repository {
 	 * @param int         $competition_id Competition ID.
 	 * @param string|null $category       Optional category filter.
 	 * @param int|null    $member_id      Optional member filter.
-	 * @param bool        $entered_only   Whether to leave out substitutes and disqualified images.
+	 * @param string[]    $statuses       Entry statuses to find; every status when empty.
 	 * @return array<int, object>
 	 */
-	private function query_competition( int $competition_id, ?string $category, ?int $member_id, bool $entered_only ): array {
+	private function query_competition( int $competition_id, ?string $category, ?int $member_id, array $statuses ): array {
 		global $wpdb;
 
 		if ( $competition_id <= 0 ) {
@@ -77,8 +92,9 @@ class Images_Repository extends Abstract_Repository {
 		$query        = 'SELECT * FROM %i WHERE competition_id = %d';
 		$prepare_args = array( $this->table(), $competition_id );
 
-		if ( $entered_only ) {
-			$query .= " AND entry_status = 'entered'";
+		if ( $statuses ) {
+			$query       .= ' AND entry_status IN (' . implode( ', ', array_fill( 0, count( $statuses ), '%s' ) ) . ')';
+			$prepare_args = array_merge( $prepare_args, $statuses );
 		}
 
 		if ( null !== $category ) {
