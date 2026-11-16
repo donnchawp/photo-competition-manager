@@ -305,6 +305,92 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Uploads are closed', $output );
 	}
 
+	/**
+	 * Make the test's competition an interclub one.
+	 *
+	 * @param int $quota              Images in the colour panel.
+	 * @param int $substitutes        Substitutes beside it.
+	 * @param int $photographer_limit Most images per photographer in it; 0 for no limit.
+	 */
+	private function make_interclub( int $quota, int $substitutes, int $photographer_limit = 0 ): void {
+		( new Competitions_Repository() )->update(
+			$this->competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => $quota,
+						),
+					),
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => $substitutes,
+						'photographer_limit' => $photographer_limit,
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Store one of the uploader's images in the colour panel.
+	 *
+	 * @param string $photographer Photographer's name.
+	 * @param string $entry_status Entry status.
+	 * @return void
+	 */
+	private function insert_panel_image( string $photographer, string $entry_status = 'entered' ): void {
+		( new Images_Repository() )->create(
+			array(
+				'competition_id' => $this->competition_id,
+				'member_id'      => (int) $this->members->find_by_email( 'uploader@example.com' )->id,
+				'category'       => 'colour',
+				'filename'       => wp_unique_id( 'panel-' ) . '.jpg',
+				'photographer'   => $photographer,
+				'entry_status'   => $entry_status,
+			)
+		);
+	}
+
+	public function test_a_club_with_a_full_panel_can_still_upload_its_substitutes(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann' );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringNotContainsString( 'You have reached the maximum number of submissions', $output );
+		$data = $this->upload_script_data();
+		$this->assertSame( 1, $data['quotas']['colour']['remaining'] );
+		$this->assertSame( 1, $data['quotas']['colour']['substitutes_remaining'] );
+		$this->assertTrue( $data['interclub']['enabled'] );
+	}
+
+	public function test_a_club_sees_each_images_photographer_and_its_substitutes(): void {
+		$this->make_interclub( 1, 1 );
+		$_GET['token'] = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$this->insert_panel_image( 'Bob Byrne', 'substitute' );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Ann Murphy', $output );
+		$this->assertMatchesRegularExpression( '/Bob Byrne.*Substitute/s', $output );
+	}
+
+	public function test_an_upload_over_the_photographer_limit_says_so(): void {
+		$this->make_interclub( 2, 0, 1 );
+		$token = $this->issue_token( true );
+		$this->insert_panel_image( 'Ann Murphy' );
+		$_POST['photographer'] = 'ann murphy';
+
+		$output = $this->follow( $this->post_upload( $token, UPLOAD_ERR_OK ) );
+
+		$this->assertStringContainsString( 'That photographer already has as many images in this panel as they&#039;re allowed.', $output );
+	}
+
 	public function test_an_upload_over_quota_shows_the_quota_message(): void {
 		$token = $this->issue_token( true );
 		Entry_Fixtures::insert_entry( $this->competition_id, 'colour', (int) $this->members->find_by_email( 'uploader@example.com' )->id, array() );
@@ -448,23 +534,27 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function message_texts(): array {
 		return array(
-			'upload_success'     => array( 'upload_success', 'Image uploaded successfully!' ),
-			'delete_success'     => array( 'delete_success', 'Image deleted successfully.' ),
-			'category_missing'   => array( 'category_missing', 'Please select a category.' ),
-			'image_missing'      => array( 'image_missing', 'Please select an image to upload.' ),
-			'invalid_deletion'   => array( 'invalid_deletion', 'Invalid deletion request.' ),
-			'upload_failed'      => array( 'upload_failed', 'Upload failed. Please try again.' ),
-			'delete_failed'      => array( 'delete_failed', 'Failed to delete image. Please try again.' ),
-			'quota_exceeded'     => array( 'quota_exceeded', 'You&#039;ve already uploaded the maximum number of images for this category.' ),
-			'uploads_closed'     => array( 'uploads_closed', 'This competition isn&#039;t accepting uploads right now.' ),
-			'category_has_votes' => array( 'category_has_votes', 'This category already has votes, so it can&#039;t take new entries.' ),
-			'voting_started'     => array( 'voting_started', 'Voting has started in this category, so it can&#039;t take new entries.' ),
-			'invalid_category'   => array( 'invalid_category', 'That category isn&#039;t part of this competition.' ),
-			'file_too_large'     => array( 'file_too_large', 'That image is too big. Check the size limit under the upload form.' ),
-			'wrong_file_type'    => array( 'wrong_file_type', 'That file type isn&#039;t allowed. Check the formats listed under the upload form.' ),
-			'invalid_image'      => array( 'invalid_image', 'That file isn&#039;t a valid image.' ),
-			'deleting_closed'    => array( 'deleting_closed', 'Images can&#039;t be deleted now that uploads have closed.' ),
-			'entry_not_found'    => array( 'entry_not_found', 'That image wasn&#039;t found. It may already have been deleted.' ),
+			'upload_success'       => array( 'upload_success', 'Image uploaded successfully!' ),
+			'delete_success'       => array( 'delete_success', 'Image deleted successfully.' ),
+			'category_missing'     => array( 'category_missing', 'Please select a category.' ),
+			'image_missing'        => array( 'image_missing', 'Please select an image to upload.' ),
+			'invalid_deletion'     => array( 'invalid_deletion', 'Invalid deletion request.' ),
+			'upload_failed'        => array( 'upload_failed', 'Upload failed. Please try again.' ),
+			'delete_failed'        => array( 'delete_failed', 'Failed to delete image. Please try again.' ),
+			'quota_exceeded'       => array( 'quota_exceeded', 'You&#039;ve already uploaded the maximum number of images for this category.' ),
+			'uploads_closed'       => array( 'uploads_closed', 'This competition isn&#039;t accepting uploads right now.' ),
+			'category_has_votes'   => array( 'category_has_votes', 'This category already has votes, so it can&#039;t take new entries.' ),
+			'voting_started'       => array( 'voting_started', 'Voting has started in this category, so it can&#039;t take new entries.' ),
+			'invalid_category'     => array( 'invalid_category', 'That category isn&#039;t part of this competition.' ),
+			'file_too_large'       => array( 'file_too_large', 'That image is too big. Check the size limit under the upload form.' ),
+			'wrong_file_type'      => array( 'wrong_file_type', 'That file type isn&#039;t allowed. Check the formats listed under the upload form.' ),
+			'invalid_image'        => array( 'invalid_image', 'That file isn&#039;t a valid image.' ),
+			'deleting_closed'      => array( 'deleting_closed', 'Images can&#039;t be deleted now that uploads have closed.' ),
+			'entry_not_found'      => array( 'entry_not_found', 'That image wasn&#039;t found. It may already have been deleted.' ),
+			'photographer_missing' => array( 'photographer_missing', 'Please give the photographer&#039;s name.' ),
+			'no_substitutes'       => array( 'no_substitutes', 'This competition doesn&#039;t take substitutes.' ),
+			'substitutes_full'     => array( 'substitutes_full', 'This panel already has all its substitutes.' ),
+			'photographer_limit'   => array( 'photographer_limit', 'That photographer already has as many images in this panel as they&#039;re allowed. Substitutes don&#039;t count.' ),
 		);
 	}
 

@@ -11,12 +11,13 @@ require( '../../assets/src/js/submission-category' );
  *
  * @param {string[]} entryCategories The category each entry is in.
  * @param {Object}   categories      The competition's categories, keyed by slug.
+ * @param {string[]} statuses        Each entry's status, entered when left out.
  */
-function renderPage( entryCategories, categories ) {
+function renderPage( entryCategories, categories, statuses = [] ) {
 	window.photoCompCategoryUpdate = { token: 'abc', apiUrl: 'https://example.com/wp-json/', nonce: 'n', categories };
 	const options = Object.keys( categories ).map( ( slug ) => `<option value="${ slug }">${ slug }</option>` ).join( '' );
 	const selects = entryCategories.map( ( category, i ) => `
-		<select class="submission-category-select" data-submission-id="${ i + 1 }" data-original-category="${ category }">${ options }</select>` ).join( '' );
+		<select class="submission-category-select" data-submission-id="${ i + 1 }" data-original-category="${ category }" data-entry-status="${ statuses[ i ] || 'entered' }">${ options }</select>` ).join( '' );
 	document.body.innerHTML = `
 		<div id="category-change-status" class="category-change-status" style="display: none;"></div>
 		${ selects }
@@ -78,6 +79,22 @@ describe( 'category changes', () => {
 		expect( Array.from( status().querySelectorAll( 'li' ), ( li ) => li.textContent ) ).toEqual( [ 'Colour: 2/1 (over quota)' ] );
 		expect( status().querySelector( 'p' ).textContent ).toBe( 'Please adjust categories before saving.' );
 		expect( saveButton().disabled ).toBe( true );
+	} );
+
+	it( "counts a panel's substitutes apart from its entries, and leaves out disqualified ones", () => {
+		const panels = {
+			colour: { label: 'Colour', quota: 1, substitutes: 1 },
+			mono: { label: 'Mono', quota: 1, substitutes: 1 },
+		};
+		renderPage( [ 'colour', 'colour', 'colour', 'mono' ], panels, [ 'entered', 'substitute', 'disqualified', 'substitute' ] );
+
+		move( 3, 'colour' );
+		expect( Array.from( status().querySelectorAll( 'li' ), ( li ) => li.textContent ) ).toEqual( [ 'Colour: 2/1 substitutes (over the limit)' ] );
+
+		move( 3, 'mono' );
+		move( 0, 'mono' );
+		expect( status().querySelectorAll( 'li' ) ).toHaveLength( 0 );
+		expect( saveButton().disabled ).toBe( false );
 	} );
 
 	it( 'shows a category label with HTML in it as written', () => {

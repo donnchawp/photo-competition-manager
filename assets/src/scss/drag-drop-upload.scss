@@ -124,6 +124,25 @@
 	padding: 15px;
 }
 
+// An interclub image's photographer and substitute box.
+.photo-comp-interclub-fields {
+	margin-bottom: 10px;
+
+	label {
+		display: block;
+		margin-bottom: 6px;
+		font-size: 14px;
+	}
+
+	.photo-comp-photographer-input {
+		width: 100%;
+		padding: 8px;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		font-size: 14px;
+	}
+}
+
 .photo-comp-category-select-container {
 	margin-bottom: 10px;
 

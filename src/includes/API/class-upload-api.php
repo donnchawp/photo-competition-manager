@@ -278,6 +278,10 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
+		// Interclub details, keyed like the assignments.
+		$photographers = $this->file_map( $request, 'photographers' );
+		$substitutes   = $this->file_map( $request, 'substitutes' );
+
 		// Get uploaded files.
 		$files = $request->get_file_params();
 
@@ -308,19 +312,23 @@ class Upload_API extends WP_REST_Controller {
 			);
 		}
 
-		// Count files per category in this batch to validate quotas upfront.
+		// Count files per category in this batch to validate quotas upfront: entries and
+		// substitutes apart, since a panel has places for each.
 		$batch_category_counts = array();
 		foreach ( $assignments as $file_key => $category ) {
 			$category = sanitize_text_field( $category );
 			if ( ! empty( $category ) ) {
-				$batch_category_counts[ $category ] = isset( $batch_category_counts[ $category ] ) ? $batch_category_counts[ $category ] + 1 : 1;
+				$kind = empty( $substitutes[ $file_key ] ) ? 'entered' : 'substitutes';
+
+				$batch_category_counts[ $category ][ $kind ] = ( $batch_category_counts[ $category ][ $kind ] ?? 0 ) + 1;
 			}
 		}
 
 		// Validate quotas for all categories in batch before processing any files.
-		$settings = Competition_Settings::parse( $competition->settings );
+		$settings     = Competition_Settings::parse( $competition->settings );
+		$quota_status = $this->entries->get_quota_status( $competition, $member_id );
 
-		foreach ( $batch_category_counts as $category => $batch_count ) {
+		foreach ( $batch_category_counts as $category => $batch_counts ) {
 			$category_config = Competition_Settings::find_category( $settings, $category );
 
 			if ( ! $category_config ) {
@@ -335,23 +343,24 @@ class Upload_API extends WP_REST_Controller {
 				);
 			}
 
-			// Check if batch would exceed quota for this category.
-			$current_count = $this->entries->get_category_count( (int) $competition->id, $member_id, $category );
-			$quota         = $category_config['quota'] ?? 1;
-			$available     = $quota - $current_count;
+			// Check if batch would exceed quota for this category. Adding each file
+			// checks the rest, such as the photographer limit.
+			foreach ( $batch_counts as $kind => $batch_count ) {
+				$available = $quota_status[ $category ][ $kind . '_remaining' ] ?? 0;
 
-			if ( $batch_count > $available ) {
-				return new WP_Error(
-					'batch_quota_exceeded',
-					sprintf(
-						/* translators: 1: category label, 2: requested count, 3: available slots */
-						__( 'Cannot upload %2$d image(s) to %1$s. You have %3$d slot(s) available.', 'photo-competition-manager' ),
-						$category_config['label'],
-						$batch_count,
-						$available
-					),
-					array( 'status' => 400 )
-				);
+				if ( $batch_count > $available ) {
+					return new WP_Error(
+						'batch_quota_exceeded',
+						sprintf(
+							/* translators: 1: category label, 2: requested count, 3: available slots */
+							__( 'Cannot upload %2$d image(s) to %1$s. You have %3$d slot(s) available.', 'photo-competition-manager' ),
+							$category_config['label'],
+							$batch_count,
+							$available
+						),
+						array( 'status' => 400 )
+					);
+				}
 			}
 		}
 
@@ -375,7 +384,11 @@ class Upload_API extends WP_REST_Controller {
 				(int) $competition->id,
 				$member_id,
 				$category,
-				$file
+				$file,
+				array(
+					'photographer' => $photographers[ $file_key ] ?? '',
+					'substitute'   => ! empty( $substitutes[ $file_key ] ),
+				)
 			);
 
 			if ( is_wp_error( $result ) ) {
@@ -405,6 +418,30 @@ class Upload_API extends WP_REST_Controller {
 	}
 
 	/**
+	 * A per-file request field, such as the photographers, keyed by file key.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @param string          $name    Field name.
+	 * @return array<string, string> Sanitized values.
+	 */
+	private function file_map( WP_REST_Request $request, string $name ): array {
+		$values = $request->get_param( $name );
+		if ( ! is_array( $values ) ) {
+			$body   = $request->get_body_params();
+			$values = isset( $body[ $name ] ) && is_array( $body[ $name ] ) ? $body[ $name ] : array();
+		}
+
+		$map = array();
+		foreach ( $values as $file_key => $value ) {
+			if ( is_scalar( $value ) ) {
+				$map[ (string) $file_key ] = sanitize_text_field( (string) $value );
+			}
+		}
+
+		return $map;
+	}
+
+	/**
 	 * Get parameters for quota endpoint.
 	 *
 	 * @return array<string, array<string, mixed>>
@@ -427,15 +464,23 @@ class Upload_API extends WP_REST_Controller {
 	 */
 	private function get_batch_upload_params(): array {
 		return array(
-			'token'       => array(
+			'token'         => array(
 				'description'       => __( 'Upload token string.', 'photo-competition-manager' ),
 				'type'              => 'string',
 				'required'          => true,
 				'sanitize_callback' => 'sanitize_text_field',
 			),
 			// Not required here: batch_upload() checks it, after spotting a body PHP dropped for its size.
-			'assignments' => array(
+			'assignments'   => array(
 				'description' => __( 'Array mapping file keys to category slugs.', 'photo-competition-manager' ),
+				'type'        => 'object',
+			),
+			'photographers' => array(
+				'description' => __( 'Array mapping file keys to photographers\' names, for an interclub competition.', 'photo-competition-manager' ),
+				'type'        => 'object',
+			),
+			'substitutes'   => array(
+				'description' => __( 'Array mapping file keys to 1 for each substitute, for an interclub competition.', 'photo-competition-manager' ),
 				'type'        => 'object',
 			),
 		);
