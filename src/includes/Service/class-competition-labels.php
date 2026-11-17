@@ -38,18 +38,12 @@ class Competition_Labels {
 	private $images;
 
 	/**
-	 * Each type's grade names, by type ID, once looked up.
+	 * Each type's non-blank grade names and the slugs of the club grades it
+	 * uses, by type ID, once looked up.
 	 *
-	 * @var array<int, array<string,string>>
+	 * @var array<int, array{names: array<string,string>, used: string[]}>
 	 */
-	private $names = array();
-
-	/**
-	 * The club grades each type leaves out, by type ID, once looked up.
-	 *
-	 * @var array<int, string[]>
-	 */
-	private $unused = array();
+	private $type_grades = array();
 
 	/**
 	 * The "everyone" form of each competition's title, by competition ID, once built.
@@ -191,7 +185,7 @@ class Competition_Labels {
 	 * @return array<string,string>
 	 */
 	private function type_names( object $competition ): array {
-		return $this->names[ $this->load_type( $competition ) ];
+		return $this->type_grades( $competition )['names'];
 	}
 
 	/**
@@ -202,27 +196,29 @@ class Competition_Labels {
 	 * @return string[]
 	 */
 	public function used_grades( object $competition ): array {
-		$unused = $this->unused[ $this->load_type( $competition ) ];
-
-		return array_values( array_diff( array_map( 'strval', array_keys( Competition_Settings::grade_labels() ) ), $unused ) );
+		return $this->type_grades( $competition )['used'];
 	}
 
 	/**
-	 * Look up a competition's type's grade names and unused grades, once per type.
+	 * A competition's type's grade names and used grades, looked up once per type.
 	 *
 	 * @param object $competition Competition row.
-	 * @return int The type ID they're cached under.
+	 * @return array{names: array<string,string>, used: string[]}
 	 */
-	private function load_type( object $competition ): int {
+	private function type_grades( object $competition ): array {
 		$type_id = (int) ( $competition->type_id ?? 0 );
 
-		if ( ! isset( $this->names[ $type_id ] ) ) {
-			$type                     = $type_id ? $this->types->find( $type_id ) : null;
-			$this->names[ $type_id ]  = $type ? array_filter( array_map( 'strval', (array) $type->grade_names ), 'strlen' ) : array();
-			$this->unused[ $type_id ] = $type ? $type->unused_grades : array();
+		if ( ! isset( $this->type_grades[ $type_id ] ) ) {
+			$type   = $type_id ? $this->types->find( $type_id ) : null;
+			$unused = $type ? $type->unused_grades : array();
+
+			$this->type_grades[ $type_id ] = array(
+				'names' => $type ? array_filter( array_map( 'strval', (array) $type->grade_names ), 'strlen' ) : array(),
+				'used'  => array_values( array_diff( array_map( 'strval', array_keys( Competition_Settings::grade_labels() ) ), $unused ) ),
+			);
 		}
 
-		return $type_id;
+		return $this->type_grades[ $type_id ];
 	}
 
 	/**
