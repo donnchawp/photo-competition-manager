@@ -219,6 +219,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
   * The voting page's vote counter and missing-votes messages, and the upload page's category-change messages, can be translated too, and say "1 image" or "2 images" instead of "image(s)"
   * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
+  * Drag-and-drop upload no longer hangs on "Uploading..." when one of the member's categories was already full before the page loaded. It offers only the categories with room left
   * A drag-and-drop batch's summary is green only when every image went in. A batch where nothing went in says "No images were uploaded." as an error, a mixed batch shows as a notice, and screen readers announce the outcome and any upload error
   * Success and error messages on the upload, voting and results pages use darker text, so they're easier to read
   * The Submissions screen shows the submitted photos first, then the Submission Status table. With no submissions, the notice comes first and the table still shows who has opened their upload link
