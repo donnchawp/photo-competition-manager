@@ -14,7 +14,6 @@ use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
-use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -172,13 +171,13 @@ class Competition_Entry {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
-		// In an interclub competition a club is a member tagged with the competition's type, so anyone else would enter as a person.
-		if ( Competition_Settings::is_interclub( $competition ) && ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
+		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
+		if ( ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(
 					/* translators: %s: Member name */
-					__( '%s isn\'t one of the clubs in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
 					$member->name
 				)
 			);

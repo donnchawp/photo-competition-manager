@@ -906,7 +906,11 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-entrants-tab-selected', array( $comp_id ) );
 	}
 
-	public function test_render_entrants_tab_with_two_types_names_the_type_and_lists_its_members_first(): void {
+	/**
+	 * Only members tagged with the competition's type can be entered, so only
+	 * they are offered (#246).
+	 */
+	public function test_render_entrants_tab_with_two_types_offers_only_the_types_members(): void {
 		$ids     = $this->use_two_types();
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$members = new Members_Repository();
@@ -923,7 +927,9 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_normalized( array( $comp_id ) );
 
 		$this->assertStringContainsString( 'Open to everyone in Team', $html );
-		$this->assertMatchesRegularExpression( '/<optgroup label="Team">\s*<option value="MEMBER">Zoe.*<optgroup label="Other members">\s*<option value="MEMBER">Ann/s', $html );
+		$this->assertStringContainsString( '<option value="MEMBER">Zoe (zoe@example.com)</option>', $html );
+		$this->assertStringNotContainsString( 'ann@example.com', $html );
+		$this->assertStringNotContainsString( 'Other members', $html );
 	}
 
 	/**

@@ -182,7 +182,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_add_entrant_while_uploads_open_sends_upload_link(): void {
 		$competition = $this->competition( 'Individual', 'selected' );
-		$bob         = $this->member( 'Bob', array( 'Team' ) );
+		$bob         = $this->member( 'Bob', array( 'Individual' ) );
 		reset_phpmailer_instance();
 
 		$this->assertTrue( $this->entry->add_entrant( $competition, $bob ) );
@@ -207,20 +207,20 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * A club enters an interclub competition, and a club is a member tagged with
-	 * its type, so a person who isn't can't be entered as one (#246).
+	 * A competition's entrants come from its type, so a member who isn't tagged
+	 * with it can't be entered, whether or not its entrants are clubs (#246).
 	 */
-	public function test_interclub_add_entrant_enters_only_members_of_the_type(): void {
-		$competition = $this->competition( 'Team', 'selected', true );
-		$club        = $this->member( 'Riverside Camera Club', array( 'Team' ) );
-		$person      = $this->member( 'Bob', array( 'Individual' ) );
+	public function test_add_entrant_enters_only_members_of_the_type(): void {
+		$competition = $this->competition( 'Team', 'selected' );
+		$member      = $this->member( 'Ann', array( 'Team' ) );
+		$outsider    = $this->member( 'Bob', array( 'Individual' ) );
 
-		$result = $this->entry->add_entrant( $competition, $person );
+		$result = $this->entry->add_entrant( $competition, $outsider );
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'not_in_type', $result->get_error_code() );
-		$this->assertFalse( $this->entrants->has( (int) $competition->id, $person ) );
-		$this->assertTrue( $this->entry->add_entrant( $competition, $club ) );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $outsider ) );
+		$this->assertTrue( $this->entry->add_entrant( $competition, $member ) );
 	}
 
 	public function test_add_entrant_refused_when_open_to_all(): void {
