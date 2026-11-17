@@ -10,11 +10,12 @@ class DragDropUpload {
 	constructor(config) {
 		this.token = config.token;
 		this.apiUrl = config.apiUrl;
-		this.categories = config.categories;
 		// A copy, since the uploader counts down each category's remaining quota as images go in.
 		this.quotas = Object.fromEntries(
 			Object.entries(config.quotas).map(([slug, quota]) => [slug, { ...quota }])
 		);
+		// The page sends a quota only for the categories with room left, so a full one is never offered.
+		this.categories = config.categories.filter((cat) => cat.slug in this.quotas);
 		this.maxFileSize = config.maxFileSize || 10 * 1024 * 1024; // 10MB default
 		this.allowedFormats = config.allowedFormats || ['jpg', 'jpeg', 'png'];
 		// In an interclub competition each image names its photographer and may be a substitute.

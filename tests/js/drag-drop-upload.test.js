@@ -552,6 +552,33 @@ describe( 'drag-and-drop upload', () => {
 		} );
 	} );
 
+	describe( 'with a category already full when the page loaded', () => {
+		const { categories, quotas } = window.photoCompUpload;
+
+		beforeEach( () => {
+			// The page sends a quota only for the categories with room left.
+			window.photoCompUpload.categories = [
+				{ slug: 'colour', label: 'Colour', quota: 2 },
+				{ slug: 'mono', label: 'Mono', quota: 2 },
+			];
+			window.photoCompUpload.quotas = { mono: { current: 0, quota: 2, remaining: 2 } };
+			renderPage();
+			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
+		} );
+
+		afterEach( () => {
+			window.photoCompUpload.categories = categories;
+			window.photoCompUpload.quotas = quotas;
+		} );
+
+		it( 'finishes the upload into the category with room', async () => {
+			await sendTwoWithFirstUploaded();
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, uploaded ) );
+
+			expect( window.location.reload ).toHaveBeenCalledTimes( 1 );
+		} );
+	} );
+
 	it( 'asks for no photographer in an individual competition', async () => {
 		await selectFiles( [ 'one.jpg' ] );
 
