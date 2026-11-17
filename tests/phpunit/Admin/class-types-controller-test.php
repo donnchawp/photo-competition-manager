@@ -193,7 +193,7 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_edit_type_saves_grade_names_and_blank_means_default(): void {
-		$this->types->update( $this->individual, 'Individual', array( 'categories' => $this->categories() ), array( 'advanced' => 'Senior' ) );
+		$this->types->update( $this->individual, 'Individual', array( 'categories' => $this->categories() ), array( 'advanced' => 'Senior' ), array() );
 
 		$location = $this->post(
 			array(
@@ -375,6 +375,7 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 					'days_before_open' => 3,
 				),
 			),
+			array(),
 			array()
 		);
 

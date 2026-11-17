@@ -71,7 +71,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * @param string[]             $unused_grades Slugs of the club's grades this type doesn't use.
 	 * @return true|WP_Error
 	 */
-	public function update( int $id, string $name, array $settings, array $grade_names, array $unused_grades = array() ) {
+	public function update( int $id, string $name, array $settings, array $grade_names, array $unused_grades ) {
 		global $wpdb;
 
 		$name  = sanitize_text_field( $name );
@@ -271,16 +271,28 @@ class Competition_Types_Repository extends Abstract_Repository {
 		$grades = Competition_Settings::decode( $row->grade_names );
 
 		$row->settings      = Competition_Settings::decode( $row->settings );
-		$row->grade_names   = array_filter( $grades, 'is_string' );
-		$row->unused_grades = array_map( 'strval', array_keys( $grades, false, true ) );
+		$row->grade_names   = array();
+		$row->unused_grades = array();
+		foreach ( $grades as $slug => $grade ) {
+			if ( is_string( $grade ) ) {
+				$row->grade_names[ $slug ] = $grade;
+				continue;
+			}
+			$row->unused_grades[] = (string) $slug;
+			if ( is_array( $grade ) && isset( $grade['name'] ) && is_string( $grade['name'] ) ) {
+				$row->grade_names[ $slug ] = $grade['name'];
+			}
+		}
 
 		return $row;
 	}
 
 	/**
 	 * Encode a type's grade names and unused grades as the one JSON object the
-	 * grade_names column holds: an unused grade maps to false, so a type saved
-	 * before grades could be left out uses every grade.
+	 * grade_names column holds. A used grade maps to its name. An unused one
+	 * maps to false, or to {"name": …, "used": false} when the type names it,
+	 * so ticking it again brings the name back. A type saved before grades
+	 * could be left out has only names, so it uses every grade.
 	 *
 	 * @param array<string,string> $grade_names   Grade slug to name.
 	 * @param string[]             $unused_grades Slugs of the grades the type doesn't use.
@@ -288,7 +300,13 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 */
 	private function encode_grades( array $grade_names, array $unused_grades ): string {
 		foreach ( $unused_grades as $slug ) {
-			$grade_names[ (string) $slug ] = false;
+			$slug                 = (string) $slug;
+			$grade_names[ $slug ] = isset( $grade_names[ $slug ] )
+				? array(
+					'name' => $grade_names[ $slug ],
+					'used' => false,
+				)
+				: false;
 		}
 
 		return Competition_Settings::encode( $grade_names );

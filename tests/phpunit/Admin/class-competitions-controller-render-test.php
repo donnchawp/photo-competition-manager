@@ -979,7 +979,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$ids   = $this->use_two_types();
 		$types = new Competition_Types_Repository();
 		$team  = $types->find( $ids['Team'] );
-		$types->update( $ids['Team'], 'Team', $team->settings, array( 'advanced' => 'Cup' ) );
+		$types->update( $ids['Team'], 'Team', $team->settings, array( 'advanced' => 'Cup' ), array() );
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$this->set_request(
 			array(
@@ -996,15 +996,18 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * A new member can't be put in a grade the type leaves out, since they
-	 * couldn't enter (#247).
+	 * Nobody can be entered in a grade the type leaves out, so neither the
+	 * picker nor the new-member form offers it (#247).
 	 */
-	public function test_render_entrants_tab_new_member_grades_leave_out_unused_grades(): void {
+	public function test_render_entrants_tab_leaves_out_unused_grades(): void {
 		$ids   = $this->use_two_types();
 		$types = new Competition_Types_Repository();
 		$team  = $types->find( $ids['Team'] );
 		$types->update( $ids['Team'], 'Team', $team->settings, array(), array( 'beginner' ) );
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
+		$members = new Members_Repository();
+		$members->create( array( 'name' => 'Bea', 'email' => 'bea@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'advanced', 'type_ids' => array( $ids['Team'] ) ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1015,6 +1018,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$html = $this->render_normalized( array( $comp_id ) );
 
+		$this->assertStringNotContainsString( 'bea@example.com', $html );
+		$this->assertStringContainsString( 'Ada (ada@example.com)', $html );
 		$this->assertStringNotContainsString( '<option value="beginner">', $html );
 		$this->assertStringContainsString( '<option value="advanced">Advanced</option>', $html );
 	}

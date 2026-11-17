@@ -193,6 +193,26 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $ann ), $this->entry->eligible_member_ids( $selected ) );
 	}
 
+	/**
+	 * An admin can't enter a member whose grade the type leaves out, since
+	 * they couldn't upload (#247).
+	 */
+	public function test_add_entrant_refuses_a_member_in_a_grade_the_type_does_not_use(): void {
+		Type_Fixtures::clear();
+		$this->types = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
+		);
+		$competition = $this->competition( 'Team', 'selected' );
+		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+
+		$result = $this->entry->add_entrant( $competition, $bob );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'grade_not_used', $result->get_error_code() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $bob ) );
+	}
+
 	public function test_inactive_member_may_not_enter(): void {
 		$open     = $this->competition( 'Individual' );
 		$inactive = $this->member( 'Cat', array( 'Individual' ), false );

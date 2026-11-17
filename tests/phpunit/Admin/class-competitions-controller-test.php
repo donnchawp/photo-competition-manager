@@ -325,6 +325,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 				'categories' => array( array( 'label' => 'Changed', 'slug' => 'changed', 'quota' => 9 ) ),
 				'voting'     => array( 'score_matrix' => array( 9, 9 ) ),
 			),
+			array(),
 			array()
 		);
 		$after = $this->stored_settings( (int) $this->competitions->find_by_slug( 'typed-show' )->id );

@@ -133,7 +133,7 @@ class Competition_Entry {
 
 	/**
 	 * The members an admin can add as entrants: active members tagged with the
-	 * competition's type who aren't entrants yet, by name.
+	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
 	 * @param object $competition Competition row.
@@ -145,8 +145,8 @@ class Competition_Entry {
 		return array_values(
 			array_filter(
 				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $entrants ) {
-					return ! isset( $entrants[ (int) $member->id ] );
+				function ( $member ) use ( $competition, $entrants ) {
+					return ! isset( $entrants[ (int) $member->id ] ) && $this->uses_grade_of( $competition, $member );
 				}
 			)
 		);
@@ -209,7 +209,7 @@ class Competition_Entry {
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -230,6 +230,17 @@ class Competition_Entry {
 				sprintf(
 					/* translators: %s: Member name */
 					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
+		}
+
+		if ( ! $this->uses_grade_of( $competition, $member ) ) {
+			return new WP_Error(
+				'grade_not_used',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s is in a grade this competition\'s type doesn\'t use, so they can\'t enter it.', 'photo-competition-manager' ),
 					$member->name
 				)
 			);
