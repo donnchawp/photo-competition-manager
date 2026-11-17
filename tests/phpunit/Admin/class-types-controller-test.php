@@ -219,6 +219,37 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array( 'beginner' => 'Shield' ), $type->grade_names );
 	}
 
+	/**
+	 * An unticked grade is one the type doesn't use, and unticking them all is
+	 * refused (#247).
+	 */
+	public function test_edit_type_saves_the_grades_it_uses(): void {
+		$fields = array(
+			'photo_competition_action' => 'update_type',
+			'type_id'                  => (string) $this->individual,
+			'type_name'                => 'Individual',
+			'categories'               => $this->categories(),
+			'grades_shown'             => '1',
+			'used_grades'              => array(
+				'intermediate' => '1',
+				'advanced'     => '1',
+			),
+		);
+
+		$this->post( $fields, 'photo_competition_type_update_' . $this->individual );
+
+		$this->assertContains( 'type_updated', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( array( 'beginner' ), $this->types->find( $this->individual )->unused_grades );
+
+		// Unticked boxes aren't posted, and set_request() only adds fields.
+		unset( $fields['used_grades'], $_POST['used_grades'], $_GET['used_grades'], $_REQUEST['used_grades'] );
+		$location = $this->post( $fields, 'photo_competition_type_update_' . $this->individual );
+
+		$this->assertStringContainsString( 'type_action=edit', $location );
+		$this->assertContains( 'no_grades', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( array( 'beginner' ), $this->types->find( $this->individual )->unused_grades );
+	}
+
 	public function test_edit_type_with_an_error_goes_back_to_the_form(): void {
 		$location = $this->post(
 			array(

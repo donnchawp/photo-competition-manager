@@ -75,6 +75,13 @@ class Competition_Entry {
 	private $upload_tokens;
 
 	/**
+	 * Competition labels, for the grades a competition's type uses.
+	 *
+	 * @var Competition_Labels
+	 */
+	private $labels;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions Competitions repository.
@@ -89,19 +96,20 @@ class Competition_Entry {
 		$this->entrants      = new Entrants_Repository();
 		$this->images        = new Images_Repository();
 		$this->upload_tokens = new Upload_Token_Repository();
+		$this->labels        = new Competition_Labels();
 	}
 
 	/**
-	 * Whether a member may enter a competition: they're active and, when it's
-	 * open to everyone in its type, tagged with that type, or, when it's for
-	 * selected entrants only, one of them.
+	 * Whether a member may enter a competition: they're active, in a grade its
+	 * type uses, and, when it's open to everyone in its type, tagged with that
+	 * type, or, when it's for selected entrants only, one of them.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
 	 * @return bool
 	 */
 	public function may_enter( object $competition, object $member ): bool {
-		if ( empty( $member->active ) ) {
+		if ( empty( $member->active ) || ! $this->uses_grade_of( $competition, $member ) ) {
 			return false;
 		}
 
@@ -166,11 +174,23 @@ class Competition_Entry {
 		return array_values(
 			array_filter(
 				$members,
-				function ( $member ) {
-					return ! empty( $member->active ) && ! empty( $member->email );
+				function ( $member ) use ( $competition ) {
+					return ! empty( $member->active ) && ! empty( $member->email ) && $this->uses_grade_of( $competition, $member );
 				}
 			)
 		);
+	}
+
+	/**
+	 * Whether a competition's type uses a member's grade.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @return bool
+	 */
+	public function uses_grade_of( object $competition, object $member ): bool {
+		return in_array( (string) $member->grade, $this->labels->used_grades( $competition ), true );
 	}
 
 	/**

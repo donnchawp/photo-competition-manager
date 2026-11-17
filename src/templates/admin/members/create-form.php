@@ -2,8 +2,9 @@
 /**
  * Add-member form partial for the admin members page.
  *
- * Reads $data['grade_options'] (array<string,string> of grade slug => label) and
- * $data['type_options'] (array<int,string> of type ID => name; empty unless the club
+ * Reads $data['grade_options'] (array<string,string> of grade slug => label),
+ * $data['grade_notes'] (string[]: how types that differ name and use the grades)
+ * and $data['type_options'] (array<int,string> of type ID => name; empty unless the club
  * has several types).
  *
  * Pure function of $data — reaches into no controller/trait state.
@@ -40,6 +41,9 @@ foreach ( $data['grade_options'] as $grade_slug => $grade_label ) {
 	echo '<option value="' . esc_attr( $grade_slug ) . '">' . esc_html( $grade_label ) . '</option>';
 }
 echo '</select>';
+foreach ( $data['grade_notes'] as $grade_note ) {
+	echo '<br /><span class="description">' . esc_html( $grade_note ) . '</span>';
+}
 echo '</p>';
 
 echo '<p>';

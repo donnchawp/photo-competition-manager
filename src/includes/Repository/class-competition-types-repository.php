@@ -28,14 +28,15 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * @since 0.4.0
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings for the type's competitions.
-	 * @param array<string,string> $grade_names Grade slug to the name this type shows for it.
+	 * @param array<string,string> $grade_names   Grade slug to the name this type shows for it.
+	 * @param string[]             $unused_grades Slugs of the club's grades this type doesn't use.
 	 * @return int|WP_Error New type ID or error.
 	 */
-	public function create( string $name, array $settings, array $grade_names = array() ) {
+	public function create( string $name, array $settings, array $grade_names = array(), array $unused_grades = array() ) {
 		global $wpdb;
 
 		$name  = sanitize_text_field( $name );
-		$valid = $this->validate_type( $name, $settings, 0 );
+		$valid = $this->validate_type( $name, $settings, 0, $unused_grades );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
 		}
@@ -46,7 +47,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 			array(
 				'name'        => $name,
 				'settings'    => Competition_Settings::encode( $settings ),
-				'grade_names' => Competition_Settings::encode( $grade_names ),
+				'grade_names' => $this->encode_grades( $grade_names, $unused_grades ),
 				'created_at'  => utc_time(),
 			),
 			array( '%s', '%s', '%s', '%s' )
@@ -66,14 +67,15 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * @param int                  $id          Type ID.
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings.
-	 * @param array<string,string> $grade_names Grade slug to name.
+	 * @param array<string,string> $grade_names   Grade slug to name.
+	 * @param string[]             $unused_grades Slugs of the club's grades this type doesn't use.
 	 * @return true|WP_Error
 	 */
-	public function update( int $id, string $name, array $settings, array $grade_names ) {
+	public function update( int $id, string $name, array $settings, array $grade_names, array $unused_grades = array() ) {
 		global $wpdb;
 
 		$name  = sanitize_text_field( $name );
-		$valid = $this->validate_type( $name, $settings, $id );
+		$valid = $this->validate_type( $name, $settings, $id, $unused_grades );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
 		}
@@ -84,7 +86,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 			array(
 				'name'        => $name,
 				'settings'    => Competition_Settings::encode( $settings ),
-				'grade_names' => Competition_Settings::encode( $grade_names ),
+				'grade_names' => $this->encode_grades( $grade_names, $unused_grades ),
 				'updated_at'  => utc_time(),
 			),
 			array( 'id' => $id ),
@@ -104,7 +106,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 *
 	 * @since 0.4.0
 	 * @param int $id Type ID.
-	 * @return object|null Row with `settings` and `grade_names` decoded to arrays.
+	 * @return object|null Row with `settings` and `grade_names` decoded to arrays, and `unused_grades`.
 	 */
 	public function find( int $id ): ?object {
 		global $wpdb;
@@ -206,18 +208,23 @@ class Competition_Types_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Validate a type's name and settings.
+	 * Validate a type's name, settings and grades.
 	 *
-	 * @param string               $name     Sanitized type name.
-	 * @param array<string, mixed> $settings Settings to validate.
-	 * @param int                  $id       The type being updated, or 0 for a new one.
-	 * @return true|WP_Error `missing_name`, `duplicate_name` or `invalid_settings`.
+	 * @param string               $name          Sanitized type name.
+	 * @param array<string, mixed> $settings      Settings to validate.
+	 * @param int                  $id            The type being updated, or 0 for a new one.
+	 * @param string[]             $unused_grades Slugs of the club's grades the type doesn't use.
+	 * @return true|WP_Error `missing_name`, `no_grades`, `duplicate_name` or `invalid_settings`.
 	 */
-	private function validate_type( string $name, array $settings, int $id ) {
+	private function validate_type( string $name, array $settings, int $id, array $unused_grades ) {
 		global $wpdb;
 
 		if ( '' === $name ) {
 			return $this->missing_name();
+		}
+
+		if ( ! array_diff( array_keys( Competition_Settings::grade_labels() ), $unused_grades ) ) {
+			return new WP_Error( 'no_grades', __( 'A type must use at least one of the club\'s grades.', 'photo-competition-manager' ) );
 		}
 
 		// Case-insensitive, as CSV import matches type names.
@@ -261,10 +268,30 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * @return object
 	 */
 	private function hydrate( object $row ): object {
-		$row->settings    = Competition_Settings::decode( $row->settings );
-		$row->grade_names = Competition_Settings::decode( $row->grade_names );
+		$grades = Competition_Settings::decode( $row->grade_names );
+
+		$row->settings      = Competition_Settings::decode( $row->settings );
+		$row->grade_names   = array_filter( $grades, 'is_string' );
+		$row->unused_grades = array_map( 'strval', array_keys( $grades, false, true ) );
 
 		return $row;
+	}
+
+	/**
+	 * Encode a type's grade names and unused grades as the one JSON object the
+	 * grade_names column holds: an unused grade maps to false, so a type saved
+	 * before grades could be left out uses every grade.
+	 *
+	 * @param array<string,string> $grade_names   Grade slug to name.
+	 * @param string[]             $unused_grades Slugs of the grades the type doesn't use.
+	 * @return string
+	 */
+	private function encode_grades( array $grade_names, array $unused_grades ): string {
+		foreach ( $unused_grades as $slug ) {
+			$grade_names[ (string) $slug ] = false;
+		}
+
+		return Competition_Settings::encode( $grade_names );
 	}
 
 	/**

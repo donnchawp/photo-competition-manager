@@ -1352,8 +1352,9 @@ class Competitions_Controller {
 	}
 
 	/**
-	 * The club's grades as slug => label for a competition's admin screens, with
-	 * a name its type gives a grade shown beside the club's, as "Cup (Advanced)".
+	 * The grades a competition's type uses as slug => label for its admin
+	 * screens, with a name the type gives a grade shown beside the club's, as
+	 * "Cup (Advanced)".
 	 *
 	 * @since 0.4.0
 	 *
@@ -1363,7 +1364,7 @@ class Competitions_Controller {
 	private function admin_grade_options( object $competition ): array {
 		$labels  = new Competition_Labels();
 		$options = array();
-		foreach ( array_keys( Competition_Settings::grade_labels() ) as $grade_slug ) {
+		foreach ( $labels->used_grades( $competition ) as $grade_slug ) {
 			$options[ $grade_slug ] = $labels->admin_grade_label( $competition, (string) $grade_slug );
 		}
 

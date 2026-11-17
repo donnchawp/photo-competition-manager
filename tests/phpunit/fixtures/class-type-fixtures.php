@@ -59,10 +59,11 @@ class Type_Fixtures {
 	 * Create a type.
 	 *
 	 * @param string               $name        Type name.
-	 * @param array<string,string> $grade_names Grade slug to the name the type shows for it.
+	 * @param array<string,string> $grade_names   Grade slug to the name the type shows for it.
+	 * @param string[]             $unused_grades Slugs of the club's grades the type doesn't use.
 	 * @return int Type ID.
 	 */
-	public static function create( string $name, array $grade_names = array() ): int {
+	public static function create( string $name, array $grade_names = array(), array $unused_grades = array() ): int {
 		$id = ( new Competition_Types_Repository() )->create(
 			$name,
 			array(
@@ -74,7 +75,8 @@ class Type_Fixtures {
 					),
 				),
 			),
-			$grade_names
+			$grade_names,
+			$unused_grades
 		);
 
 		return (int) $id;

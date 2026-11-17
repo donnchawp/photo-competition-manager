@@ -975,9 +975,66 @@ class Members_Controller {
 			'admin/members/create-form.php',
 			array(
 				'grade_options' => Competition_Settings::grade_labels(),
+				'grade_notes'   => $this->grade_mapping_notes(),
 				'type_options'  => $type_options,
 			)
 		);
+	}
+
+	/**
+	 * One sentence per type that names or uses the club's grades its own way,
+	 * such as "Club shows Grade 1 as Advanced, and doesn't use Grade 3 or Grade 4."
+	 * A member's grade is club-wide, so the member forms show these beside it.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @return string[]
+	 */
+	private function grade_mapping_notes(): array {
+		$club  = Competition_Settings::grade_labels();
+		$notes = array();
+
+		foreach ( $this->types->all() as $type ) {
+			$renamed = array();
+			$unused  = array();
+			foreach ( $club as $slug => $label ) {
+				if ( in_array( (string) $slug, $type->unused_grades, true ) ) {
+					$unused[] = $label;
+					continue;
+				}
+				$name = (string) ( $type->grade_names[ $slug ] ?? '' );
+				if ( '' !== $name && $name !== $label ) {
+					/* translators: 1: the club's name for a grade, 2: the name a competition type shows for it */
+					$renamed[] = sprintf( __( '%1$s as %2$s', 'photo-competition-manager' ), $label, $name );
+				}
+			}
+
+			if ( $renamed && $unused ) {
+				/* translators: 1: competition type name, 2: list of renamed grades, 3: list of grades the type doesn't use */
+				$notes[] = sprintf( __( '%1$s shows %2$s, and doesn\'t use %3$s.', 'photo-competition-manager' ), $type->name, wp_sprintf( '%l', $renamed ), $this->or_list( $unused ) );
+			} elseif ( $renamed ) {
+				/* translators: 1: competition type name, 2: list of renamed grades */
+				$notes[] = sprintf( __( '%1$s shows %2$s.', 'photo-competition-manager' ), $type->name, wp_sprintf( '%l', $renamed ) );
+			} elseif ( $unused ) {
+				/* translators: 1: competition type name, 2: list of grades the type doesn't use */
+				$notes[] = sprintf( __( '%1$s doesn\'t use %2$s.', 'photo-competition-manager' ), $type->name, $this->or_list( $unused ) );
+			}
+		}
+
+		return $notes;
+	}
+
+	/**
+	 * Join names as "A", "A or B", or "A, B or C".
+	 *
+	 * @param string[] $names Names.
+	 * @return string
+	 */
+	private function or_list( array $names ): string {
+		$last = array_pop( $names );
+
+		/* translators: 1: names joined with commas, 2: the last name */
+		return $names ? sprintf( __( '%1$s or %2$s', 'photo-competition-manager' ), implode( ', ', $names ), $last ) : (string) $last;
 	}
 
 	/**
@@ -1000,6 +1057,7 @@ class Members_Controller {
 			array(
 				'member'        => $member,
 				'grade_options' => Competition_Settings::grade_labels(),
+				'grade_notes'   => $this->grade_mapping_notes(),
 				'members_url'   => $this->members_url(),
 				'type_options'  => $type_options,
 				'member_types'  => $type_options ? $this->members->type_ids( (int) $member->id ) : array(),

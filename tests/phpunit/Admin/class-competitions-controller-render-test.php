@@ -995,6 +995,30 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( '<option value="beginner">Beginner</option>', $html );
 	}
 
+	/**
+	 * A new member can't be put in a grade the type leaves out, since they
+	 * couldn't enter (#247).
+	 */
+	public function test_render_entrants_tab_new_member_grades_leave_out_unused_grades(): void {
+		$ids   = $this->use_two_types();
+		$types = new Competition_Types_Repository();
+		$team  = $types->find( $ids['Team'] );
+		$types->update( $ids['Team'], 'Team', $team->settings, array(), array( 'beginner' ) );
+		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringNotContainsString( '<option value="beginner">', $html );
+		$this->assertStringContainsString( '<option value="advanced">Advanced</option>', $html );
+	}
+
 	public function test_render_entrants_tab_once_voting_has_started_changes_nothing(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
 		$ann     = ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );

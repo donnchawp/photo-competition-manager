@@ -259,6 +259,32 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( 'open', $type->settings['categories'][0]['slug'] );
 	}
 
+	/**
+	 * A type can leave out some of the club's grades, and one saved before it
+	 * could still uses every grade (#247).
+	 */
+	public function test_a_type_keeps_the_grades_it_leaves_out() {
+		$id = $this->repository->create( 'Interclub', $this->settings(), array( 'advanced' => 'Cup' ), array( 'beginner' ) );
+
+		$type = $this->repository->find( $id );
+		$this->assertSame( array( 'beginner' ), $type->unused_grades );
+		$this->assertSame( array( 'advanced' => 'Cup' ), $type->grade_names );
+
+		$this->assertTrue( $this->repository->update( $id, 'Interclub', $this->settings(), array(), array( 'beginner', 'intermediate' ) ) );
+		$this->assertSame( array( 'beginner', 'intermediate' ), $this->repository->find( $id )->unused_grades );
+
+		$this->assertSame( array(), $this->repository->find( $this->repository->create( 'Individual', $this->settings() ) )->unused_grades );
+	}
+
+	public function test_a_type_must_use_at_least_one_grade() {
+		$every_grade = array_keys( Competition_Settings::grade_labels() );
+
+		$result = $this->repository->create( 'Interclub', $this->settings(), array(), $every_grade );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_grades', $result->get_error_code() );
+	}
+
 	public function test_create_rejects_empty_categories() {
 		$result = $this->repository->create( 'Empty', array( 'categories' => array() ) );
 
