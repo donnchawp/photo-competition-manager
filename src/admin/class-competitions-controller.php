@@ -1300,9 +1300,10 @@ class Competitions_Controller {
 		$type           = $this->types->find( (int) $competition->type_id );
 		$selected       = Competition_Entry::is_selected( $competition );
 		$named_type     = $type && $this->types->has_several() ? $type : null;
+		$interclub      = Competition_Settings::is_interclub( $competition );
 
-		$entrants      = array();
-		$member_groups = array();
+		$entrants = array();
+		$addable  = array();
 
 		if ( $selected ) {
 			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
@@ -1324,7 +1325,7 @@ class Competitions_Controller {
 				}
 			);
 
-			$member_groups = $this->entrant_picker_groups( (int) $competition->type_id, $entrant_ids, $named_type );
+			$addable = $this->entry->addable_members( $competition );
 		}
 
 		$refusal = $this->entry->change_refusal( $competition );
@@ -1342,76 +1343,31 @@ class Competitions_Controller {
 				'locked_message' => $refusal ? $refusal->get_error_message() : '',
 				'uploads_open'   => $this->workflow->is_accepting_uploads( $competition ),
 				'entrants'       => $entrants,
-				'member_groups'  => $member_groups,
-				'grade_options'  => Competition_Settings::grade_labels(),
+				'addable'        => $addable,
+				'interclub'      => $interclub,
+				'type_name'      => $named_type ? $named_type->name : '',
+				'grade_options'  => $this->admin_grade_options( $competition ),
 			)
 		);
 	}
 
 	/**
-	 * The "Add entrants" picker's options: active members who aren't entrants,
-	 * those with the competition's type first.
+	 * The club's grades as slug => label for a competition's admin screens, with
+	 * a name its type gives a grade shown beside the club's, as "Cup (Advanced)".
 	 *
 	 * @since 0.4.0
 	 *
-	 * @param int         $type_id     The competition's type ID.
-	 * @param int[]       $entrant_ids Current entrants.
-	 * @param object|null $named_type  The competition's type when the club has several, to name its group; null for one list.
-	 * @return array<int, array{label: string, members: object[]}> Groups; a group's label is '' when there's only one.
+	 * @param object $competition Competition row.
+	 * @return array<string,string>
 	 */
-	private function entrant_picker_groups( int $type_id, array $entrant_ids, ?object $named_type ): array {
-		$tagged   = array();
-		$others   = array();
-		$entrants = array_flip( $entrant_ids );
-		$in_type  = array_flip( array_map( 'intval', wp_list_pluck( $this->members->find_by_type( $type_id ), 'id' ) ) );
-
-		foreach ( $this->members->find_active_members() as $member ) {
-			if ( isset( $entrants[ (int) $member->id ] ) ) {
-				continue;
-			}
-
-			$option = (object) array(
-				'id'    => (int) $member->id,
-				'name'  => $member->name,
-				'email' => $member->email,
-			);
-
-			if ( isset( $in_type[ (int) $member->id ] ) ) {
-				$tagged[] = $option;
-			} else {
-				$others[] = $option;
-			}
+	private function admin_grade_options( object $competition ): array {
+		$labels  = new Competition_Labels();
+		$options = array();
+		foreach ( array_keys( Competition_Settings::grade_labels() ) as $grade_slug ) {
+			$options[ $grade_slug ] = $labels->admin_grade_label( $competition, (string) $grade_slug );
 		}
 
-		// With one type there's nothing to name, so the members come as one list, the type's first.
-		if ( ! $named_type ) {
-			return array_merge( $tagged, $others )
-				? array(
-					array(
-						'label'   => '',
-						'members' => array_merge( $tagged, $others ),
-					),
-				)
-				: array();
-		}
-
-		return array_values(
-			array_filter(
-				array(
-					array(
-						'label'   => $named_type->name,
-						'members' => $tagged,
-					),
-					array(
-						'label'   => __( 'Other members', 'photo-competition-manager' ),
-						'members' => $others,
-					),
-				),
-				function ( $group ) {
-					return ! empty( $group['members'] );
-				}
-			)
-		);
+		return $options;
 	}
 
 	/**

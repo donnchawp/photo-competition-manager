@@ -8,10 +8,11 @@
  * $data['can_change'] (bool): false once voting has started or the competition
  * has closed, $data['locked_message'] (string): why, or '' while it can change,
  * $data['uploads_open'] (bool), $data['entrants'] (objects with id, name,
- * email, active and has_entries), $data['member_groups'] (arrays with label,
- * '' for an unnamed group, and members: objects with id, name and email) for
- * the Add entrants picker, and $data['grade_options'] (array<string,string>
- * of grade slug => label).
+ * email, active and has_entries), $data['addable'] (objects with id, name and
+ * email): the type's members who aren't entrants yet, for the Add entrants picker, $data['grade_options'] (array<string,string>
+ * of grade slug => label), $data['interclub'] (bool): whether the entrants are
+ * clubs, and $data['type_name'] (string): the competition's type, or '' when
+ * the club has only one.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -67,7 +68,7 @@ if ( empty( $data['entrants'] ) ) {
 } else {
 	echo '<table class="widefat striped">';
 	echo '<thead><tr>';
-	echo '<th>' . esc_html__( 'Member', 'photo-competition-manager' ) . '</th>';
+	echo '<th>' . ( $data['interclub'] ? esc_html__( 'Club', 'photo-competition-manager' ) : esc_html__( 'Member', 'photo-competition-manager' ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
@@ -108,34 +109,38 @@ if ( empty( $data['entrants'] ) ) {
 }
 
 if ( $data['can_change'] ) {
-	echo '<h4>' . esc_html__( 'Add entrants', 'photo-competition-manager' ) . '</h4>';
+	echo '<h4>' . ( $data['interclub'] ? esc_html__( 'Add clubs', 'photo-competition-manager' ) : esc_html__( 'Add entrants', 'photo-competition-manager' ) ) . '</h4>';
 
-	if ( empty( $data['member_groups'] ) ) {
-		echo '<p>' . esc_html__( 'Every active member is already an entrant.', 'photo-competition-manager' ) . '</p>';
+	if ( empty( $data['addable'] ) ) {
+		echo '<p>' . ( $data['interclub'] ? esc_html__( 'Every club in this competition\'s type is already an entrant.', 'photo-competition-manager' ) : esc_html__( 'Every active member in this competition\'s type is already an entrant.', 'photo-competition-manager' ) ) . '</p>';
 	} else {
 		echo $form_start; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built with esc_attr() above.
 		echo '<input type="hidden" name="photo_competition_action" value="add_entrants" />';
 		echo '<p><select id="entrant_member_ids" name="member_ids[]" multiple size="8" style="min-width: 320px;">';
 
-		foreach ( $data['member_groups'] as $group ) {
-			if ( '' !== $group['label'] ) {
-				echo '<optgroup label="' . esc_attr( $group['label'] ) . '">';
-			}
-			foreach ( $group['members'] as $member ) {
-				echo '<option value="' . esc_attr( $member->id ) . '">' . esc_html( $member->name . ' (' . $member->email . ')' ) . '</option>';
-			}
-			if ( '' !== $group['label'] ) {
-				echo '</optgroup>';
-			}
+		foreach ( $data['addable'] as $member ) {
+			echo '<option value="' . esc_attr( $member->id ) . '">' . esc_html( $member->name . ' (' . $member->email . ')' ) . '</option>';
 		}
 
 		echo '</select></p>';
 		echo '<p class="description">' . esc_html__( 'Hold Ctrl (Cmd on a Mac) to choose several.', 'photo-competition-manager' ) . '</p>';
-		submit_button( __( 'Add Entrants', 'photo-competition-manager' ), 'secondary', 'add_entrants' );
+		submit_button( $data['interclub'] ? __( 'Add Clubs', 'photo-competition-manager' ) : __( 'Add Entrants', 'photo-competition-manager' ), 'secondary', 'add_entrants' );
 		echo '</form>';
 	}
 
-	echo '<h4>' . esc_html__( 'Add a new member and enter them', 'photo-competition-manager' ) . '</h4>';
+	echo '<h4>' . ( $data['interclub'] ? esc_html__( 'Add a new club and enter it', 'photo-competition-manager' ) : esc_html__( 'Add a new member and enter them', 'photo-competition-manager' ) ) . '</h4>';
+	if ( '' !== $data['type_name'] ) {
+		echo '<p class="description">' . esc_html(
+			sprintf(
+				$data['interclub']
+					/* translators: %s: Competition type name */
+					? __( 'The new club will be added to the %s type.', 'photo-competition-manager' )
+					/* translators: %s: Competition type name */
+					: __( 'The new member will be added to the %s type.', 'photo-competition-manager' ),
+				$data['type_name']
+			)
+		) . '</p>';
+	}
 	echo $form_start; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built with esc_attr() above.
 	echo '<input type="hidden" name="photo_competition_action" value="add_new_entrant" />';
 	echo '<p><label for="entrant_member_name">' . esc_html__( 'Name', 'photo-competition-manager' ) . '</label><br />';

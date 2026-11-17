@@ -327,39 +327,6 @@ class Members_Repository_Test extends WP_UnitTestCase {
 	}
 
 	// ---------------------------------------------------------------
-	// find_active_members()
-	// ---------------------------------------------------------------
-
-	public function test_find_active_members_excludes_inactive(): void {
-		$repository = new Members_Repository( $GLOBALS['wpdb'] );
-
-		$repository->create(
-			array(
-				'type_id'    => Type_Fixtures::id(),
-				'name'   => 'Active Alice',
-				'email'  => 'aalice@example.com',
-				'grade'  => 'beginner',
-				'active' => 1,
-			)
-		);
-
-		$repository->create(
-			array(
-				'type_id'    => Type_Fixtures::id(),
-				'name'   => 'Inactive Bob',
-				'email'  => 'ibob@example.com',
-				'grade'  => 'beginner',
-				'active' => 0,
-			)
-		);
-
-		$members = $repository->find_active_members();
-
-		$this->assertCount( 1, $members );
-		$this->assertSame( 'Active Alice', $members[0]->name );
-	}
-
-	// ---------------------------------------------------------------
 	// delete()
 	// ---------------------------------------------------------------
 

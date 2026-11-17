@@ -109,7 +109,39 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		return in_array( (int) $competition->type_id, $this->members->type_ids( (int) $member->id ), true );
+		return $this->in_type( $competition, (int) $member->id );
+	}
+
+	/**
+	 * Whether a member is tagged with a competition's type.
+	 *
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @return bool
+	 */
+	private function in_type( object $competition, int $member_id ): bool {
+		return in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true );
+	}
+
+	/**
+	 * The members an admin can add as entrants: active members tagged with the
+	 * competition's type who aren't entrants yet, by name.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @return object[] Member rows.
+	 */
+	public function addable_members( object $competition ): array {
+		$entrants = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
+
+		return array_values(
+			array_filter(
+				$this->members->find_by_type( (int) $competition->type_id ),
+				function ( $member ) use ( $entrants ) {
+					return ! isset( $entrants[ (int) $member->id ] );
+				}
+			)
+		);
 	}
 
 	/**
@@ -157,7 +189,7 @@ class Competition_Entry {
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -169,6 +201,18 @@ class Competition_Entry {
 		$member = $this->members->find( $member_id );
 		if ( ! $member ) {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
+		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
+		if ( ! $this->in_type( $competition, $member_id ) ) {
+			return new WP_Error(
+				'not_in_type',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
 		}
 
 		$this->entrants->add( (int) $competition->id, $member_id );

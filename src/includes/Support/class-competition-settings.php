@@ -660,6 +660,18 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Whether a competition's entrants are clubs.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public static function is_interclub( object $competition ): bool {
+		return ! empty( self::parse( $competition->settings )['interclub']['enabled'] );
+	}
+
+	/**
 	 * Get upload constraints from settings.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.
