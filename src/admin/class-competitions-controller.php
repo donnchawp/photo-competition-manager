@@ -1325,7 +1325,7 @@ class Competitions_Controller {
 				}
 			);
 
-			$addable = $this->addable_members( (int) $competition->type_id, $entrant_ids );
+			$addable = $this->entry->addable_members( $competition );
 		}
 
 		$refusal = $this->entry->change_refusal( $competition );
@@ -1365,35 +1365,6 @@ class Competitions_Controller {
 		$options = array();
 		foreach ( array_keys( Competition_Settings::grade_labels() ) as $grade_slug ) {
 			$options[ $grade_slug ] = $labels->admin_grade_label( $competition, (string) $grade_slug );
-		}
-
-		return $options;
-	}
-
-	/**
-	 * The "Add entrants" picker's options: active members tagged with the
-	 * competition's type who aren't entrants yet, by name.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param int   $type_id     The competition's type ID.
-	 * @param int[] $entrant_ids Current entrants.
-	 * @return object[] Objects with id, name and email.
-	 */
-	private function addable_members( int $type_id, array $entrant_ids ): array {
-		$entrants = array_flip( $entrant_ids );
-		$options  = array();
-
-		foreach ( $this->members->find_by_type( $type_id ) as $member ) {
-			if ( isset( $entrants[ (int) $member->id ] ) ) {
-				continue;
-			}
-
-			$options[] = (object) array(
-				'id'    => (int) $member->id,
-				'name'  => $member->name,
-				'email' => $member->email,
-			);
 		}
 
 		return $options;

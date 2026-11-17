@@ -109,7 +109,39 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		return in_array( (int) $competition->type_id, $this->members->type_ids( (int) $member->id ), true );
+		return $this->in_type( $competition, (int) $member->id );
+	}
+
+	/**
+	 * Whether a member is tagged with a competition's type.
+	 *
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @return bool
+	 */
+	private function in_type( object $competition, int $member_id ): bool {
+		return in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true );
+	}
+
+	/**
+	 * The members an admin can add as entrants: active members tagged with the
+	 * competition's type who aren't entrants yet, by name.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @return object[] Member rows.
+	 */
+	public function addable_members( object $competition ): array {
+		$entrants = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
+
+		return array_values(
+			array_filter(
+				$this->members->find_by_type( (int) $competition->type_id ),
+				function ( $member ) use ( $entrants ) {
+					return ! isset( $entrants[ (int) $member->id ] );
+				}
+			)
+		);
 	}
 
 	/**
@@ -172,7 +204,7 @@ class Competition_Entry {
 		}
 
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
-		if ( ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
+		if ( ! $this->in_type( $competition, $member_id ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(

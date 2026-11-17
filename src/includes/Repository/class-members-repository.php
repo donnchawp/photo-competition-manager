@@ -530,23 +530,6 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Fetch all active members (unbounded).
-	 *
-	 * @return array<int, object>
-	 */
-	public function find_active_members(): array {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return $wpdb->get_results(
-			$wpdb->prepare(
-				'SELECT * FROM %i WHERE active = 1 ORDER BY name ASC',
-				$this->table()
-			)
-		);
-	}
-
-	/**
 	 * Toggle active flag.
 	 *
 	 * @param int  $id     Member ID.
