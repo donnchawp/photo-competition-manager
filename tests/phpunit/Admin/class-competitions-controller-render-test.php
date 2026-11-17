@@ -926,6 +926,69 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertMatchesRegularExpression( '/<optgroup label="Team">\s*<option value="MEMBER">Zoe.*<optgroup label="Other members">\s*<option value="MEMBER">Ann/s', $html );
 	}
 
+	/**
+	 * An interclub competition's entrants are clubs, so only the type's members
+	 * are offered and the panel talks about clubs (#246).
+	 */
+	public function test_render_interclub_entrants_tab_offers_only_the_types_clubs(): void {
+		$ids     = $this->use_two_types();
+		$comp_id = $this->seed_competition(
+			'Interclub',
+			'interclub',
+			array(
+				'type_id'    => $ids['Team'],
+				'entry_mode' => 'selected',
+				'settings'   => array(
+					'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ),
+					'interclub'  => array( 'enabled' => true ),
+				),
+			)
+		);
+		$members = new Members_Repository();
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
+		$members->create( array( 'name' => 'Riverside Camera Club', 'email' => 'riverside@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'Riverside Camera Club (riverside@example.com)', $html );
+		$this->assertStringNotContainsString( 'ann@example.com', $html );
+		$this->assertStringNotContainsString( 'Other members', $html );
+		$this->assertStringContainsString( '<h4>Add clubs</h4>', $html );
+		$this->assertStringContainsString( '<h4>Add a new club and enter it</h4>', $html );
+		$this->assertStringContainsString( 'The new club will be added to the Team type.', $html );
+	}
+
+	/**
+	 * The new-member form names grades the way the competition's type does,
+	 * with the club's name beside it, as other admin screens do (#246).
+	 */
+	public function test_render_entrants_tab_new_member_grades_use_the_types_names(): void {
+		$ids   = $this->use_two_types();
+		$types = new Competition_Types_Repository();
+		$team  = $types->find( $ids['Team'] );
+		$types->update( $ids['Team'], 'Team', $team->settings, array( 'advanced' => 'Cup' ) );
+		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( '<option value="advanced">Cup (Advanced)</option>', $html );
+		$this->assertStringContainsString( '<option value="beginner">Beginner</option>', $html );
+	}
+
 	public function test_render_entrants_tab_once_voting_has_started_changes_nothing(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
 		$ann     = ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );

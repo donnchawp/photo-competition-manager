@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -152,12 +153,23 @@ class Competition_Entry {
 	}
 
 	/**
+	 * Whether a competition's entrants are clubs.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public static function is_interclub( object $competition ): bool {
+		return (bool) Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
+	}
+
+	/**
 	 * Enter a member in a competition for selected entrants. While its uploads
 	 * are open, they're sent their upload link.
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -169,6 +181,18 @@ class Competition_Entry {
 		$member = $this->members->find( $member_id );
 		if ( ! $member ) {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
+		// A club is a member tagged with the interclub type, so anyone else would enter as a person.
+		if ( self::is_interclub( $competition ) && ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
+			return new WP_Error(
+				'not_in_type',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s isn\'t one of the clubs in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
 		}
 
 		$this->entrants->add( (int) $competition->id, $member_id );

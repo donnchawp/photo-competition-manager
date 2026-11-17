@@ -80,7 +80,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 * @param string $entry_mode 'all' or 'selected'.
 	 * @return object Competition row.
 	 */
-	private function competition( string $type = 'Individual', string $entry_mode = 'all' ): object {
+	private function competition( string $type = 'Individual', string $entry_mode = 'all', bool $interclub = false ): object {
 		$id = $this->competitions->create(
 			array(
 				'type_id'    => $this->types[ $type ],
@@ -96,6 +96,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 						),
 					),
 					'urls'       => array( 'upload_page' => 'https://example.com/upload/' ),
+					'interclub'  => array( 'enabled' => $interclub ),
 				),
 			)
 		);
@@ -202,6 +203,23 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->entrants->has( (int) $competition->id, $bob ) );
 		$this->assertSame( array(), tests_retrieve_phpmailer_instance()->mock_sent );
+	}
+
+	/**
+	 * A club enters an interclub competition, and a club is a member tagged with
+	 * its type, so a person who isn't can't be entered as one (#246).
+	 */
+	public function test_interclub_add_entrant_refuses_a_member_not_in_the_type(): void {
+		$competition = $this->competition( 'Team', 'selected', true );
+		$club        = $this->member( 'Riverside Camera Club', array( 'Team' ) );
+		$person      = $this->member( 'Bob', array( 'Individual' ) );
+
+		$result = $this->entry->add_entrant( $competition, $person );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_in_type', $result->get_error_code() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $person ) );
+		$this->assertTrue( $this->entry->add_entrant( $competition, $club ) );
 	}
 
 	public function test_add_entrant_refused_when_open_to_all(): void {
