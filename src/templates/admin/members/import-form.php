@@ -2,7 +2,8 @@
 /**
  * Import-members-from-CSV form partial for the admin members page.
  *
- * Reads $data['show_types'] (bool): whether the club has several types.
+ * Reads $data['types_example'] (string): two of the club's type names joined
+ * with a semicolon, or '' when it has only one type, so there's no types column.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -39,12 +40,24 @@ echo '<input type="file" id="csv_file" name="csv_file" accept=".csv,.txt" requir
 echo '</p>';
 
 echo '<p class="description">';
-echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inactive)', 'photo-competition-manager' );
+echo esc_html(
+	'' !== $data['types_example']
+		? __( 'Columns, in this order: name, email, grade, active, committee, types. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
+		: __( 'Columns, in this order: name, email, grade, active, committee. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
+);
 echo '<br />';
 echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New members need one. Leave it blank to keep an existing member\'s grade.', 'photo-competition-manager' );
 echo '<br />';
-if ( $data['show_types'] ) {
-	echo esc_html__( 'Types: optional column of competition type names separated by semicolons. It replaces the member\'s types. Leave it out to keep an existing member\'s types; new members get none.', 'photo-competition-manager' );
+echo esc_html__( 'Active and committee: 1 for yes, 0 for no. A blank cell means no, so a blank active cell makes the member inactive. A row that ends before these columns makes the member active and not on the committee.', 'photo-competition-manager' );
+echo '<br />';
+if ( '' !== $data['types_example'] ) {
+	echo esc_html(
+		sprintf(
+			/* translators: %s: example of competition type names separated by a semicolon */
+			__( 'Types: competition type names separated by semicolons, such as %s. They replace the member\'s types. Leave the cell blank to keep an existing member\'s types; a new member without types gets none, and no links for competitions open to all until you add them to one.', 'photo-competition-manager' ),
+			$data['types_example']
+		)
+	);
 	echo '<br />';
 }
 echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';

@@ -47,12 +47,15 @@ class Member_CSV_Importer {
 	 * The grade may be a club grade's label or slug, in any case. A blank
 	 * grade, or no grade column, keeps an existing member's grade.
 	 *
-	 * An optional `types` column holds competition type names separated by `;`, in any case.
-	 * It replaces the member's tags. A blank cell, or no such column, leaves an existing
-	 * member's tags alone, and a new member gets the club's only type, if it has one.
+	 * An optional `types` column holds competition type names separated by `;`, in any
+	 * case; a file without a header has it sixth, after committee, when the club has
+	 * several types (with one, a sixth column is ignored). It replaces the
+	 * member's tags. A blank cell, or no such column, leaves an existing member's tags
+	 * alone, and a new member gets the club's only type, if it has one.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
-	 * @return array<string, mixed>|WP_Error Array with import stats on success, WP_Error on failure.
+	 * @return array<string, mixed>|WP_Error Import stats (total, imported, updated, skipped, untyped: active
+	 *                                     new members left with no type, and errors), or WP_Error on failure.
 	 */
 	public function import( array $file ) {
 		// Validate file upload.
@@ -85,6 +88,7 @@ class Member_CSV_Importer {
 			'imported' => 0,
 			'updated'  => 0,
 			'skipped'  => 0,
+			'untyped'  => 0,
 			'errors'   => array(),
 		);
 
@@ -124,13 +128,13 @@ class Member_CSV_Importer {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rewind
 			rewind( $handle );
 
-			// Assume columns: name, email, grade (optional), active (optional), committee (optional).
+			// Assume columns: name, email, grade, active, committee and types, all but the first two optional.
 			$col_name      = 0;
 			$col_email     = 1;
 			$col_grade     = 2;
 			$col_active    = 3;
 			$col_committee = 4;
-			$col_types     = false;
+			$col_types     = 5;
 
 			$row_number = 0; // Start at 0 since there's no header.
 		}
@@ -138,6 +142,11 @@ class Member_CSV_Importer {
 		$type_ids_by_name = array();
 		foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
 			$type_ids_by_name[ strtolower( trim( $type->name ) ) ] = (int) $type->id;
+		}
+
+		// With one type there's no types column to fill in, so a headerless file's sixth column is something else.
+		if ( ! $has_header && count( $type_ids_by_name ) < 2 ) {
+			$col_types = false;
 		}
 
 		// Process each data row.
@@ -211,7 +220,7 @@ class Member_CSV_Importer {
 							/* translators: 1: row number, 2: type name from the CSV file */
 							__( 'Row %1$d: "%2$s" isn\'t a competition type.', 'photo-competition-manager' ),
 							$row_number,
-							$type_name
+							sanitize_text_field( $type_name )
 						);
 						++$stats['skipped'];
 						$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
@@ -283,6 +292,11 @@ class Member_CSV_Importer {
 					++$stats['skipped'];
 				} else {
 					++$stats['imported'];
+					// With one type a new member gets it; with several, none unless the row names some.
+					// Only active ones count: an inactive member gets no links anyway.
+					if ( empty( $type_ids ) && count( $type_ids_by_name ) > 1 && $active_normalized ) {
+						++$stats['untyped'];
+					}
 				}
 			}
 			$row = fgetcsv( $handle );
@@ -295,27 +309,89 @@ class Member_CSV_Importer {
 	}
 
 	/**
-	 * Generate a sample CSV file for download, using the club's grades.
+	 * The notice an import shows: what it did, how many new members it left with
+	 * no type, and the first few row errors.
+	 *
+	 * @since 0.4.0
+	 *
+	 * @param array<string, mixed> $result import()'s stats.
+	 * @return string
+	 */
+	public static function summary( array $result ): string {
+		$message = sprintf(
+			/* translators: 1: imported count, 2: updated count, 3: skipped count */
+			__( 'Import complete: %1$d new members, %2$d updated, %3$d skipped.', 'photo-competition-manager' ),
+			$result['imported'],
+			$result['updated'],
+			$result['skipped']
+		);
+
+		if ( ! empty( $result['untyped'] ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %d: number of new members with no competition type */
+				_n(
+					'%d new member has no competition type, so they get no links for competitions open to all until you add them to one.',
+					'%d new members have no competition type, so they get no links for competitions open to all until you add them to one.',
+					$result['untyped'],
+					'photo-competition-manager'
+				),
+				$result['untyped']
+			);
+		}
+
+		if ( ! empty( $result['errors'] ) ) {
+			$message .= ' ' . __( 'Errors:', 'photo-competition-manager' ) . ' ' . implode( ' ', array_slice( $result['errors'], 0, 5 ) );
+			if ( count( $result['errors'] ) > 5 ) {
+				$message .= sprintf(
+					/* translators: %d: number of additional errors */
+					__( ' ...and %d more errors.', 'photo-competition-manager' ),
+					count( $result['errors'] ) - 5
+				);
+			}
+		}
+
+		return $message;
+	}
+
+	/**
+	 * Generate a sample CSV file for download, using the club's grades and,
+	 * when it has several, its competition types.
 	 *
 	 * @return string CSV content.
 	 */
 	public function generate_sample_csv(): string {
 		$labels = wp_list_pluck( Competition_Settings::club_grades(), 'label' );
+		$types  = wp_list_pluck( ( new Competition_Types_Repository() )->all(), 'name' );
 		$rows   = array(
 			array( 'John Doe', 'john.doe@example.com', '1', '0' ),
 			array( 'Jane Smith', 'jane.smith@example.com', '1', '1' ),
 			array( 'Bob Johnson', 'bob.johnson@example.com', '0', '0' ),
 		);
 
-		$csv = "name,email,grade,active,committee\n";
+		// One type, then two, then the second, so the sample shows the separator.
+		$sample_types = count( $types ) > 1 ? array( array( $types[0] ), array( $types[0], $types[1] ), array( $types[1] ) ) : array();
+
+		$csv = 'name,email,grade,active,committee' . ( $sample_types ? ',types' : '' ) . "\n";
 		foreach ( $rows as $index => $row ) {
 			list( $name, $email, $active, $committee ) = $row;
 
-			// Quote the label, doubling any quotes inside it.
-			$grade = str_replace( '"', '""', $labels[ $index % count( $labels ) ] );
-			$csv  .= sprintf( '"%s",%s,"%s",%s,%s', $name, $email, $grade, $active, $committee ) . "\n";
+			$line = sprintf( '"%s",%s,"%s",%s,%s', $name, $email, $this->csv_quoted( $labels[ $index % count( $labels ) ] ), $active, $committee );
+			if ( $sample_types ) {
+				$line .= ',"' . $this->csv_quoted( implode( ';', $sample_types[ $index ] ) ) . '"';
+			}
+			$csv .= $line . "\n";
 		}
 
 		return $csv;
+	}
+
+	/**
+	 * A value ready to go between double quotes in a CSV cell, with any quotes inside it doubled.
+	 *
+	 * @param string $value Value.
+	 * @return string
+	 */
+	private function csv_quoted( string $value ): string {
+		return str_replace( '"', '""', $value );
 	}
 }
