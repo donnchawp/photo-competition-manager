@@ -248,6 +248,10 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 		chmod( $locked, 0 );
 
 		try {
+			if ( is_readable( $locked ) ) {
+				// Docker Desktop's shared folders on macOS let the owner read a mode-0 file.
+				$this->markTestSkipped( 'This file system ignores file permissions.' );
+			}
 			$result = ( new Export_Screen() )->build_originals_zip( $this->competition_id, array( 11 => $locked ) );
 		} finally {
 			chmod( $locked, 0644 );
