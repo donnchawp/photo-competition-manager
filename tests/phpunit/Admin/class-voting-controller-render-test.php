@@ -745,6 +745,29 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * In a judged competition the judges score on their own links, so the
+	 * workflow steps mustn't tell the club that members are voting (#243).
+	 */
+	public function test_render_judged_steps_describe_judges_scoring(): void {
+		$comp_id = $this->seed_judged_competition();
+		// Previewed: Open Voting is the active step and Show Slideshow is next, so both descriptions show.
+		$this->competitions->save_workflow(
+			$comp_id,
+			array(
+				'uploads_closed' => true,
+				'stages'         => array( 'colour' => Competition_Workflow::STAGE_PREVIEWED ),
+			)
+		);
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'Judges score on their private links', $html );
+		$this->assertStringContainsString( 'Show the images to the room while the judges score', $html );
+		$this->assertStringNotContainsString( 'Members vote on their devices', $html );
+		$this->assertStringNotContainsString( 'members vote on their phones', $html );
+	}
+
+	/**
 	 * Before voting opens there is nothing for judges to have scored, so no panel.
 	 */
 	public function test_render_judged_without_open_voting_has_no_progress(): void {
