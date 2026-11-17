@@ -858,6 +858,9 @@ class Voting_Controller {
 
 		$voting_open_here = $this->workflow->is_accepting_votes( $competition, $category_slug );
 
+		// Judges score on their own links, so members aren't voting in the room.
+		$judged = Ballots::is_judged( $competition );
+
 		$steps = array(
 			1 => array(
 				'label'       => __( 'Preview Slideshow', 'photo-competition-manager' ),
@@ -868,13 +871,17 @@ class Voting_Controller {
 			),
 			2 => array(
 				'label'       => __( 'Open Voting', 'photo-competition-manager' ),
-				'description' => __( 'Members vote on their devices', 'photo-competition-manager' ),
+				'description' => $judged
+					? __( 'Judges score on their private links', 'photo-competition-manager' )
+					: __( 'Members vote on their devices', 'photo-competition-manager' ),
 				'type'        => 'voting_open',
 				'optional'    => false,
 			),
 			3 => array(
 				'label'       => __( 'Show Slideshow', 'photo-competition-manager' ),
-				'description' => __( 'Display images on projector while members vote on their phones', 'photo-competition-manager' ),
+				'description' => $judged
+					? __( 'Show the images to the room while the judges score', 'photo-competition-manager' )
+					: __( 'Display images on projector while members vote on their phones', 'photo-competition-manager' ),
 				'type'        => 'slideshow',
 				'duration'    => $voting_duration,
 				'optional'    => true,
