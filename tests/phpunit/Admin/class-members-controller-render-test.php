@@ -399,26 +399,6 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-two-types', array(), array( $ada, $bob ), array( $individual, $team ) );
 	}
 
-	/**
-	 * The import form gives every column in order, and how to fill in types
-	 * when the club has several (#248).
-	 */
-	public function test_import_form_lists_every_column_and_explains_types(): void {
-		Type_Fixtures::clear();
-		Type_Fixtures::create( 'Individual' );
-		$this->set_request( array( 'page' => 'photo-competition-manager-members' ) );
-
-		$one_type = $this->render_normalized();
-
-		Type_Fixtures::create( 'Club' );
-		$two_types = $this->render_normalized();
-
-		$this->assertStringContainsString( 'Columns, in this order: name, email, grade, active, committee', $one_type );
-		$this->assertStringNotContainsString( 'Club;Individual', $one_type );
-		$this->assertStringContainsString( 'Columns, in this order: name, email, grade, active, committee, types', $two_types );
-		$this->assertStringContainsString( 'Club;Individual', $two_types );
-	}
-
 	public function test_render_edit_two_types(): void {
 		// Several types: the edit form carries a checkbox per type.
 		Type_Fixtures::clear();

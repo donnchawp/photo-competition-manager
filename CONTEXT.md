@@ -11,7 +11,7 @@ A member's skill level, such as Beginner, Intermediate or Advanced. Members comp
 _Avoid_: Level, class, division
 
 **Type tag**:
-The link between a member and a competition type they belong to. A member can have several, and the types they are tagged with decide which competitions they can enter. With one type every member carries its tag automatically. With several, an active member who has none is flagged, since they can enter nothing. Admins set tags on the Members screen, one member or many at once, and by a `types` column in a CSV import that can name several types.
+The link between a member and a competition type they belong to. A member can have several, and the types they are tagged with decide which competitions they can enter. With one type every member carries its tag automatically. With several, an active member who has none is flagged, since they can enter nothing. Admins set tags on the Members screen, one member or many at once, and by a `types` column in a CSV import that can name several types: the sixth column in a file without a header row. The import says how many new members it left with no type.
 _Avoid_: Membership, group
 
 **Deactivated member**:

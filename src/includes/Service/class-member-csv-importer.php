@@ -47,9 +47,10 @@ class Member_CSV_Importer {
 	 * The grade may be a club grade's label or slug, in any case. A blank
 	 * grade, or no grade column, keeps an existing member's grade.
 	 *
-	 * An optional `types` column holds competition type names separated by `;`, in any case;
-	 * a file without a header has it sixth, after committee. It replaces the member's tags. A blank cell, or no such column, leaves an existing
-	 * member's tags alone, and a new member gets the club's only type, if it has one.
+	 * An optional `types` column holds competition type names separated by `;`, in any
+	 * case; a file without a header has it sixth, after committee. It replaces the
+	 * member's tags. A blank cell, or no such column, leaves an existing member's tags
+	 * alone, and a new member gets the club's only type, if it has one.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
 	 * @return array<string, mixed>|WP_Error Import stats (total, imported, updated, skipped, untyped: new
@@ -322,8 +323,8 @@ class Member_CSV_Importer {
 			$message .= ' ' . sprintf(
 				/* translators: %d: number of new members with no competition type */
 				_n(
-					'%d new member has no competition type, so they get no upload links until you add them to one.',
-					'%d new members have no competition type, so they get no upload links until you add them to one.',
+					'%d new member has no competition type, so they get no links for competitions open to all until you add them to one.',
+					'%d new members have no competition type, so they get no links for competitions open to all until you add them to one.',
 					$result['untyped'],
 					'photo-competition-manager'
 				),

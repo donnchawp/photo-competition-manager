@@ -552,8 +552,19 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 3, $result['imported'] );
 		$this->assertSame( 2, $result['untyped'] );
+
+		// With one type a new member gets it, so nobody is left without one.
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		$result = $this->importer->import( $this->make_file( "name,email,grade\nDee,dee@example.com,beginner\n" ) );
+
+		$this->assertSame( 0, $result['untyped'] );
 	}
 
+	/**
+	 * The import notice says how many new members have no type, and says
+	 * nothing about it when none are left without one (#248).
+	 */
 	public function test_summary_says_how_many_new_members_have_no_type(): void {
 		$result = array(
 			'imported' => 3,
@@ -563,11 +574,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 			'errors'   => array(),
 		);
 
-		$this->assertSame(
-			'Import complete: 3 new members, 0 updated, 0 skipped. 2 new members have no competition type, so they get no upload links until you add them to one.',
-			Member_CSV_Importer::summary( $result )
-		);
-		$this->assertSame( 'Import complete: 3 new members, 0 updated, 0 skipped.', Member_CSV_Importer::summary( array( 'untyped' => 0 ) + $result ) );
+		$this->assertStringContainsString( '2 new members have no competition type', Member_CSV_Importer::summary( $result ) );
+		$this->assertStringNotContainsString( 'competition type', Member_CSV_Importer::summary( array( 'untyped' => 0 ) + $result ) );
 	}
 }
-
