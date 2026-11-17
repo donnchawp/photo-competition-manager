@@ -26,7 +26,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 
 **Advanced Capabilities**
 
-* **Competition Types** – Run different kinds of competition side by side, such as the monthly club competition and an annual cup. Each type has its own categories, default settings and names for the club's grades. A competition is open to everyone in its type, or only to the entrants you pick
+* **Competition Types** – Run more than one kind of competition, such as the monthly club competition and an annual cup, one at a time. Each type has its own categories, default settings and names for the club's grades. A competition is open to everyone in its type, or only to the entrants you pick
 * **External Judging** – Let invited judges score a competition instead of the members. Judges get a private link, Voting Controls shows who has scored, and each image's total is the sum of the judges' scores
 * **Interclub Competitions** – Make a type's entrants clubs. Each club enters a panel of images per category with each photographer named, with optional substitutes and a limit per photographer. Admins can disqualify entries and promote substitutes, and the results rank the clubs in each grade
 * **Voting Controls** – Open/close voting by category, manage voter tokens, track submission and voting status per competition
