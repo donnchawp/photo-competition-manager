@@ -411,29 +411,10 @@ class Members_Controller {
 					'error'
 				);
 			} else {
-				$message = sprintf(
-					/* translators: 1: imported count, 2: updated count, 3: skipped count */
-					__( 'Import complete: %1$d new members, %2$d updated, %3$d skipped.', 'photo-competition-manager' ),
-					$result['imported'],
-					$result['updated'],
-					$result['skipped']
-				);
-
-				if ( ! empty( $result['errors'] ) ) {
-					$message .= ' ' . __( 'Errors:', 'photo-competition-manager' ) . ' ' . implode( ' ', array_slice( $result['errors'], 0, 5 ) );
-					if ( count( $result['errors'] ) > 5 ) {
-						$message .= sprintf(
-							/* translators: %d: number of additional errors */
-							__( ' ...and %d more errors.', 'photo-competition-manager' ),
-							count( $result['errors'] ) - 5
-						);
-					}
-				}
-
 				add_settings_error(
 					'photo_competition_members',
 					'import_complete',
-					$message,
+					\PhotoCompetitionManager\Service\Member_CSV_Importer::summary( $result ),
 					empty( $result['errors'] ) ? 'updated' : 'warning'
 				);
 			}
@@ -771,7 +752,7 @@ class Members_Controller {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_member_create_form( $type_options );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_member_import_form( (bool) $type_options );
+			echo $this->render_member_import_form( $type_options );
 		}
 
 		echo '</div>';
@@ -1025,11 +1006,17 @@ class Members_Controller {
 	/**
 	 * Render member import form.
 	 *
-	 * @param  bool $show_types Whether to describe the types column.
+	 * @param  array<int,string> $type_options Type ID => name; empty unless the club has several types.
 	 * @return string
 	 */
-	private function render_member_import_form( bool $show_types ): string {
-		return $this->render_template( 'admin/members/import-form.php', array( 'show_types' => $show_types ) );
+	private function render_member_import_form( array $type_options ): string {
+		return $this->render_template(
+			'admin/members/import-form.php',
+			array(
+				'show_types'    => (bool) $type_options,
+				'types_example' => implode( ';', array_slice( array_values( $type_options ), 0, 2 ) ),
+			)
+		);
 	}
 
 	/**

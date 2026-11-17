@@ -492,4 +492,82 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( 1, $result['skipped'] );
 		$this->assertNull( $this->members_repo->find_by_email( 'ada@example.com' ) );
 	}
+
+	/**
+	 * A file without a header can carry types as its sixth column, after
+	 * committee, read like the header version (#248).
+	 */
+	public function test_headerless_csv_reads_types_from_the_sixth_column(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
+
+		$result = $this->importer->import(
+			$this->make_file( "Ann,ann@example.com,beginner,1,0,Individual;Team\nCy,cy@example.com,,1,0\nDee,dee@example.com,beginner,1,0,Pairs\n" )
+		);
+
+		$this->assertSame( array( 'Row 3: "Pairs" isn\'t a competition type.' ), $result['errors'] );
+		$ann = $this->members_repo->find_by_email( 'ann@example.com' );
+		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members_repo->type_ids( (int) $ann->id ) );
+		$this->assertSame( array( $team ), $this->members_repo->type_ids( $kept ) );
+	}
+
+	/**
+	 * With several types the sample shows the types column with the club's
+	 * own type names, and imports cleanly (#248).
+	 */
+	public function test_sample_csv_with_several_types_tags_members_with_them(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$team       = Type_Fixtures::create( 'Team' );
+
+		$csv    = $this->importer->generate_sample_csv();
+		$result = $this->importer->import( $this->make_file( $csv ) );
+
+		$this->assertStringStartsWith( "name,email,grade,active,committee,types\n", $csv );
+		$this->assertSame( array(), $result['errors'] );
+		$this->assertSame( 3, $result['imported'] );
+		$tagged = array_map(
+			fn( $email ) => $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( $email )->id ),
+			array( 'john.doe@example.com', 'jane.smith@example.com', 'bob.johnson@example.com' )
+		);
+		$this->assertContains( array( $individual ), $tagged );
+		$this->assertTrue( (bool) array_filter( $tagged, fn( $ids ) => 2 === count( $ids ) ) );
+		$this->assertSame( array(), array_diff( array_merge( ...$tagged ), array( $individual, $team ) ) );
+	}
+
+	/**
+	 * With several types, a new member imported without one gets no upload
+	 * links until tagged, so the import counts them (#248).
+	 */
+	public function test_import_counts_new_members_left_without_a_type(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+
+		$result = $this->importer->import(
+			$this->make_file( "name,email,grade,types\nAnn,ann@example.com,beginner,\nBob,bob@example.com,beginner,Team\nCy,cy@example.com,beginner,\n" )
+		);
+
+		$this->assertSame( 3, $result['imported'] );
+		$this->assertSame( 2, $result['untyped'] );
+	}
+
+	public function test_summary_says_how_many_new_members_have_no_type(): void {
+		$result = array(
+			'imported' => 3,
+			'updated'  => 0,
+			'skipped'  => 0,
+			'untyped'  => 2,
+			'errors'   => array(),
+		);
+
+		$this->assertSame(
+			'Import complete: 3 new members, 0 updated, 0 skipped. 2 new members have no competition type, so they get no upload links until you add them to one.',
+			Member_CSV_Importer::summary( $result )
+		);
+		$this->assertSame( 'Import complete: 3 new members, 0 updated, 0 skipped.', Member_CSV_Importer::summary( array( 'untyped' => 0 ) + $result ) );
+	}
 }
+

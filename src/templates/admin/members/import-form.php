@@ -2,7 +2,8 @@
 /**
  * Import-members-from-CSV form partial for the admin members page.
  *
- * Reads $data['show_types'] (bool): whether the club has several types.
+ * Reads $data['show_types'] (bool): whether the club has several types, and
+ * $data['types_example'] (string): two of its type names joined with a semicolon.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -39,12 +40,24 @@ echo '<input type="file" id="csv_file" name="csv_file" accept=".csv,.txt" requir
 echo '</p>';
 
 echo '<p class="description">';
-echo esc_html__( 'CSV format: name,email,grade,active (active: 1=active, 0=inactive)', 'photo-competition-manager' );
+echo esc_html(
+	$data['show_types']
+		? __( 'Columns, in this order: name, email, grade, active, committee, types. Only name and email are required, and a file with a header row can put its columns in any order.', 'photo-competition-manager' )
+		: __( 'Columns, in this order: name, email, grade, active, committee. Only name and email are required, and a file with a header row can put its columns in any order.', 'photo-competition-manager' )
+);
 echo '<br />';
 echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New members need one. Leave it blank to keep an existing member\'s grade.', 'photo-competition-manager' );
 echo '<br />';
+echo esc_html__( 'Active and committee: 1 for yes, 0 for no.', 'photo-competition-manager' );
+echo '<br />';
 if ( $data['show_types'] ) {
-	echo esc_html__( 'Types: optional column of competition type names separated by semicolons. It replaces the member\'s types. Leave it out to keep an existing member\'s types; new members get none.', 'photo-competition-manager' );
+	echo esc_html(
+		sprintf(
+			/* translators: %s: example of competition type names separated by a semicolon */
+			__( 'Types: competition type names separated by semicolons, such as %s. They replace the member\'s types. Leave the cell blank to keep an existing member\'s types; a new member without types gets none and no upload links until you add them to one.', 'photo-competition-manager' ),
+			$data['types_example']
+		)
+	);
 	echo '<br />';
 }
 echo '<a href="' . esc_url( $sample_url ) . '">' . esc_html__( 'Download sample CSV template', 'photo-competition-manager' ) . '</a>';
