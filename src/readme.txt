@@ -112,11 +112,11 @@ Add the judges on **Competitions → Judges**. They aren't members and get none 
 
 = What are competition types? =
 
-A competition type holds a kind of competition's categories, default upload, voting and slideshow settings, and its own names for the club's grades, for example "Cup" for Advanced. Every site starts with one type, "Individual", and with one type there's nothing to choose. Add types on **Competitions → Competition Types** when you run more than one kind of competition. Members are tagged with the types they enter, and a competition is open to everyone in its type or only to the entrants you add on its Entrants tab.
+A competition type holds a kind of competition's categories, default upload, voting and slideshow settings, and its own names for the club's grades, for example "Cup" for Advanced. Every site starts with one type, "Individual", and with one type there's nothing to choose. Add types on **Competitions → Competition Types** when you run more than one kind of competition. Members are tagged with the types they enter, and a competition is open to everyone in its type or only to the entrants you pick from the type's members on its Entrants tab.
 
 = Can clubs compete against each other? =
 
-Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a member and enters a panel of images in each category, naming the photographer of every image. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
+Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a member tagged with the type and enters a panel of images in each category, naming the photographer of every image. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
 
 = How do email notifications work? =
 
@@ -251,7 +251,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Settings keeps only what's club-wide: grades, email, page addresses, the voting form layout and log retention
   * A new competition picks its type and starts with that type's categories and settings. With only one type there's nothing to pick. The type can be changed until the competition has entries, and changing it copies the new type's settings
   * Members are tagged with the types they enter. With one type this happens automatically. With more, the Members screen has a Types column, a type filter and bulk add or remove, CSV import takes a `types` column, and members with no type are flagged
-  * A competition is open to everyone in its type, or to selected entrants only. Add entrants on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go. An entrant added while uploads are open is sent their upload link. Who may enter can't change once voting starts or the competition closes
+  * A competition is open to everyone in its type, or to selected entrants only. Add entrants from the type's members on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go, which adds them to the type. Only members of the type can be entered, and in an interclub competition the tab talks about clubs. An entrant added while uploads are open is sent their upload link. Who may enter can't change once voting starts or the competition closes
   * Only members who may enter a competition get its upload links and reminders, can use the upload page, or can upload through the REST API. In a selected-entrants competition only entrants can ask for a voting link
   * The Voting Opened email and "Email results to all members" go to the competition type's members
   * Results pages, Top 3, emails and exports show the type's grade names. Admin screens show both, for example "Cup (Advanced)"
