@@ -1300,7 +1300,7 @@ class Competitions_Controller {
 		$type           = $this->types->find( (int) $competition->type_id );
 		$selected       = Competition_Entry::is_selected( $competition );
 		$named_type     = $type && $this->types->has_several() ? $type : null;
-		$interclub      = Competition_Entry::is_interclub( $competition );
+		$interclub      = Competition_Settings::is_interclub( $competition );
 
 		$entrants      = array();
 		$member_groups = array();

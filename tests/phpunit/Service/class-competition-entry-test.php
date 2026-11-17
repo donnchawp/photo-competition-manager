@@ -78,6 +78,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 *
 	 * @param string $type       Type name.
 	 * @param string $entry_mode 'all' or 'selected'.
+	 * @param bool   $interclub  Whether its entrants are clubs.
 	 * @return object Competition row.
 	 */
 	private function competition( string $type = 'Individual', string $entry_mode = 'all', bool $interclub = false ): object {
@@ -209,7 +210,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 * A club enters an interclub competition, and a club is a member tagged with
 	 * its type, so a person who isn't can't be entered as one (#246).
 	 */
-	public function test_interclub_add_entrant_refuses_a_member_not_in_the_type(): void {
+	public function test_interclub_add_entrant_enters_only_members_of_the_type(): void {
 		$competition = $this->competition( 'Team', 'selected', true );
 		$club        = $this->member( 'Riverside Camera Club', array( 'Team' ) );
 		$person      = $this->member( 'Bob', array( 'Individual' ) );

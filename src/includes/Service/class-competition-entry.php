@@ -153,17 +153,6 @@ class Competition_Entry {
 	}
 
 	/**
-	 * Whether a competition's entrants are clubs.
-	 *
-	 * @since 0.4.0
-	 * @param object $competition Competition row.
-	 * @return bool
-	 */
-	public static function is_interclub( object $competition ): bool {
-		return (bool) Competition_Settings::parse( $competition->settings )['interclub']['enabled'];
-	}
-
-	/**
 	 * Enter a member in a competition for selected entrants. While its uploads
 	 * are open, they're sent their upload link.
 	 *
@@ -183,8 +172,8 @@ class Competition_Entry {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
-		// A club is a member tagged with the interclub type, so anyone else would enter as a person.
-		if ( self::is_interclub( $competition ) && ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
+		// In an interclub competition a club is a member tagged with the competition's type, so anyone else would enter as a person.
+		if ( Competition_Settings::is_interclub( $competition ) && ! in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(
