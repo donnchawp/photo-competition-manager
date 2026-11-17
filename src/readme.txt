@@ -243,7 +243,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Judges score every image in the open category from the competition's score list, and an image's total is the sum of their scores
   * Members can't vote in a judged competition. They don't get the Voting Opened email, and the upload email's new `{voting_info}` tag is left empty. A customised upload email that names the voting page in its own words still does, so before running a judged competition replace that text with `{voting_info}`
   * The detailed results email shows only an image's total and position in a judged competition. Admins can still see each judge's score on the Results screen and in the votes CSV, where each judge is named
-  * Voting Controls shows which judges have scored the open category
+  * Voting Controls shows which judges have scored the open category, and its steps say the judges are scoring instead of the members voting
   * Deleting a judge, or erasing them with Tools > Erase Personal Data, removes their name and email and every log entry about them. Their scores still count
 
 * **Competition types**
