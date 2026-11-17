@@ -48,13 +48,14 @@ class Member_CSV_Importer {
 	 * grade, or no grade column, keeps an existing member's grade.
 	 *
 	 * An optional `types` column holds competition type names separated by `;`, in any
-	 * case; a file without a header has it sixth, after committee. It replaces the
+	 * case; a file without a header has it sixth, after committee, when the club has
+	 * several types (with one, a sixth column is ignored). It replaces the
 	 * member's tags. A blank cell, or no such column, leaves an existing member's tags
 	 * alone, and a new member gets the club's only type, if it has one.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
-	 * @return array<string, mixed>|WP_Error Import stats (total, imported, updated, skipped, untyped: new
-	 *                                     members left with no type, and errors), or WP_Error on failure.
+	 * @return array<string, mixed>|WP_Error Import stats (total, imported, updated, skipped, untyped: active
+	 *                                     new members left with no type, and errors), or WP_Error on failure.
 	 */
 	public function import( array $file ) {
 		// Validate file upload.
@@ -143,6 +144,11 @@ class Member_CSV_Importer {
 			$type_ids_by_name[ strtolower( trim( $type->name ) ) ] = (int) $type->id;
 		}
 
+		// With one type there's no types column to fill in, so a headerless file's sixth column is something else.
+		if ( ! $has_header && count( $type_ids_by_name ) < 2 ) {
+			$col_types = false;
+		}
+
 		// Process each data row.
 		$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv -- Standard CSV reading pattern.
 		while ( false !== $row ) {
@@ -214,7 +220,7 @@ class Member_CSV_Importer {
 							/* translators: 1: row number, 2: type name from the CSV file */
 							__( 'Row %1$d: "%2$s" isn\'t a competition type.', 'photo-competition-manager' ),
 							$row_number,
-							$type_name
+							sanitize_text_field( $type_name )
 						);
 						++$stats['skipped'];
 						$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
@@ -287,7 +293,8 @@ class Member_CSV_Importer {
 				} else {
 					++$stats['imported'];
 					// With one type a new member gets it; with several, none unless the row names some.
-					if ( empty( $type_ids ) && count( $type_ids_by_name ) > 1 ) {
+					// Only active ones count: an inactive member gets no links anyway.
+					if ( empty( $type_ids ) && count( $type_ids_by_name ) > 1 && $active_normalized ) {
 						++$stats['untyped'];
 					}
 				}

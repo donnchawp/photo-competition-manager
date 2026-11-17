@@ -415,7 +415,7 @@ class Members_Controller {
 					'photo_competition_members',
 					'import_complete',
 					\PhotoCompetitionManager\Service\Member_CSV_Importer::summary( $result ),
-					empty( $result['errors'] ) ? 'updated' : 'warning'
+					empty( $result['errors'] ) && empty( $result['untyped'] ) ? 'updated' : 'warning'
 				);
 			}
 

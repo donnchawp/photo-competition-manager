@@ -577,4 +577,50 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '2 new members have no competition type', Member_CSV_Importer::summary( $result ) );
 		$this->assertStringNotContainsString( 'competition type', Member_CSV_Importer::summary( array( 'untyped' => 0 ) + $result ) );
 	}
+
+	/**
+	 * With one type there's no types column, so a headerless file's extra
+	 * column after committee is ignored, as it was before types (#248).
+	 */
+	public function test_headerless_csv_ignores_a_sixth_column_with_one_type(): void {
+		Type_Fixtures::clear();
+		$type = Type_Fixtures::create( 'Individual' );
+
+		$result = $this->importer->import( $this->make_file( "Ann,ann@example.com,beginner,1,0,087-1234567\n" ) );
+
+		$this->assertSame( array(), $result['errors'] );
+		$this->assertSame( 1, $result['imported'] );
+		$this->assertSame( array( $type ), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
+	}
+
+	/**
+	 * The unknown-type error shows the cell as text, so markup in a CSV
+	 * can't reach the admin notice.
+	 */
+	public function test_unknown_type_error_strips_markup_from_the_cell(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+
+		$result = $this->importer->import( $this->make_file( "name,email,grade,types\nAnn,ann@example.com,beginner,<img src=x onerror=alert(1)>Pairs\n" ) );
+
+		$this->assertCount( 1, $result['errors'] );
+		$this->assertStringNotContainsString( '<', $result['errors'][0] );
+	}
+
+	/**
+	 * An inactive member gets no links anyway, so one imported without a type
+	 * isn't counted as needing one.
+	 */
+	public function test_import_counts_only_active_new_members_without_a_type(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+
+		$result = $this->importer->import( $this->make_file( "name,email,grade,active\nAnn,ann@example.com,beginner,1\nBob,bob@example.com,beginner,0\n" ) );
+
+		$this->assertSame( 2, $result['imported'] );
+		$this->assertSame( 1, $result['untyped'] );
+	}
 }
+
