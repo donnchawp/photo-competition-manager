@@ -58,14 +58,15 @@ class Competition_Labels_Test extends WP_UnitTestCase {
 	 * A saved competition titled "{grade} 2026" of a type renaming the first grade "Cup".
 	 *
 	 * @param string[] $entrant_grades Grades of members who each upload an image.
+	 * @param string[] $unused_grades  Grades the type leaves out.
 	 * @return object
 	 */
-	private function grade_titled_competition( array $entrant_grades = array() ): object {
+	private function grade_titled_competition( array $entrant_grades = array(), array $unused_grades = array() ): object {
 		$grades      = Competition_Settings::club_grades();
 		$competition = new Competitions_Repository();
 		$id          = (int) $competition->create(
 			array(
-				'type_id'   => Type_Fixtures::create( 'Cup', array( $grades[0]['slug'] => 'Cup' ) ),
+				'type_id'   => Type_Fixtures::create( 'Cup', array( $grades[0]['slug'] => 'Cup' ), $unused_grades ),
 				'title'     => '{grade} 2026',
 				'slug'      => 'grade-title',
 				'open_date' => '2020-01-01 00:00:00',
@@ -140,6 +141,20 @@ class Competition_Labels_Test extends WP_UnitTestCase {
 		$competition = $this->grade_titled_competition();
 		$expected    = array( 'Cup' );
 		foreach ( array_slice( $grades, 1 ) as $grade ) {
+			$expected[] = $grade['label'];
+		}
+
+		$this->assertSame( implode( ' / ', $expected ) . ' 2026', ( new Competition_Labels() )->title_for_everyone( $competition ) );
+	}
+
+	/**
+	 * Before any entries, a title's {grade} names only the grades the type uses (#247).
+	 */
+	public function test_title_for_everyone_with_no_entries_leaves_out_unused_grades(): void {
+		$grades      = Competition_Settings::club_grades();
+		$competition = $this->grade_titled_competition( array(), array( $grades[1]['slug'] ) );
+		$expected    = array( 'Cup' );
+		foreach ( array_slice( $grades, 2 ) as $grade ) {
 			$expected[] = $grade['label'];
 		}
 

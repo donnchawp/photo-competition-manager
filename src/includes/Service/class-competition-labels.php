@@ -38,11 +38,12 @@ class Competition_Labels {
 	private $images;
 
 	/**
-	 * Each type's grade names, by type ID, once looked up.
+	 * Each type's non-blank grade names and the slugs of the club grades it
+	 * uses, by type ID, once looked up.
 	 *
-	 * @var array<int, array<string,string>>
+	 * @var array<int, array{names: array<string,string>, used: string[]}>
 	 */
-	private $names = array();
+	private $type_grades = array();
 
 	/**
 	 * The "everyone" form of each competition's title, by competition ID, once built.
@@ -154,7 +155,8 @@ class Competition_Labels {
 	}
 
 	/**
-	 * The names of the grades that hold entries, joined; every grade's name when none do.
+	 * The names of the grades that hold entries, joined; the names of every grade
+	 * the type uses when none do.
 	 *
 	 * @param object               $competition Competition row.
 	 * @param array<string,string> $labels      Grade names by slug.
@@ -164,10 +166,13 @@ class Competition_Labels {
 		$id = (int) ( $competition->id ?? 0 );
 
 		if ( ! isset( $this->everyone_titles[ $id ] ) ) {
-			$used  = $id ? $this->images->entrant_grades( $id ) : array();
-			$names = array_values( array_intersect_key( $labels, array_flip( (array) $used ) ) );
+			$entered = $id ? $this->images->entrant_grades( $id ) : array();
+			$names   = array_values( array_intersect_key( $labels, array_flip( (array) $entered ) ) );
+			if ( ! $names ) {
+				$names = array_values( array_intersect_key( $labels, array_flip( $this->used_grades( $competition ) ) ) );
+			}
 
-			$this->everyone_titles[ $id ] = implode( ' / ', $names ? $names : array_values( $labels ) );
+			$this->everyone_titles[ $id ] = implode( ' / ', $names );
 		}
 
 		return $this->everyone_titles[ $id ];
@@ -180,14 +185,40 @@ class Competition_Labels {
 	 * @return array<string,string>
 	 */
 	private function type_names( object $competition ): array {
+		return $this->type_grades( $competition )['names'];
+	}
+
+	/**
+	 * The slugs of the club's grades a competition's type uses, in the club's order.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @return string[]
+	 */
+	public function used_grades( object $competition ): array {
+		return $this->type_grades( $competition )['used'];
+	}
+
+	/**
+	 * A competition's type's grade names and used grades, looked up once per type.
+	 *
+	 * @param object $competition Competition row.
+	 * @return array{names: array<string,string>, used: string[]}
+	 */
+	private function type_grades( object $competition ): array {
 		$type_id = (int) ( $competition->type_id ?? 0 );
 
-		if ( ! isset( $this->names[ $type_id ] ) ) {
-			$type                    = $type_id ? $this->types->find( $type_id ) : null;
-			$this->names[ $type_id ] = $type ? array_filter( array_map( 'strval', (array) $type->grade_names ), 'strlen' ) : array();
+		if ( ! isset( $this->type_grades[ $type_id ] ) ) {
+			$type   = $type_id ? $this->types->find( $type_id ) : null;
+			$unused = $type ? $type->unused_grades : array();
+
+			$this->type_grades[ $type_id ] = array(
+				'names' => $type ? array_filter( array_map( 'strval', (array) $type->grade_names ), 'strlen' ) : array(),
+				'used'  => array_values( array_diff( array_map( 'strval', array_keys( Competition_Settings::grade_labels() ) ), $unused ) ),
+			);
 		}
 
-		return $this->names[ $type_id ];
+		return $this->type_grades[ $type_id ];
 	}
 
 	/**

@@ -75,6 +75,13 @@ class Competition_Entry {
 	private $upload_tokens;
 
 	/**
+	 * Competition labels, for the grades a competition's type uses.
+	 *
+	 * @var Competition_Labels
+	 */
+	private $labels;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions Competitions repository.
@@ -89,19 +96,20 @@ class Competition_Entry {
 		$this->entrants      = new Entrants_Repository();
 		$this->images        = new Images_Repository();
 		$this->upload_tokens = new Upload_Token_Repository();
+		$this->labels        = new Competition_Labels();
 	}
 
 	/**
-	 * Whether a member may enter a competition: they're active and, when it's
-	 * open to everyone in its type, tagged with that type, or, when it's for
-	 * selected entrants only, one of them.
+	 * Whether a member may enter a competition: they're active, in a grade its
+	 * type uses, and, when it's open to everyone in its type, tagged with that
+	 * type, or, when it's for selected entrants only, one of them.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
 	 * @return bool
 	 */
 	public function may_enter( object $competition, object $member ): bool {
-		if ( empty( $member->active ) ) {
+		if ( empty( $member->active ) || ! $this->uses_grade_of( $competition, $member ) ) {
 			return false;
 		}
 
@@ -125,7 +133,7 @@ class Competition_Entry {
 
 	/**
 	 * The members an admin can add as entrants: active members tagged with the
-	 * competition's type who aren't entrants yet, by name.
+	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
 	 * @param object $competition Competition row.
@@ -137,8 +145,8 @@ class Competition_Entry {
 		return array_values(
 			array_filter(
 				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $entrants ) {
-					return ! isset( $entrants[ (int) $member->id ] );
+				function ( $member ) use ( $competition, $entrants ) {
+					return ! isset( $entrants[ (int) $member->id ] ) && $this->uses_grade_of( $competition, $member );
 				}
 			)
 		);
@@ -166,11 +174,23 @@ class Competition_Entry {
 		return array_values(
 			array_filter(
 				$members,
-				function ( $member ) {
-					return ! empty( $member->active ) && ! empty( $member->email );
+				function ( $member ) use ( $competition ) {
+					return ! empty( $member->active ) && ! empty( $member->email ) && $this->uses_grade_of( $competition, $member );
 				}
 			)
 		);
+	}
+
+	/**
+	 * Whether a competition's type uses a member's grade.
+	 *
+	 * @since 0.4.0
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @return bool
+	 */
+	public function uses_grade_of( object $competition, object $member ): bool {
+		return in_array( (string) $member->grade, $this->labels->used_grades( $competition ), true );
 	}
 
 	/**
@@ -189,7 +209,7 @@ class Competition_Entry {
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -210,6 +230,17 @@ class Competition_Entry {
 				sprintf(
 					/* translators: %s: Member name */
 					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
+		}
+
+		if ( ! $this->uses_grade_of( $competition, $member ) ) {
+			return new WP_Error(
+				'grade_not_used',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s is in a grade this competition\'s type doesn\'t use, so they can\'t enter it.', 'photo-competition-manager' ),
 					$member->name
 				)
 			);

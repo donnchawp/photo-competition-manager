@@ -7,6 +7,7 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -271,6 +272,24 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 'beginner', 'intermediate', 'advanced' ), array_column( $groups, 'slug' ) );
 		$this->assertSame( array( 'Beginner', 'Intermediate', 'Advanced' ), array_column( $groups, 'label' ) );
 		$this->assertSame( array( false, false, false ), array_column( $groups, 'ungraded' ) );
+	}
+
+	/**
+	 * Leaving a grade out of a type stops new entries, but entries already in
+	 * it still have results, under the grade's name (#247).
+	 */
+	public function test_entries_in_a_grade_the_type_left_out_still_have_results(): void {
+		$this->seed_entry( 'Beg', 'beginner', array( 5 ) );
+		$this->seed_entry( 'Adv', 'advanced', array( 9 ) );
+		$types = new Competition_Types_Repository();
+		$type  = $types->find( Type_Fixtures::id() );
+		$colour = array( array( 'label' => 'Colour', 'slug' => 'colour', 'quota' => 2 ) );
+		$this->assertTrue( $types->update( (int) $type->id, $type->name, array( 'categories' => $colour ), $type->grade_names, array( 'beginner' ) ) );
+
+		$groups = $this->ranking->rank_category( $this->competition_id, 'colour' );
+
+		$this->assertSame( array( 'beginner' => array( 'Beg:1:5' ), 'advanced' => array( 'Adv:1:9' ) ), $this->summarize( $groups ) );
+		$this->assertSame( 'Beginner', $groups[0]['label'] );
 	}
 
 	public function test_entry_without_votes_scores_zero(): void {

@@ -93,7 +93,7 @@ class Types_Controller {
 			check_admin_referer( 'photo_competition_type_create', 'photo_competition_type_nonce' );
 
 			$posted = $this->posted_type( (object) array() );
-			$result = $this->types->create( $posted['name'], $posted['settings'], $posted['grade_names'] );
+			$result = $this->types->create( $posted['name'], $posted['settings'], $posted['grade_names'], $posted['unused_grades'] );
 
 			$back = $this->types_url();
 			if ( is_wp_error( $result ) ) {
@@ -112,7 +112,7 @@ class Types_Controller {
 			$type   = $this->types->find( $type_id );
 			$posted = $type ? $this->posted_type( $type ) : array();
 			$result = $type
-				? $this->types->update( $type_id, $posted['name'], $posted['settings'], $posted['grade_names'] )
+				? $this->types->update( $type_id, $posted['name'], $posted['settings'], $posted['grade_names'], $posted['unused_grades'] )
 				: new \WP_Error( 'type_not_found', __( 'Competition type not found.', 'photo-competition-manager' ) );
 
 			$back = $this->types_url();
@@ -234,6 +234,7 @@ class Types_Controller {
 
 		$name        = $draft['name'] ?? ( $type ? $type->name : '' );
 		$grade_names = $draft['grade_names'] ?? ( $type ? $type->grade_names : array() );
+		$unused      = $draft['unused_grades'] ?? ( $type ? $type->unused_grades : array() );
 		$settings    = $draft['settings'] ?? Competition_Settings::type_settings( $type ?? (object) array() );
 
 		$grade_rows = array();
@@ -242,6 +243,7 @@ class Types_Controller {
 				'slug'  => $grade['slug'],
 				'label' => $grade['label'],
 				'name'  => (string) ( $grade_names[ $grade['slug'] ] ?? '' ),
+				'used'  => ! in_array( $grade['slug'], $unused, true ),
 			);
 		}
 
@@ -262,13 +264,14 @@ class Types_Controller {
 	 * The type as the form posted it.
 	 *
 	 * @param object $type The type being edited, or an empty object for a new one.
-	 * @return array{name: string, settings: array<string, mixed>, grade_names: array<string, string>}
+	 * @return array{name: string, settings: array<string, mixed>, grade_names: array<string, string>, unused_grades: string[]}
 	 */
 	private function posted_type( object $type ): array {
 		return array(
-			'name'        => sanitize_text_field( $this->get_post_string( 'type_name' ) ),
-			'settings'    => $this->form->from_post( Competition_Settings::type_settings( $type ) ),
-			'grade_names' => $this->posted_grade_names(),
+			'name'          => sanitize_text_field( $this->get_post_string( 'type_name' ) ),
+			'settings'      => $this->form->from_post( Competition_Settings::type_settings( $type ) ),
+			'grade_names'   => $this->posted_grade_names(),
+			'unused_grades' => $this->posted_unused_grades( $type ),
 		);
 	}
 
@@ -307,6 +310,31 @@ class Types_Controller {
 	 */
 	private function draft_key(): string {
 		return 'photo_comp_type_draft_' . get_current_user_id();
+	}
+
+	/**
+	 * The club grades the form left unticked. An unticked box isn't posted, so
+	 * the form's grades_shown field tells "none ticked" from "no tick boxes",
+	 * which keeps the type's current choice.
+	 *
+	 * @param object $type The type being edited, or an empty object for a new one.
+	 * @return string[]
+	 */
+	private function posted_unused_grades( object $type ): array {
+		if ( '' === $this->get_post_string( 'grades_shown' ) ) {
+			return $type->unused_grades ?? array();
+		}
+
+		$ticked = $this->get_post_array( 'used_grades' );
+
+		return array_values(
+			array_filter(
+				wp_list_pluck( Competition_Settings::club_grades(), 'slug' ),
+				function ( $slug ) use ( $ticked ) {
+					return empty( $ticked[ $slug ] );
+				}
+			)
+		);
 	}
 
 	/**

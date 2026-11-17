@@ -7,8 +7,8 @@
  * name to show), $data['sections_html'] (string:
  * pre-rendered categories, upload, voting and slideshow sections from
  * Type_Settings_Form::render_sections()), $data['grade_rows'] (objects with
- * slug, label, the club's name for the grade, and name, this type's name for
- * it or '') and $data['types_url'] (string).
+ * slug, label, the club's name for the grade, name, this type's name for
+ * it or '', and used, whether the type uses it) and $data['types_url'] (string).
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -52,13 +52,15 @@ echo '<input type="text" id="type_name" name="type_name" class="regular-text" re
 echo $data['sections_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 echo '<h2>' . esc_html__( 'Grade Names', 'photo-competition-manager' ) . '</h2>';
-echo '<p class="description">' . esc_html__( 'What this type calls each of the club\'s grades. Leave a name blank to use the club\'s.', 'photo-competition-manager' ) . '</p>';
+echo '<p class="description">' . esc_html__( 'What this type calls each of the club\'s grades. Leave a name blank to use the club\'s. Untick a grade the type doesn\'t use: members in it can\'t enter this type\'s competitions.', 'photo-competition-manager' ) . '</p>';
+echo '<input type="hidden" name="grades_shown" value="1" />';
 echo '<table class="form-table"><tbody>';
 foreach ( $data['grade_rows'] as $row ) {
 	$field_id = 'grade_name_' . $row->slug;
 	echo '<tr>';
 	echo '<th scope="row"><label for="' . esc_attr( $field_id ) . '">' . esc_html( $row->label ) . '</label></th>';
-	echo '<td><input type="text" id="' . esc_attr( $field_id ) . '" name="grade_names[' . esc_attr( $row->slug ) . ']" value="' . esc_attr( $row->name ) . '" class="regular-text" placeholder="' . esc_attr( $row->label ) . '" /></td>';
+	echo '<td><input type="text" id="' . esc_attr( $field_id ) . '" name="grade_names[' . esc_attr( $row->slug ) . ']" value="' . esc_attr( $row->name ) . '" class="regular-text" placeholder="' . esc_attr( $row->label ) . '" /> ';
+	echo '<label><input type="checkbox" name="used_grades[' . esc_attr( $row->slug ) . ']" value="1"' . checked( $row->used, true, false ) . ' /> ' . esc_html__( 'Used by this type', 'photo-competition-manager' ) . '</label></td>';
 	echo '</tr>';
 }
 echo '</tbody></table>';

@@ -148,6 +148,24 @@ class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-form', array( $id ) );
 	}
 
+	/**
+	 * A grade the type leaves out is shown unticked, so saving keeps it out (#247).
+	 */
+	public function test_render_edit_form_unticks_a_grade_the_type_does_not_use(): void {
+		$id = $this->types->create( 'Interclub', $this->settings( 'colour' ), array(), array( 'beginner' ) );
+		$this->set_request(
+			array(
+				'type_action' => 'edit',
+				'type'        => $id,
+			)
+		);
+
+		$html = $this->render_normalized( array( $id ) );
+
+		$this->assertStringContainsString( '<input type="checkbox" name="used_grades[beginner]" value="1" />', $html );
+		$this->assertStringContainsString( '<input type="checkbox" name="used_grades[advanced]" value="1" checked=\'checked\' />', $html );
+	}
+
 	public function test_render_edit_form_with_error(): void {
 		$id = $this->types->create( 'Individual', $this->settings( 'colour' ) );
 		$this->set_request(

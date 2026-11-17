@@ -122,14 +122,15 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 * @param string   $name   Name.
 	 * @param string[] $types  Type names.
 	 * @param bool     $active Whether active.
+	 * @param string   $grade  Grade slug.
 	 * @return int Member ID.
 	 */
-	private function member( string $name, array $types = array( 'Individual' ), bool $active = true ): int {
+	private function member( string $name, array $types = array( 'Individual' ), bool $active = true, string $grade = 'beginner' ): int {
 		$id = $this->members->create(
 			array(
 				'name'     => $name,
 				'email'    => sanitize_title( $name ) . '@example.com',
-				'grade'    => 'beginner',
+				'grade'    => $grade,
 				'active'   => $active,
 				'type_ids' => array_map(
 					function ( $type ) {
@@ -163,6 +164,53 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
 		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
 		$this->assertSame( array( $bob ), array_map( 'intval', wp_list_pluck( $this->entry->eligible_members( $competition ), 'id' ) ) );
+	}
+
+	/**
+	 * A member whose grade the competition's type doesn't use can't enter it,
+	 * whether it's open to the type or to selected entrants (#247).
+	 */
+	public function test_a_member_in_a_grade_the_type_does_not_use_may_not_enter(): void {
+		Type_Fixtures::clear();
+		$this->types = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
+		);
+		$competition = $this->competition( 'Team' );
+		$ann         = $this->member( 'Ann', array( 'Team' ), true, 'advanced' );
+		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+
+		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
+		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
+		$this->assertSame( array( $ann ), $this->entry->eligible_member_ids( $competition ) );
+
+		$this->competitions->update( (int) $competition->id, array( 'entry_mode' => 'selected' ) );
+		$selected = $this->reload( $competition );
+		$this->entrants->add( (int) $selected->id, $ann );
+		$this->entrants->add( (int) $selected->id, $bob );
+
+		$this->assertFalse( $this->entry->may_enter( $selected, $this->members->find( $bob ) ) );
+		$this->assertSame( array( $ann ), $this->entry->eligible_member_ids( $selected ) );
+	}
+
+	/**
+	 * An admin can't enter a member whose grade the type leaves out, since
+	 * they couldn't upload (#247).
+	 */
+	public function test_add_entrant_refuses_a_member_in_a_grade_the_type_does_not_use(): void {
+		Type_Fixtures::clear();
+		$this->types = array(
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
+		);
+		$competition = $this->competition( 'Team', 'selected' );
+		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+
+		$result = $this->entry->add_entrant( $competition, $bob );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'grade_not_used', $result->get_error_code() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $bob ) );
 	}
 
 	public function test_inactive_member_may_not_enter(): void {

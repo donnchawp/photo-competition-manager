@@ -399,6 +399,34 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'list-two-types', array(), array( $ada, $bob ), array( $individual, $team ) );
 	}
 
+	/**
+	 * A member's grade is club-wide, so the add and edit forms explain how each
+	 * type that differs names and uses the club's grades (#247).
+	 */
+	public function test_member_forms_explain_how_types_map_the_grades(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Club', array( 'advanced' => 'Cup' ), array( 'beginner', 'intermediate' ) );
+		$ada  = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$note = 'Club shows Advanced as Cup, and doesn&#039;t use Beginner or Intermediate.';
+
+		$this->set_request( array( 'page' => 'photo-competition-manager-members' ) );
+		$list = $this->render_normalized();
+
+		$this->set_request(
+			array(
+				'page'          => 'photo-competition-manager-members',
+				'member_action' => 'edit',
+				'member'        => (string) $ada,
+			)
+		);
+		$edit = $this->render_normalized();
+
+		$this->assertStringContainsString( $note, $list );
+		$this->assertStringContainsString( $note, $edit );
+		$this->assertStringNotContainsString( 'Individual shows', $edit );
+	}
+
 	public function test_render_edit_two_types(): void {
 		// Several types: the edit form carries a checkbox per type.
 		Type_Fixtures::clear();

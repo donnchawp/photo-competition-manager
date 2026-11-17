@@ -126,7 +126,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 	public function test_update_changes_the_type() {
 		$id = $this->repository->create( 'Juniors', $this->settings() );
 
-		$this->assertTrue( $this->repository->update( $id, 'Seniors', $this->settings(), array( 'a' => 'B' ) ) );
+		$this->assertTrue( $this->repository->update( $id, 'Seniors', $this->settings(), array( 'a' => 'B' ), array() ) );
 
 		$type = $this->repository->find( $id );
 		$this->assertSame( 'Seniors', $type->name );
@@ -194,12 +194,12 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->repository->create( 'Juniors', $this->settings() );
 		$id = $this->repository->create( 'Seniors', $this->settings() );
 
-		$result = $this->repository->update( $id, 'JUNIORS', $this->settings(), array() );
+		$result = $this->repository->update( $id, 'JUNIORS', $this->settings(), array(), array() );
 		$this->assertWPError( $result );
 		$this->assertSame( 'duplicate_name', $result->get_error_code() );
 		$this->assertSame( 'Seniors', $this->repository->find( $id )->name );
 
-		$this->assertTrue( $this->repository->update( $id, 'Seniors', $this->settings(), array() ) );
+		$this->assertTrue( $this->repository->update( $id, 'Seniors', $this->settings(), array(), array() ) );
 	}
 
 	public function test_delete_refuses_type_in_use() {
@@ -257,6 +257,43 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), $type->grade_names );
 		$this->assertSame( 'open', $type->settings['categories'][0]['slug'] );
+	}
+
+	/**
+	 * A type can leave out some of the club's grades, and one saved before it
+	 * could still uses every grade (#247).
+	 */
+	public function test_a_type_keeps_the_grades_it_leaves_out() {
+		$id = $this->repository->create( 'Interclub', $this->settings(), array( 'advanced' => 'Cup' ), array( 'beginner' ) );
+
+		$type = $this->repository->find( $id );
+		$this->assertSame( array( 'beginner' ), $type->unused_grades );
+		$this->assertSame( array( 'advanced' => 'Cup' ), $type->grade_names );
+
+		$this->assertTrue( $this->repository->update( $id, 'Interclub', $this->settings(), array(), array( 'beginner', 'intermediate' ) ) );
+		$this->assertSame( array( 'beginner', 'intermediate' ), $this->repository->find( $id )->unused_grades );
+
+		$this->assertSame( array(), $this->repository->find( $this->repository->create( 'Individual', $this->settings() ) )->unused_grades );
+	}
+
+	/**
+	 * Unticking a grade keeps the name the type gives it, so ticking it again brings it back.
+	 */
+	public function test_leaving_a_grade_out_keeps_its_name() {
+		$id = $this->repository->create( 'Interclub', $this->settings(), array( 'advanced' => 'Cup' ), array( 'advanced' ) );
+
+		$type = $this->repository->find( $id );
+		$this->assertSame( array( 'advanced' ), $type->unused_grades );
+		$this->assertSame( array( 'advanced' => 'Cup' ), $type->grade_names );
+	}
+
+	public function test_a_type_must_use_at_least_one_grade() {
+		$every_grade = array_keys( Competition_Settings::grade_labels() );
+
+		$result = $this->repository->create( 'Interclub', $this->settings(), array(), $every_grade );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_grades', $result->get_error_code() );
 	}
 
 	public function test_create_rejects_empty_categories() {

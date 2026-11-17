@@ -245,9 +245,12 @@ class Upload_Shortcode {
 
 			// A member who may no longer enter, such as a removed entrant, is treated as having no link.
 			if ( $member && ! $this->entry->may_enter( $competition, $member ) ) {
+				$message      = $this->entry->uses_grade_of( $competition, $member )
+					? __( 'This upload link is no longer valid for this competition.', 'photo-competition-manager' )
+					: __( 'Your grade isn\'t part of this competition, so you can\'t enter it.', 'photo-competition-manager' );
+				$message      = '<p class="error">' . esc_html( $message ) . '</p>';
 				$token_record = null;
 				$member       = null;
-				$message      = '<p class="error">' . esc_html__( 'This upload link is no longer valid for this competition.', 'photo-competition-manager' ) . '</p>';
 			}
 		}
 

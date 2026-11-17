@@ -4,7 +4,8 @@
  *
  * Reads $data['member'] (object with id, name, email, grade, active,
  * committee), $data['grade_options'] (array<string,string> of grade slug =>
- * label), $data['members_url'] (string), $data['type_options'] (array<int,string>
+ * label), $data['grade_notes'] (string[]: how types that differ name and use
+ * the grades), $data['members_url'] (string), $data['type_options'] (array<int,string>
  * of type ID => name; empty unless the club has several types) and
  * $data['member_types'] (int[] of the member's type IDs).
  *
@@ -42,6 +43,9 @@ foreach ( $data['grade_options'] as $grade_slug => $grade_label ) {
 	echo '<option value="' . esc_attr( $grade_slug ) . '"' . selected( $data['member']->grade, $grade_slug, false ) . '>' . esc_html( $grade_label ) . '</option>';
 }
 echo '</select>';
+foreach ( $data['grade_notes'] as $grade_note ) {
+	echo '<br /><span class="description">' . esc_html( $grade_note ) . '</span>';
+}
 echo '</p>';
 
 echo '<p>';

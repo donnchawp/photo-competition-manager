@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Upload_Shortcode;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -778,6 +779,24 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$output = $this->shortcode->render( array() );
 
 		$this->assertStringContainsString( 'This upload link is no longer valid for this competition.', $output );
+		$this->assertStringNotContainsString( 'Authenticated as', $output );
+	}
+
+	/**
+	 * A member whose grade the competition's type leaves out is told why they
+	 * can't upload (#247).
+	 */
+	public function test_a_member_in_a_grade_the_type_does_not_use_is_told_why(): void {
+		list( $token ) = $this->two_type_token( 'all', array( 'Individual' ) );
+		$types         = new Competition_Types_Repository();
+		$type_id       = (int) ( new Competitions_Repository() )->find( $this->competition_id )->type_id;
+		$type          = $types->find( $type_id );
+		$this->assertTrue( $types->update( $type_id, $type->name, $type->settings, $type->grade_names, array( 'beginner' ) ) );
+		$_GET['token'] = $token;
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( esc_html( 'Your grade isn\'t part of this competition, so you can\'t enter it.' ), $output );
 		$this->assertStringNotContainsString( 'Authenticated as', $output );
 	}
 
