@@ -1012,10 +1012,7 @@ class Members_Controller {
 	private function render_member_import_form( array $type_options ): string {
 		return $this->render_template(
 			'admin/members/import-form.php',
-			array(
-				'show_types'    => (bool) $type_options,
-				'types_example' => implode( ';', array_slice( array_values( $type_options ), 0, 2 ) ),
-			)
+			array( 'types_example' => implode( ';', array_slice( array_values( $type_options ), 0, 2 ) ) )
 		);
 	}
 

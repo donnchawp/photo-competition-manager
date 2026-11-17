@@ -2,8 +2,8 @@
 /**
  * Import-members-from-CSV form partial for the admin members page.
  *
- * Reads $data['show_types'] (bool): whether the club has several types, and
- * $data['types_example'] (string): two of its type names joined with a semicolon.
+ * Reads $data['types_example'] (string): two of the club's type names joined
+ * with a semicolon, or '' when it has only one type, so there's no types column.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -41,7 +41,7 @@ echo '</p>';
 
 echo '<p class="description">';
 echo esc_html(
-	$data['show_types']
+	'' !== $data['types_example']
 		? __( 'Columns, in this order: name, email, grade, active, committee, types. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
 		: __( 'Columns, in this order: name, email, grade, active, committee. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
 );
@@ -50,7 +50,7 @@ echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New mem
 echo '<br />';
 echo esc_html__( 'Active and committee: 1 for yes, 0 for no. A blank cell means no, so a blank active cell makes the member inactive. A row that ends before these columns makes the member active and not on the committee.', 'photo-competition-manager' );
 echo '<br />';
-if ( $data['show_types'] ) {
+if ( '' !== $data['types_example'] ) {
 	echo esc_html(
 		sprintf(
 			/* translators: %s: example of competition type names separated by a semicolon */
