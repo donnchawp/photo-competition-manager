@@ -935,10 +935,12 @@ class Voting_Controller {
 	 * @return string
 	 */
 	private function render_quick_actions( string $voting_page_url, string $results_url, string $top3_url, array $competition_settings ): string {
-		// Get voting password if it's stored as plaintext (not a legacy hash).
+		// The voting password, when members vote with it and it's stored as plaintext (not a legacy hash).
+		// A password left from before the competition switched to links or judges isn't asked for.
 		$voting_password = '';
 		$raw_password    = $competition_settings['voting']['password'] ?? '';
-		if ( '' !== $raw_password && ! preg_match( '/^\$P\$|\$wp\$/', $raw_password ) ) {
+		$password_voting = 'password' === ( $competition_settings['voting']['auth_mode'] ?? 'password' );
+		if ( $password_voting && '' !== $raw_password && ! preg_match( '/^\$P\$|\$wp\$/', $raw_password ) ) {
 			$voting_password = $raw_password;
 		}
 		return $this->render_template(
