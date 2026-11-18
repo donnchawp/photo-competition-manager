@@ -182,6 +182,10 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 
 == Changelog ==
 
+= 0.5.0 (unreleased) =
+* **Privacy**
+  * A results page with `hide_names` no longer shows members' names in its image addresses. Entry files are named after the member, so the thumbnails now use the name-free image links the voting and slideshow pages use
+
 = 0.4.0 =
 * **Before you upgrade**
   * Back up the database first. The update runs eleven database upgrades (versions 1 to 11) on the first request after it's installed.
