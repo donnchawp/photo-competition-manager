@@ -109,6 +109,16 @@ if ( empty( $data['entrants'] ) ) {
 }
 
 if ( $data['can_change'] ) {
+	// Adding an entrant emails their upload link only while the competition takes uploads.
+	if ( $data['uploads_open'] ) {
+		$upload_email_note = $data['interclub']
+			? __( 'Each club you add is emailed its upload link straight away.', 'photo-competition-manager' )
+			: __( 'Each member you add is emailed their upload link straight away.', 'photo-competition-manager' );
+	} else {
+		$upload_email_note = __( 'Uploads aren\'t open, so adding entrants sends no email. Once uploads open, use Send Upload Emails on the Competitions screen to send their upload links.', 'photo-competition-manager' );
+	}
+	echo '<p class="description">' . esc_html( $upload_email_note ) . '</p>';
+
 	echo '<h4>' . ( $data['interclub'] ? esc_html__( 'Add clubs', 'photo-competition-manager' ) : esc_html__( 'Add entrants', 'photo-competition-manager' ) ) . '</h4>';
 
 	if ( empty( $data['addable'] ) ) {
