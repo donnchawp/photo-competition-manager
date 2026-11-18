@@ -34,6 +34,8 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a function, so these are its locals.
 ?>
 <?php if ( ! empty( $data['club'] ) ) : ?>
 				<div style="margin: 30px 0; padding: 20px; background-color: #f9f9f9; border-left: 4px solid #0073aa;">

@@ -366,7 +366,7 @@ class Votes_Repository extends Abstract_Repository {
 
 		// Two indexed lookups rather than one OR across the join, which scans
 		// every vote. UNION drops a vote both find.
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $ids and $names hold only placeholders, one per value.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $ids and $names hold only placeholders, one per value.
 		$votes = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT v.id, v.competition_id, v.category, v.image_id, v.score FROM %i AS v
