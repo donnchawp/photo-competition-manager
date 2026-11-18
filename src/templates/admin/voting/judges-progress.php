@@ -14,6 +14,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 // The heading sits inside .inside, as on the page's other cards, which gives it the card's padding.
 echo '<div class="postbox photo-comp-judges-progress">';
 echo '<div class="inside">';

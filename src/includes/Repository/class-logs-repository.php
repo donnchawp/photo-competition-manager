@@ -241,7 +241,7 @@ class Logs_Repository extends Abstract_Repository {
 
 		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions holds only placeholders, one per pattern.
 		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE {$conditions} ORDER BY created_at, id", $this->table(), ...$patterns ) );
 	}
 
@@ -283,7 +283,7 @@ class Logs_Repository extends Abstract_Repository {
 
 		list( $conditions, $patterns ) = $this->about_members( $member_ids, $emails );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $conditions holds only placeholders, one per pattern.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- $conditions holds only placeholders, one per pattern.
 		return $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE {$conditions}", $this->table(), ...$patterns ) );
 	}
 

@@ -12,6 +12,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
+
 echo '<form method="post" style="margin-bottom: 15px; display: inline-block; margin-right: 10px;">';
 wp_nonce_field( 'photo_competition_regenerate_numbers_' . $data['competition_id'], '_wpnonce' );
 echo '<input type="hidden" name="action" value="regenerate_numbers" />';
