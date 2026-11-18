@@ -2,13 +2,13 @@
 
 WordPress plugin that helps photography clubs run recurring competitions, collect submissions, and manage voting.
 
-Install it from the [WordPress.org plugin directory](https://wordpress.org/plugins/photo-competition-manager/). The plugin page has a Live Preview button that opens the latest release in WordPress Playground. The button below runs the latest `main` instead.
+Install it from the [WordPress.org plugin directory](https://wordpress.org/plugins/photo-competition-manager/). The plugin page has a Live Preview button that opens the latest release in WordPress Playground. The button below runs the development version instead.
 
 ## Try it in WordPress Playground
 
 [![Open in WordPress Playground](https://raw.githubusercontent.com/adamziel/playground-preview/refs/heads/trunk/assets/playground-preview-button.svg)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/donnchawp/photo-competition-manager/main/blueprint.json)
 
-This opens a throwaway WordPress in your browser with the latest `main` installed, logged in as admin. It adds three members (one per grade), Upload, Voting and Results pages, and a competition open for the next week. Nothing is saved once you close the tab, and emails aren't sent.
+This opens a throwaway WordPress in your browser with the development version installed, logged in as admin. It adds three members (one per grade), Upload, Voting and Results pages, and a competition open for the next week. Nothing is saved once you close the tab, and emails aren't sent.
 
 Each pull request gets its own Playground button with that branch's build.
 
