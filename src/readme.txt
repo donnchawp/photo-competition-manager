@@ -2,9 +2,9 @@
 Contributors: donncha
 Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.5
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,18 +17,23 @@ Photo Competition Manager provides everything photography clubs need to run prof
 **Core Features**
 
 * **Member Management** – Maintain active rosters, assign grades, track member status, and bulk import/update via CSV
-* **Competition Setup** – Create competitions with custom categories, submission quotas, and scoring matrices, with results grouped by the club's grades
+* **Competition Setup** – Create competitions from a competition type, which brings its own categories, submission quotas and scoring, with results grouped by the club's grades
 * **Secure Submissions** – Members upload via magic-link authentication with automatic file validation, resizing, and quota enforcement
-* **Flexible Voting** – Token-based member voting, password-protected public voting, and full-screen slideshow mode for in-person club nights
+* **Flexible Voting** – Members vote with emailed voting links or a shared password, or external judges score the images with their own private links. A full-screen slideshow shows the images on club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
 * **Email Notifications** – Automated emails for upload confirmations, voting invitations, results announcements, and custom templates with merge tags
 * **Setup Wizard** – One-click page creation for upload, voting, results, and top-3 displays with pre-configured shortcodes
 
 **Advanced Capabilities**
 
+* **Competition Types** – Run more than one kind of competition, such as the monthly club competition and an annual cup, one at a time. Each type has its own categories, default settings and names for the club's grades. A competition is open to everyone in its type, or only to the entrants you pick
+* **External Judging** – Let invited judges score a competition instead of the members. Judges get a private link, Voting Controls shows who has scored, and each image's total is the sum of the judges' scores
+* **Interclub Competitions** – Make a type's entrants clubs. Each club enters a panel of images per category with each photographer named, with optional substitutes and a limit per photographer. Admins can disqualify entries and promote substitutes, and the results rank the clubs in each grade
 * **Voting Controls** – Open/close voting by category, manage voter tokens, track submission and voting status per competition
 * **Results Analytics** – View score distributions, voting participation, and competition statistics from the admin dashboard
-* **Export Tools** – Export competition results, voting data, and member lists to CSV for archiving or external reporting
+* **Recorded Results** – Results are fixed when they're published or the competition closes, so deleting a member or changing a grade later doesn't rewrite past competitions
+* **Export Tools** – Export results, votes and the list of entrants to CSV, and download the original images as a ZIP
+* **Privacy Tools** – Members and judges are covered by WordPress's Export Personal Data and Erase Personal Data tools, the privacy policy guide gets suggested text, and you choose how long logs are kept
 * **Repository Pattern** – All data stored in dedicated database tables for performance, portability, and clean separation from WordPress content
 
 **Five Shortcodes, Unlimited Possibilities**
@@ -48,24 +53,26 @@ Perfect for photography clubs, camera clubs, photo societies, and any organizati
 1. Install via the Plugins screen on your WordPress site.
 2. Activate the plugin through **Plugins → Installed Plugins**
 3. Navigate to **Competitions → Setup Wizard** to auto-create pages with shortcodes
-4. Go to **Competitions → Settings** to configure default categories, grades, and scoring
-5. Add your members via **Competitions → Members** (supports bulk CSV import)
-6. Create your first competition and start accepting submissions!
+4. Go to **Competitions → Settings** to set the club's grades, email and page addresses
+5. Go to **Competitions → Competition Types** to set the categories, quotas and scoring. The plugin starts with one type, "Individual". Add more only if you run different kinds of competition
+6. Add your members via **Competitions → Members** (supports bulk CSV import)
+7. Create your first competition and start accepting submissions!
 
 **Manual Page Setup**
 
 If you prefer manual control, create pages with these shortcodes:
 
 * `[competition_upload]` – Member submission form
-* `[competition_voting]` – Voting interface (token-based or password-protected)
+* `[competition_voting]` – Voting interface (voting links, password, or judges' links)
 * `[competition_slideshow]` – Full-screen slideshow for in-person voting
 * `[competition_results]` – Complete results table
 * `[competition_top3]` – Podium-style top 3 display
 
 **Shortcode Attributes**
 
-* `competition="slug"` – Target a specific competition (all shortcodes)
-* `category="slug"` – Filter by category (voting and slideshow only)
+* `competition="slug"` – Show a specific competition (results, top 3 and slideshow). The upload and voting pages always use the open competition
+* `category="slug"` – The category to show (slideshow, where it's required)
+* `hide_names="1"` – Leave out member names, and in interclub competitions the photographers, clubs and club standings (results only)
 
 **Building From Source**
 
@@ -94,10 +101,22 @@ Members receive a magic-link email with a unique upload URL. No passwords or log
 
 = Can I customize the voting system? =
 
-Yes! Choose between three voting modes:
-1. **Token-based** – Each member gets a unique voting link via email
-2. **Password-protected** – Share a single password with all voters
-3. **Slideshow mode** – Full-screen presentation for in-person voting at club meetings
+Yes. Each competition picks who scores it on its Settings tab:
+1. **Voting links** – Members enter their email address on the voting page and get their own voting link
+2. **Password** – Share a single password with all voters, for example at a club meeting while the slideshow runs
+3. **Judges** – Invited judges score every image with their own private links, and members can't vote
+
+= How does external judging work? =
+
+Add the judges on **Competitions → Judges**. They aren't members and get none of the member emails. On the competition's Settings tab, set "Who scores" to Judges and pick its judges. Each judge has a private link, which you can email with the Judge link email or open on the night. A judge scores every image in the open category from the competition's score list, and Voting Controls shows which judges have scored. An image's total is the sum of the judges' scores.
+
+= What are competition types? =
+
+A competition type holds a kind of competition's categories, default upload, voting and slideshow settings, and its own names for the club's grades, for example "Cup" for Advanced. Every site starts with one type, "Individual", and with one type there's nothing to choose. Add types on **Competitions → Competition Types** when you run more than one kind of competition. Members are tagged with the types they enter, and a competition is open to everyone in its type or only to the entrants you pick from the type's members on its Entrants tab.
+
+= Can clubs compete against each other? =
+
+Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a member tagged with the type and enters a panel of images in each category, naming the photographer of every image. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
 
 = How do email notifications work? =
 
@@ -113,19 +132,19 @@ Emails going to many members (upload links, voting opened, results, and results 
 
 = Can I customize categories and grades per competition? =
 
-Categories, yes. Set default categories, quotas, and scoring matrices in **Competitions → Settings**, and each competition can override them on its Settings tab without affecting future competitions.
+Categories, yes. Set the default categories, quotas, and scoring for each competition type in **Competitions → Competition Types**. A new competition starts with its type's, and can override them on its Settings tab without affecting future competitions.
 
-Grades are set once for the club in **Competitions → Settings**, and every competition uses them. Renaming a grade renames it in every competition's results, past ones included.
+Grades are set once for the club in **Competitions → Settings**, and every competition uses them. A competition type can give them its own names. Renaming a grade renames it in every competition's results, past ones included.
 
 = What if someone loses their magic link or voting token? =
 
-**For uploads:** Regenerate the member's upload link from **Competitions → Members** → Edit Member → "Send Upload Link"
+**For uploads:** Use the Upload Link action on the member's row in **Competitions → Members** to copy their link or send it again.
 
-**For voting:** From **Competitions → Voting Controls**, close and reopen the voting category to generate fresh token links for all members.
+**For voting:** The member enters their email address on the voting page again. The new link replaces the earlier one.
 
 = Can I hide member names in the results? =
 
-Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names.
+Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names. In an interclub competition it also leaves out the photographers, clubs and club standings.
 
 = Does it work on mobile devices? =
 
@@ -133,30 +152,170 @@ Yes! All shortcodes are fully responsive and tested on mobile devices. The top-3
 
 = Where do uploaded images get stored? =
 
-Images are stored in `/wp-content/uploads/competitions/{competition-slug}/{category-slug}/`. The plugin automatically creates thumbnails and validates uploads. All paths are secure and inaccessible without proper authentication.
+Images are stored in `/wp-content/uploads/competitions/{competition-slug}/{category-slug}/`. The plugin validates uploads and makes resized copies and thumbnails. The resized copies lose the photographer's name from their EXIF, IPTC and XMP data, The voting page and slideshow load images by entry ID, so the file name, which includes the member's name, never reaches voters. The originals keep their data.
 
 = Can I export competition data? =
 
 Yes. Visit **Competitions → Export** to download:
-* Full competition results (CSV)
-* Voting data and statistics (CSV)
-* Member lists (CSV)
-* All exports include timestamps and are formatted for Excel/Google Sheets
+* The votes (CSV), with a row for each voter
+* The members who uploaded, with their image IDs (CSV)
+* The original images (ZIP), optionally deleting them afterwards to save space
+
+The Results screen also downloads a competition's results as a CSV.
+
+= How does the plugin handle members' personal data? =
+
+Members and judges are included in **Tools → Export Personal Data** and **Tools → Erase Personal Data**. Erasing a member deletes their record, entries, links and log entries, and their votes still count without their name. **Settings → Privacy → Policy Guide** has suggested text saying what the club holds and why. Choose how long logs are kept in **Competitions → Settings**. By default they're kept forever.
 
 == Screenshots ==
 
-1. Competition dashboard with status tracking, settings tabs, and quick actions
-2. Member management interface with bulk CSV import and grade assignments
-3. Voting controls for opening/closing categories and managing tokens
-4. Setup wizard for one-click page creation with pre-configured shortcodes
-5. Email template editor with merge tags and preview functionality
-6. Responsive top-3 podium display showcasing winners with scores
-7. Full results table with category filtering and member information
-8. Mobile-optimized voting interface with image gallery
-9. Submission tracking showing upload status and quota enforcement
-10. Export screen for downloading competition data and statistics
+1. A judge scoring a category with their private link
+2. The results page, ranked within each category and grade
+3. The top 3 in each grade
+4. A member's upload page, with their entries and drag-and-drop upload
+5. Voting Controls taking a category through the club night, with each judge's progress
+6. The competitions dashboard
+7. The Members screen, with each member's grade and competition types
+8. A competition type's interclub rules and its own names for the club's grades
+9. Club standings in an interclub competition
+10. The Results screen, with category statistics, CSV export and a share link
 
 == Changelog ==
+
+= 0.4.0 =
+* **Before you upgrade**
+  * Back up the database first. The update runs eleven database upgrades (versions 1 to 11) on the first request after it's installed.
+  * The upgrade puts every competition into a new competition type called "Individual", which holds the club's current categories and upload, voting and slideshow settings. Every member is tagged with it and every competition stays open to all members, so nothing changes until you add a second type. Those settings move from Settings to the new Competition Types screen.
+  * Rolling back to 0.3.0 after upgrading loses the competition workflow state: whether uploads are closed or results published, and which voting stage each category has reached. 0.4.0 keeps it in its own database column, which 0.3.0 doesn't read.
+  * On a site where members vote with emailed links, a member who asked for a link more than once has several. The upgrade keeps one per category, the one holding their ballot if they voted, and deletes the others along with any second ballot cast with them. It logs how many votes each competition lost.
+  * On sites installed before November 2025 the upgrade rebuilds the upload links' database index so a member can have only one upload link per competition. A member who somehow has two keeps the earlier one, and the later emailed link stops working.
+  * The upgrade records the results of every competition whose results are published, or that has closed or been archived, from the entries and votes as they are when it runs. Entries already deleted, and members deleted before the upgrade, stay missing from those results.
+
+* **Competitions**
+  * Only one competition can be open at a time, with a new Close Competition action
+  * Competitions close at their close date, and overlapping dates are refused
+  * Setting an open competition's close date to today in the edit form closes it when you save, and saving the form without changing the day keeps the time it closed
+  * Competitions use the club's grade list, and the club's categories when they have none of their own
+  * Voting Controls, Results and Submissions act on the current competition
+  * Archived competitions offer only what works on them: Restore, Reset Voting and Delete. Edit and Generate Results Link, which ended in "Competition not found", and the greyed Send Upload Emails are gone
+
+* **Uploads and entries**
+  * The upload page says why an upload or delete was refused, instead of "Upload failed. Please try again."
+  * A file over the server's upload limit is reported as too big, on the upload form and in batch upload
+  * When the server's upload limit is lower than the competition's, the upload page shows the server's and refuses larger files with that figure
+  * The upload limit takes the server's `post_max_size` into account too, and an upload over it is reported as too big instead of "Category assignments are required." or no message at all
+  * Drag-and-drop upload sends one image at a time, so a large selection no longer fails as a whole
+  * Drag-and-drop upload says an image is too big when the web server in front of WordPress refuses it, and stops after the first image if the upload link is refused
+  * When some images in a drag-and-drop batch fail, the page no longer reloads and hides the failures. The list stays on screen with a "Show my entries" button, and the images that went in leave the selection
+  * Moving entries between categories happens all at once or not at all
+  * A category takes no new entries once voting has started in it, or once it has votes
+  * Uploads can't reopen once any category's voting has started. Reset that category first
+  * An image is never saved or moved onto another entry's file
+  * Deleting a competition or a member deletes their entry files too
+  * Originals are discarded one at a time and exported at full size
+  * An entry whose file is missing shows "Image unavailable", and the slideshow skips it
+  * Deleting a submission works in in-app browsers
+  * The upload page's messages can be translated
+  * Drag-and-drop upload's messages can be translated too, and say "1 image" or "2 images" instead of "image(s)"
+  * The voting page's vote counter and missing-votes messages, and the upload page's category-change messages, can be translated too, and say "1 image" or "2 images" instead of "image(s)"
+  * Drag-and-drop upload no longer says the quotas are full when images are added in a second go and there is room for them
+  * Drag-and-drop upload no longer hangs on "Uploading..." when one of the member's categories was already full before the page loaded. It offers only the categories with room left
+  * A drag-and-drop batch's summary is green only when every image went in. A batch where nothing went in says "No images were uploaded." as an error, a mixed batch shows as a notice, and screen readers announce the outcome and any upload error
+  * Success and error messages on the upload, voting and results pages use darker text, so they're easier to read
+  * The Submissions screen shows the submitted photos first, then the Submission Status table. With no submissions, the notice comes first and the table still shows who has opened their upload link
+
+* **Voting**
+  * A ballot counts only the category's images, and each voter gets one ballot
+  * A ballot is stored whole or not at all: if it can't be saved, the voter is asked to try again instead of being thanked with votes missing
+  * The voting link a member asks for has its own Voting Link email template, with every merge tag filled in
+  * The "Check If Voting Is Open" button keeps the voting token
+  * The page redirects after a ballot is cast, so reloading it doesn't send the ballot again, and a second ballot shows one notice instead of two
+  * The voter's name and the voting password are remembered on classic themes too
+  * An unanswered score is no longer counted as 0, and a score that isn't in the list is refused with a message
+  * A ballot sent with an expired voting link says so, instead of being ignored
+  * Asking for a voting link again sends a link that works. It replaces the earlier one, and a member who has already voted is told so
+  * The voting page and the slideshow load images from an address made from the entry's number, so a member's name in the file name never reaches the browser
+  * Resized entry images and thumbnails lose the photographer's name from their EXIF, IPTC and XMP data when they're uploaded, and are turned upright first. The original keeps its data
+
+* **External judging**
+  * A competition can be scored by judges instead of members: set "Who scores" to Judges on the competition's Settings tab
+  * A new Judges screen keeps each judge's name and email. Judges aren't members and get none of the member emails
+  * Pick a competition's judges on its Settings tab. Each judge gets a private link, which you can email to them with the new Judge link email or copy and open on the night. It works only while the judge is picked and a category is open
+  * Judges score every image in the open category from the competition's score list, and an image's total is the sum of their scores
+  * Members can't vote in a judged competition. They don't get the Voting Opened email, and the upload email's new `{voting_info}` tag is left empty. A customised upload email that names the voting page in its own words still does, so before running a judged competition replace that text with `{voting_info}`
+  * The detailed results email shows only an image's total and position in a judged competition. Admins can still see each judge's score on the Results screen and in the votes CSV, where each judge is named
+  * Voting Controls shows which judges have scored the open category, and its steps say the judges are scoring instead of the members voting
+  * Deleting a judge, or erasing them with Tools > Erase Personal Data, removes their name and email and every log entry about them. Their scores still count
+
+* **Competition types**
+  * A new Competition Types screen. Each type has its own categories, default upload, voting and slideshow settings, and can give the club's grades its own names, for example Advanced shown as "Cup"
+  * A type can leave out some of the club's grades: untick "Used by this type" on its form. Members in a grade it doesn't use can't enter or vote in its competitions, and the add and edit member forms explain how each type names and uses the grades. Results still show every grade that has entries
+  * Settings keeps only what's club-wide: grades, email, page addresses, the voting form layout and log retention
+  * A new competition picks its type and starts with that type's categories and settings. With only one type there's nothing to pick. The type can be changed until the competition has entries, and changing it copies the new type's settings
+  * Members are tagged with the types they enter. With one type this happens automatically. With more, the Members screen has a Types column, a type filter and bulk add or remove, CSV import takes a `types` column (the sixth column in a file without a header row), the sample CSV shows it, the import says how many new members it left without a type, and members with no type are flagged
+  * A competition is open to everyone in its type, or to selected entrants only. Add entrants from the type's members on the competition's Entrants tab, for example once they've paid, or create a new member and enter them in one go, which adds them to the type. Only members of the type can be entered, and in an interclub competition the tab talks about clubs. An entrant added while uploads are open is sent their upload link. Who may enter can't change once voting starts or the competition closes
+  * Only members who may enter a competition get its upload links and reminders, can use the upload page, or can upload through the REST API. In a selected-entrants competition only entrants can ask for a voting link
+  * The Voting Opened email and "Email results to all members" go to the competition type's members
+  * Results pages, Top 3, emails and exports show the type's grade names. Admin screens show both, for example "Cup (Advanced)"
+  * A competition title can include `{grade}`, for example "SACC {grade} 2026". Each entrant sees their own grade's name on their upload page and in their emails, and everywhere else shows the grade names joined, for example "SACC Cup / SACC Shield 2026"
+  * The Upload Confirmation email's `{member_grade}` shows the grade's name instead of its slug
+
+* **Interclub competitions**
+  * A competition type can make its entrants clubs: tick "Entrants are clubs" on the type. Each club enters a panel of images in each category, and a panel holds as many images as the category's quota
+  * Every image in an interclub competition names its photographer. The upload page, drag-and-drop upload, the REST API and the admin upload form all ask for it
+  * A type can take substitutes, extra images that can replace a disqualified one, and can limit how many images one photographer has in a panel. Substitutes don't count towards that limit, and names match ignoring case and surrounding spaces
+  * The upload page lists each image's photographer and marks its substitutes. When a panel has all its entries but room for a substitute, it says so and points to the Substitute box
+  * On the Submissions screen an admin can disqualify an entry, promote a substitute, reinstate a disqualified entry, or make an entry a substitute. A disqualified entry leaves the ballot and the results, and its votes stay but no longer count. The club still sees it on its upload page
+  * An entry can be disqualified until the competition's results are recorded. The other changes follow the rules for adding an entry: only before the category's voting starts, while it has no votes, and within the panel's rules. Every change is logged
+  * Existing entries are entered, with no photographer
+  * Results show each image's photographer with the club's name, as "Photographer — Club", on the results page and the Top 3. The Results screen gives them their own Photographer and Club columns, and the results CSV adds a Photographer column
+  * Club standings rank each grade's clubs by each panel's total and by their overall total, with tied clubs sharing a place. A club that skipped a panel another club in its grade entered gets no overall place. The results page and the Results screen show the standings, and each club's results email shows its own panels and place, such as "place 2 of 5"
+  * A results page with `hide_names` leaves out photographers, clubs and the standings
+  * An admin can correct or clear an entry's photographer on the Submissions screen at any time, even after the results are recorded
+  * Each image in an interclub competition has its own number in its category, so a club's images don't share one. Regenerate Random Numbers shuffles them, and isn't allowed once voting has started or while the competition has votes
+
+* **Results**
+  * Tied entries share a position in the results email
+  * The results CSV is ranked within each grade and category
+  * The votes CSV gives each voter who voted with a link their own row, labelled by their link ("Token #5"). Before, they all shared one blank row and some of their votes were lost
+  * The votes CSV gives each of a member's images in a category its own column, named with its file, such as "Image #7a (sunset.jpg)". Before, only one of them had a column and the other's votes were missing. The voting page and slideshow list a member's images in the same order as the CSV
+  * The results and Top 3 pages show the latest published results, without vote counts
+  * The results table stacks into cards on mobile
+  * The detailed results email uses the email template system
+  * Results are recorded when they're published, or the first time they're needed after the competition closes. Deleting a member, removing an entry or changing a member's grade afterwards moves nobody, and a deleted member's entries show as "Former member" in their place, without an image
+  * Results can't be hidden once the competition has closed. To correct them, move the close date into the future, then hide and publish them again
+  * Results hidden when the competition closes or is archived are recorded afresh the next time they're needed, so votes cast and fixes made while they were hidden count
+  * Email Results and the results link to all members wait until results are shown or the competition has closed, so everyone is told the recorded positions. The committee's link can still go first
+  * The Recalculate Scores button is gone: nothing used the score it saved
+
+* **Members and email**
+  * Upload and voting links are no longer sent to deactivated members, whose email addresses are now marked
+  * Bulk member emails go out in batches, and stopped email jobs show on every admin page
+  * Editors can use the Email Templates page
+  * Every email sends the text the Email Templates page shows, even on a site that has never saved it
+  * The Email Templates page stores only the templates you edit, so the rest pick up improved default text in later versions. Edited templates are marked "Edited", and Restore default fills in the default text for you to read and save. Templates saved before 0.4.0 are kept as they were: use Restore default on each one to pick up the new default text
+  * Only the Voting Opened and Submission Confirmed notifications can be switched off. Upload links, voting links and results emails always send
+  * Names and links are escaped in emails, and the detailed results table is no longer reformatted
+  * A site name with an ampersand or quotes appears as typed in email subjects, not as `&amp;`
+  * The submission confirmation counts the image just uploaded
+  * Each sent email is logged under its kind of email and against its competition
+  * Saving the club settings no longer reassigns member grades, and every way of saving a member requires a club grade
+  * Every email, the Members and Submissions screens and the upload reminder link the voting, upload and results pages by one rule: the competition's page, then the club's, then a published page holding the plugin's shortcode. Upload links are no longer built on the home page or a guessed address when no upload page is found; sending one says why instead
+  * Opening voting with the Voting Opened notification on but no voting page still opens voting, and tells the admin that members weren't emailed
+  * The Voting Opened email links the competition's own voting page ahead of the one in Settings. Competitions keep a copy of the page links from when they were created, so to change an existing competition's link, edit the competition
+  * Deleting a member also deletes their upload and voting links and every log entry about them. The votes they cast still count, without their name. Tools > Erase Personal Data deletes a member the same way, found by their email address
+  * Tools > Export Personal Data includes what the plugin holds about a member: their record, entries, recorded results, the votes they cast and the emails sent to them. Settings > Privacy > Policy Guide suggests text saying what the club holds and why
+
+* **Errors and logging**
+  * Category change refusals return 400, 403 or 404 instead of 500
+  * Database errors and server paths are no longer shown to members; category change failures are logged as `category_change_failed`
+  * Originals that couldn't be deleted are logged as `original_not_deleted`
+  * Clubs can choose how long logs are kept, in a new Logs section of Settings, and older log entries are deleted once a day. By default logs are kept forever, as before, so upgrading deletes nothing. The Logs screen says how long they're kept
+  * Uninstalling removes email jobs, transients and cron events
+
+* **Compatibility**
+  * Requires WordPress 6.5
+  * Tested up to WordPress 7.1
 
 = 0.3.0 =
 * Fix fatal error on activation due to missing Admin_Dependencies class in release package
@@ -234,6 +393,9 @@ Yes. Visit **Competitions → Export** to download:
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.4.0 =
+Back up your database first. This update upgrades the database on the first request, and rolling back to 0.3.0 afterwards loses the competition workflow state.
 
 = 0.3.0 =
 Fixes a fatal error on plugin activation. Share competition results with committee members or all members via a secret link before making results public.
