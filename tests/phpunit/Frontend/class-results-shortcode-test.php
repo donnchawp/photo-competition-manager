@@ -109,6 +109,32 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * With names hidden, the thumbnail doesn't give the member away either: entry files
+	 * are named after the member, so it goes through the name-free image permalink (#257).
+	 */
+	public function test_hidden_names_keep_the_member_out_of_the_image_url(): void {
+		$folder = wp_upload_dir()['basedir'] . '/competitions/results-comp/colour';
+		wp_mkdir_p( $folder );
+		$files = array( $folder . '/ann-example-colour.jpg', $folder . '/ann-example-colour-thumb.jpg' );
+		foreach ( $files as $file ) {
+			file_put_contents( $file, 'img' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		}
+
+		$html = ( new Results_Shortcode() )->render(
+			array(
+				'competition' => 'results-comp',
+				'hide_names'  => 'true',
+			)
+		);
+
+		foreach ( $files as $file ) {
+			wp_delete_file( $file );
+		}
+		$this->assertStringContainsString( 'class="result-thumbnail"', $html );
+		$this->assertStringNotContainsString( 'ann-example', $html );
+	}
+
+	/**
 	 * Create a closed interclub competition with published results: Lee's colour entry by Ann
 	 * Murphy scores 9, and Bandon's by Bob Byrne scores 4.
 	 */

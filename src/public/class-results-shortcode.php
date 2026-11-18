@@ -267,12 +267,19 @@ class Results_Shortcode {
 													$member      = $result['member'];
 													$total_score = $result['total_score'];
 													$position    = $result['position'];
-													// A recorded entry deleted since has no image.
-													$image_urls = $image ? $this->entries->urls( $competition, $image ) : array(
-														'full'  => '',
-														'thumb' => '',
-													);
-													$thumb_url  = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
+													// A recorded entry deleted since has no image. Entry files are named
+													// after the member, so with names hidden the name-free permalink is used.
+													if ( ! $image ) {
+														$image_urls = array(
+															'full'  => '',
+															'thumb' => '',
+														);
+													} elseif ( $hide_names ) {
+														$image_urls = $this->entries->public_urls( $competition, $image );
+													} else {
+														$image_urls = $this->entries->urls( $competition, $image );
+													}
+													$thumb_url = $image_urls['thumb'] ? $image_urls['thumb'] : $image_urls['full'];
 													/* translators: %d: Anonymised image identifier. */
 													$alt_text = $image ? sprintf( __( 'Image %d', 'photo-competition-manager' ), $image->random_number ) : '';
 													?>
