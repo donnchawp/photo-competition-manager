@@ -4,7 +4,7 @@ Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -182,7 +182,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 
 == Changelog ==
 
-= 0.4.0 (unreleased) =
+= 0.4.0 =
 * **Before you upgrade**
   * Back up the database first. The update runs eleven database upgrades (versions 1 to 11) on the first request after it's installed.
   * The upgrade puts every competition into a new competition type called "Individual", which holds the club's current categories and upload, voting and slideshow settings. Every member is tagged with it and every competition stays open to all members, so nothing changes until you add a second type. Those settings move from Settings to the new Competition Types screen.
