@@ -10,7 +10,7 @@ WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
 PLUGIN_CHECK_CSV ?= plugin-check.csv
 
-.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn seed-competition plugin-check
+.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn publish-svn-assets seed-competition plugin-check
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -91,6 +91,9 @@ release: clean-release build ## Build production release zip file
 
 publish-svn: ## Publish the tagged release to WordPress.org SVN (run from the v<version> tag). Usage: make publish-svn [VERSION=x.y.z]
 	./scripts/publish-svn.sh $(VERSION)
+
+publish-svn-assets: ## Publish only the listing assets in .wordpress-org/ (screenshots, Live Preview blueprint) to WordPress.org SVN
+	./scripts/publish-svn.sh --assets-only
 
 seed-competition: ## Seed 12 members, a competition, and test images for voting
 	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/pcm/scripts/seed-voting-data.php
