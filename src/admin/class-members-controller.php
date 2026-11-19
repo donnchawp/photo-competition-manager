@@ -900,27 +900,29 @@ class Members_Controller {
 		// Only members who may enter get an upload link to copy or send.
 		$may_enter = $active_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_member_ids( $active_competition ) : array();
 
-		// While a category takes votes by emailed links, a member can be sent a new link.
-		$voting       = $this->workflow->category_accepting_votes();
-		$voting_links = new Voting_Link_Service( $this->competitions, $this->members );
+		// While the current competition's category takes votes by emailed links, a member
+		// can be sent a new link. The voting page serves only the current competition.
+		$current         = $this->competitions->find_current_active();
+		$voting_category = $current ? ( $this->workflow->categories_accepting_votes( $current )[0] ?? '' ) : '';
+		$voting_links    = new Voting_Link_Service( $this->competitions, $this->members );
 
 		$rows = array();
 
 		foreach ( $members as $member ) {
 			$voting_link_url = '';
-			if ( $voting && $voting_links->can_send_from_admin( $voting['competition'], $member, $voting['category'] ) ) {
+			if ( '' !== $voting_category && $voting_links->can_send_from_admin( $current, $member, $voting_category ) ) {
 				$voting_link_url = wp_nonce_url(
 					add_query_arg(
 						array(
 							'page'        => 'photo-competition-manager-members',
 							'action'      => 'send_member_voting_link',
 							'member'      => (int) $member->id,
-							'competition' => (int) $voting['competition']->id,
-							'category'    => $voting['category'],
+							'competition' => (int) $current->id,
+							'category'    => $voting_category,
 						),
 						admin_url( 'admin.php' )
 					),
-					'photo_competition_send_member_voting_link_' . (int) $member->id . '_' . (int) $voting['competition']->id . '_' . $voting['category']
+					'photo_competition_send_member_voting_link_' . (int) $member->id . '_' . (int) $current->id . '_' . $voting_category
 				);
 			}
 

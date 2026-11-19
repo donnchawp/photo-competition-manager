@@ -355,8 +355,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * With emailed links, only the people who can ask for a link are told voting opened:
-	 * a selected competition's entrants, not the other members of its type.
+	 * With emailed links, members are sent their own links instead of "voting opened".
 	 */
 	public function test_opening_voting_with_emailed_links_sends_no_voting_opened_email(): void {
 		$this->links_mode_with_entrant();
@@ -450,7 +449,19 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		wp_parse_str( (string) wp_parse_url( $this->email_colour_voting_links(), PHP_URL_QUERY ), $again );
 
 		$this->assertArrayNotHasKey( 'job_id', $again );
-		$this->assertStringContainsString( 'already been sent', $this->first_voting_error_message() );
+		$this->assertContains( 'voting_links_already_sent', $this->settings_error_codes( 'photo_competition_voting' ) );
+	}
+
+	public function test_emailing_voting_links_with_nobody_to_email_leaves_the_button_for_later(): void {
+		$ann = $this->links_mode_with_entrant();
+		$this->colour_at( Competition_Workflow::STAGE_VOTING );
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->remove( $this->competition_id, $ann );
+
+		wp_parse_str( (string) wp_parse_url( $this->email_colour_voting_links(), PHP_URL_QUERY ), $query );
+
+		$this->assertArrayNotHasKey( 'job_id', $query );
+		$this->assertContains( 'no_voters', $this->settings_error_codes( 'photo_competition_voting' ) );
+		$this->assertNull( ( new Competition_Workflow() )->voting_links_sent_at( $this->competitions->find( $this->competition_id ), 'colour' ) );
 	}
 
 	public function test_sending_one_member_their_voting_link_emails_only_them(): void {
@@ -483,7 +494,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertSame( array( 'ann@example.com' ), $recipients );
-		$this->assertStringContainsString( 'Voting link sent to Ann', get_settings_errors( 'photo_competition_voting' )[0]['message'] );
+		$this->assertContains( 'voting_link_sent', $this->settings_error_codes( 'photo_competition_voting' ) );
 	}
 
 	/**

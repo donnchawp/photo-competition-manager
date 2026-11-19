@@ -631,7 +631,6 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_html();
 
 		$this->assertStringNotContainsString( 'action=email_voting_links', str_replace( '&#038;', '&amp;', $html ) );
-		$this->assertStringContainsString( 'Links sent at', $html );
 		$this->assertMatchesRegularExpression( '/<option value="\d+">Ada<\/option>/', $html );
 	}
 

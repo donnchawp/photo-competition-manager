@@ -195,7 +195,7 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Email every member who may vote their link for a category taking votes.
+	 * Email every member who may enter, and so vote, their link for a category taking votes.
 	 * Only once per category: a second send would replace the links of
 	 * members part-way through voting.
 	 *
@@ -213,19 +213,24 @@ class Voting_Controller {
 			$this->fail_voting( 'no_voting_page', __( 'No voting page is set, so there is no link to send.', 'photo-competition-manager' ) );
 		}
 
+		$member_ids = array();
+		foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
+			if ( ! empty( $member->email ) ) {
+				$member_ids[] = (int) $member->id;
+			}
+		}
+
+		// With nobody to email, the button stays for when there is.
+		if ( empty( $member_ids ) ) {
+			$this->fail_voting( 'no_voters', __( 'No member who may vote has an email address, so no links were sent.', 'photo-competition-manager' ) );
+		}
+
 		$this->finish_voting_update(
 			$this->workflow->record_voting_links_sent( $competition_id, $category_slug ),
 			'voting_links_queued',
 			__( 'Voting links are being emailed to members who may vote.', 'photo-competition-manager' ),
 			$focus,
-			function () use ( $competition, $category_slug ) {
-				$member_ids = array();
-				foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
-					if ( ! empty( $member->email ) ) {
-						$member_ids[] = (int) $member->id;
-					}
-				}
-
+			function () use ( $competition, $category_slug, $member_ids ) {
 				$job_id = $this->email_jobs->queue( 'voting_link', (int) $competition->id, $member_ids, array( 'category' => $category_slug ) );
 
 				return $job_id ? $job_id : null;

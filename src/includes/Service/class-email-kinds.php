@@ -138,7 +138,8 @@ class Email_Kinds {
 					__( 'Hi {member_name},', 'photo-competition-manager' ),
 					__( 'Voting is open in {competition_title}. Click the button below to open the voting form.', 'photo-competition-manager' ),
 					self::button( '{voting_link}', __( 'Vote now', 'photo-competition-manager' ) ),
-					__( 'This link is yours alone and expires in 1 hour.', 'photo-competition-manager' )
+					__( 'This link is yours alone and expires in 1 hour.', 'photo-competition-manager' ),
+					__( "If you weren't expecting this link, you can ignore this email.", 'photo-competition-manager' )
 				),
 				'job'          => array(
 					'page'    => 'photo-competition-manager-voting',
