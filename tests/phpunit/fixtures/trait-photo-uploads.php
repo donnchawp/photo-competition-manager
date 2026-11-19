@@ -42,14 +42,15 @@ trait Photo_Uploads {
 	}
 
 	/**
-	 * A file in the shape of a $_FILES entry, accepted as an HTTP upload.
+	 * A file in the shape of a $_FILES entry.
+	 *
+	 * Upload code refuses it unless the test accepts temp files as HTTP uploads
+	 * through the photo_competition_manager_is_uploaded_file filter.
 	 *
 	 * @param string $tmp_file Path of the uploaded file.
 	 * @return array<string, mixed>
 	 */
 	private function upload_array( string $tmp_file ): array {
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
-
 		return array(
 			'name'     => 'photo.jpg',
 			'tmp_name' => $tmp_file,

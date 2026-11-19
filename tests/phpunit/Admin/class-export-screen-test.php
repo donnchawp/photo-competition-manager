@@ -36,6 +36,13 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	 */
 	private $competition_id = 0;
 
+	public function set_up(): void {
+		parent::set_up();
+
+		// Test photos are plain temp files; treat them as HTTP uploads.
+		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+	}
+
 	public function tear_down(): void {
 		if ( $this->competition_id ) {
 			( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );

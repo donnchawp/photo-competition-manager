@@ -18,8 +18,8 @@ class Entry_Fixtures {
 	/**
 	 * Number for the next vote's voter name, so every vote has its own voter.
 	 *
-	 * Votes are named ballots: an anonymous vote needs a real voting token, and a
-	 * made-up token ID can match one the test creates.
+	 * Votes come from named voters: a link voter's vote needs a real voting link,
+	 * and a made-up link ID can match one the test creates.
 	 *
 	 * @var int
 	 */
