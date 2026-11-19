@@ -400,6 +400,9 @@ class Voting_Controller {
 		echo '<div class="wrap photo-comp-voting-controls">';
 		echo '<h1>' . esc_html__( 'Voting Controls', 'photo-competition-manager' ) . '</h1>';
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_judges_needed_notice();
+
 		// Act on the same competition as the public voting and upload pages.
 		$active_competition = $this->competitions->find_current_active();
 

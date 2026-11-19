@@ -975,18 +975,6 @@ class Competitions_Controller {
 	}
 
 	/**
-	 * The Judges section of a competition's settings tab, where Last sent shows each link's email.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param int $competition_id Competition ID.
-	 * @return string
-	 */
-	private function judges_section_url( int $competition_id ): string {
-		return $this->settings_tab_url( $competition_id ) . '#photo-comp-judges';
-	}
-
-	/**
 	 * The close date to save from the edit form, which only has the day.
 	 *
 	 * The same day keeps the stored time, such as the one Close Competition
@@ -1080,6 +1068,9 @@ class Competitions_Controller {
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $this->competitions->all_open(), false );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_judges_needed_notice();
 
 		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
