@@ -605,6 +605,51 @@ class Competition_Workflow {
 	}
 
 	/**
+	 * When a category's voting links were emailed to its voters, in UTC.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Category slug.
+	 * @return string|null Null when they haven't been, since the category last started.
+	 */
+	public function voting_links_sent_at( object $competition, string $category_slug ): ?string {
+		return $this->state( $competition )['links_sent'][ $category_slug ] ?? null;
+	}
+
+	/**
+	 * Record that a category's voting links were emailed. Only once while it
+	 * takes votes: sending again would replace the links of members part-way
+	 * through voting. Resetting the category allows it again.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category_slug  Category slug.
+	 * @return true|WP_Error 'not_accepting_votes', or 'voting_links_already_sent'.
+	 */
+	public function record_voting_links_sent( int $competition_id, string $category_slug ) {
+		return $this->transition(
+			$competition_id,
+			function ( $competition ) use ( $category_slug ) {
+				if ( ! $this->is_accepting_votes( $competition, $category_slug ) ) {
+					return new WP_Error( 'not_accepting_votes', __( 'Voting is not open for this category.', 'photo-competition-manager' ) );
+				}
+
+				if ( null !== $this->voting_links_sent_at( $competition, $category_slug ) ) {
+					return new WP_Error( 'voting_links_already_sent', __( 'Voting links for this category have already been sent. Send a link to one member instead.', 'photo-competition-manager' ) );
+				}
+
+				return true;
+			},
+			function ( array $state ) use ( $category_slug ) {
+				$state['links_sent'][ $category_slug ] = utc_time();
+				return $state;
+			}
+		);
+	}
+
+	/**
 	 * Reset a category to not started, optionally clearing its votes and
 	 * voting tokens. Reset is the escape hatch, so it's always allowed.
 	 *
@@ -618,7 +663,7 @@ class Competition_Workflow {
 			$competition_id,
 			fn( $competition ) => $this->check_category( $competition, $category_slug ),
 			function ( array $state ) use ( $category_slug ) {
-				unset( $state['stages'][ $category_slug ] );
+				unset( $state['stages'][ $category_slug ], $state['links_sent'][ $category_slug ] );
 				return $state;
 			}
 		);
@@ -643,7 +688,8 @@ class Competition_Workflow {
 			$competition_id,
 			fn() => true,
 			function ( array $state ) {
-				$state['stages'] = array();
+				$state['stages']     = array();
+				$state['links_sent'] = array();
 				return $state;
 			}
 		);
@@ -922,7 +968,7 @@ class Competition_Workflow {
 	 * Read the stored workflow, filling in a new competition's empty state.
 	 *
 	 * @param object $competition Competition row.
-	 * @return array{uploads_closed: bool, results_published: bool, stages: array<string, string>}
+	 * @return array{uploads_closed: bool, results_published: bool, stages: array<string, string>, links_sent: array<string, string>}
 	 */
 	private function state( object $competition ): array {
 		$stored = json_decode( (string) ( $competition->workflow ?? '' ), true );
@@ -935,10 +981,14 @@ class Competition_Workflow {
 		$stages = array_intersect_key( $stages, array_flip( $this->category_slugs( $competition ) ) );
 		$stages = array_filter( $stages, fn( $stage ) => in_array( $stage, self::STAGES, true ) );
 
+		$links_sent = is_array( $stored['links_sent'] ?? null ) ? $stored['links_sent'] : array();
+		$links_sent = array_filter( array_intersect_key( $links_sent, $stages ), 'is_string' );
+
 		return array(
 			'uploads_closed'    => ! empty( $stored['uploads_closed'] ),
 			'results_published' => ! empty( $stored['results_published'] ),
 			'stages'            => $stages,
+			'links_sent'        => $links_sent,
 		);
 	}
 }

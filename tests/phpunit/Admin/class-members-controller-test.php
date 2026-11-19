@@ -591,6 +591,91 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Make the open competition one whose members vote with emailed links,
+	 * with colour taking votes.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function links_competition_taking_votes(): int {
+		$competition_id = $this->create_open_competition();
+		$this->competitions->update(
+			$competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'token' ),
+					'urls'       => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+			)
+		);
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $this->create_member( array( 'email' => 'entrant@example.com' ) ), array() );
+		\PhotoCompetitionManager\Tests\Workflow_Fixtures::set_stage( $competition_id, 'colour', \PhotoCompetitionManager\Service\Competition_Workflow::STAGE_VOTING );
+
+		return $competition_id;
+	}
+
+	/**
+	 * Render the members list.
+	 *
+	 * @return string
+	 */
+	private function render_members_list(): string {
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_send_member_voting_link_emails_the_member_their_link(): void {
+		$competition_id = $this->links_competition_taking_votes();
+		$member_id      = $this->create_member();
+		$recipients     = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$recipients ) {
+				$recipients[] = $atts['to'];
+				return true;
+			},
+			10,
+			2
+		);
+		$this->set_request(
+			array(
+				'action'      => 'send_member_voting_link',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_voting_link_' . $member_id . '_' . $competition_id . '_colour' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'ada@example.com' ), $recipients );
+		$this->assertContains( 'voting_link_sent', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	public function test_members_list_offers_a_voting_link_only_while_a_links_category_takes_votes(): void {
+		$this->create_member();
+		$competition_id = $this->links_competition_taking_votes();
+
+		$this->assertStringContainsString( 'action=send_member_voting_link', str_replace( '&#038;', '&amp;', $this->render_members_list() ) );
+
+		( new \PhotoCompetitionManager\Service\Competition_Workflow() )->close_voting( $competition_id, 'colour' );
+
+		$this->assertStringNotContainsString( 'send_member_voting_link', $this->render_members_list() );
+	}
+
+	/**
 	 * With no upload page anywhere, the admin is told so rather than the
 	 * member getting a link to the home page.
 	 */
