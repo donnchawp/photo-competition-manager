@@ -449,7 +449,7 @@ class Submissions_Controller {
 					__( 'Please select a member and category.', 'photo-competition-manager' ),
 					'error'
 				);
-			} elseif ( empty( $_FILES['image_file'] ) || ! isset( $_FILES['image_file']['tmp_name'] ) || ! is_uploaded_file( $_FILES['image_file']['tmp_name'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a file path and should not be sanitized.
+			} elseif ( UPLOAD_ERR_NO_FILE === absint( $_FILES['image_file']['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
 				add_settings_error(
 					'photo_competition_submissions',
 					'missing_file',

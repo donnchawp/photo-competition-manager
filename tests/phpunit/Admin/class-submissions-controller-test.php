@@ -19,7 +19,10 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Competition_Workflow;
+use PhotoCompetitionManager\Service\Entries;
+use PhotoCompetitionManager\Tests\Photo_Uploads;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
@@ -30,6 +33,8 @@ use function PhotoCompetitionManager\Support\utc_time;
  * @covers \PhotoCompetitionManager\Admin\Submissions_Controller
  */
 class Submissions_Controller_Test extends Admin_Controller_Test_Case {
+
+	use Photo_Uploads;
 
 	/**
 	 * Competitions repository.
@@ -94,6 +99,17 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 			$this->votes
 		);
 		$this->competition_id = $this->create_competition( 'Spring Show', 'spring-show' );
+	}
+
+	/**
+	 * Remove uploaded entries and temp photos.
+	 */
+	public function tear_down(): void {
+		$_FILES = array();
+		( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );
+		$this->remove_tmp_files();
+
+		parent::tear_down();
 	}
 
 	/**
@@ -679,6 +695,91 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		);
 
 		$this->assertContains( 'missing_file', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	public function test_an_admin_can_add_an_entry_for_a_member(): void {
+		$this->accept_temp_files_as_uploads();
+		$member_id = $this->upload_member();
+
+		$this->post_admin_upload( $member_id, $this->photo( array( 0, 120, 200 ) ) );
+
+		$this->assertContains( 'upload_success', $this->settings_error_codes( self::GROUP ) );
+		$this->assertCount( 1, $this->images->find_uploads( $this->competition_id, 'colour', $member_id ) );
+	}
+
+	public function test_an_admin_added_file_that_was_not_uploaded_over_http_is_refused(): void {
+		$member_id = $this->upload_member();
+
+		$this->post_admin_upload( $member_id, $this->photo( array( 0, 120, 200 ) ) );
+
+		$this->assertContains( 'security_check_failed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( array(), $this->images->find_uploads( $this->competition_id ) );
+	}
+
+	public function test_an_admin_upload_with_the_file_input_left_blank_asks_for_a_file(): void {
+		$this->post_admin_upload(
+			$this->upload_member(),
+			array(
+				'name'     => '',
+				'type'     => '',
+				'tmp_name' => '',
+				'error'    => UPLOAD_ERR_NO_FILE,
+				'size'     => 0,
+			)
+		);
+
+		$this->assertContains( 'missing_file', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	public function test_an_admin_added_file_over_phps_upload_limit_says_it_is_too_big(): void {
+		$this->post_admin_upload(
+			$this->upload_member(),
+			array(
+				'name'     => 'huge.jpg',
+				'type'     => '',
+				'tmp_name' => '',
+				'error'    => UPLOAD_ERR_INI_SIZE,
+				'size'     => 0,
+			)
+		);
+
+		$this->assertContains( 'file_too_large', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * A member who may enter the seeded competition.
+	 *
+	 * @return int Member ID.
+	 */
+	private function upload_member(): int {
+		return (int) ( new Members_Repository() )->create(
+			array(
+				'name'  => 'Jane Doe',
+				'email' => 'jane@example.com',
+				'grade' => 'beginner',
+			)
+		);
+	}
+
+	/**
+	 * Post the admin upload form for a member's Colour entry.
+	 *
+	 * @param int                  $member_id Member ID.
+	 * @param array<string, mixed> $file      The image_file entry, as $_FILES holds it.
+	 */
+	private function post_admin_upload( int $member_id, array $file ): void {
+		$this->set_request(
+			array(
+				'action'         => 'admin_upload',
+				'competition_id' => $this->competition_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_admin_upload_' . $this->competition_id );
+		$_FILES = array( 'image_file' => $file );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
 	}
 
 	/**
