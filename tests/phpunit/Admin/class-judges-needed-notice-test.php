@@ -3,7 +3,7 @@
  * The "needs judges" warning on the screens an admin is likely to be on.
  *
  * Which competitions need judges is tested in Judge_Assignments_Test; these
- * check only that each screen shows the warning and links to the judges panel.
+ * check only that each screen shows the warning and links to the judges section.
  *
  * @package PhotoCompetitionManager\Tests\Admin
  */
@@ -63,7 +63,7 @@ class Judges_Needed_Notice_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert the warning names the competition and links to its judges panel.
+	 * Assert the warning names the competition and links to its judges section.
 	 *
 	 * @param string $html Rendered screen.
 	 */

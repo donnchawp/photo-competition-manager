@@ -151,7 +151,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 #### External judging
 - Each competition has a "Who scores" setting: the voting password, members' voting links, or judges.
 - Judges live on their own admin screen as a name and email; they are not members. Deleting a judge keeps their scores without identifying them, and the privacy eraser covers judges.
-- An admin chooses the judges for a competition and emails them their links. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
+- An admin chooses the judges for a competition and emails them their links. While a judged competition that hasn't closed has no judges, the Judges, Competitions and Voting Controls screens warn about it and link to where they're chosen. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
 - A judge scores every entry in the open category from the competition's score list, one ballot per judge per category. An entry's total is the sum of the judges' scores.
 - In a judged competition members get no voting links and the password doesn't work. They aren't sent "voting opened", and upload emails don't mention voting.
 - Public results pages and the results email show only the total and position. Admins can still see individual scores on the Results screen and in the export, where each judge is named, or shown as "Former judge #<id>" once deleted.

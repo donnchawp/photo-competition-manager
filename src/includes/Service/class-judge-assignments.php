@@ -36,6 +36,8 @@ final class Judge_Assignments {
 	/**
 	 * Constructor.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @param Competitions_Repository|null       $competitions       Competitions repository.
 	 * @param Competition_Judges_Repository|null $competition_judges Competition judges repository.
 	 */
@@ -46,6 +48,8 @@ final class Judge_Assignments {
 
 	/**
 	 * Judged competitions, open or scheduled, with no judges assigned.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @return array<int, object> Competition rows.
 	 */
