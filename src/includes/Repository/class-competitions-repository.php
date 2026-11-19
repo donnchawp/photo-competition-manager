@@ -60,6 +60,21 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Fetch competitions that haven't closed: open or scheduled, and not
+	 * archived. Matches Competition_Workflow::has_closed() being false.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return array<int, object>
+	 */
+	public function all_unclosed(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE deleted_at IS NULL AND (close_date IS NULL OR close_date > %s) ORDER BY created_at DESC', $this->table(), utc_time() ) );
+	}
+
+	/**
 	 * WHERE clause for competitions open now: not archived, and
 	 * open_date <= now < close_date. Matches Competition_Workflow::is_open().
 	 *
