@@ -22,6 +22,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Temp_Uploads;
 use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 
 /**
@@ -31,7 +32,7 @@ use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
  */
 class Members_Controller_Test extends Admin_Controller_Test_Case {
 
-	use \PhotoCompetitionManager\Tests\Temp_Uploads;
+	use Temp_Uploads;
 
 	private const GROUP = 'photo_competition_members';
 
@@ -65,6 +66,15 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->competitions = new Competitions_Repository();
 		$this->members      = new Members_Repository();
 		$this->controller   = new Members_Controller( $this->competitions, $this->members );
+	}
+
+	/**
+	 * Clear any posted files.
+	 */
+	public function tear_down(): void {
+		$_FILES = array();
+
+		parent::tear_down();
 	}
 
 	/**
@@ -887,34 +897,14 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * -----------------------------------------------------------------
 	 * import_members_csv.
 	 *
-	 * The controller requires is_uploaded_file() to be true for the happy
-	 * path, which cannot be satisfied inside PHPUnit (no real HTTP upload).
-	 * Only the no-file and bad-nonce failure branches are exercised here.
+	 * The importer refuses files PHP didn't receive over HTTP; tests that
+	 * expect an import opt in with accept_temp_files_as_uploads().
 	 * -----------------------------------------------------------------
 	 */
 
 	/**
-	 * Importing with no file attached reports the no_file error.
+	 * Importing a CSV creates the members it lists.
 	 */
-	public function test_import_members_csv_no_file(): void {
-		$_FILES = array();
-
-		$this->set_request(
-			array(
-				'photo_competition_action' => 'import_members_csv',
-			)
-		);
-		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
-
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$this->assertContains( 'no_file', $this->settings_error_codes( self::GROUP ) );
-	}
-
 	public function test_importing_a_csv_creates_its_members(): void {
 		$this->accept_temp_files_as_uploads();
 
@@ -924,6 +914,9 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( 'Ann Example', $this->members->find_by_email( 'ann@example.com' )->name );
 	}
 
+	/**
+	 * A CSV PHP didn't receive over HTTP gets the importer's security notice and imports nothing.
+	 */
 	public function test_a_csv_that_was_not_uploaded_over_http_is_refused(): void {
 		$this->post_csv_import( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" );
 
@@ -931,21 +924,15 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertNull( $this->members->find_by_email( 'ann@example.com' ) );
 	}
 
+	/**
+	 * Submitting with the file input left blank asks for a file.
+	 */
 	public function test_importing_with_the_file_input_left_blank_asks_for_a_file(): void {
-		$_FILES = array(
-			'csv_file' => array(
-				'name'     => '',
-				'type'     => '',
-				'tmp_name' => '',
-				'error'    => UPLOAD_ERR_NO_FILE,
-				'size'     => 0,
-			),
-		);
+		$_FILES = array( 'csv_file' => $this->no_file_chosen() );
 		$this->set_request( array( 'photo_competition_action' => 'import_members_csv' ) );
 		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
 
 		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
-		$_FILES = array();
 
 		$this->assertContains( 'no_file', $this->settings_error_codes( self::GROUP ) );
 	}
@@ -972,7 +959,6 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
 
-		$_FILES = array();
 		wp_delete_file( $tmp );
 	}
 

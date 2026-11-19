@@ -26,4 +26,19 @@ trait Temp_Uploads {
 	private function refuse_temp_files_as_uploads(): void {
 		remove_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
 	}
+
+	/**
+	 * A $_FILES entry for a file input the user left blank.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function no_file_chosen(): array {
+		return array(
+			'name'     => '',
+			'type'     => '',
+			'tmp_name' => '',
+			'error'    => UPLOAD_ERR_NO_FILE,
+			'size'     => 0,
+		);
+	}
 }

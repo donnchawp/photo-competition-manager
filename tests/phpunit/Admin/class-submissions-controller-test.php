@@ -675,31 +675,11 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Member and category present but no uploaded file yields missing_file.
+	 * An admin can upload a photo on a member's behalf.
 	 */
-	public function test_admin_upload_missing_file(): void {
-		$this->set_request(
-			array(
-				'action'         => 'admin_upload',
-				'competition_id' => $this->competition_id,
-				'member_id'      => 42,
-				'category'       => 'colour',
-			)
-		);
-		$this->set_nonce( 'photo_competition_admin_upload_' . $this->competition_id );
-
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
-
-		$this->assertContains( 'missing_file', $this->settings_error_codes( self::GROUP ) );
-	}
-
 	public function test_an_admin_can_add_an_entry_for_a_member(): void {
 		$this->accept_temp_files_as_uploads();
-		$member_id = $this->upload_member();
+		$member_id = $this->an_entrant();
 
 		$this->post_admin_upload( $member_id, $this->photo( array( 0, 120, 200 ) ) );
 
@@ -707,8 +687,11 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertCount( 1, $this->images->find_uploads( $this->competition_id, 'colour', $member_id ) );
 	}
 
+	/**
+	 * A file PHP didn't receive over HTTP gets the services' security notice.
+	 */
 	public function test_an_admin_added_file_that_was_not_uploaded_over_http_is_refused(): void {
-		$member_id = $this->upload_member();
+		$member_id = $this->an_entrant();
 
 		$this->post_admin_upload( $member_id, $this->photo( array( 0, 120, 200 ) ) );
 
@@ -716,24 +699,22 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array(), $this->images->find_uploads( $this->competition_id ) );
 	}
 
+	/**
+	 * Submitting with the file input left blank asks for a file.
+	 */
 	public function test_an_admin_upload_with_the_file_input_left_blank_asks_for_a_file(): void {
-		$this->post_admin_upload(
-			$this->upload_member(),
-			array(
-				'name'     => '',
-				'type'     => '',
-				'tmp_name' => '',
-				'error'    => UPLOAD_ERR_NO_FILE,
-				'size'     => 0,
-			)
-		);
+		$this->post_admin_upload( $this->an_entrant(), $this->no_file_chosen() );
 
 		$this->assertContains( 'missing_file', $this->settings_error_codes( self::GROUP ) );
 	}
 
-	public function test_an_admin_added_file_over_phps_upload_limit_says_it_is_too_big(): void {
+	/**
+	 * A file over PHP's upload limit goes on to the image checks, which explain the size, rather than being
+	 * mistaken for a blank input.
+	 */
+	public function test_an_admin_added_file_over_phps_upload_limit_reaches_the_image_checks(): void {
 		$this->post_admin_upload(
-			$this->upload_member(),
+			$this->an_entrant(),
 			array(
 				'name'     => 'huge.jpg',
 				'type'     => '',
@@ -751,7 +732,7 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 *
 	 * @return int Member ID.
 	 */
-	private function upload_member(): int {
+	private function an_entrant(): int {
 		return (int) ( new Members_Repository() )->create(
 			array(
 				'name'  => 'Jane Doe',
