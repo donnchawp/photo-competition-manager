@@ -55,8 +55,7 @@ class Entries_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
-		// Test photos are plain temp files; treat them as HTTP uploads.
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->accept_temp_files_as_uploads();
 
 		$this->competitions_repo = new Competitions_Repository();
 		$this->images_repo       = new Images_Repository();

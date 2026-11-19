@@ -15,6 +15,8 @@ use WP_UnitTestCase;
 
 class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
+	use \PhotoCompetitionManager\Tests\Temp_Uploads;
+
 	/**
 	 * @var Member_CSV_Importer
 	 */
@@ -30,9 +32,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->members_repo = new Members_Repository();
 		$this->importer     = new Member_CSV_Importer( $this->members_repo );
-
-		// Test CSVs are plain temp files; treat them as HTTP uploads.
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->accept_temp_files_as_uploads();
 	}
 
 	/**
@@ -67,7 +67,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	public function test_import_refuses_a_file_that_was_not_uploaded_over_http(): void {
-		remove_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->refuse_temp_files_as_uploads();
 
 		$result = $this->importer->import( $this->make_file( "name,email\nAnn Example,ann@example.com\n" ) );
 

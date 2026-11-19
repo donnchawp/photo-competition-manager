@@ -62,10 +62,7 @@ class Judges_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param int[]  $judge_ids Judge IDs to normalize.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $judge_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/judges-render';
-		$html = $this->render_normalized( $judge_ids );
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/judges-render', $scenario, $this->render_normalized( $judge_ids ) );
 	}
 
 	public function test_render_empty_no_judges(): void {

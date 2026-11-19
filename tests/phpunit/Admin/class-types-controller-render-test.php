@@ -103,10 +103,7 @@ class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param int[]  $type_ids Type IDs to normalize.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $type_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/types-render';
-		$html = $this->render_normalized( $type_ids );
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/types-render', $scenario, $this->render_normalized( $type_ids ) );
 	}
 
 	public function test_render_list_with_one_type_has_no_delete(): void {

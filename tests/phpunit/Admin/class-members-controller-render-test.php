@@ -134,10 +134,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param array<int,int> $type_ids        Type IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $member_ids = array(), array $type_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/members-render';
-		$html = $this->render_normalized( $competition_ids, $member_ids, $type_ids );
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/members-render', $scenario, $this->render_normalized( $competition_ids, $member_ids, $type_ids ) );
 	}
 
 	/**

@@ -101,10 +101,7 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param array<int,int>  $log_ids          Log row IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $log_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/logs-render';
-		$html = $this->render_normalized( $competition_ids, $log_ids );
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/logs-render', $scenario, $this->render_normalized( $competition_ids, $log_ids ) );
 	}
 
 	/**

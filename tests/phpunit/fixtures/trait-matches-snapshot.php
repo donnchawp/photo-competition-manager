@@ -26,12 +26,8 @@ trait Matches_Snapshot {
 		$file = $dir . '/' . $scenario . '.html';
 
 		if ( '1' === getenv( 'UPDATE_SNAPSHOTS' ) ) {
-			if ( ! is_dir( $dir ) && ! mkdir( $dir, 0777, true ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-				$this->fail( "Could not create snapshot directory {$dir}." );
-			}
-			if ( false === file_put_contents( $file, $html ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-				$this->fail( "Could not write snapshot file {$file}." );
-			}
+			wp_mkdir_p( $dir );
+			file_put_contents( $file, $html ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			$this->addToAssertionCount( 1 );
 			return;
 		}

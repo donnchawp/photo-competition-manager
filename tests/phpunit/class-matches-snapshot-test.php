@@ -27,17 +27,14 @@ class Matches_Snapshot_Test extends WP_UnitTestCase {
 	public function set_up(): void {
 		parent::set_up();
 		$this->dir = get_temp_dir() . 'pcm-snapshot-test-' . wp_generate_password( 8, false );
+		wp_mkdir_p( $this->dir );
 		putenv( 'UPDATE_SNAPSHOTS' );
 	}
 
 	public function tear_down(): void {
 		putenv( 'UPDATE_SNAPSHOTS' );
-		foreach ( (array) glob( $this->dir . '/*.html' ) as $file ) {
-			unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
-		}
-		if ( is_dir( $this->dir ) ) {
-			rmdir( $this->dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
-		}
+		$this->rmdir( $this->dir );
+		$this->delete_folders( $this->dir );
 		parent::tear_down();
 	}
 
@@ -53,23 +50,15 @@ class Matches_Snapshot_Test extends WP_UnitTestCase {
 		$this->fail( 'A missing golden passed.' );
 	}
 
-	public function test_update_mode_writes_the_golden_that_later_runs_compare_against(): void {
-		putenv( 'UPDATE_SNAPSHOTS=1' );
-		$this->assert_snapshot( $this->dir, 'written', '<p>Hello</p>' );
-		putenv( 'UPDATE_SNAPSHOTS' );
-
-		$this->assert_snapshot( $this->dir, 'written', '<p>Hello</p>' );
-
-		$this->expectException( AssertionFailedError::class );
-		$this->assert_snapshot( $this->dir, 'written', '<p>Goodbye</p>' );
-	}
-
-	public function test_update_mode_rewrites_a_golden_that_drifted(): void {
+	public function test_update_mode_writes_and_rewrites_the_golden_later_runs_compare_against(): void {
 		putenv( 'UPDATE_SNAPSHOTS=1' );
 		$this->assert_snapshot( $this->dir, 'drifted', '<p>Old</p>' );
 		$this->assert_snapshot( $this->dir, 'drifted', '<p>New</p>' );
 		putenv( 'UPDATE_SNAPSHOTS' );
 
 		$this->assert_snapshot( $this->dir, 'drifted', '<p>New</p>' );
+
+		$this->expectException( AssertionFailedError::class );
+		$this->assert_snapshot( $this->dir, 'drifted', '<p>Old</p>' );
 	}
 }

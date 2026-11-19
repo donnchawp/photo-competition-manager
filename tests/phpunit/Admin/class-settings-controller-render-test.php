@@ -73,10 +73,7 @@ class Settings_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param string $scenario Snapshot scenario name.
 	 */
 	private function assert_matches_snapshot( string $scenario ): void {
-		$dir  = __DIR__ . '/../fixtures/settings-render';
-		$html = $this->render_normalized();
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/settings-render', $scenario, $this->render_normalized() );
 	}
 
 	/*

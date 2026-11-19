@@ -39,8 +39,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 		parent::setUp();
 		$this->server = $_SERVER;
 
-		// Test photos are plain temp files; treat them as HTTP uploads.
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->accept_temp_files_as_uploads();
 	}
 
 	public function tearDown(): void {

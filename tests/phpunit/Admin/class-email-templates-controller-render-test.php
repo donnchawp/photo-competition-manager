@@ -66,10 +66,7 @@ class Email_Templates_Controller_Render_Test extends Admin_Controller_Test_Case 
 	 * @param string $scenario Snapshot scenario name.
 	 */
 	private function assert_matches_snapshot( string $scenario ): void {
-		$dir  = __DIR__ . '/../fixtures/email-templates-render';
-		$html = $this->render_normalized();
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/email-templates-render', $scenario, $this->render_normalized() );
 	}
 
 	public function test_only_notifications_can_be_switched_off(): void {

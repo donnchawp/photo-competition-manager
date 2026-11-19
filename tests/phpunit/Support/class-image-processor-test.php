@@ -12,6 +12,8 @@ use WP_UnitTestCase;
 
 class Image_Processor_Test extends WP_UnitTestCase {
 
+	use \PhotoCompetitionManager\Tests\Temp_Uploads;
+
 	/**
 	 * Image processor instance.
 	 *
@@ -32,9 +34,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 		$this->processor = new Image_Processor();
-
-		// Test images are plain temp files; treat them as HTTP uploads.
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->accept_temp_files_as_uploads();
 	}
 
 	/**
@@ -220,7 +220,7 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	}
 
 	public function test_validate_refuses_a_file_that_was_not_uploaded_over_http(): void {
-		remove_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->refuse_temp_files_as_uploads();
 		$tmp_file = $this->create_test_image( 800, 600 );
 
 		$result = $this->processor->validate(

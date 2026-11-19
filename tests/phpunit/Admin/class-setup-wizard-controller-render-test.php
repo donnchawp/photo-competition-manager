@@ -81,10 +81,7 @@ class Setup_Wizard_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param array<int,int>  $dynamic_ids Post IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $dynamic_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/setup-wizard-render';
-		$html = $this->render_normalized( $dynamic_ids );
-
-		$this->assert_snapshot( $dir, $scenario, $html );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/setup-wizard-render', $scenario, $this->render_normalized( $dynamic_ids ) );
 	}
 
 	public function test_render_no_existing_settings(): void {

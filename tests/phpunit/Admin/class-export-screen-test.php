@@ -39,8 +39,7 @@ class Export_Screen_Test extends Admin_Controller_Test_Case {
 	public function set_up(): void {
 		parent::set_up();
 
-		// Test photos are plain temp files; treat them as HTTP uploads.
-		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$this->accept_temp_files_as_uploads();
 	}
 
 	public function tear_down(): void {
