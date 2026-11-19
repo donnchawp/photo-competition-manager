@@ -161,12 +161,31 @@ final class Ballots {
 			return new WP_Error( 'invalid_link', __( 'This voting link has expired or isn\'t valid. Ask for a new one below.', 'photo-competition-manager' ) );
 		}
 
-		$wrong_password = null === $password ? null : self::voting_password_error( $competition, $password );
-		if ( $wrong_password ) {
-			return $wrong_password;
+		$password_error = null === $password ? null : self::link_voting_password_error( $competition, $password );
+		if ( $password_error ) {
+			return $password_error;
 		}
 
 		return new Link_Voter( $record, $member );
+	}
+
+	/**
+	 * Why a link voter's voting password isn't the competition's, if it isn't.
+	 * A legacy hash can't be shown in the room, so it asks nothing of them.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $password    The voting password they gave.
+	 * @return WP_Error|null
+	 */
+	public static function link_voting_password_error( object $competition, string $password ): ?WP_Error {
+		$voting = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
+		if ( preg_match( '/^\$P\$|\$wp\$/', (string) ( $voting['password'] ?? '' ) ) ) {
+			return null;
+		}
+
+		return self::voting_password_error( $competition, $password );
 	}
 
 	/**

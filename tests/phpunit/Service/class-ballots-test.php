@@ -386,6 +386,17 @@ class Ballots_Test extends WP_UnitTestCase {
 		$this->assertNotWPError( $this->ballots->link_voter( $this->competition, $token, '' ) );
 	}
 
+	/**
+	 * A hashed password from before passwords were kept readable can't be
+	 * shown in the room, so a link voter isn't asked for it.
+	 */
+	public function test_a_link_voter_needs_no_password_when_only_a_legacy_hash_is_kept(): void {
+		$token                       = $this->issue_link( Member_Fixtures::insert_with_grade( 'Ann Voter', 'ann@example.com', 'beginner' ) );
+		$this->competition->settings = wp_json_encode( array( 'voting' => array( 'password' => wp_hash_password( self::PASSWORD ) ) ) );
+
+		$this->assertNotWPError( $this->ballots->link_voter( $this->competition, $token, '' ) );
+	}
+
 	public function test_a_named_voter_needs_a_name(): void {
 		$voter = $this->ballots->named_voter( $this->competition, '   ', self::PASSWORD );
 

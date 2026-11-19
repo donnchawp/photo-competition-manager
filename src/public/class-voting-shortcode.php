@@ -188,6 +188,11 @@ class Voting_Shortcode {
 			$password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : Link_Voter::remembered_password( (int) $competition->id );
 			$voter    = $this->ballots->link_voter( $competition, $token, $password );
 			$category = is_wp_error( $voter ) ? '' : $voter->category();
+
+			// The password checked out, so it isn't asked again, even if the ballot itself is refused.
+			if ( ! is_wp_error( $voter ) && '' !== $password ) {
+				Link_Voter::remember_password( (int) $competition->id, $password );
+			}
 		} else {
 			check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' );
 			$name     = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
@@ -203,8 +208,6 @@ class Voting_Shortcode {
 		if ( true === $result || 'already_cast' === $result->get_error_code() ) {
 			if ( $voter instanceof Named_Voter ) {
 				$voter->remember( $password );
-			} elseif ( $voter instanceof Link_Voter && '' !== $password ) {
-				Link_Voter::remember_password( (int) $competition->id, $password );
 			}
 
 			$redirect = add_query_arg( 'ballot', true === $result ? 'cast' : 'already_cast', get_permalink() );
@@ -473,7 +476,7 @@ class Voting_Shortcode {
 			'post_category'        => false,
 			'check_open'           => true,
 			// Asked until this device has given the competition's voting password, if it has one.
-			'ask_password'         => $voter && null !== Ballots::voting_password_error( $competition, Link_Voter::remembered_password( (int) $competition->id ) ),
+			'ask_password'         => $voter && null !== Ballots::link_voting_password_error( $competition, Link_Voter::remembered_password( (int) $competition->id ) ),
 		);
 
 		ob_start();
