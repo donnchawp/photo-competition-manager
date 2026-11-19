@@ -183,6 +183,15 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 == Changelog ==
 
 = 0.5.0 (unreleased) =
+* **Before you upgrade**
+  * When members vote with emailed links and the competition has a voting password saved, link voters now need that password too. Clear the password on any links competition where you don't want the check.
+* **Voting**
+  * When members vote with emailed links, Voting Controls can email every member who may vote their own link for the category taking votes, so nobody has to type their email address on the night. It sends once per category until the category is reset. A member whose link didn't arrive can be sent a new one from Voting Controls or the Members screen
+  * Opening a category no longer sends the "Voting opened" email when members vote with emailed links. Their link email does that job
+  * With emailed links, a voting password is now a check that the voter is in the room. Link voters give it once per competition on their device. Leave it blank to let members vote from home
+  * Voting Controls shows the voting password beside the QR code only when members need it, not when judges score the competition
+* **Judging**
+  * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
 * **Privacy**
   * A results page with `hide_names` no longer shows members' names in its image addresses. Entry files are named after the member, so the thumbnails now use the name-free image links the voting and slideshow pages use
 
