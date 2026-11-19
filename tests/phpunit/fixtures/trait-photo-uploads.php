@@ -15,13 +15,6 @@ trait Photo_Uploads {
 	use Temp_Uploads;
 
 	/**
-	 * Temporary source images, removed by remove_tmp_files().
-	 *
-	 * @var string[]
-	 */
-	private $tmp_files = array();
-
-	/**
 	 * A solid-colour JPEG in the shape of a $_FILES entry.
 	 *
 	 * @param int[] $rgb    Fill colour, so each upload is a different picture.
@@ -58,16 +51,5 @@ trait Photo_Uploads {
 			'error'    => UPLOAD_ERR_OK,
 			'size'     => filesize( $tmp_file ),
 		);
-	}
-
-	/**
-	 * Remove the temporary source images.
-	 *
-	 * @return void
-	 */
-	private function remove_tmp_files(): void {
-		foreach ( $this->tmp_files as $tmp_file ) {
-			wp_delete_file( $tmp_file );
-		}
 	}
 }

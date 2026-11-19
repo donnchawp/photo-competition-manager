@@ -70,12 +70,13 @@ abstract class Admin_Controller_Test_Case extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Clear the request superglobals.
+	 * Clear the request superglobals, posted files included.
 	 */
 	protected function reset_request(): void {
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
+		$_FILES   = array();
 	}
 
 	/**
