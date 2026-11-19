@@ -692,4 +692,37 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 
 		return $id;
 	}
+	public function test_a_categorys_voting_links_are_sent_once_until_it_is_reset(): void {
+		$id = $this->create_competition();
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->assertNull( $this->workflow->voting_links_sent_at( $this->row( $id ), 'colour' ) );
+		$this->assertTrue( $this->workflow->record_voting_links_sent( $id, 'colour' ) );
+		$this->assertNotNull( $this->workflow->voting_links_sent_at( $this->row( $id ), 'colour' ) );
+		$this->assertWPError( $this->workflow->record_voting_links_sent( $id, 'colour' ) );
+
+		$this->workflow->reset_category( $id, 'colour', false );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		$this->assertNull( $this->workflow->voting_links_sent_at( $this->row( $id ), 'colour' ) );
+		$this->assertTrue( $this->workflow->record_voting_links_sent( $id, 'colour' ) );
+	}
+
+	public function test_resetting_the_competition_lets_every_categorys_links_be_sent_again(): void {
+		$id = $this->create_competition();
+		Entry_Fixtures::insert_entry( $id, 'colour', 1, array() );
+		Workflow_Fixtures::set_stage( $id, 'colour', Competition_Workflow::STAGE_VOTING );
+		$this->workflow->record_voting_links_sent( $id, 'colour' );
+
+		$this->workflow->reset_competition( $id );
+
+		$this->assertNull( $this->workflow->voting_links_sent_at( $this->row( $id ), 'colour' ) );
+	}
+
+	public function test_voting_links_are_sent_only_for_a_category_taking_votes(): void {
+		$id = $this->create_competition();
+
+		$this->assertWPError( $this->workflow->record_voting_links_sent( $id, 'colour' ) );
+	}
 }

@@ -107,6 +107,20 @@ final class Ballots {
 	}
 
 	/**
+	 * Whether members vote with emailed links.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public static function votes_by_link( object $competition ): bool {
+		$voting = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
+
+		return 'token' === ( $voting['auth_mode'] ?? 'password' );
+	}
+
+	/**
 	 * The error for a member trying to vote in a judged competition.
 	 *
 	 * @return WP_Error

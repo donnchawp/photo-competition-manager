@@ -14,13 +14,16 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
@@ -575,7 +578,7 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 	public function test_a_kind_of_email_that_isnt_sent_in_bulk_cant_be_queued(): void {
 		$this->setExpectedIncorrectUsage( 'PhotoCompetitionManager\\Service\\Email_Job_Manager::create_job' );
 
-		$this->assertFalse( $this->manager->create_job( 'voting_link', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) ) );
+		$this->assertFalse( $this->manager->create_job( 'judge_link', $this->competition_id, array( $this->seed_member( 'a@example.com' ) ) ) );
 	}
 
 	public function test_queue_with_no_recipients_returns_false(): void {
@@ -684,6 +687,49 @@ class Email_Job_Manager_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->recipients );
 		$this->assertSame( 'completed', $job['status'] );
 		$this->assertSame( 2, $job['skipped_count'] );
+		$this->assertSame( 0, $job['failed_count'] );
+	}
+
+	public function test_voting_link_job_sends_each_member_a_link_and_skips_anyone_who_has_voted(): void {
+		$competitions   = new Competitions_Repository();
+		$competition_id = $this->competition_id;
+		$competitions->update(
+			$competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'token' ),
+					'urls'       => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+			)
+		);
+		$entry_id = Entry_Fixtures::insert_entry( $competition_id, 'colour', $this->seed_member( 'entrant@example.com' ), array() );
+		Workflow_Fixtures::set_stage( $competition_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		$competition = $competitions->find( $competition_id );
+		$voted       = $this->seed_member( 'voted@example.com' );
+		$waiting     = $this->seed_member( 'waiting@example.com' );
+		$job_id      = $this->manager->create_job( 'voting_link', $competition_id, array( $voted, $waiting ), array( 'category' => 'colour' ) );
+
+		// One member votes, with a link they asked for, before the job gets to them.
+		( new Voting_Link_Service() )->send_requested( $competition, $this->members->find( $voted ), 'colour', 'https://example.com/vote/' );
+		preg_match( '/token=([0-9a-f]{64})/', $this->bodies['voted@example.com'], $matches );
+		$ballots = new Ballots();
+		$ballots->cast( $competition, 'colour', $ballots->link_voter( $competition, $matches[1] ), array( $entry_id => 9 ) );
+		$this->recipients = array();
+
+		$this->manager->process_batch( $job_id );
+
+		$job = $this->manager->get_job( $job_id );
+		$this->assertSame( array( 'waiting@example.com' ), $this->recipients );
+		$this->assertMatchesRegularExpression( '#https://example\.com/vote/\?token=[0-9a-f]{64}#', $this->bodies['waiting@example.com'] );
+		$this->assertSame( 1, $job['sent_count'] );
+		$this->assertSame( 1, $job['skipped_count'] );
 		$this->assertSame( 0, $job['failed_count'] );
 	}
 

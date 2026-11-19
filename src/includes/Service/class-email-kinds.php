@@ -99,7 +99,7 @@ class Email_Kinds {
 			),
 			'voting_opened'        => array(
 				'label'         => __( 'Voting opened', 'photo-competition-manager' ),
-				'description'   => __( 'Sent to the competition type\'s active members when voting opens in a category.', 'photo-competition-manager' ),
+				'description'   => __( 'Sent to the competition type\'s active members when voting opens in a category, when members vote with the voting password.', 'photo-competition-manager' ),
 				'notification'  => true,
 				'on_by_default' => false,
 				'subject'       => __( 'Voting is now open for {competition_title}', 'photo-competition-manager' ),
@@ -131,15 +131,24 @@ class Email_Kinds {
 			),
 			'voting_link'          => array(
 				'label'        => __( 'Voting link', 'photo-competition-manager' ),
-				'description'  => __( 'Sent to a member who asks for a voting link on the voting page.', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to members when an admin emails voting links for a category, and to a member who asks for one on the voting page.', 'photo-competition-manager' ),
 				'notification' => false,
 				'subject'      => __( 'Vote in {competition_title}', 'photo-competition-manager' ),
 				'body'         => self::body(
 					__( 'Hi {member_name},', 'photo-competition-manager' ),
-					__( 'You asked to vote in {competition_title}. Click the button below to open the voting form.', 'photo-competition-manager' ),
+					__( 'Voting is open in {competition_title}. Click the button below to open the voting form.', 'photo-competition-manager' ),
 					self::button( '{voting_link}', __( 'Vote now', 'photo-competition-manager' ) ),
-					__( 'This link expires in 1 hour.', 'photo-competition-manager' ),
-					__( "If you didn't ask for this link, you can ignore this email.", 'photo-competition-manager' )
+					__( 'This link is yours alone and expires in 1 hour.', 'photo-competition-manager' ),
+					__( "If you weren't expecting this link, you can ignore this email.", 'photo-competition-manager' )
+				),
+				'job'          => array(
+					'page'    => 'photo-competition-manager-voting',
+					'sending' => __( 'Sending voting links...', 'photo-competition-manager' ),
+					'sent'    => __( 'Voting links sent.', 'photo-competition-manager' ),
+					/* translators: 1: Competition title, 2: Members emailed so far, 3: Members in the job */
+					'stopped' => __( 'Sending voting links for %1$s stopped at %2$d of %3$d.', 'photo-competition-manager' ),
+					/* translators: %d: Members skipped */
+					'skipped' => _n_noop( '%d member was skipped because they had already voted or can no longer vote.', '%d members were skipped because they had already voted or can no longer vote.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
 					'{voting_link}' => array(

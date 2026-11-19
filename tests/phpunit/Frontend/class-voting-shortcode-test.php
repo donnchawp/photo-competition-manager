@@ -320,7 +320,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Vote in Token Comp', $this->last_mail['subject'] );
 		$this->assertStringContainsString( 'Hi Mary Murphy,', $this->last_mail['message'] );
-		$this->assertStringContainsString( 'You asked to vote in Token Comp.', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'Voting is open in Token Comp.', $this->last_mail['message'] );
 		$this->assertStringContainsString( 'token=', $this->last_mail['message'] );
 	}
 

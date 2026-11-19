@@ -16,7 +16,6 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
-use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
@@ -24,9 +23,8 @@ use PhotoCompetitionManager\Service\Judge_Voter;
 use PhotoCompetitionManager\Service\Link_Voter;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Service\Voter;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use function PhotoCompetitionManager\Support\format_site_date;
-use function PhotoCompetitionManager\Support\utc_time;
 
 /**
  * Shortcode renderer for competition voting (token- and password-based).
@@ -102,6 +100,13 @@ class Voting_Shortcode {
 	private $ballots;
 
 	/**
+	 * Sends voting links.
+	 *
+	 * @var Voting_Link_Service
+	 */
+	private $voting_links;
+
+	/**
 	 * A ballot refused earlier in this request, for the page to show with the
 	 * voter's form as they filled it in.
 	 *
@@ -142,6 +147,7 @@ class Voting_Shortcode {
 		$this->email_service     = $email_service ? $email_service : new Email_Service();
 		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo, $this->members_repo );
 		$this->ballots           = $ballots ? $ballots : new Ballots( $this->workflow, $this->votes_repo, $this->token_repo, $this->members_repo, $this->images_repo );
+		$this->voting_links      = new Voting_Link_Service( $this->competitions_repo, $this->members_repo, $this->token_repo, $this->email_service );
 	}
 
 	/**
@@ -538,51 +544,11 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Find member by email silently. Only a member who may enter gets a link.
+		// Find member by email silently. Anyone who can't be sent a link sees the same message.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member || ! ( new Competition_Entry( $this->competitions_repo, $this->members_repo ) )->may_enter( $competition, $member ) ) {
-			// Return success message but don't send email.
-			return $generic_success;
-		}
+		$sent   = $member ? $this->voting_links->send_requested( $competition, $member, $category, (string) get_permalink() ) : true;
 
-		// Check for recent token to prevent spam.
-		if ( $this->token_repo->has_recent_token( $member->id, $competition->id, $category ) ) {
-			return $generic_success;
-		}
-
-		// Generate secure token.
-		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = utc_time( HOUR_IN_SECONDS );
-
-		// Renew the member's one token for the category, so an earlier link stops working.
-		$token_id = $this->token_repo->renew( $member->id, $competition->id, $category, $token_hash, $expires_at );
-
-		if ( is_wp_error( $token_id ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to create voting link. Please try again.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		// Build magic link.
-		$voting_url = add_query_arg(
-			array(
-				'token'       => $token_string,
-				'competition' => $competition->slug,
-			),
-			get_permalink()
-		);
-
-		// Send email.
-		$email_sent = $this->email_service->send(
-			'voting_link',
-			$member,
-			$competition,
-			array(
-				'{voting_link}' => $voting_url,
-				'{close_date}'  => format_site_date( $competition->close_date ),
-			)
-		);
-
-		if ( is_wp_error( $email_sent ) ) {
+		if ( is_wp_error( $sent ) && ! Voting_Link_Service::is_refusal( $sent ) ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';
 		}
 

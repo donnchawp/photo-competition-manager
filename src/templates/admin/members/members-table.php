@@ -8,7 +8,7 @@
  * => name; empty unless the club has several types), and $data['rows']: array of row objects, each
  * pre-formatted by the controller with: member_id, name, email, grade_label,
  * status_label, joined, edit_link, delete_url, show_send_email, send_url,
- * upload_url, types_label.
+ * upload_url, voting_link_url (a nonced URL, or '' when no link can be sent), types_label.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -123,6 +123,15 @@ foreach ( $data['rows'] as $member_row ) {
 		}
 	} else {
 		$actions[] = '<span class="button button-small" style="opacity:.5;cursor:not-allowed;" title="' . esc_attr__( 'Requires an active competition and active member with email', 'photo-competition-manager' ) . '">' . esc_html__( 'Send Upload Email', 'photo-competition-manager' ) . '</span>';
+	}
+
+	// A new voting link, while a category takes votes by emailed links.
+	if ( '' !== $member_row->voting_link_url ) {
+		$actions[] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $member_row->voting_link_url ),
+			esc_html__( 'Send Voting Link', 'photo-competition-manager' )
+		);
 	}
 
 	echo '<td>' . wp_kses_post( implode( ' | ', $actions ) ) . '</td>';

@@ -158,6 +158,46 @@ trait Form_Rendering {
 	}
 
 	/**
+	 * The Judges section of a competition's settings tab, where judges are
+	 * assigned and Last sent shows each link's email.
+	 *
+	 * @since 0.4.0
+	 * @since 0.5.0 Shared by every screen, for the "needs judges" warning.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function judges_section_url( int $competition_id ): string {
+		return add_query_arg( 'tab', 'settings', $this->edit_url( $competition_id ) ) . '#photo-comp-judges';
+	}
+
+	/**
+	 * Warning naming each judged competition that hasn't closed and has no
+	 * judges, with a link to where they're assigned.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return string Rendered HTML, or an empty string when none needs judges.
+	 */
+	private function render_judges_needed_notice(): string {
+		$competitions = ( new \PhotoCompetitionManager\Service\Judge_Assignments() )->competitions_needing_judges();
+		if ( empty( $competitions ) ) {
+			return '';
+		}
+
+		$labels = new \PhotoCompetitionManager\Service\Competition_Labels();
+		$rows   = array();
+		foreach ( $competitions as $competition ) {
+			$rows[] = array(
+				'title' => $labels->title_for_everyone( $competition ),
+				'url'   => $this->judges_section_url( (int) $competition->id ),
+			);
+		}
+
+		return $this->render_template( 'admin/notice-judges-needed.php', array( 'competitions' => $rows ) );
+	}
+
+	/**
 	 * Warning shown when more than one competition is open.
 	 *
 	 * @since 0.3.0
