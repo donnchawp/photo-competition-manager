@@ -53,6 +53,15 @@ class FakeXhr {
 const uploaded = { results: { file_0: { success: true, image_id: 1 } }, success_count: 1, error_count: 0, total: 1 };
 
 /**
+ * The batch endpoint's answer when it refuses the file: HTTP 200, with the refusal in the file's result.
+ *
+ * @param {string} error Why the file was refused.
+ */
+function refused( error ) {
+	return { results: { file_0: { success: false, error } }, success_count: 0, error_count: 1, total: 1 };
+}
+
+/**
  * Render the upload page's uploader markup.
  *
  * @param {boolean} withStatus Whether the page has the live region, which a copy cached before it was added lacks.
@@ -209,7 +218,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'keeps the failures on screen after a mixed batch, with a button to show the new entries', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		expect( window.location.reload ).not.toHaveBeenCalled();
 		const progress = document.querySelector( '.photo-comp-upload-progress' );
@@ -225,7 +234,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'takes the images that went in out of the selection after a mixed batch', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		expect( selectedNames() ).toEqual( [ 'two.jpg' ] );
 
@@ -241,7 +250,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( "takes the last batch's summary away when the next batch starts", async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		document.querySelector( '.photo-comp-upload-all-btn' ).click();
 		await jest.advanceTimersByTimeAsync( 0 );
@@ -251,7 +260,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'hides Upload All when the failed image is removed after a mixed batch', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		document.querySelector( '.photo-comp-preview-item .photo-comp-remove-btn' ).click();
 
@@ -260,7 +269,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'counts the images that went in against the quota after a mixed batch', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		// Of the 3 allowed, one.jpg is entered, so with two.jpg removed two more fit.
 		document.querySelector( '.photo-comp-preview-item .photo-comp-remove-btn' ).click();
@@ -300,7 +309,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'keeps the failures on screen when a later file is turned away', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		pickFiles( [ 'notes.txt' ], 'text/plain' );
 
@@ -314,11 +323,11 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'keeps the refusal on screen when the link is refused after an image went in', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 403, { code: 'rest_forbidden', message: 'Uploads for this competition have closed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 403, { code: 'invalid_token', message: 'This upload link is no longer valid for this competition.' } ) );
 
 		expect( window.location.reload ).not.toHaveBeenCalled();
 		expect( errorLines() ).toEqual( [
-			'Uploads for this competition have closed.',
+			'This upload link is no longer valid for this competition.',
 		] );
 		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
 	} );
@@ -356,7 +365,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'shows a batch where some images went in as a notice, with both counts', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		expect( summary().classList.contains( 'success' ) ).toBe( false );
 		expect( summary().classList.contains( 'notice' ) ).toBe( true );
@@ -392,7 +401,7 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'moves focus to the summary after a batch with a failure', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 		expect( document.activeElement ).toBe( summary() );
 	} );
@@ -593,7 +602,7 @@ describe( 'drag-and-drop upload', () => {
 
 		it( 'uploads the images and announces the outcome', async () => {
 			await sendTwoWithFirstUploaded();
-			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 400, { code: 'invalid_type', message: 'Only JPEG images are allowed.' } ) );
+			await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 200, refused( 'Only JPEG images are allowed.' ) ) );
 
 			expect( FakeXhr.requests ).toHaveLength( 2 );
 			expect( summary().textContent ).toBe( 'Successfully uploaded 1 image. 1 upload failed.' );

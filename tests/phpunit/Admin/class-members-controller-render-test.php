@@ -27,6 +27,8 @@ use PhotoCompetitionManager\Tests\Workflow_Fixtures;
  */
 class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
+
 	/** @var Competitions_Repository */
 	private $competitions;
 
@@ -124,7 +126,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert live output equals the stored snapshot; write it on first run.
+	 * Assert live output equals the stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string         $scenario        Snapshot scenario name.
 	 * @param array<int,int> $competition_ids Competition IDs to normalize before comparing.
@@ -132,27 +134,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * @param array<int,int> $type_ids        Type IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $member_ids = array(), array $type_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/members-render';
-		$file = $dir . '/' . $scenario . '.html';
-		$html = $this->render_normalized( $competition_ids, $member_ids, $type_ids );
-
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
-				// wp_mkdir_p() has been observed to fail silently in this test
-				// environment; fall back to a plain mkdir() before giving up.
-				mkdir( $dir, 0777, true );
-			}
-			if ( ! is_dir( $dir ) ) {
-				self::fail( "Could not create snapshot directory {$dir}." );
-			}
-			if ( false === file_put_contents( $file, $html ) ) {
-				self::fail( "Could not write snapshot file {$file}." );
-			}
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-			return;
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/members-render', $scenario, $this->render_normalized( $competition_ids, $member_ids, $type_ids ) );
 	}
 
 	/**

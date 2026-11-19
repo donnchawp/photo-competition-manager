@@ -12,6 +12,8 @@ namespace PhotoCompetitionManager\Tests;
  */
 trait Photo_Uploads {
 
+	use Temp_Uploads;
+
 	/**
 	 * Temporary source images, removed by remove_tmp_files().
 	 *
@@ -43,6 +45,8 @@ trait Photo_Uploads {
 
 	/**
 	 * A file in the shape of a $_FILES entry.
+	 *
+	 * Upload code refuses it unless the test calls accept_temp_files_as_uploads().
 	 *
 	 * @param string $tmp_file Path of the uploaded file.
 	 * @return array<string, mixed>

@@ -38,6 +38,8 @@ class Upload_API_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 		$this->server = $_SERVER;
+
+		$this->accept_temp_files_as_uploads();
 	}
 
 	public function tearDown(): void {

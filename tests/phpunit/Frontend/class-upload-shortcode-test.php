@@ -29,6 +29,8 @@ require_once __DIR__ . '/../Admin/class-redirect-exception.php';
  */
 class Upload_Shortcode_Test extends WP_UnitTestCase {
 
+	use \PhotoCompetitionManager\Tests\Temp_Uploads;
+
 	/**
 	 * @var Upload_Shortcode
 	 */
@@ -452,6 +454,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	public function test_a_file_of_the_wrong_type_says_so(): void {
 		$text_file = wp_tempnam( 'entry.gif' );
 		file_put_contents( $text_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->accept_temp_files_as_uploads();
 
 		$location = $this->post_upload(
 			$this->issue_token( true ),

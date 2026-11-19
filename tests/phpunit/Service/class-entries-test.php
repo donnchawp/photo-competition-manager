@@ -55,6 +55,8 @@ class Entries_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
+		$this->accept_temp_files_as_uploads();
+
 		$this->competitions_repo = new Competitions_Repository();
 		$this->images_repo       = new Images_Repository();
 		$this->members_repo      = new Members_Repository();
