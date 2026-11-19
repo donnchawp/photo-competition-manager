@@ -100,7 +100,7 @@ class Voting_Link_Service {
 	 * @param object $member      Member row.
 	 * @param string $category    Category slug.
 	 * @param string $page_url    The voting page the member asked on.
-	 * @return true|WP_Error 'rate_limited' when they asked too recently, or why no link was sent.
+	 * @return true|WP_Error A refusal (see is_refusal()), 'rate_limited' when they asked too recently, or why sending failed.
 	 */
 	public function send_requested( object $competition, object $member, string $category, string $page_url ) {
 		$refused = $this->refusal( $competition, $member, $category );
@@ -109,7 +109,7 @@ class Voting_Link_Service {
 		}
 
 		if ( $this->tokens->has_recent_token( (int) $member->id, (int) $competition->id, $category ) ) {
-			return new WP_Error( 'rate_limited', __( 'A voting link was sent to this member a few minutes ago.', 'photo-competition-manager' ) );
+			return self::refused( 'rate_limited', __( 'A voting link was sent to this member a few minutes ago.', 'photo-competition-manager' ) );
 		}
 
 		return $this->send( $competition, $member, $category, $page_url );
@@ -124,7 +124,7 @@ class Voting_Link_Service {
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
 	 * @param string $category    Category slug.
-	 * @return true|WP_Error 'already_voted', 'no_voting_page', or why no link was sent.
+	 * @return true|WP_Error A refusal (see is_refusal()), such as 'already_voted'; 'no_voting_page'; or why sending failed.
 	 */
 	public function send_from_admin( object $competition, object $member, string $category ) {
 		$refused = $this->refusal( $competition, $member, $category );
@@ -133,7 +133,7 @@ class Voting_Link_Service {
 		}
 
 		if ( $this->has_voted( $competition, $member, $category ) ) {
-			return new WP_Error( 'already_voted', __( 'This member has already voted in this category.', 'photo-competition-manager' ) );
+			return self::refused( 'already_voted', __( 'This member has already voted in this category.', 'photo-competition-manager' ) );
 		}
 
 		$page_url = Competition_Settings::page_url( 'voting_page', $competition );
@@ -145,18 +145,72 @@ class Voting_Link_Service {
 	}
 
 	/**
-	 * Whether a member may be sent a link from the admin screens now: they may
-	 * vote, and haven't, in the category.
+	 * The members who can be sent a link from the admin screens now: those
+	 * who may enter, with an email address, and haven't voted in the category.
+	 * None while the category isn't taking votes by emailed links.
 	 *
 	 * @since 0.5.0
 	 *
 	 * @param object $competition Competition row.
-	 * @param object $member      Member row.
 	 * @param string $category    Category slug.
+	 * @return object[] Member rows, by name.
+	 */
+	public function members_to_send( object $competition, string $category ): array {
+		if ( $this->competition_refusal( $competition, $category ) ) {
+			return array();
+		}
+
+		$voted = array_flip( $this->tokens->voted_member_ids( (int) $competition->id, $category ) );
+
+		return array_values(
+			array_filter(
+				$this->entry->eligible_members( $competition ),
+				fn( $member ) => ! isset( $voted[ (int) $member->id ] )
+			)
+		);
+	}
+
+	/**
+	 * Whether an error means the member wasn't sent a link because they
+	 * shouldn't be, rather than because sending failed.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param WP_Error $error An error from a send.
 	 * @return bool
 	 */
-	public function can_send_from_admin( object $competition, object $member, string $category ): bool {
-		return null === $this->refusal( $competition, $member, $category ) && ! $this->has_voted( $competition, $member, $category );
+	public static function is_refusal( WP_Error $error ): bool {
+		return ! empty( $error->get_error_data()['refused'] );
+	}
+
+	/**
+	 * A refusal: no link, because the member shouldn't get one.
+	 *
+	 * @param string $code    Error code.
+	 * @param string $message Message.
+	 * @return WP_Error
+	 */
+	private static function refused( string $code, string $message ): WP_Error {
+		return new WP_Error( $code, $message, array( 'refused' => true ) );
+	}
+
+	/**
+	 * Why nobody can be sent a link for the category, if nobody can.
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $category    Category slug.
+	 * @return WP_Error|null
+	 */
+	private function competition_refusal( object $competition, string $category ): ?WP_Error {
+		if ( ! Ballots::votes_by_link( $competition ) ) {
+			return self::refused( 'not_link_voting', __( 'Members don\'t vote with emailed links in this competition.', 'photo-competition-manager' ) );
+		}
+
+		if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
+			return self::refused( 'not_accepting_votes', __( 'Voting is not open for this category.', 'photo-competition-manager' ) );
+		}
+
+		return null;
 	}
 
 	/**
@@ -168,21 +222,17 @@ class Voting_Link_Service {
 	 * @return WP_Error|null
 	 */
 	private function refusal( object $competition, object $member, string $category ): ?WP_Error {
-		$voting = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
-		if ( 'token' !== ( $voting['auth_mode'] ?? 'password' ) ) {
-			return new WP_Error( 'not_link_voting', __( 'Members don\'t vote with emailed links in this competition.', 'photo-competition-manager' ) );
-		}
-
-		if ( ! $this->workflow->is_accepting_votes( $competition, $category ) ) {
-			return new WP_Error( 'not_accepting_votes', __( 'Voting is not open for this category.', 'photo-competition-manager' ) );
+		$refused = $this->competition_refusal( $competition, $category );
+		if ( $refused ) {
+			return $refused;
 		}
 
 		if ( empty( $member->email ) ) {
-			return new WP_Error( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
+			return self::refused( 'missing_email', __( 'Member does not have an email address.', 'photo-competition-manager' ) );
 		}
 
 		if ( ! $this->entry->may_enter( $competition, $member ) ) {
-			return new WP_Error( 'not_a_voter', __( 'This member may not vote in this competition.', 'photo-competition-manager' ) );
+			return self::refused( 'not_a_voter', __( 'This member may not vote in this competition.', 'photo-competition-manager' ) );
 		}
 
 		return null;

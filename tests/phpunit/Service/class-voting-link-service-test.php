@@ -185,4 +185,19 @@ class Voting_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertCount( 0, $this->mails );
 	}
+
+	public function test_the_members_to_send_are_those_who_may_vote_and_havent() {
+		$ann = $this->member( 'ann@example.com' );
+		$ben = $this->member( 'ben@example.com' );
+		$this->member( 'gone@example.com', false );
+		$this->send( $ann );
+		$ballots = new Ballots();
+		$ballots->cast( $this->competition, 'colour', $ballots->link_voter( $this->competition, $this->token_from_last_mail() ), array( $this->entry_id => 9 ) );
+
+		$ids = array_map( 'intval', wp_list_pluck( $this->links->members_to_send( $this->competition, 'colour' ), 'id' ) );
+
+		$this->assertContains( $ben, $ids );
+		$this->assertNotContains( $ann, $ids );
+		$this->assertSame( array(), $this->links->members_to_send( $this->competition, 'mono' ) );
+	}
 }

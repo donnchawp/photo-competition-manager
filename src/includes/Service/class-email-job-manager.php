@@ -505,11 +505,11 @@ class Email_Job_Manager {
 
 			case 'voting_link':
 				$sent = $this->voting_links->send_from_admin( $competition, $member, (string) $args['category'] );
-				if ( is_wp_error( $sent ) && in_array( $sent->get_error_code(), array( 'already_voted', 'not_a_voter', 'not_accepting_votes' ), true ) ) {
-					return 'skipped';
+				if ( is_wp_error( $sent ) ) {
+					return Voting_Link_Service::is_refusal( $sent ) ? 'skipped' : $sent;
 				}
 
-				return is_wp_error( $sent ) ? $sent : 'sent';
+				return 'sent';
 
 			case 'voting_opened':
 				return $this->email_service->send(

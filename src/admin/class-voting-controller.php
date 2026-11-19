@@ -18,7 +18,6 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
-use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -213,16 +212,11 @@ class Voting_Controller {
 			$this->fail_voting( 'no_voting_page', __( 'No voting page is set, so there is no link to send.', 'photo-competition-manager' ) );
 		}
 
-		$member_ids = array();
-		foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
-			if ( ! empty( $member->email ) ) {
-				$member_ids[] = (int) $member->id;
-			}
-		}
+		$member_ids = array_map( 'intval', wp_list_pluck( ( new Voting_Link_Service( $this->competitions, $this->members ) )->members_to_send( $competition, $category_slug ), 'id' ) );
 
 		// With nobody to email, the button stays for when there is.
 		if ( empty( $member_ids ) ) {
-			$this->fail_voting( 'no_voters', __( 'No member who may vote has an email address, so no links were sent.', 'photo-competition-manager' ) );
+			$this->fail_voting( 'no_voters', __( 'No member who may vote is waiting for a link, so none were sent.', 'photo-competition-manager' ) );
 		}
 
 		$this->finish_voting_update(
@@ -709,17 +703,12 @@ class Voting_Controller {
 	 * @return string
 	 */
 	private function render_voting_links( object $competition, string $category_slug, string $focus ): string {
-		$settings = Competition_Settings::parse( $competition->settings );
-		if ( '' === $category_slug || 'token' !== ( $settings['voting']['auth_mode'] ?? 'password' ) ) {
+		if ( '' === $category_slug || ! Ballots::votes_by_link( $competition ) ) {
 			return '';
 		}
 
-		$category_label = $category_slug;
-		foreach ( Competition_Settings::get_categories( $settings ) as $category ) {
-			if ( ( $category['slug'] ?? '' ) === $category_slug ) {
-				$category_label = (string) ( $category['label'] ?? $category_slug );
-			}
-		}
+		$category       = Competition_Settings::find_category( Competition_Settings::parse( $competition->settings ), $category_slug );
+		$category_label = (string) ( $category['label'] ?? $category_slug );
 
 		$competition_id = (int) $competition->id;
 		$sent_at        = $this->workflow->voting_links_sent_at( $competition, $category_slug );
@@ -739,15 +728,12 @@ class Voting_Controller {
 			)
 			: '';
 
-		$links   = new Voting_Link_Service( $this->competitions, $this->members );
 		$members = array();
-		foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
-			if ( $links->can_send_from_admin( $competition, $member, $category_slug ) ) {
-				$members[] = array(
-					'id'   => (int) $member->id,
-					'name' => (string) $member->name,
-				);
-			}
+		foreach ( ( new Voting_Link_Service( $this->competitions, $this->members ) )->members_to_send( $competition, $category_slug ) as $member ) {
+			$members[] = array(
+				'id'   => (int) $member->id,
+				'name' => (string) $member->name,
+			);
 		}
 
 		return $this->render_template(
@@ -755,7 +741,7 @@ class Voting_Controller {
 			array(
 				'category_label' => $category_label,
 				'email_all_url'  => $email_all_url,
-				'sent_at'        => null === $sent_at ? '' : wp_date( (string) get_option( 'time_format' ), (int) strtotime( $sent_at ) ),
+				'sent_at'        => $this->format_datetime( $sent_at ),
 				'members'        => $members,
 				'form_args'      => array(
 					'page'        => 'photo-competition-manager-voting',
@@ -800,7 +786,7 @@ class Voting_Controller {
 		}
 
 		// With emailed links, members are sent their own links instead (Email voting links).
-		if ( 'token' === ( Competition_Settings::parse( $competition->settings )['voting']['auth_mode'] ?? 'password' ) ) {
+		if ( Ballots::votes_by_link( $competition ) ) {
 			return null;
 		}
 

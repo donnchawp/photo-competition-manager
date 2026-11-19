@@ -540,11 +540,7 @@ class Voting_Shortcode {
 		$member = $this->members_repo->find_by_email( $member_email );
 		$sent   = $member ? $this->voting_links->send_requested( $competition, $member, $category, (string) get_permalink() ) : true;
 
-		if ( is_wp_error( $sent ) && in_array( $sent->get_error_code(), array( 'missing_table', 'invalid_data', 'db_update_failed', 'db_insert_failed' ), true ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to create voting link. Please try again.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		if ( is_wp_error( $sent ) && ! in_array( $sent->get_error_code(), array( 'not_link_voting', 'not_accepting_votes', 'missing_email', 'not_a_voter', 'rate_limited' ), true ) ) {
+		if ( is_wp_error( $sent ) && ! Voting_Link_Service::is_refusal( $sent ) ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';
 		}
 

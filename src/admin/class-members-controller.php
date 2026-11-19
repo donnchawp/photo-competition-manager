@@ -904,13 +904,13 @@ class Members_Controller {
 		// can be sent a new link. The voting page serves only the current competition.
 		$current         = $this->competitions->find_current_active();
 		$voting_category = $current ? ( $this->workflow->categories_accepting_votes( $current )[0] ?? '' ) : '';
-		$voting_links    = new Voting_Link_Service( $this->competitions, $this->members );
+		$voting_link_ids = $voting_category ? array_flip( wp_list_pluck( ( new Voting_Link_Service( $this->competitions, $this->members ) )->members_to_send( $current, $voting_category ), 'id' ) ) : array();
 
 		$rows = array();
 
 		foreach ( $members as $member ) {
 			$voting_link_url = '';
-			if ( '' !== $voting_category && $voting_links->can_send_from_admin( $current, $member, $voting_category ) ) {
+			if ( isset( $voting_link_ids[ $member->id ] ) ) {
 				$voting_link_url = wp_nonce_url(
 					add_query_arg(
 						array(
