@@ -85,6 +85,9 @@ function is_http_upload( string $path ): bool {
 	/**
 	 * Filters whether a path counts as an HTTP POST upload.
 	 *
+	 * Exists so tests can pass temp files as uploads. Returning true in
+	 * production turns off a security check.
+	 *
 	 * @since 0.5.0
 	 *
 	 * @param bool   $is_upload Whether is_uploaded_file() accepts the path.

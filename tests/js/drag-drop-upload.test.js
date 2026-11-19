@@ -323,11 +323,11 @@ describe( 'drag-and-drop upload', () => {
 
 	it( 'keeps the refusal on screen when the link is refused after an image went in', async () => {
 		await sendTwoWithFirstUploaded();
-		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 403, { code: 'rest_forbidden', message: 'Uploads for this competition have closed.' } ) );
+		await answerLastAndWait( () => FakeXhr.requests[ 1 ].respond( 403, { code: 'invalid_token', message: 'This upload link is no longer valid for this competition.' } ) );
 
 		expect( window.location.reload ).not.toHaveBeenCalled();
 		expect( errorLines() ).toEqual( [
-			'Uploads for this competition have closed.',
+			'This upload link is no longer valid for this competition.',
 		] );
 		expect( document.querySelector( '.photo-comp-upload-progress .photo-comp-refresh-btn' ) ).not.toBeNull();
 	} );
