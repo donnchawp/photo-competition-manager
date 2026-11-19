@@ -617,7 +617,7 @@ class Competitions_Controller {
 			// Store the password if provided, clear if empty or checkbox checked.
 			// For legacy hashed passwords (not shown in the form), preserve when field is blank.
 			$existing_password = $existing_settings['voting']['password'] ?? '';
-			$is_legacy_hash    = '' !== $existing_password && (bool) preg_match( '/^\$P\$|\$wp\$/', $existing_password );
+			$is_legacy_hash    = '' !== $existing_password && Competition_Settings::is_legacy_password_hash( $existing_password );
 			$hashed_password   = '';
 			if ( $voting_password_clear ) {
 				// Clear the password via checkbox (legacy hash flow).
@@ -1210,7 +1210,7 @@ class Competitions_Controller {
 
 		$auth_mode = $voting['auth_mode'] ?? 'password';
 
-		$is_plaintext_password = ! empty( $voting['password'] ) && ! preg_match( '/^\$P\$|\$wp\$/', $voting['password'] );
+		$is_plaintext_password = ! empty( $voting['password'] ) && ! Competition_Settings::is_legacy_password_hash( $voting['password'] );
 		$is_legacy_hash        = ! empty( $voting['password'] ) && ! $is_plaintext_password;
 		$password_value        = $is_plaintext_password ? $voting['password'] : '';
 

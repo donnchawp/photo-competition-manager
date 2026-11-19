@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Device_Cookie;
 
 /**
  * A link voter: a member, proved by their voting link. The link is for one
@@ -123,26 +124,7 @@ final class Link_Voter implements Voter {
 	 * @return void
 	 */
 	public static function remember_password( int $competition_id, string $password ): void {
-		$cookie = self::password_cookie( $competition_id );
-
-		// A real request gets here on template_redirect, before any output. PHPUnit has already printed, and setcookie() would warn.
-		if ( ! headers_sent() ) {
-			setcookie(
-				$cookie,
-				$password,
-				array(
-					'expires'  => time() + 12 * HOUR_IN_SECONDS,
-					'path'     => COOKIEPATH ? COOKIEPATH : '/',
-					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
-					'samesite' => 'Lax',
-					'httponly' => true,
-				)
-			);
-		}
-
-		// A redirect follows, so this copy is how tests see the cookie. Slashed, as WordPress slashes $_COOKIE.
-		$_COOKIE[ $cookie ] = wp_slash( $password );
+		Device_Cookie::set( self::password_cookie( $competition_id ), $password, 12 * HOUR_IN_SECONDS );
 	}
 
 	/**
@@ -154,8 +136,6 @@ final class Link_Voter implements Voter {
 	 * @return string
 	 */
 	public static function remembered_password( int $competition_id ): string {
-		$cookie = self::password_cookie( $competition_id );
-
-		return isset( $_COOKIE[ $cookie ] ) && is_string( $_COOKIE[ $cookie ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $cookie ] ) ) : '';
+		return sanitize_text_field( Device_Cookie::get( self::password_cookie( $competition_id ) ) );
 	}
 }

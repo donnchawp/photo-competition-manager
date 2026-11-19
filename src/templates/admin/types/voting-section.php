@@ -26,7 +26,7 @@ echo '</p>';
 echo '<p>';
 echo '<label for="voting_password">' . esc_html__( 'Voting password', 'photo-competition-manager' ) . '</label><br />';
 echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $data['password'] ) . '" class="regular-text" />';
-echo '<span class="description">' . esc_html__( 'Members voting with the password need it. With emailed links, members need it too, as a check that they are in the room where it is shown. Leave blank for no password. Judges never need it. Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
+echo '<span class="description">' . esc_html__( 'Members voting with the password need it. With emailed links, members need it too, as a check that they are in the room where it is shown. Leave blank for no password. Judges never need it. Passwords are case insensitive.', 'photo-competition-manager' ) . '</span>';
 echo '</p>';
 
 echo '<p>';

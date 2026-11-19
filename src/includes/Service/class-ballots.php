@@ -181,7 +181,7 @@ final class Ballots {
 	 */
 	public static function link_voting_password_error( object $competition, string $password ): ?WP_Error {
 		$voting = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
-		if ( preg_match( '/^\$P\$|\$wp\$/', (string) ( $voting['password'] ?? '' ) ) ) {
+		if ( Competition_Settings::is_legacy_password_hash( (string) ( $voting['password'] ?? '' ) ) ) {
 			return null;
 		}
 

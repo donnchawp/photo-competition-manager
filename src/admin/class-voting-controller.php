@@ -941,7 +941,7 @@ class Voting_Controller {
 		$voting_password = '';
 		$raw_password    = $competition_settings['voting']['password'] ?? '';
 		$members_need_it = 'judges' !== ( $competition_settings['voting']['auth_mode'] ?? 'password' );
-		if ( $members_need_it && '' !== $raw_password && ! preg_match( '/^\$P\$|\$wp\$/', $raw_password ) ) {
+		if ( $members_need_it && '' !== $raw_password && ! Competition_Settings::is_legacy_password_hash( $raw_password ) ) {
 			$voting_password = $raw_password;
 		}
 		return $this->render_template(
