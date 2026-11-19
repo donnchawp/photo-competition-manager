@@ -22,7 +22,9 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -578,6 +580,69 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_html();
 
 		$this->assertSame( $shown, str_contains( $html, 'snapdragon' ) );
+	}
+
+	/**
+	 * Seed a competition whose members vote with emailed links, with Ada's
+	 * colour entry and colour taking votes.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function seed_links_competition_taking_votes(): int {
+		$comp_id   = $this->competitions->create(
+			array(
+				'type_id'  => Type_Fixtures::id(),
+				'title'    => 'Links Show',
+				'slug'     => 'links-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'token' ),
+					'urls'       => array( 'voting_page' => 'https://example.com/vote' ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $member_id, array() );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		return $comp_id;
+	}
+
+	public function test_render_offers_to_email_voting_links_until_they_are_sent(): void {
+		$comp_id = $this->seed_links_competition_taking_votes();
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'action=email_voting_links', str_replace( '&#038;', '&amp;', $html ) );
+		$this->assertMatchesRegularExpression( '/<option value="\d+">Ada<\/option>/', $html );
+
+		( new Competition_Workflow() )->record_voting_links_sent( $comp_id, 'colour' );
+		$html = $this->render_html();
+
+		$this->assertStringNotContainsString( 'action=email_voting_links', str_replace( '&#038;', '&amp;', $html ) );
+		$this->assertStringContainsString( 'Links sent at', $html );
+		$this->assertMatchesRegularExpression( '/<option value="\d+">Ada<\/option>/', $html );
+	}
+
+	public function test_render_offers_no_voting_links_when_members_vote_with_the_password(): void {
+		$comp_id = $this->seed_links_competition_taking_votes();
+		$this->competitions->update( $comp_id, array( 'settings' => array( 'voting' => array( 'auth_mode' => 'password' ) ) ) );
+
+		$html = $this->render_html();
+
+		$this->assertStringNotContainsString( 'email_voting_links', $html );
+		$this->assertStringNotContainsString( 'send_voting_link', $html );
 	}
 
 	/**

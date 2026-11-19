@@ -24,6 +24,7 @@ use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use function PhotoCompetitionManager\Support\format_site_date;
 
@@ -159,6 +160,14 @@ class Voting_Controller {
 					'nonce'  => fn() => 'photo_competition_hide_results_' . $this->query_int( 'competition' ),
 					'handle' => fn() => $this->handle_hide_results( $focus ),
 				),
+				'email_voting_links'    => array(
+					'nonce'  => fn() => 'photo_competition_email_voting_links_' . $this->query_int( 'competition' ) . '_' . $this->query_text( 'category' ),
+					'handle' => fn() => $this->handle_email_voting_links( $focus ),
+				),
+				'send_voting_link'      => array(
+					'nonce'  => fn() => 'photo_competition_send_voting_link_' . $this->query_int( 'competition' ) . '_' . $this->query_text( 'category' ),
+					'handle' => fn() => $this->handle_send_voting_link( $focus ),
+				),
 			)
 		);
 	}
@@ -182,6 +191,73 @@ class Voting_Controller {
 			function () use ( $competition ) {
 				return $this->queue_voting_opened_notifications( $competition );
 			}
+		);
+	}
+
+	/**
+	 * Email every member who may vote their link for a category taking votes.
+	 * Only once per category: a second send would replace the links of
+	 * members part-way through voting.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_email_voting_links( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+		$category_slug  = $this->query_text( 'category' );
+		$competition    = $this->load_competition_or_fail( $competition_id );
+
+		if ( '' === Competition_Settings::page_url( 'voting_page', $competition ) ) {
+			$this->fail_voting( 'no_voting_page', __( 'No voting page is set, so there is no link to send.', 'photo-competition-manager' ) );
+		}
+
+		$this->finish_voting_update(
+			$this->workflow->record_voting_links_sent( $competition_id, $category_slug ),
+			'voting_links_queued',
+			__( 'Voting links are being emailed to members who may vote.', 'photo-competition-manager' ),
+			$focus,
+			function () use ( $competition, $category_slug ) {
+				$member_ids = array();
+				foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
+					if ( ! empty( $member->email ) ) {
+						$member_ids[] = (int) $member->id;
+					}
+				}
+
+				$job_id = $this->email_jobs->queue( 'voting_link', (int) $competition->id, $member_ids, array( 'category' => $category_slug ) );
+
+				return $job_id ? $job_id : null;
+			}
+		);
+	}
+
+	/**
+	 * Email one member a new link for a category taking votes, when theirs
+	 * never arrived.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $focus Focus-panel key to preserve across the redirect.
+	 * @return void
+	 */
+	private function handle_send_voting_link( string $focus ): void {
+		$competition_id = $this->query_int( 'competition' );
+		$category_slug  = $this->query_text( 'category' );
+		$competition    = $this->load_competition_or_fail( $competition_id );
+		$member         = $this->members->find( $this->query_int( 'member' ) );
+
+		$result = $member
+			? ( new Voting_Link_Service( $this->competitions, $this->members ) )->send_from_admin( $competition, $member, $category_slug )
+			: new \WP_Error( 'member_not_found', __( 'Member not found.', 'photo-competition-manager' ) );
+
+		$this->finish_voting_update(
+			$result,
+			'voting_link_sent',
+			/* translators: %s: member name */
+			sprintf( __( 'Voting link sent to %s.', 'photo-competition-manager' ), $member ? $member->name : '' ),
+			$focus
 		);
 	}
 
@@ -562,6 +638,9 @@ class Voting_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_judges_progress( $active_competition, $open_here[0] ?? '' );
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_voting_links( $active_competition, $open_here[0] ?? '', $current_key );
+
 		// Render Quick Actions.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_quick_actions( $voting_page, $results_page, $top3_page, $active_settings );
@@ -611,6 +690,81 @@ class Voting_Controller {
 	}
 
 	/**
+	 * Render the voting links card: email every voter their link for the
+	 * category taking votes, once, and send one member a new link.
+	 *
+	 * Only a competition whose members vote with emailed links, with a
+	 * category accepting votes, shows it.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition   Competition row.
+	 * @param string $category_slug Slug of the category accepting votes, or ''.
+	 * @param string $focus         Focus-panel key to come back to.
+	 * @return string
+	 */
+	private function render_voting_links( object $competition, string $category_slug, string $focus ): string {
+		$settings = Competition_Settings::parse( $competition->settings );
+		if ( '' === $category_slug || 'token' !== ( $settings['voting']['auth_mode'] ?? 'password' ) ) {
+			return '';
+		}
+
+		$category_label = $category_slug;
+		foreach ( Competition_Settings::get_categories( $settings ) as $category ) {
+			if ( ( $category['slug'] ?? '' ) === $category_slug ) {
+				$category_label = (string) ( $category['label'] ?? $category_slug );
+			}
+		}
+
+		$competition_id = (int) $competition->id;
+		$sent_at        = $this->workflow->voting_links_sent_at( $competition, $category_slug );
+		$email_all_url  = null === $sent_at
+			? wp_nonce_url(
+				add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager-voting',
+						'action'      => 'email_voting_links',
+						'competition' => $competition_id,
+						'category'    => $category_slug,
+						'focus'       => $focus,
+					),
+					admin_url( 'admin.php' )
+				),
+				'photo_competition_email_voting_links_' . $competition_id . '_' . $category_slug
+			)
+			: '';
+
+		$links   = new Voting_Link_Service( $this->competitions, $this->members );
+		$members = array();
+		foreach ( ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition ) as $member ) {
+			if ( $links->can_send_from_admin( $competition, $member, $category_slug ) ) {
+				$members[] = array(
+					'id'   => (int) $member->id,
+					'name' => (string) $member->name,
+				);
+			}
+		}
+
+		return $this->render_template(
+			'admin/voting/voting-links.php',
+			array(
+				'category_label' => $category_label,
+				'email_all_url'  => $email_all_url,
+				'sent_at'        => null === $sent_at ? '' : wp_date( (string) get_option( 'time_format' ), (int) strtotime( $sent_at ) ),
+				'members'        => $members,
+				'form_args'      => array(
+					'page'        => 'photo-competition-manager-voting',
+					'action'      => 'send_voting_link',
+					'competition' => $competition_id,
+					'category'    => $category_slug,
+					'focus'       => $focus,
+				),
+				'nonce_action'   => 'photo_competition_send_voting_link_' . $competition_id . '_' . $category_slug,
+			)
+		);
+	}
+
+	/**
 	 * Render slideshow container for admin voting controls page.
 	 *
 	 * @return string
@@ -640,6 +794,11 @@ class Voting_Controller {
 			return null;
 		}
 
+		// With emailed links, members are sent their own links instead (Email voting links).
+		if ( 'token' === ( Competition_Settings::parse( $competition->settings )['voting']['auth_mode'] ?? 'password' ) ) {
+			return null;
+		}
+
 		if ( ! ( new Email_Service() )->is_template_enabled( 'voting_opened' ) ) {
 			return null;
 		}
@@ -658,11 +817,8 @@ class Voting_Controller {
 			return null;
 		}
 
-		// With emailed links only those who may enter can ask for one; with a password anyone of the type can vote.
-		$token_mode = 'token' === ( Competition_Settings::parse( $competition->settings )['voting']['auth_mode'] ?? 'password' );
-		$recipients = $token_mode
-			? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_members( $competition )
-			: $this->members->find_by_type( (int) $competition->type_id );
+		// With a password anyone of the type can vote.
+		$recipients = $this->members->find_by_type( (int) $competition->type_id );
 
 		$member_ids = array();
 		foreach ( $recipients as $member ) {

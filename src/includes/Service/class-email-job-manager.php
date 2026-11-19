@@ -136,6 +136,13 @@ class Email_Job_Manager {
 	private $upload_links;
 
 	/**
+	 * Voting link service.
+	 *
+	 * @var Voting_Link_Service
+	 */
+	private $voting_links;
+
+	/**
 	 * Category rankings for the batch being sent.
 	 *
 	 * Every member in a results batch gets the same results, so each category
@@ -186,6 +193,7 @@ class Email_Job_Manager {
 		$this->email_service = $email_service;
 		$this->entries       = $entries ?? new Entries( $competitions, $images, $members );
 		$this->upload_links  = $upload_links ?? new Upload_Link_Service( null, $competitions, $members, $email_service );
+		$this->voting_links  = new Voting_Link_Service( $competitions, $members, null, $email_service );
 	}
 
 	/**
@@ -494,6 +502,14 @@ class Email_Job_Manager {
 
 			case 'upload_reminder':
 				return $this->upload_links->send_reminder( (int) $competition->id, (int) $member->id );
+
+			case 'voting_link':
+				$sent = $this->voting_links->send_from_admin( $competition, $member, (string) $args['category'] );
+				if ( is_wp_error( $sent ) && in_array( $sent->get_error_code(), array( 'already_voted', 'not_a_voter', 'not_accepting_votes' ), true ) ) {
+					return 'skipped';
+				}
+
+				return is_wp_error( $sent ) ? $sent : 'sent';
 
 			case 'voting_opened':
 				return $this->email_service->send(

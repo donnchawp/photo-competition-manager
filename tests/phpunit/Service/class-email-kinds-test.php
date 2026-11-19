@@ -38,7 +38,7 @@ class Email_Kinds_Test extends WP_UnitTestCase {
 	 */
 	public function test_voting_opened_description_names_the_competition_types_members() {
 		$this->assertSame(
-			'Sent to the competition type\'s active members when voting opens in a category.',
+			'Sent to the competition type\'s active members when voting opens in a category, when members vote with the voting password.',
 			Email_Kinds::get( 'voting_opened' )['description']
 		);
 	}

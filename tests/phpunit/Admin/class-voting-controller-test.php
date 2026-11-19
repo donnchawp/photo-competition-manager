@@ -358,7 +358,22 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 	 * With emailed links, only the people who can ask for a link are told voting opened:
 	 * a selected competition's entrants, not the other members of its type.
 	 */
-	public function test_voting_opened_with_emailed_links_goes_to_entrants_only(): void {
+	public function test_opening_voting_with_emailed_links_sends_no_voting_opened_email(): void {
+		$this->links_mode_with_entrant();
+		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+
+		$location = $this->open_colour_voting();
+
+		$this->assertStringNotContainsString( 'job_id=', $location );
+	}
+
+	/**
+	 * Make the seeded competition a selected-entrants one whose members vote
+	 * with emailed links: Ann is an entrant, Ben is a member of the type who isn't.
+	 *
+	 * @return int Ann's member ID.
+	 */
+	private function links_mode_with_entrant(): int {
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'voting_page' => 'https://example.com/vote/' ) ) ) );
 		$this->voting_opened_email_on();
 		Type_Fixtures::clear();
@@ -377,7 +392,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 		);
 		$this->move_to_type( $individual );
 		$members = new Members_Repository();
-		$ann     = $members->create(
+		$ann     = (int) $members->create(
 			array(
 				'name'     => 'Ann',
 				'email'    => 'ann@example.com',
@@ -393,13 +408,82 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'type_ids' => array( $individual ),
 			)
 		);
-		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $this->competition_id, (int) $ann );
-		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
+		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $this->competition_id, $ann );
 
-		wp_parse_str( (string) wp_parse_url( $this->open_colour_voting(), PHP_URL_QUERY ), $query );
+		return $ann;
+	}
+
+	/**
+	 * Press "Email voting links" for colour and return where the request redirected.
+	 *
+	 * @return string Redirect location.
+	 */
+	private function email_colour_voting_links(): string {
+		$this->set_request(
+			array(
+				'action'      => 'email_voting_links',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_voting_links_' . $this->competition_id . '_colour' );
+
+		return $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_emailing_voting_links_queues_a_link_for_each_entrant_once(): void {
+		$ann = $this->links_mode_with_entrant();
+		$this->colour_at( Competition_Workflow::STAGE_VOTING );
+
+		wp_parse_str( (string) wp_parse_url( $this->email_colour_voting_links(), PHP_URL_QUERY ), $query );
 		$job = ( new \PhotoCompetitionManager\Dependencies() )->email_job_manager->get_job( $query['job_id'] );
 
+		$this->assertSame( 'voting_link', $job['type'] );
 		$this->assertSame( array( $ann ), $job['member_ids'] );
+		$this->assertSame( array( 'category' => 'colour' ), $job['args'] );
+
+		$GLOBALS['wp_settings_errors'] = array(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test isolation.
+		wp_parse_str( (string) wp_parse_url( $this->email_colour_voting_links(), PHP_URL_QUERY ), $again );
+
+		$this->assertArrayNotHasKey( 'job_id', $again );
+		$this->assertStringContainsString( 'already been sent', $this->first_voting_error_message() );
+	}
+
+	public function test_sending_one_member_their_voting_link_emails_only_them(): void {
+		$ann = $this->links_mode_with_entrant();
+		$this->colour_at( Competition_Workflow::STAGE_VOTING );
+		$recipients = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$recipients ) {
+				$recipients[] = $atts['to'];
+				return true;
+			},
+			10,
+			2
+		);
+		$this->set_request(
+			array(
+				'action'      => 'send_voting_link',
+				'competition' => $this->competition_id,
+				'category'    => 'colour',
+				'member'      => $ann,
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_voting_link_' . $this->competition_id . '_colour' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'ann@example.com' ), $recipients );
+		$this->assertStringContainsString( 'Voting link sent to Ann', get_settings_errors( 'photo_competition_voting' )[0]['message'] );
 	}
 
 	/**

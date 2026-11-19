@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -153,6 +154,38 @@ class Members_Controller {
 			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
 		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
+		}
+
+		// Per-member "Send Voting Link", for a member whose link didn't arrive.
+		if ( 'send_member_voting_link' === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+
+			check_admin_referer( 'photo_competition_send_member_voting_link_' . $member_id . '_' . $competition_id . '_' . $category );
+
+			$competition = $this->competitions->find( $competition_id );
+			$member      = $this->members->find( $member_id );
+			$result      = $competition && $member
+				? ( new Voting_Link_Service( $this->competitions, $this->members ) )->send_from_admin( $competition, $member, $category )
+				: new \WP_Error( 'invalid_params', __( 'Invalid member or competition.', 'photo-competition-manager' ) );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error( 'photo_competition_members', $result->get_error_code(), $result->get_error_message(), 'error' );
+			} else {
+				add_settings_error(
+					'photo_competition_members',
+					'voting_link_sent',
+					/* translators: %s: member name */
+					sprintf( __( 'Voting link sent to %s.', 'photo-competition-manager' ), esc_html( $member->name ) ),
+					'updated'
+				);
+			}
+
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		// Per-member "Send Upload Email".
@@ -867,9 +900,30 @@ class Members_Controller {
 		// Only members who may enter get an upload link to copy or send.
 		$may_enter = $active_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_member_ids( $active_competition ) : array();
 
+		// While a category takes votes by emailed links, a member can be sent a new link.
+		$voting       = $this->workflow->category_accepting_votes();
+		$voting_links = new Voting_Link_Service( $this->competitions, $this->members );
+
 		$rows = array();
 
 		foreach ( $members as $member ) {
+			$voting_link_url = '';
+			if ( $voting && $voting_links->can_send_from_admin( $voting['competition'], $member, $voting['category'] ) ) {
+				$voting_link_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager-members',
+							'action'      => 'send_member_voting_link',
+							'member'      => (int) $member->id,
+							'competition' => (int) $voting['competition']->id,
+							'category'    => $voting['category'],
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_send_member_voting_link_' . (int) $member->id . '_' . (int) $voting['competition']->id . '_' . $voting['category']
+				);
+			}
+
 			$edit_link    = add_query_arg(
 				array(
 					'page'          => 'photo-competition-manager-members',
@@ -928,6 +982,7 @@ class Members_Controller {
 				'show_send_email' => $show_send_email,
 				'send_url'        => $send_url,
 				'upload_url'      => $upload_url,
+				'voting_link_url' => $voting_link_url,
 				'types_label'     => implode( ', ', array_map( fn( $type_id ) => $type_options[ $type_id ] ?? '', $tags[ (int) $member->id ] ?? array() ) ),
 			);
 		}
