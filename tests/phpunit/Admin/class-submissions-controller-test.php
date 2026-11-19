@@ -105,7 +105,6 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 * Remove uploaded entries and temp photos.
 	 */
 	public function tear_down(): void {
-		$_FILES = array();
 		( new Entries() )->remove_competition_entries( Actor::admin(), $this->competition_id );
 		$this->remove_tmp_files();
 
@@ -703,7 +702,7 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 * Submitting with the file input left blank asks for a file.
 	 */
 	public function test_an_admin_upload_with_the_file_input_left_blank_asks_for_a_file(): void {
-		$this->post_admin_upload( $this->an_entrant(), $this->no_file_chosen() );
+		$this->post_admin_upload( $this->an_entrant(), $this->failed_upload( UPLOAD_ERR_NO_FILE ) );
 
 		$this->assertContains( 'missing_file', $this->settings_error_codes( self::GROUP ) );
 	}
@@ -713,16 +712,7 @@ class Submissions_Controller_Test extends Admin_Controller_Test_Case {
 	 * mistaken for a blank input.
 	 */
 	public function test_an_admin_added_file_over_phps_upload_limit_reaches_the_image_checks(): void {
-		$this->post_admin_upload(
-			$this->an_entrant(),
-			array(
-				'name'     => 'huge.jpg',
-				'type'     => '',
-				'tmp_name' => '',
-				'error'    => UPLOAD_ERR_INI_SIZE,
-				'size'     => 0,
-			)
-		);
+		$this->post_admin_upload( $this->an_entrant(), $this->failed_upload( UPLOAD_ERR_INI_SIZE, 'huge.jpg' ) );
 
 		$this->assertContains( 'file_too_large', $this->settings_error_codes( self::GROUP ) );
 	}

@@ -14,6 +14,13 @@ namespace PhotoCompetitionManager\Tests;
 trait Temp_Uploads {
 
 	/**
+	 * Temp files written by the test, removed by remove_tmp_files().
+	 *
+	 * @var string[]
+	 */
+	private $tmp_files = array();
+
+	/**
 	 * Treat temp files as HTTP uploads until the test ends.
 	 */
 	private function accept_temp_files_as_uploads(): void {
@@ -28,17 +35,50 @@ trait Temp_Uploads {
 	}
 
 	/**
-	 * A $_FILES entry for a file input the user left blank.
+	 * A CSV file in the shape of a $_FILES entry, removed by remove_tmp_files().
 	 *
+	 * @param string $content CSV content.
+	 * @param string $name    Filename the browser sent.
 	 * @return array<string, mixed>
 	 */
-	private function no_file_chosen(): array {
+	private function csv_upload( string $content, string $name = 'members.csv' ): array {
+		$tmp               = wp_tempnam( $name );
+		$this->tmp_files[] = $tmp;
+		file_put_contents( $tmp, $content ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
 		return array(
-			'name'     => '',
+			'name'     => $name,
+			'type'     => 'text/csv',
+			'tmp_name' => $tmp,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => strlen( $content ),
+		);
+	}
+
+	/**
+	 * A $_FILES entry for an upload PHP didn't receive, such as a blank file
+	 * input (UPLOAD_ERR_NO_FILE) or a file over its size limit.
+	 *
+	 * @param int    $error An UPLOAD_ERR_* code.
+	 * @param string $name  Filename the browser sent, if any.
+	 * @return array<string, mixed>
+	 */
+	private function failed_upload( int $error, string $name = '' ): array {
+		return array(
+			'name'     => $name,
 			'type'     => '',
 			'tmp_name' => '',
-			'error'    => UPLOAD_ERR_NO_FILE,
+			'error'    => $error,
 			'size'     => 0,
 		);
+	}
+
+	/**
+	 * Remove the temp files this test wrote.
+	 */
+	private function remove_tmp_files(): void {
+		foreach ( $this->tmp_files as $tmp_file ) {
+			wp_delete_file( $tmp_file );
+		}
 	}
 }

@@ -69,10 +69,10 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Clear any posted files.
+	 * Remove temp CSV files.
 	 */
 	public function tear_down(): void {
-		$_FILES = array();
+		$this->remove_tmp_files();
 
 		parent::tear_down();
 	}
@@ -908,7 +908,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_importing_a_csv_creates_its_members(): void {
 		$this->accept_temp_files_as_uploads();
 
-		$this->post_csv_import( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" );
+		$this->post_csv_import( $this->csv_upload( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" ) );
 
 		$this->assertContains( 'import_complete', $this->settings_error_codes( self::GROUP ) );
 		$this->assertSame( 'Ann Example', $this->members->find_by_email( 'ann@example.com' )->name );
@@ -918,7 +918,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * A CSV PHP didn't receive over HTTP gets the importer's security notice and imports nothing.
 	 */
 	public function test_a_csv_that_was_not_uploaded_over_http_is_refused(): void {
-		$this->post_csv_import( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" );
+		$this->post_csv_import( $this->csv_upload( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" ) );
 
 		$this->assertContains( 'security_check_failed', $this->settings_error_codes( self::GROUP ) );
 		$this->assertNull( $this->members->find_by_email( 'ann@example.com' ) );
@@ -928,38 +928,22 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * Submitting with the file input left blank asks for a file.
 	 */
 	public function test_importing_with_the_file_input_left_blank_asks_for_a_file(): void {
-		$_FILES = array( 'csv_file' => $this->no_file_chosen() );
-		$this->set_request( array( 'photo_competition_action' => 'import_members_csv' ) );
-		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
-
-		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
+		$this->post_csv_import( $this->failed_upload( UPLOAD_ERR_NO_FILE ) );
 
 		$this->assertContains( 'no_file', $this->settings_error_codes( self::GROUP ) );
 	}
 
 	/**
-	 * Post the import form with a CSV file.
+	 * Post the import form.
 	 *
-	 * @param string $csv CSV content.
+	 * @param array<string, mixed> $file The csv_file entry, as $_FILES holds it.
 	 */
-	private function post_csv_import( string $csv ): void {
-		$tmp = wp_tempnam( 'members.csv' );
-		file_put_contents( $tmp, $csv ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
-		$_FILES = array(
-			'csv_file' => array(
-				'name'     => 'members.csv',
-				'type'     => 'text/csv',
-				'tmp_name' => $tmp,
-				'error'    => UPLOAD_ERR_OK,
-				'size'     => strlen( $csv ),
-			),
-		);
+	private function post_csv_import( array $file ): void {
 		$this->set_request( array( 'photo_competition_action' => 'import_members_csv' ) );
 		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
+		$_FILES = array( 'csv_file' => $file );
 
 		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
-
-		wp_delete_file( $tmp );
 	}
 
 	/**

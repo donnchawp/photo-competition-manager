@@ -35,24 +35,9 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->accept_temp_files_as_uploads();
 	}
 
-	/**
-	 * Create a temp CSV file and return a mock $_FILES array.
-	 *
-	 * @param string $content CSV content.
-	 * @param string $name    Filename.
-	 * @return array
-	 */
-	private function make_file( string $content, string $name = 'members.csv' ): array {
-		$tmp = wp_tempnam( $name );
-		file_put_contents( $tmp, $content );
-
-		return array(
-			'name'     => $name,
-			'tmp_name' => $tmp,
-			'error'    => UPLOAD_ERR_OK,
-			'size'     => strlen( $content ),
-			'type'     => 'text/csv',
-		);
+	public function tearDown(): void {
+		$this->remove_tmp_files();
+		parent::tearDown();
 	}
 
 	// ---------------------------------------------------------------
@@ -69,7 +54,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	public function test_import_refuses_a_file_that_was_not_uploaded_over_http(): void {
 		$this->refuse_temp_files_as_uploads();
 
-		$result = $this->importer->import( $this->make_file( "name,email\nAnn Example,ann@example.com\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email\nAnn Example,ann@example.com\n" ) );
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'security_check_failed', $result->get_error_code() );
@@ -77,7 +62,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	public function test_import_rejects_non_csv_extension(): void {
-		$file = $this->make_file( 'name,email', 'members.xlsx' );
+		$file = $this->csv_upload( 'name,email', 'members.xlsx' );
 
 		$result = $this->importer->import( $file );
 
@@ -86,7 +71,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	public function test_import_rejects_empty_csv(): void {
-		$file = $this->make_file( '' );
+		$file = $this->csv_upload( '' );
 
 		$result = $this->importer->import( $file );
 
@@ -103,7 +88,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "Alice,alice@example.com,beginner,1\n";
 		$csv .= "Bob,bob@example.com,advanced,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertIsArray( $result );
 		$this->assertSame( 2, $result['imported'] );
@@ -129,7 +114,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv  = "name,email,grade,active\n";
 		$csv .= "Alice Updated,alice@example.com,advanced,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 0, $result['imported'] );
 		$this->assertSame( 1, $result['updated'] );
@@ -145,7 +130,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "Bob,,beginner,1\n";
 		$csv .= "Charlie,charlie@example.com,beginner,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 1, $result['imported'] );
 		$this->assertSame( 2, $result['skipped'] );
@@ -156,7 +141,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv  = "name,email,grade,active\n";
 		$csv .= "Alice,not-an-email,beginner,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 0, $result['imported'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -169,7 +154,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= ",,,\n";
 		$csv .= "Bob,bob@example.com,beginner,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 2, $result['imported'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -183,7 +168,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv  = "Alice,alice@example.com,beginner,1\n";
 		$csv .= "Bob,bob@example.com,advanced,0\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 2, $result['imported'] );
 
@@ -205,7 +190,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv  = "name,email,grade,active\n";
 		$csv .= "Alice,alice@example.com,beginner,1\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 0, $result['imported'] );
 		$this->assertSame( 1, $result['updated'] );
@@ -226,7 +211,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "C,c@example.com,beginner,0\n";
 		$csv .= "D,d@example.com,beginner,no\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 4, $result['imported'] );
 
@@ -241,7 +226,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "A,a@example.com,beginner,1,yes\n";
 		$csv .= "B,b@example.com,beginner,1,0\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 2, $result['imported'] );
 
@@ -258,7 +243,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	public function test_import_accepts_txt_extension(): void {
 		$csv = "name,email,grade\nAlice,alice@example.com,beginner\n";
 
-		$result = $this->importer->import( $this->make_file( $csv, 'members.txt' ) );
+		$result = $this->importer->import( $this->csv_upload( $csv, 'members.txt' ) );
 
 		$this->assertIsArray( $result );
 		$this->assertSame( 1, $result['imported'] );
@@ -302,7 +287,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "B,b@example.com,advanced\n";
 		$csv .= "C,c@example.com,ADVANCED\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 3, $result['imported'] );
 		foreach ( array( 'a', 'b', 'c' ) as $who ) {
@@ -311,7 +296,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	public function test_sample_csv_imports_cleanly(): void {
-		$result = $this->importer->import( $this->make_file( $this->importer->generate_sample_csv() ) );
+		$result = $this->importer->import( $this->csv_upload( $this->importer->generate_sample_csv() ) );
 
 		$this->assertSame( 3, $result['imported'] );
 		$this->assertSame( 0, $result['skipped'] );
@@ -323,7 +308,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "Alice,alice@example.com,\n";
 		$csv .= "Bob,bob@example.com,beginner\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 1, $result['imported'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -333,7 +318,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	public function test_import_skips_new_member_when_file_has_no_grade_column(): void {
-		$result = $this->importer->import( $this->make_file( "name,email\nAlice,alice@example.com\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email\nAlice,alice@example.com\n" ) );
 
 		$this->assertSame( 0, $result['imported'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -345,7 +330,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv .= "Bob,bob@example.com,beginner\n";
 		$csv .= "Alice,alice@example.com,Expert\n";
 
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertSame( 1, $result['imported'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -357,7 +342,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	public function test_import_keeps_existing_members_grade_when_cell_is_blank(): void {
 		$id = $this->seed_alice();
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade\nAlice Renamed,alice@example.com,\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade\nAlice Renamed,alice@example.com,\n" ) );
 
 		$this->assertSame( 1, $result['updated'] );
 		$alice = $this->members_repo->find( $id );
@@ -368,7 +353,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	public function test_import_keeps_existing_members_grade_when_file_has_no_grade_column(): void {
 		$id = $this->seed_alice();
 
-		$result = $this->importer->import( $this->make_file( "name,email\nAlice Renamed,alice@example.com\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email\nAlice Renamed,alice@example.com\n" ) );
 
 		$this->assertSame( 1, $result['updated'] );
 		$this->assertSame( 'intermediate', $this->members_repo->find( $id )->grade );
@@ -377,7 +362,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	public function test_import_skips_existing_member_with_unknown_grade(): void {
 		$id = $this->seed_alice();
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade\nAlice Renamed,alice@example.com,Expert\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade\nAlice Renamed,alice@example.com,Expert\n" ) );
 
 		$this->assertSame( 0, $result['updated'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -412,7 +397,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade\nA,a@example.com,Advanced\nB,b@example.com,senior\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade\nA,a@example.com,Advanced\nB,b@example.com,senior\n" ) );
 
 		$this->assertSame( 2, $result['imported'] );
 		$this->assertSame( 'advanced-2', $this->members_repo->find_by_email( 'a@example.com' )->grade );
@@ -429,7 +414,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade\nA,a@example.com,ÓGÁNACH\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade\nA,a@example.com,ÓGÁNACH\n" ) );
 
 		$this->assertSame( 1, $result['imported'] );
 		$this->assertSame( 'oganach', $this->members_repo->find_by_email( 'a@example.com' )->grade );
@@ -449,7 +434,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->importer->import( $this->make_file( $this->importer->generate_sample_csv() ) );
+		$result = $this->importer->import( $this->csv_upload( $this->importer->generate_sample_csv() ) );
 
 		$this->assertSame( 3, $result['imported'] );
 		$this->assertSame( 0, $result['skipped'] );
@@ -460,7 +445,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::clear();
 		$type = Type_Fixtures::create( 'Individual' );
 
-		$this->importer->import( $this->make_file( "name,email,grade\nAda,ada@example.com,beginner\n" ) );
+		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\n" ) );
 
 		$this->assertSame( array( $type ), $this->members_repo->type_ids( $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
 	}
@@ -473,7 +458,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
 
 		$result = $this->importer->import(
-			$this->make_file( "name,email,grade,types\nAda,ada@example.com,beginner,individual; TEAM\nBob,bob@example.com,,Team\nCy,cy@example.com,,\n" )
+			$this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,individual; TEAM\nBob,bob@example.com,,Team\nCy,cy@example.com,,\n" )
 		);
 
 		$this->assertSame( array(), $result['errors'] );
@@ -489,7 +474,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Team' );
 		$existing = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_ids' => array( $individual ) ) );
 
-		$this->importer->import( $this->make_file( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
+		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
 
 		$this->assertSame( array(), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
 		$this->assertSame( array( $individual ), $this->members_repo->type_ids( $existing ) );
@@ -499,7 +484,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::clear();
 		Type_Fixtures::create( 'Individual' );
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Pairs\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Pairs\n" ) );
 
 		$this->assertSame( array( 'Row 2: "Pairs" isn\'t a competition type.' ), $result['errors'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -517,7 +502,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
 
 		$result = $this->importer->import(
-			$this->make_file( "Ann,ann@example.com,beginner,1,0,Individual;Team\nCy,cy@example.com,,1,0\nDee,dee@example.com,beginner,1,0,Pairs\n" )
+			$this->csv_upload( "Ann,ann@example.com,beginner,1,0,Individual;Team\nCy,cy@example.com,,1,0\nDee,dee@example.com,beginner,1,0,Pairs\n" )
 		);
 
 		$this->assertSame( array( 'Row 3: "Pairs" isn\'t a competition type.' ), $result['errors'] );
@@ -536,7 +521,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$team       = Type_Fixtures::create( 'Team' );
 
 		$csv    = $this->importer->generate_sample_csv();
-		$result = $this->importer->import( $this->make_file( $csv ) );
+		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
 		$this->assertStringStartsWith( "name,email,grade,active,committee,types\n", $csv );
 		$this->assertSame( array(), $result['errors'] );
@@ -560,7 +545,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Team' );
 
 		$result = $this->importer->import(
-			$this->make_file( "name,email,grade,types\nAnn,ann@example.com,beginner,\nBob,bob@example.com,beginner,Team\nCy,cy@example.com,beginner,\n" )
+			$this->csv_upload( "name,email,grade,types\nAnn,ann@example.com,beginner,\nBob,bob@example.com,beginner,Team\nCy,cy@example.com,beginner,\n" )
 		);
 
 		$this->assertSame( 3, $result['imported'] );
@@ -569,7 +554,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		// With one type a new member gets it, so nobody is left without one.
 		Type_Fixtures::clear();
 		Type_Fixtures::create( 'Individual' );
-		$result = $this->importer->import( $this->make_file( "name,email,grade\nDee,dee@example.com,beginner\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade\nDee,dee@example.com,beginner\n" ) );
 
 		$this->assertSame( 0, $result['untyped'] );
 	}
@@ -599,7 +584,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::clear();
 		$type = Type_Fixtures::create( 'Individual' );
 
-		$result = $this->importer->import( $this->make_file( "Ann,ann@example.com,beginner,1,0,087-1234567\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "Ann,ann@example.com,beginner,1,0,087-1234567\n" ) );
 
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame( 1, $result['imported'] );
@@ -615,7 +600,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade,types\nAnn,ann@example.com,beginner,<img src=x onerror=alert(1)>Pairs\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAnn,ann@example.com,beginner,<img src=x onerror=alert(1)>Pairs\n" ) );
 
 		$this->assertCount( 1, $result['errors'] );
 		$this->assertStringNotContainsString( '<', $result['errors'][0] );
@@ -630,7 +615,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
 
-		$result = $this->importer->import( $this->make_file( "name,email,grade,active\nAnn,ann@example.com,beginner,1\nBob,bob@example.com,beginner,0\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,active\nAnn,ann@example.com,beginner,1\nBob,bob@example.com,beginner,0\n" ) );
 
 		$this->assertSame( 2, $result['imported'] );
 		$this->assertSame( 1, $result['untyped'] );
