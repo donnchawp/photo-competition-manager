@@ -20,6 +20,8 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  */
 class Setup_Wizard_Controller_Render_Test extends Admin_Controller_Test_Case {
 
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
+
 	/** @var Setup_Wizard_Controller */
 	private $controller;
 
@@ -73,33 +75,16 @@ class Setup_Wizard_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert live output equals the stored snapshot; write it on first run.
+	 * Assert live output equals the stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string          $scenario    Snapshot scenario name.
 	 * @param array<int,int>  $dynamic_ids Post IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $dynamic_ids = array() ): void {
 		$dir  = __DIR__ . '/../fixtures/setup-wizard-render';
-		$file = $dir . '/' . $scenario . '.html';
 		$html = $this->render_normalized( $dynamic_ids );
 
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
-				// wp_mkdir_p() has been observed to fail silently in this test
-				// environment; fall back to a plain mkdir() before giving up.
-				mkdir( $dir, 0777, true );
-			}
-			if ( ! is_dir( $dir ) ) {
-				self::fail( "Could not create snapshot directory {$dir}." );
-			}
-			if ( false === file_put_contents( $file, $html ) ) {
-				self::fail( "Could not write snapshot file {$file}." );
-			}
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-			return;
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
+		$this->assert_snapshot( $dir, $scenario, $html );
 	}
 
 	public function test_render_no_existing_settings(): void {

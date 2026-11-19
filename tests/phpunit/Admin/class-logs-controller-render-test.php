@@ -24,6 +24,8 @@ use PhotoCompetitionManager\Service\Log_Retention;
  */
 class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
+
 	/** @var Logs_Repository */
 	private $logs;
 
@@ -92,7 +94,7 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert live output equals the stored snapshot; write it on first run.
+	 * Assert live output equals the stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string          $scenario         Snapshot scenario name.
 	 * @param array<int,int>  $competition_ids  Competition IDs to normalize before comparing.
@@ -100,26 +102,9 @@ class Logs_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 */
 	private function assert_matches_snapshot( string $scenario, array $competition_ids = array(), array $log_ids = array() ): void {
 		$dir  = __DIR__ . '/../fixtures/logs-render';
-		$file = $dir . '/' . $scenario . '.html';
 		$html = $this->render_normalized( $competition_ids, $log_ids );
 
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
-				// wp_mkdir_p() has been observed to fail silently in this test
-				// environment; fall back to a plain mkdir() before giving up.
-				mkdir( $dir, 0777, true );
-			}
-			if ( ! is_dir( $dir ) ) {
-				self::fail( "Could not create snapshot directory {$dir}." );
-			}
-			if ( false === file_put_contents( $file, $html ) ) {
-				self::fail( "Could not write snapshot file {$file}." );
-			}
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-			return;
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
+		$this->assert_snapshot( $dir, $scenario, $html );
 	}
 
 	/**

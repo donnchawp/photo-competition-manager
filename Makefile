@@ -47,13 +47,13 @@ lint: ## Run PHP_CodeSniffer against the plugin
 fix: ## Auto-fix PHP coding standard violations
 	vendor/bin/phpcbf --standard=WordPress --extensions=php src
 
-test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI)
+test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI). UPDATE_SNAPSHOTS=1 rewrites render goldens
 	$(WP_ENV) start
 	@# The tests image has ImageMagick without a JPEG coder, so WordPress would use GD (queryFormats() needs the imagemagick package's config too). Imagick keeps
 	@# image metadata on save, which the author-stripping tests need. wp-env can't run as root, docker can.
 	docker exec -u root $(PLUGIN_NAME)-tests-cli-1 apk add --no-cache imagemagick imagemagick-jpeg >/dev/null
 	$(WP_ENV) run tests-cli --env-cwd=wp-content/pcm \
-		bash -c 'WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
+		bash -c 'UPDATE_SNAPSHOTS=$(UPDATE_SNAPSHOTS) WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
 
 test-js: ## Execute the JavaScript test suite
 	npm --prefix $(ASSETS_DIR) run test:js
