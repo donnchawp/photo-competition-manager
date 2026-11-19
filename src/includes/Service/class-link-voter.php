@@ -99,4 +99,63 @@ final class Link_Voter implements Voter {
 	public function has_ballot( Votes_Repository $votes, int $competition_id, string $category ): bool {
 		return $votes->has_voted_with_token( (int) $this->token->id );
 	}
+
+	/**
+	 * The cookie that remembers a competition's voting password on this device.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private static function password_cookie( int $competition_id ): string {
+		return 'photo_competition_voting_password_' . $competition_id;
+	}
+
+	/**
+	 * Remember the competition's voting password on this device for the
+	 * night, so a link voter gives it once, not in every category.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $password       The voting password they gave.
+	 * @return void
+	 */
+	public static function remember_password( int $competition_id, string $password ): void {
+		$cookie = self::password_cookie( $competition_id );
+
+		// A real request gets here on template_redirect, before any output. PHPUnit has already printed, and setcookie() would warn.
+		if ( ! headers_sent() ) {
+			setcookie(
+				$cookie,
+				$password,
+				array(
+					'expires'  => time() + 12 * HOUR_IN_SECONDS,
+					'path'     => COOKIEPATH ? COOKIEPATH : '/',
+					'domain'   => COOKIE_DOMAIN,
+					'secure'   => is_ssl(),
+					'samesite' => 'Lax',
+					'httponly' => true,
+				)
+			);
+		}
+
+		// A redirect follows, so this copy is how tests see the cookie. Slashed, as WordPress slashes $_COOKIE.
+		$_COOKIE[ $cookie ] = wp_slash( $password );
+	}
+
+	/**
+	 * The voting password this device remembers for a competition, or ''.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	public static function remembered_password( int $competition_id ): string {
+		$cookie = self::password_cookie( $competition_id );
+
+		return isset( $_COOKIE[ $cookie ] ) && is_string( $_COOKIE[ $cookie ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $cookie ] ) ) : '';
+	}
 }

@@ -139,11 +139,17 @@ final class Ballots {
 	 * A link voter, once their voting link checks out: not expired, an active
 	 * member's, and for this competition.
 	 *
-	 * @param object $competition Competition row.
-	 * @param string $token       The token from the voting link.
+	 * Casting a ballot also needs the competition's voting password, when it
+	 * has one: it shows the voter is in the room, where it's shown.
+	 *
+	 * @since 0.5.0 Takes the voting password.
+	 *
+	 * @param object      $competition Competition row.
+	 * @param string      $token       The token from the voting link.
+	 * @param string|null $password    The voting password they gave, or null to only check the link, as when showing the ballot.
 	 * @return Link_Voter|WP_Error
 	 */
-	public function link_voter( object $competition, string $token ) {
+	public function link_voter( object $competition, string $token, ?string $password = null ) {
 		if ( self::is_judged( $competition ) ) {
 			return self::judged_error();
 		}
@@ -153,6 +159,11 @@ final class Ballots {
 
 		if ( ! $member ) {
 			return new WP_Error( 'invalid_link', __( 'This voting link has expired or isn\'t valid. Ask for a new one below.', 'photo-competition-manager' ) );
+		}
+
+		$wrong_password = null === $password ? null : self::voting_password_error( $competition, $password );
+		if ( $wrong_password ) {
+			return $wrong_password;
 		}
 
 		return new Link_Voter( $record, $member );
@@ -176,12 +187,28 @@ final class Ballots {
 			return new WP_Error( 'missing_name', __( 'Please enter your name.', 'photo-competition-manager' ) );
 		}
 
+		$wrong_password = self::voting_password_error( $competition, $password );
+
+		return $wrong_password ? $wrong_password : $voter;
+	}
+
+	/**
+	 * Why a voting password isn't the competition's, if it isn't. Any will
+	 * do when the competition has none.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $password    The voting password the voter gave.
+	 * @return WP_Error|null 'missing_password' or 'wrong_password', or null when it's right.
+	 */
+	public static function voting_password_error( object $competition, string $password ): ?WP_Error {
 		$voting   = Competition_Settings::get_voting_config( Competition_Settings::parse( $competition->settings ) );
 		$expected = (string) ( $voting['password'] ?? '' );
 		$password = strtolower( sanitize_text_field( $password ) );
 
 		if ( '' === $expected ) {
-			return $voter;
+			return null;
 		}
 
 		if ( '' === $password ) {
@@ -193,7 +220,7 @@ final class Ballots {
 			return new WP_Error( 'wrong_password', __( 'The voting password is incorrect.', 'photo-competition-manager' ) );
 		}
 
-		return $voter;
+		return null;
 	}
 
 	/**

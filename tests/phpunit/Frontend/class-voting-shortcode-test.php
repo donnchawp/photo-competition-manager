@@ -216,12 +216,12 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		return $this->shortcode->render();
 	}
 
-	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS ): string {
+	private function issue_token( int $member_id, int $expires = HOUR_IN_SECONDS, string $category = 'colour' ): string {
 		$token_string = bin2hex( random_bytes( 32 ) );
 		$this->tokens->renew(
 			$member_id,
 			(int) $this->competition->id,
-			'colour',
+			$category,
 			hash( 'sha256', $token_string ),
 			gmdate( 'Y-m-d H:i:s', time() + $expires )
 		);
@@ -586,6 +586,39 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_GET['token'] = $this->issue_token( $this->make_member( 'inactive@example.com', false ) );
 
 		$this->assertStringContainsString( 'token-request-section', $this->shortcode->render() );
+	}
+
+	/**
+	 * With a voting password set, a link voter gives it once, in the room,
+	 * and isn't asked again in the competition's other categories.
+	 */
+	public function test_a_link_voter_gives_the_voting_password_once_per_competition(): void {
+		$this->view_page();
+		$settings                       = json_decode( $this->competition->settings, true );
+		$settings['voting']['password'] = 'snapdragon';
+		( new Competitions_Repository() )->update( (int) $this->competition->id, array( 'settings' => $settings ) );
+		$this->competition = ( new Competitions_Repository() )->find( (int) $this->competition->id );
+		$member_id         = $this->make_member( 'active@example.com', true );
+		$colour            = $this->issue_token( $member_id );
+
+		$_GET['token'] = $colour;
+		$this->assertStringContainsString( 'name="voting_password"', $this->shortcode->render() );
+
+		$this->submit_vote( $colour, $this->make_image() );
+		$this->assertSame( 0, $this->vote_count() );
+
+		$_POST['voting_password'] = 'Snapdragon';
+		$this->submit_vote( $colour, $this->make_image() );
+		$this->assertSame( 1, $this->vote_count() );
+
+		$_POST = array();
+		$this->set_open_categories( array( 'mono' ) );
+		$mono          = $this->issue_token( $member_id, HOUR_IN_SECONDS, 'mono' );
+		$_GET['token'] = $mono;
+		$this->assertStringNotContainsString( 'name="voting_password"', $this->shortcode->render() );
+
+		$this->submit_vote( $mono, $this->make_image( 'mono' ) );
+		$this->assertSame( 2, $this->vote_count() );
 	}
 
 	public function test_a_cast_ballot_redirects_to_the_thank_you_page(): void {
