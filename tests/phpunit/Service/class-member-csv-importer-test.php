@@ -30,6 +30,9 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->members_repo = new Members_Repository();
 		$this->importer     = new Member_CSV_Importer( $this->members_repo );
+
+		// Test CSVs are plain temp files; treat them as HTTP uploads.
+		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
 	}
 
 	/**
@@ -61,6 +64,16 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'upload_failed', $result->get_error_code() );
+	}
+
+	public function test_import_refuses_a_file_that_was_not_uploaded_over_http(): void {
+		remove_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+
+		$result = $this->importer->import( $this->make_file( "name,email\nAnn Example,ann@example.com\n" ) );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'security_check_failed', $result->get_error_code() );
+		$this->assertNull( $this->members_repo->find_by_email( 'ann@example.com' ) );
 	}
 
 	public function test_import_rejects_non_csv_extension(): void {

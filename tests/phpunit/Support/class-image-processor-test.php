@@ -32,6 +32,9 @@ class Image_Processor_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 		$this->processor = new Image_Processor();
+
+		// Test images are plain temp files; treat them as HTTP uploads.
+		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
 	}
 
 	/**
@@ -214,6 +217,30 @@ class Image_Processor_Test extends WP_UnitTestCase {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
 		unlink( $tmp_file );
+	}
+
+	public function test_validate_refuses_a_file_that_was_not_uploaded_over_http(): void {
+		remove_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
+		$tmp_file = $this->create_test_image( 800, 600 );
+
+		$result = $this->processor->validate(
+			array(
+				'name'     => 'test.jpg',
+				'tmp_name' => $tmp_file,
+				'error'    => UPLOAD_ERR_OK,
+				'size'     => 1024,
+			),
+			array(
+				'max_file_size_mb' => 5,
+				'allowed_formats'  => array( 'jpg', 'jpeg' ),
+			)
+		);
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		unlink( $tmp_file );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'security_check_failed', $result->get_error_code() );
 	}
 
 	public function test_validate_accepts_valid_image(): void {

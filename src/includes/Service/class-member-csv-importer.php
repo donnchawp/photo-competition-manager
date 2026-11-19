@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use function PhotoCompetitionManager\Support\is_http_upload;
 use WP_Error;
 
 /**
@@ -64,8 +65,7 @@ class Member_CSV_Importer {
 		}
 
 		// Security: Verify file was uploaded via HTTP POST (not a local file reference).
-		// Skip this check in test environments to allow mock uploads.
-		if ( ! defined( 'WP_TESTS_DOMAIN' ) && ! is_uploaded_file( $file['tmp_name'] ) ) {
+		if ( ! is_http_upload( $file['tmp_name'] ) ) {
 			return new WP_Error( 'security_check_failed', __( 'Security check failed.', 'photo-competition-manager' ) );
 		}
 

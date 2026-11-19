@@ -452,6 +452,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	public function test_a_file_of_the_wrong_type_says_so(): void {
 		$text_file = wp_tempnam( 'entry.gif' );
 		file_put_contents( $text_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
 
 		$location = $this->post_upload(
 			$this->issue_token( true ),
