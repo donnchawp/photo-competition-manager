@@ -160,6 +160,9 @@ class Judges_Controller {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</h1>';
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_judges_needed_notice();
+
 		$screen = $this->render_template(
 			'admin/judges/judges-screen.php',
 			array(
