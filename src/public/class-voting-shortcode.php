@@ -191,8 +191,14 @@ class Voting_Shortcode {
 		} elseif ( 'token' === ( $voting['auth_mode'] ?? 'password' ) ) {
 			check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' );
 			$token    = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-			$voter    = $this->ballots->link_voter( $competition, $token );
+			$password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : Link_Voter::remembered_password( (int) $competition->id );
+			$voter    = $this->ballots->link_voter( $competition, $token, $password );
 			$category = is_wp_error( $voter ) ? '' : $voter->category();
+
+			// The password checked out, so it isn't asked again, even if the ballot itself is refused.
+			if ( ! is_wp_error( $voter ) && '' !== $password ) {
+				Link_Voter::remember_password( (int) $competition->id, $password );
+			}
 		} else {
 			check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' );
 			$name     = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
@@ -475,6 +481,8 @@ class Voting_Shortcode {
 			'category'             => $voter ? $voter->category() : '',
 			'post_category'        => false,
 			'check_open'           => true,
+			// Asked until this device has given the competition's voting password, if it has one.
+			'ask_password'         => $voter && null !== Ballots::link_voting_password_error( $competition, Link_Voter::remembered_password( (int) $competition->id ) ),
 		);
 
 		ob_start();
@@ -559,8 +567,9 @@ class Voting_Shortcode {
 	 * @param array             $view            What differs between a member's page and a judge's: heading,
 	 *                                           identity, instructions_heading, instructions_rule, anonymity_notice,
 	 *                                           nonce_action, submit_label, category (the one voted in),
-	 *                                           post_category (send it with the form) and check_open (refuse
-	 *                                           when voting isn't open).
+	 *                                           post_category (send it with the form), check_open (refuse
+	 *                                           when voting isn't open) and, optionally, ask_password (a link
+	 *                                           voter must give the voting password).
 	 * @return void
 	 */
 	private function render_voting_interface( object $competition, string $message, ?Voter $voter, array $settings, array $submitted_votes, string $token_string, array $view ): void {
@@ -771,6 +780,14 @@ class Voting_Shortcode {
 							</div>
 						<?php endforeach; ?>
 					</div>
+
+					<?php if ( ! empty( $view['ask_password'] ) ) : ?>
+						<p class="voting-password">
+							<label for="voting_password"><?php esc_html_e( 'Voting password', 'photo-competition-manager' ); ?></label><br />
+							<input type="text" id="voting_password" name="voting_password" autocomplete="off" required />
+							<span class="description"><?php esc_html_e( 'It\'s shown in the room.', 'photo-competition-manager' ); ?></span>
+						</p>
+					<?php endif; ?>
 
 					<div class="voting-submit">
 						<button type="submit" name="photo_competition_vote" class="button button-primary button-large">

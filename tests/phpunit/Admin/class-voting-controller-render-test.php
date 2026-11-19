@@ -523,22 +523,23 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	public function voting_password_modes(): array {
 		return array(
 			'members vote with the password'  => array( 'password', true ),
-			'members vote with emailed links' => array( 'token', false ),
+			'members vote with emailed links' => array( 'token', true ),
 			'judges score it'                 => array( 'judges', false ),
 		);
 	}
 
 	/**
-	 * The quick actions show the voting password only when members vote with it.
-	 * A password saved before the competition switched to links or judges does
-	 * nothing there, so showing it would have the admin share one nobody can use (#262).
+	 * The quick actions show the voting password whenever members need it: to
+	 * vote with it, or with their emailed links as a check they're in the room.
+	 * Judges never need it, so showing it would have the admin share one nobody
+	 * can use (#262).
 	 *
 	 * @dataProvider voting_password_modes
 	 *
 	 * @param string $auth_mode How the competition's votes are cast.
 	 * @param bool   $shown     Whether the password should be shown.
 	 */
-	public function test_render_quick_actions_show_the_voting_password_only_for_password_voting( string $auth_mode, bool $shown ): void {
+	public function test_render_quick_actions_show_the_voting_password_only_when_members_need_it( string $auth_mode, bool $shown ): void {
 		$comp_id = $this->competitions->create(
 			array(
 				'type_id'  => Type_Fixtures::id(),

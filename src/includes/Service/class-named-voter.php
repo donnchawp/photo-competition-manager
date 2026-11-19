@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Device_Cookie;
 
 /**
  * A named voter: a name given with the club's voting password, taken on trust.
@@ -108,24 +109,7 @@ final class Named_Voter implements Voter {
 			)
 		);
 
-		// A real request gets here on template_redirect, before any output. PHPUnit has already printed, and setcookie() would warn.
-		if ( ! headers_sent() ) {
-			setcookie(
-				self::COOKIE,
-				$payload,
-				array(
-					'expires'  => time() + YEAR_IN_SECONDS,
-					'path'     => COOKIEPATH ? COOKIEPATH : '/',
-					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
-					'samesite' => 'Lax',
-					'httponly' => true,
-				)
-			);
-		}
-
-		// A redirect follows, so this copy is how tests see the cookie. Slashed, as WordPress slashes $_COOKIE.
-		$_COOKIE[ self::COOKIE ] = wp_slash( $payload );
+		Device_Cookie::set( self::COOKIE, $payload, YEAR_IN_SECONDS );
 	}
 
 	/**
@@ -135,8 +119,8 @@ final class Named_Voter implements Voter {
 	 * @return array{name:string,password:string}
 	 */
 	public static function remembered(): array {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON, sanitized field by field below.
-		$raw     = isset( $_COOKIE[ self::COOKIE ] ) && is_string( $_COOKIE[ self::COOKIE ] ) ? wp_unslash( $_COOKIE[ self::COOKIE ] ) : '';
+		// JSON, sanitized field by field below.
+		$raw     = Device_Cookie::get( self::COOKIE );
 		$decoded = json_decode( $raw, true );
 		$name    = is_array( $decoded ) && is_string( $decoded['name'] ?? null ) ? $decoded['name'] : '';
 		$pass    = is_array( $decoded ) && is_string( $decoded['password'] ?? null ) ? $decoded['password'] : '';

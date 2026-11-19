@@ -76,7 +76,7 @@ if ( $data['scored_by_locked'] ) {
 echo '</p>';
 
 echo '<p>';
-echo '<label for="voting_password">' . esc_html__( 'Voting Password (for password mode)', 'photo-competition-manager' ) . '</label><br />';
+echo '<label for="voting_password">' . esc_html__( 'Voting password', 'photo-competition-manager' ) . '</label><br />';
 
 echo '<input type="text" id="voting_password" name="voting_password" value="' . esc_attr( $data['password_value'] ) . '" class="regular-text" />';
 
@@ -87,7 +87,7 @@ if ( $data['is_legacy_hash'] ) {
 	echo '</label>';
 	echo '<br /><span class="description">' . esc_html__( 'A password is currently set. Enter a new password to change it, check the box above to remove password protection, or leave both blank to keep the existing password. Passwords are not case-sensitive.', 'photo-competition-manager' ) . '</span>';
 } else {
-	echo '<br /><span class="description">' . esc_html__( 'Leave blank for no password. Passwords are case insensitive.', 'photo-competition-manager' ) . '</span>';
+	echo '<br /><span class="description">' . esc_html__( 'Members voting with the password need it. With emailed links, members need it too, as a check that they are in the room where it is shown. Leave blank for no password. Judges never need it. Passwords are case insensitive.', 'photo-competition-manager' ) . '</span>';
 }
 echo '</p>';
 

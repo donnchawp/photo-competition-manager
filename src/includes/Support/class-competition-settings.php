@@ -516,6 +516,19 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Whether a stored voting password is a legacy hash, from before
+	 * passwords were kept readable, rather than the password itself.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $password Stored voting password.
+	 * @return bool
+	 */
+	public static function is_legacy_password_hash( string $password ): bool {
+		return (bool) preg_match( '/^\$P\$|\$wp\$/', $password );
+	}
+
+	/**
 	 * Find a category's configuration by slug.
 	 *
 	 * @param array<string, mixed> $settings Parsed settings.
