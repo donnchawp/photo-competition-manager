@@ -49,6 +49,13 @@ class Member_Page_Link {
 	private $members;
 
 	/**
+	 * Email service.
+	 *
+	 * @var Email_Service
+	 */
+	private $email;
+
+	/**
 	 * Current Unix time.
 	 *
 	 * @var callable(): int
@@ -60,14 +67,18 @@ class Member_Page_Link {
 	 *
 	 * @param callable|null           $clock   Returns the current Unix time. Defaults to time().
 	 * @param Members_Repository|null $members Members repository.
+	 * @param Email_Service|null      $email   Email service.
 	 */
-	public function __construct( ?callable $clock = null, ?Members_Repository $members = null ) {
+	public function __construct( ?callable $clock = null, ?Members_Repository $members = null, ?Email_Service $email = null ) {
 		$this->clock   = $clock ? $clock : 'time';
 		$this->members = $members ? $members : new Members_Repository();
+		$this->email   = $email ? $email : new Email_Service();
 	}
 
 	/**
 	 * A link to a member's page that works for seven days.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @param object $member   Member row.
 	 * @param string $page_url URL of the page with the member page shortcode.
@@ -81,6 +92,8 @@ class Member_Page_Link {
 
 	/**
 	 * The member a key belongs to, if it's genuine and hasn't expired.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @param string $key Key from the link.
 	 * @return object|null Member row, or null.
@@ -106,6 +119,8 @@ class Member_Page_Link {
 	 * is a member. Each address can ask once every few minutes and each IP
 	 * address a few times an hour, members or not, so the form can't be used
 	 * to flood an inbox.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @param string $email    Address typed into the form.
 	 * @param string $ip       Requester's IP address.
@@ -138,7 +153,7 @@ class Member_Page_Link {
 		$recipient        = clone $member;
 		$recipient->email = Members_Repository::unmark_deactivated_email( (string) $member->email );
 
-		( new Email_Service() )->send( 'member_page_link', $recipient, null, array( '{member_page_link}' => $this->url( $member, $page_url ) ) );
+		$this->email->send( 'member_page_link', $recipient, null, array( '{member_page_link}' => $this->url( $member, $page_url ) ) );
 	}
 
 	/**

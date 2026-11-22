@@ -43,7 +43,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * `[competition_slideshow]` – Full-screen presentation mode for club meetings
 * `[competition_results]` – Complete results table with grade and category filtering
 * `[competition_top3]` – Responsive podium display showcasing winners
-* `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their places
+* `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their positions
 
 Perfect for photography clubs, camera clubs, photo societies, and any organization running regular image competitions.
 

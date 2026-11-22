@@ -16,8 +16,8 @@ use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
- * A member's entries from every competition, for their own page. Score and
- * place come from the recorded results, and only once the competition's
+ * A member's entries from every competition, for their own page. Total
+ * score and position come from the recorded results, and only once the competition's
  * results are published. Entries in an archived competition are listed
  * without their image, since archived images aren't served.
  *
@@ -26,9 +26,14 @@ use PhotoCompetitionManager\Support\Competition_Settings;
 class Member_Entries {
 
 	/**
-	 * Sort orders: newest competition first, or best place first.
+	 * Sort by competition, newest first.
 	 */
-	const SORTS = array( 'date', 'position' );
+	const SORT_DATE = 'date';
+
+	/**
+	 * Sort by position, best first, unpositioned last.
+	 */
+	const SORT_POSITION = 'position';
 
 	/**
 	 * Images repository.
@@ -73,31 +78,59 @@ class Member_Entries {
 	private $labels;
 
 	/**
-	 * Constructor.
+	 * Members repository.
+	 *
+	 * @var Members_Repository
 	 */
-	public function __construct() {
-		$this->images       = new Images_Repository();
-		$this->competitions = new Competitions_Repository();
-		$this->recorded     = new Recorded_Results_Repository();
-		$this->workflow     = new Competition_Workflow();
-		$this->entries      = new Entries();
-		$this->labels       = new Competition_Labels();
+	private $members;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Images_Repository|null           $images       Images repository.
+	 * @param Competitions_Repository|null     $competitions Competitions repository.
+	 * @param Recorded_Results_Repository|null $recorded     Recorded results repository.
+	 * @param Members_Repository|null          $members      Members repository.
+	 * @param Competition_Workflow|null        $workflow     Competition workflow.
+	 * @param Entries|null                     $entries      Entries module.
+	 * @param Competition_Labels|null          $labels       Competition labels.
+	 */
+	public function __construct(
+		?Images_Repository $images = null,
+		?Competitions_Repository $competitions = null,
+		?Recorded_Results_Repository $recorded = null,
+		?Members_Repository $members = null,
+		?Competition_Workflow $workflow = null,
+		?Entries $entries = null,
+		?Competition_Labels $labels = null
+	) {
+		$this->images       = $images ?? new Images_Repository();
+		$this->competitions = $competitions ?? new Competitions_Repository();
+		$this->recorded     = $recorded ?? new Recorded_Results_Repository();
+		$this->members      = $members ?? new Members_Repository();
+		$this->workflow     = $workflow ?? new Competition_Workflow();
+		$this->entries      = $entries ?? new Entries();
+		$this->labels       = $labels ?? new Competition_Labels();
 	}
 
 	/**
 	 * A member's entries.
 	 *
 	 * Each has the entry's id and status, the competition's title and open
-	 * date, the category's label, the photographer (interclub only), whether the competition is
-	 * archived, the image and thumbnail URLs ('' when archived or missing),
-	 * and the score, place and grade name (null until results are published).
+	 * date, the category's label, the photographer (interclub only), whether
+	 * the competition is archived, the image and thumbnail URLs ('' when
+	 * archived or missing), and the total score, position and grade name
+	 * (null until results are published; an entry ranked without a grade is
+	 * "Ungraded", as on the results page).
+	 *
+	 * @since 0.5.0
 	 *
 	 * @param int    $member_id Member ID.
-	 * @param string $sort      'date' (newest competition first) or 'position' (best place first, unplaced last).
+	 * @param string $sort      SORT_DATE (newest competition first) or SORT_POSITION (best position first, unpositioned last).
 	 * @return array<int, object>
 	 */
 	public function for_member( int $member_id, string $sort ): array {
-		$member   = ( new Members_Repository() )->find( $member_id );
+		$member   = $this->members->find( $member_id );
 		$recorded = array_column( $this->recorded->find_by_member( $member_id ), null, 'entry_id' );
 		$cache    = array();
 		$rows     = array();
@@ -135,14 +168,14 @@ class Member_Entries {
 				'thumb'             => $urls['thumb'],
 				'score'             => $result ? (int) $result->total_score : null,
 				'position'          => $result ? (int) $result->position : null,
-				'grade'             => $result ? $this->labels->grade_label( $competition, (string) $result->grade ) : null,
+				'grade'             => $result ? $this->grade_label( $competition, (string) $result->grade ) : null,
 			);
 		}
 
 		usort(
 			$rows,
 			static function ( $a, $b ) use ( $sort ): int {
-				if ( 'position' === $sort && $a->position !== $b->position ) {
+				if ( self::SORT_POSITION === $sort && $a->position !== $b->position ) {
 					if ( null === $a->position || null === $b->position ) {
 						return null === $a->position ? 1 : -1;
 					}
@@ -155,5 +188,16 @@ class Member_Entries {
 		);
 
 		return $rows;
+	}
+
+	/**
+	 * The grade name of a recorded result: "Ungraded" for an entry ranked without a grade.
+	 *
+	 * @param object $competition Competition row.
+	 * @param string $grade       Recorded grade slug, '' when ungraded.
+	 * @return string
+	 */
+	private function grade_label( object $competition, string $grade ): string {
+		return '' === $grade ? __( 'Ungraded', 'photo-competition-manager' ) : $this->labels->grade_label( $competition, $grade );
 	}
 }

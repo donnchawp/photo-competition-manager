@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Frontend;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Service\Member_Page_Link;
 
@@ -50,6 +51,8 @@ class Member_Page_Shortcode {
 	/**
 	 * Render the shortcode.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @param array<string, string>|string $atts Shortcode attributes (unused).
 	 * @return string
 	 */
@@ -85,7 +88,7 @@ class Member_Page_Shortcode {
 
 		if ( $member ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort order only.
-			$sort = isset( $_GET['sort'] ) && 'position' === $_GET['sort'] ? 'position' : 'date';
+			$sort = isset( $_GET['sort'] ) && Member_Entries::SORT_POSITION === $_GET['sort'] ? Member_Entries::SORT_POSITION : Member_Entries::SORT_DATE;
 			$this->render_entries( ( new Member_Entries() )->for_member( (int) $member->id, $sort ), $sort, add_query_arg( Member_Page_Link::QUERY_ARG, $key, $page_url ) );
 		} else {
 			$this->render_form();
@@ -128,8 +131,8 @@ class Member_Page_Shortcode {
 	 */
 	private function render_entries( array $entries, string $sort, string $base_url ): void {
 		$sorts = array(
-			'date'     => __( 'Newest first', 'photo-competition-manager' ),
-			'position' => __( 'Best place first', 'photo-competition-manager' ),
+			Member_Entries::SORT_DATE     => __( 'Newest first', 'photo-competition-manager' ),
+			Member_Entries::SORT_POSITION => __( 'Best position first', 'photo-competition-manager' ),
 		);
 		?>
 		<h2><?php esc_html_e( 'Your entries', 'photo-competition-manager' ); ?></h2>
@@ -166,16 +169,14 @@ class Member_Page_Shortcode {
 						<?php if ( '' !== $entry->photographer ) : ?>
 							<span><?php echo esc_html( $entry->photographer ); ?></span>
 						<?php endif; ?>
-						<?php if ( 'disqualified' === $entry->status ) : ?>
-							<span class="photo-comp-member-status"><?php esc_html_e( 'Disqualified', 'photo-competition-manager' ); ?></span>
-						<?php elseif ( 'substitute' === $entry->status ) : ?>
-							<span class="photo-comp-member-status"><?php esc_html_e( 'Substitute', 'photo-competition-manager' ); ?></span>
+						<?php if ( 'entered' !== $entry->status ) : ?>
+							<span class="photo-comp-member-status"><?php echo esc_html( Images_Repository::entry_status_label( $entry->status ) ); ?></span>
 						<?php endif; ?>
 						<?php if ( null !== $entry->position ) : ?>
 							<span class="photo-comp-member-result">
 								<?php
-								/* translators: 1: place, 2: grade name, 3: total score */
-								echo esc_html( sprintf( __( 'Place %1$d in %2$s, score %3$d', 'photo-competition-manager' ), $entry->position, $entry->grade, $entry->score ) );
+								/* translators: 1: position, 2: grade name, 3: total score */
+								echo esc_html( sprintf( __( 'Position %1$d in %2$s, total score %3$d', 'photo-competition-manager' ), $entry->position, $entry->grade, $entry->score ) );
 								?>
 							</span>
 						<?php endif; ?>

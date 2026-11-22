@@ -17,7 +17,7 @@ use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WP_UnitTestCase;
 
 /**
- * A member's page lists their entries from every competition, with places
+ * A member's page lists their entries from every competition, with positions
  * where results are published.
  */
 class Member_Entries_Test extends WP_UnitTestCase {
@@ -104,7 +104,7 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $new, $old ), $this->listed( $this->ann ) );
 	}
 
-	public function test_scores_and_places_show_only_while_results_are_published(): void {
+	public function test_total_scores_and_positions_show_only_while_results_are_published(): void {
 		$published = $this->competition( 'published', '2026-01-01 00:00:00' );
 		$hidden    = $this->competition( 'hidden', gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ) );
 		$scored    = Entry_Fixtures::insert_entry( $published, 'colour', $this->ann, array( 9, 8 ) );
@@ -124,7 +124,7 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		$this->assertNull( $entries[ $pending ]->position );
 	}
 
-	public function test_sorting_by_place_puts_the_best_places_first_and_unplaced_entries_last(): void {
+	public function test_sorting_by_position_puts_the_best_positions_first_and_unpositioned_entries_last(): void {
 		$january  = $this->competition( 'january', '2026-01-01 00:00:00' );
 		$february = $this->competition( 'february', '2026-02-01 00:00:00' );
 		$march    = $this->competition( 'march', '2026-03-01 00:00:00' );
@@ -132,15 +132,27 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		$january_first  = Entry_Fixtures::insert_entry( $january, 'colour', $this->ann, array( 9 ) );
 		$january_second = Entry_Fixtures::insert_entry( $january, 'mono', $this->ann, array( 5 ) );
 		Entry_Fixtures::insert_entry( $january, 'mono', $this->bob, array( 7 ) );
-		$february_first = Entry_Fixtures::insert_entry( $february, 'colour', $this->ann, array( 6 ) );
-		$march_unplaced = Entry_Fixtures::insert_entry( $march, 'colour', $this->ann, array( 9 ) );
+		$february_first     = Entry_Fixtures::insert_entry( $february, 'colour', $this->ann, array( 6 ) );
+		$march_unpositioned = Entry_Fixtures::insert_entry( $march, 'colour', $this->ann, array( 9 ) );
 		Workflow_Fixtures::publish_results( $january );
 		Workflow_Fixtures::publish_results( $february );
 
 		$this->assertSame(
-			array( $february_first, $january_first, $january_second, $march_unplaced ),
+			array( $february_first, $january_first, $january_second, $march_unpositioned ),
 			$this->listed( $this->ann, 'position' )
 		);
+	}
+
+	public function test_an_entry_ranked_without_a_grade_is_shown_as_ungraded(): void {
+		$competition = $this->competition( 'january', '2026-01-01 00:00:00' );
+		$no_grade    = Member_Fixtures::insert_with_grade( 'Cal', 'cal@example.com', 'no-such-grade' );
+		$entry       = Entry_Fixtures::insert_entry( $competition, 'colour', $no_grade, array( 9 ) );
+		Workflow_Fixtures::publish_results( $competition );
+
+		$listed = ( new Member_Entries() )->for_member( $no_grade, 'date' );
+
+		$this->assertSame( $entry, $listed[0]->id );
+		$this->assertSame( 'Ungraded', $listed[0]->grade );
 	}
 
 	public function test_entries_in_an_archived_competition_are_listed_without_their_image(): void {

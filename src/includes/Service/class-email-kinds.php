@@ -277,7 +277,7 @@ class Email_Kinds {
 				'subject'      => __( 'Your competition entries at {site_name}', 'photo-competition-manager' ),
 				'body'         => self::body(
 					__( 'Hi {member_name},', 'photo-competition-manager' ),
-					__( 'Here is your link to see every image you have entered in our competitions, with your scores and places where results have been published.', 'photo-competition-manager' ),
+					__( 'Here is your link to see every image you have entered in our competitions, with your total scores and positions where results have been published.', 'photo-competition-manager' ),
 					self::button( '{member_page_link}', __( 'See your entries', 'photo-competition-manager' ) ),
 					__( "This link is yours alone and works for 7 days. Please don't share it.", 'photo-competition-manager' ),
 					__( "If you didn't ask for this link, you can ignore this email.", 'photo-competition-manager' )

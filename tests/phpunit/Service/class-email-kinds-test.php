@@ -16,7 +16,7 @@ use WP_UnitTestCase;
 class Email_Kinds_Test extends WP_UnitTestCase {
 
 	/**
-	 * The plugin sends seven kinds of email: two notifications and five requested emails.
+	 * The plugin sends eight kinds of email: two notifications and six requested emails.
 	 */
 	public function test_there_are_eight_kinds_of_email() {
 		$notifications = array_filter(
