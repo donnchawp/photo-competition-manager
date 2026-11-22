@@ -260,9 +260,7 @@ class Archive_Shortcode {
 	/**
 	 * One competition's images, category by category, each as a core Gallery block.
 	 *
-	 * The images aren't Media Library attachments, so each Image block links
-	 * its thumbnail to the full image rather than using the block lightbox,
-	 * which would only enlarge the thumbnail.
+	 * Clicking an image opens it full size in the core block lightbox.
 	 *
 	 * @param object $competition Competition row.
 	 * @param bool   $show_names  Whether to say who each image is by.
@@ -287,6 +285,45 @@ class Archive_Shortcode {
 
 			echo '<h3>' . esc_html( $category['label'] ) . '</h3>';
 			echo do_blocks( $this->gallery_block( $images, $category['label'], $columns ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Block markup built from escaped parts, rendered by core.
+			$this->size_lightbox_images( $images );
+		}
+	}
+
+	/**
+	 * Give the lightbox each full image's size.
+	 *
+	 * Core reads an image's size from its attachment, and these images have
+	 * none, so without this the lightbox opens them at the thumbnail's size.
+	 * The rendered Image blocks have put each one in the interactivity state,
+	 * keyed by an ID core made up, with the URL it enlarges.
+	 *
+	 * @param array<int, object> $entries Entries just rendered.
+	 * @return void
+	 */
+	private function size_lightbox_images( array $entries ): void {
+		$sizes = array();
+		foreach ( $entries as $entry ) {
+			if ( $entry->width > 0 ) {
+				$sizes[ $entry->full ] = $entry;
+			}
+		}
+
+		$state = wp_interactivity_state( 'core/image' );
+		foreach ( $state['metadata'] ?? array() as $id => $image ) {
+			$entry = $sizes[ $image['uploadedSrc'] ?? '' ] ?? null;
+			if ( $entry ) {
+				wp_interactivity_state(
+					'core/image',
+					array(
+						'metadata' => array(
+							$id => array(
+								'targetWidth'  => $entry->width,
+								'targetHeight' => $entry->height,
+							),
+						),
+					)
+				);
+			}
 		}
 	}
 
@@ -316,13 +353,16 @@ class Archive_Shortcode {
 			$figcaption = $caption ? '<figcaption class="wp-element-caption">' . implode( '<br>', $caption ) . '</figcaption>' : '';
 			$alt        = '' !== $entry->by ? $entry->by : $category;
 
-			$images .= '<!-- wp:image {"linkDestination":"media"} -->'
-				. '<figure class="wp-block-image"><a href="' . esc_url( $entry->full ) . '"><img src="' . esc_url( $entry->thumb ) . '" alt="' . esc_attr( $alt ) . '"/></a>' . $figcaption . '</figure>'
+			// The images aren't attachments, so the lightbox enlarges the image's
+			// src. That's the full image; srcset offers the thumbnail for the gallery.
+			$images .= '<!-- wp:image {"lightbox":{"enabled":true}} -->'
+				. '<figure class="wp-block-image"><img src="' . esc_url( $entry->full ) . '" srcset="' . esc_url( $entry->thumb ) . ' 400w, ' . esc_url( $entry->full ) . ' 1920w" sizes="(max-width: 600px) 50vw, 400px" alt="' . esc_attr( $alt ) . '" loading="lazy"/>' . $figcaption . '</figure>'
 				. '<!-- /wp:image -->';
 		}
 
-		return '<!-- wp:gallery {"columns":' . $columns . ',"linkTo":"media"} -->'
-			. '<figure class="wp-block-gallery has-nested-images columns-' . $columns . ' is-cropped">' . $images . '</figure>'
+		// Not cropped: the lightbox keeps the shape an image has in the gallery, and a photo shouldn't be cropped.
+		return '<!-- wp:gallery {"columns":' . $columns . ',"imageCrop":false,"linkTo":"none"} -->'
+			. '<figure class="wp-block-gallery has-nested-images columns-' . $columns . '">' . $images . '</figure>'
 			. '<!-- /wp:gallery -->';
 	}
 }

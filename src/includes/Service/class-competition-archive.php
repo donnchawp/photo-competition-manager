@@ -183,7 +183,7 @@ class Competition_Archive {
 	 * hidden on its own. In an interclub competition the member is the club.
 	 *
 	 * Each entry has its id, its image and thumbnail URLs ('' when the file is
-	 * missing), who it's by ('' unless names are shown), and its position,
+	 * missing), the full image's width and height (0 when missing), who it's by ('' unless names are shown), and its position,
 	 * total score and grade name (null unless the club shows winners, or for
 	 * an entry ranked without a grade).
 	 *
@@ -210,6 +210,7 @@ class Competition_Archive {
 				}
 
 				$urls   = $this->entries->public_urls( $competition, $entry );
+				$size   = $this->entries->full_size( $competition, $entry );
 				$result = $results[ (int) $entry->id ] ?? null;
 				$result = $result && '' !== (string) $result->grade ? $result : null;
 
@@ -217,6 +218,8 @@ class Competition_Archive {
 					'id'       => (int) $entry->id,
 					'full'     => $urls['full'],
 					'thumb'    => $urls['thumb'],
+					'width'    => $size[0],
+					'height'   => $size[1],
 					'by'       => $show_names ? $this->labels->entry_by( $competition, $entry, $member ) : '',
 					'position' => $result ? (int) $result->position : null,
 					'score'    => $result ? (int) $result->total_score : null,
