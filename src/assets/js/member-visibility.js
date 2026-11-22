@@ -3,7 +3,9 @@
  * Show / Hide radio changes, without reloading the page.
  *
  * The page works without this: the radios sit in a form with a Save button,
- * which this script hides. A choice that fails to save is put back.
+ * which this script hides. If a save fails (a site may block the REST API for
+ * visitors), the script steps aside and the Save button comes back, with the
+ * choice kept for it. An expired link puts the choice back and says so.
  *
  * @package
  */
@@ -11,8 +13,10 @@
 ( function () {
 	const FORM_SELECTOR = '.photo-comp-visibility-form';
 	const SAVED_FOR_MS = 3000;
+	const JS_CLASS = 'photo-comp-visibility-js';
+	const EXPIRED = 'invalid_member_key';
 
-	document.documentElement.classList.add( 'photo-comp-visibility-js' );
+	document.documentElement.classList.add( JS_CLASS );
 
 	// The entry a radio is for: 0 for all images, or the entry's ID.
 	function entryOf( name ) {
@@ -39,7 +43,11 @@
 	document.addEventListener( 'change', function ( e ) {
 		const radio = e.target;
 		const form = radio.closest( FORM_SELECTOR );
-		if ( ! form || 'radio' !== radio.type ) {
+		if (
+			! form ||
+			'radio' !== radio.type ||
+			! document.documentElement.classList.contains( JS_CLASS )
+		) {
 			return;
 		}
 
@@ -63,7 +71,14 @@
 		} )
 			.then( function ( response ) {
 				if ( ! response.ok ) {
-					throw new Error( 'Not saved' );
+					return response
+						.json()
+						.catch( function () {
+							return {};
+						} )
+						.then( function ( error ) {
+							throw new Error( error && error.code );
+						} );
 				}
 				status.textContent = form.dataset.saved;
 				setTimeout( function () {
@@ -75,8 +90,14 @@
 					showNotice( form, 'hide' === radio.value );
 				}
 			} )
-			.catch( function () {
-				check( fieldset, previous );
+			.catch( function ( error ) {
+				if ( EXPIRED === error.message ) {
+					check( fieldset, previous );
+					status.textContent = form.dataset.expired;
+					return;
+				}
+				// Leave the choice for the Save button, and stop saving here.
+				document.documentElement.classList.remove( JS_CLASS );
 				status.textContent = form.dataset.failed;
 			} );
 	} );

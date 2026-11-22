@@ -1132,6 +1132,12 @@
 }
 
 /* With JavaScript, each choice saves as it changes. */
+.photo-comp-member-sort {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25em 1em;
+}
+
 .photo-comp-visibility-js .photo-comp-visibility-save {
 	display: none;
 }

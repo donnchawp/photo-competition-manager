@@ -6,7 +6,7 @@ require( '../../src/assets/js/member-visibility' );
 
 function renderForm() {
 	document.body.innerHTML = `
-		<form class="photo-comp-visibility-form" data-endpoint="https://example.org/wp-json/photo-comp/v1/member-visibility" data-key="7.123.abc" data-saved="Saved" data-failed="Couldn't save">
+		<form class="photo-comp-visibility-form" data-endpoint="https://example.org/wp-json/photo-comp/v1/member-visibility" data-key="7.123.abc" data-saved="Saved" data-failed="Not saved yet. Press Save." data-expired="This link has expired.">
 			<fieldset class="photo-comp-visibility-choice">
 				<input type="radio" name="visibility_all" value="show" checked />
 				<input type="radio" name="visibility_all" value="hide" />
@@ -18,6 +18,7 @@ function renderForm() {
 				<input type="radio" name="visibility[42]" value="hide" />
 				<span class="photo-comp-visibility-status"></span>
 			</fieldset>
+			<p class="photo-comp-visibility-save"><button type="submit">Save</button></p>
 		</form>`;
 }
 
@@ -36,6 +37,7 @@ const settle = () => new Promise( ( resolve ) => setTimeout( resolve, 0 ) );
 describe( 'member page past competitions choices', () => {
 	afterEach( () => {
 		delete global.fetch;
+		document.documentElement.classList.add( 'photo-comp-visibility-js' );
 	} );
 
 	it( 'saves a single image choice straight away and says so', async () => {
@@ -82,9 +84,45 @@ describe( 'member page past competitions choices', () => {
 		expect( status.textContent ).toBe( '' );
 	} );
 
-	it( 'puts the choice back when it fails to save', async () => {
+	it( 'falls back to the Save button when saving fails, keeping the choice for it', async () => {
 		renderForm();
-		global.fetch = jest.fn( () => Promise.resolve( { ok: false } ) );
+		global.fetch = jest.fn( () =>
+			Promise.resolve( {
+				ok: false,
+				json: () => Promise.resolve( { code: 'rest_not_logged_in' } ),
+			} )
+		);
+
+		const fieldset = choose( 'visibility[42]', 'hide' );
+		await settle();
+		choose( 'visibility_all', 'hide' );
+		await settle();
+
+		expect(
+			document.documentElement.classList.contains(
+				'photo-comp-visibility-js'
+			)
+		).toBe( false );
+		expect(
+			document.querySelector(
+				'input[name="visibility[42]"][value="hide"]'
+			).checked
+		).toBe( true );
+		expect(
+			fieldset.querySelector( '.photo-comp-visibility-status' )
+				.textContent
+		).toBe( 'Not saved yet. Press Save.' );
+		expect( global.fetch ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'says when the link has expired and puts the choice back', async () => {
+		renderForm();
+		global.fetch = jest.fn( () =>
+			Promise.resolve( {
+				ok: false,
+				json: () => Promise.resolve( { code: 'invalid_member_key' } ),
+			} )
+		);
 
 		const fieldset = choose( 'visibility[42]', 'hide' );
 		await settle();
@@ -97,7 +135,7 @@ describe( 'member page past competitions choices', () => {
 		expect(
 			fieldset.querySelector( '.photo-comp-visibility-status' )
 				.textContent
-		).toBe( "Couldn't save" );
+		).toBe( 'This link has expired.' );
 	} );
 
 	it( 'saves hiding all images as entry 0 and says nothing is public', async () => {

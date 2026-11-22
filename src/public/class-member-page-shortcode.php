@@ -29,6 +29,11 @@ class Member_Page_Shortcode {
 	const SHORTCODE = 'competition_my_entries';
 
 	/**
+	 * Query arg the no-JavaScript save redirects with: 'saved' or 'failed'.
+	 */
+	const SAVED_ARG = 'choices';
+
+	/**
 	 * Member page links.
 	 *
 	 * @var Member_Page_Link
@@ -51,6 +56,42 @@ class Member_Page_Shortcode {
 	 */
 	public function register(): void {
 		add_shortcode( self::SHORTCODE, array( $this, 'render' ) );
+		add_action( 'template_redirect', array( $this, 'handle_visibility' ) );
+	}
+
+	/**
+	 * Save the choices posted by the form that works without JavaScript,
+	 * before the page renders, then go back to the page so a refresh can't
+	 * post them again. Only a POST changes a choice: mail scanners open links.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return void
+	 */
+	public function handle_visibility(): void {
+		// phpcs:disable WordPress.Security.NonceVerification -- The member's key in the URL authenticates; there's no login session to forge.
+		$post = get_post();
+		if ( ! isset( $_POST['photo_comp_visibility'] ) || ! $post || ! has_shortcode( $post->post_content, self::SHORTCODE ) || ! Competition_Archive::settings()['enabled'] ) {
+			return;
+		}
+
+		$key    = isset( $_GET[ Member_Page_Link::QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ Member_Page_Link::QUERY_ARG ] ) ) : '';
+		$member = '' !== $key ? $this->link->member( $key ) : null;
+		if ( ! $member ) {
+			return; // The page says the link has expired.
+		}
+
+		$args = array(
+			Member_Page_Link::QUERY_ARG => $key,
+			self::SAVED_ARG             => $this->save_visibility( $member ) ? 'saved' : 'failed',
+		);
+		if ( isset( $_GET['sort'] ) ) {
+			$args['sort'] = sanitize_key( wp_unslash( $_GET['sort'] ) );
+		}
+		// phpcs:enable WordPress.Security.NonceVerification
+
+		wp_safe_redirect( add_query_arg( $args, (string) get_permalink( $post ) ) );
+		exit;
 	}
 
 	/**
@@ -86,17 +127,15 @@ class Member_Page_Shortcode {
 			$message = '<p class="notice">' . esc_html__( "This link has expired or isn't valid. Enter your email address to get a new one.", 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Past competitions controls, only while the club shows them. Only a
-		// POST changes a choice: mail scanners open links.
+		// Past competitions controls, only while the club shows them.
 		$shown = null;
 		if ( $member && Competition_Archive::settings()['enabled'] ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The member's key in the URL authenticates; there's no login session to forge.
-			if ( isset( $_POST['photo_comp_visibility'] ) ) {
-				$saved   = $this->save_visibility( $member );
-				$member  = $this->link->member( $key );
-				$message = $saved
-					? '<p class="success">' . esc_html__( 'Your choices are saved.', 'photo-competition-manager' ) . '</p>'
-					: '<p class="error">' . esc_html__( "Some of your choices couldn't be saved. Check them below and try again.", 'photo-competition-manager' ) . '</p>';
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Which message to show, after handle_visibility() saved.
+			$saved = isset( $_GET[ self::SAVED_ARG ] ) && is_string( $_GET[ self::SAVED_ARG ] ) ? sanitize_key( $_GET[ self::SAVED_ARG ] ) : '';
+			if ( 'saved' === $saved ) {
+				$message = '<p class="success">' . esc_html__( 'Your choices are saved.', 'photo-competition-manager' ) . '</p>';
+			} elseif ( 'failed' === $saved ) {
+				$message = '<p class="error">' . esc_html__( "Some of your choices couldn't be saved. Check them below and try again.", 'photo-competition-manager' ) . '</p>';
 			}
 			$shown = (bool) (int) $member->images_public;
 		}
@@ -217,7 +256,7 @@ class Member_Page_Shortcode {
 		</p>
 		<?php if ( null !== $shown ) : ?>
 			<?php wp_enqueue_script( 'photo-comp-member-visibility', PHOTO_COMPETITION_MANAGER_URL . 'assets/js/member-visibility.js', array(), PHOTO_COMPETITION_MANAGER_VERSION, true ); ?>
-			<form method="post" action="<?php echo esc_url( $base_url ); ?>" class="photo-comp-visibility-form" data-endpoint="<?php echo esc_url( Member_Visibility_API::url() ); ?>" data-key="<?php echo esc_attr( $key ); ?>" data-saved="<?php esc_attr_e( 'Saved', 'photo-competition-manager' ); ?>" data-failed="<?php esc_attr_e( "Couldn't save. Try again.", 'photo-competition-manager' ); ?>">
+			<form method="post" action="<?php echo esc_url( add_query_arg( 'sort', $sort, $base_url ) ); ?>" class="photo-comp-visibility-form" data-endpoint="<?php echo esc_url( Member_Visibility_API::url() ); ?>" data-key="<?php echo esc_attr( $key ); ?>" data-saved="<?php esc_attr_e( 'Saved', 'photo-competition-manager' ); ?>" data-failed="<?php esc_attr_e( 'Not saved yet. Press Save below.', 'photo-competition-manager' ); ?>" data-expired="<?php esc_attr_e( 'This link has expired. Reload the page to get a new one.', 'photo-competition-manager' ); ?>">
 				<input type="hidden" name="photo_comp_visibility" value="1" />
 				<div class="photo-comp-visibility-all">
 					<p><strong><?php esc_html_e( 'Your images in past competitions', 'photo-competition-manager' ); ?></strong></p>

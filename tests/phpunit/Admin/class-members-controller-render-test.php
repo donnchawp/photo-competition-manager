@@ -355,6 +355,28 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assert_matches_snapshot( 'edit-existing-member', array( $comp_id ), array( $ada ) );
 	}
 
+	public function test_the_edit_form_offers_the_past_competitions_choice_only_while_they_are_on(): void {
+		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com' );
+		$this->set_request(
+			array(
+				'page'          => 'photo-competition-manager-members',
+				'member_action' => 'edit',
+				'member'        => (string) $ada,
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$off = (string) ob_get_clean();
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		ob_start();
+		$this->controller->render();
+		$on = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'name="member_images_public"', $off );
+		$this->assertStringContainsString( 'name="member_images_public"', $on );
+	}
+
 	public function test_render_edit_member_not_found(): void {
 		// member_action=edit with an ID that doesn't resolve to a member:
 		// the "Member not found" notice + "Back to members" link branch.

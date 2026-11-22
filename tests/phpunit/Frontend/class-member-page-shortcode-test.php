@@ -11,13 +11,17 @@ use PhotoCompetitionManager\Frontend\Member_Page_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Service\Member_Page_Link;
 use PhotoCompetitionManager\Service\Member_Visibility;
+use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 use WPDieException;
 use WP_UnitTestCase;
+
+require_once dirname( __DIR__ ) . '/Admin/class-redirect-exception.php';
 
 /**
  * The page asks for an email address, and a member's link opens their entries.
@@ -82,12 +86,24 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
+		add_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
+	}
+
+	/**
+	 * Stop before the exit that follows a redirect.
+	 *
+	 * @param string $location Redirect target.
+	 * @throws Redirect_Exception Always, carrying the location.
+	 */
+	public function throw_on_redirect( $location ) {
+		throw new Redirect_Exception( (string) $location ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test harness; location captured, not output.
 	}
 
 	/**
 	 * Clear the request.
 	 */
 	public function tearDown(): void {
+		remove_filter( 'wp_redirect', array( $this, 'throw_on_redirect' ) );
 		$_GET     = array();
 		$_POST    = array();
 		$_REQUEST = array();
@@ -245,17 +261,57 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="visibility[' . $entry . ']"', $on );
 	}
 
-	public function test_saving_the_form_with_a_members_link_saves_their_choices(): void {
-		$entry = $this->ann_entry();
-		Competition_Archive::save_settings( true, false );
-		$_POST    = array(
-			'photo_comp_visibility' => '1',
-			'visibility_all'        => 'hide',
-			'visibility'            => array( $entry => 'hide' ),
-		);
+	/**
+	 * Post the form that works without JavaScript, from Ann's page, the way
+	 * template_redirect sees it.
+	 *
+	 * @param array<string, mixed> $choices Posted choices.
+	 * @param string               $sort    Sort the page was showing, or ''.
+	 * @return string Where the page redirects to, or '' when it doesn't.
+	 */
+	private function save_form( array $choices, string $sort = '' ): string {
+		$_GET = array( Member_Page_Link::QUERY_ARG => $this->ann_key() );
+		if ( '' !== $sort ) {
+			$_GET['sort'] = $sort;
+		}
+		$_POST    = array( 'photo_comp_visibility' => '1' ) + $choices;
 		$_REQUEST = $_POST;
 
-		$this->open( $this->ann_key() );
+		try {
+			( new Member_Page_Shortcode() )->handle_visibility();
+		} catch ( Redirect_Exception $e ) {
+			return $e->getMessage();
+		}
+
+		return '';
+	}
+
+	/**
+	 * Open the page a redirect points to.
+	 *
+	 * @param string $location Redirect target.
+	 * @return string
+	 */
+	private function follow( string $location ): string {
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $args );
+		$_GET     = $args;
+		$_POST    = array();
+		$_REQUEST = array();
+
+		return $this->render();
+	}
+
+	public function test_saving_the_form_saves_the_choices_and_goes_back_to_the_list_so_a_refresh_cant_post_them_again(): void {
+		$entry = $this->ann_entry();
+		Competition_Archive::save_settings( true, false );
+
+		$location = $this->save_form(
+			array(
+				'visibility_all' => 'hide',
+				'visibility'     => array( $entry => 'hide' ),
+			),
+			Member_Entries::SORT_POSITION
+		);
 
 		$this->assertSame(
 			array(
@@ -264,22 +320,29 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 			),
 			( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )
 		);
+		parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $args );
+		$this->assertStringStartsWith( (string) get_permalink( $this->page_id ), $location );
+		$this->assertSame( $this->ann_key(), $args[ Member_Page_Link::QUERY_ARG ] );
+		$this->assertSame( Member_Entries::SORT_POSITION, $args['sort'], 'the order the member picked' );
+		$this->assertStringContainsString( '<p class="success">', $this->follow( $location ) );
 	}
 
 	public function test_the_form_says_when_a_choice_wasnt_saved(): void {
 		$entry = $this->ann_entry();
 		$bobs  = Entry_Fixtures::insert_scored_entry( (int) ( new \PhotoCompetitionManager\Repository\Images_Repository() )->find( $entry )->competition_id, 'colour', 'Bob', 'beginner', array() );
 		Competition_Archive::save_settings( true, false );
-		$_POST    = array(
-			'photo_comp_visibility' => '1',
-			'visibility'            => array( $bobs => 'hide' ),
-		);
-		$_REQUEST = $_POST;
 
-		$html = $this->open( $this->ann_key() );
+		$html = $this->follow( $this->save_form( array( 'visibility' => array( $bobs => 'hide' ) ) ) );
 
 		$this->assertStringContainsString( '<p class="error">', $html );
 		$this->assertStringNotContainsString( '<p class="success">', $html );
+	}
+
+	public function test_while_past_competitions_are_off_the_form_saves_nothing(): void {
+		$this->ann_entry();
+
+		$this->assertSame( '', $this->save_form( array( 'visibility_all' => 'hide' ) ) );
+		$this->assertTrue( ( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )['shown'] );
 	}
 
 	public function test_opening_a_members_link_changes_nothing(): void {

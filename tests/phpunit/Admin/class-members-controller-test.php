@@ -318,12 +318,26 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_an_admin_can_hide_and_show_all_of_a_members_images_in_past_competitions(): void {
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
 		$id = $this->create_member( array( 'name' => 'Ada' ) );
 
 		$this->save_images_public( $id, false );
 		$this->assertSame( '0', $this->members->find( $id )->images_public );
 
 		$this->save_images_public( $id, true );
+		$this->assertSame( '1', $this->members->find( $id )->images_public );
+	}
+
+	public function test_while_past_competitions_are_off_saving_a_member_keeps_their_choice(): void {
+		$id = $this->create_member( array( 'name' => 'Ada' ) );
+		$this->members->set_images_public( $id, false );
+
+		// The form leaves the box out, so nothing is posted for it.
+		$this->save_images_public( $id, false );
+
+		$this->assertSame( '0', $this->members->find( $id )->images_public );
+		$this->members->set_images_public( $id, true );
+		$this->save_images_public( $id, false );
 		$this->assertSame( '1', $this->members->find( $id )->images_public );
 	}
 

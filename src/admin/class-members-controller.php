@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -354,7 +355,10 @@ class Members_Controller {
 			if ( $this->types->has_several() ) {
 				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
 			}
-			$this->members->set_images_public( $member_id, isset( $_POST['member_images_public'] ) );
+			// The form only offers the choice while past competitions are on.
+			if ( Competition_Archive::settings()['enabled'] ) {
+				$this->members->set_images_public( $member_id, isset( $_POST['member_images_public'] ) );
+			}
 
 			add_settings_error(
 				'photo_competition_members',
@@ -1100,6 +1104,7 @@ class Members_Controller {
 				'members_url'   => $this->members_url(),
 				'type_options'  => $type_options,
 				'member_types'  => $type_options ? $this->members->type_ids( (int) $member->id ) : array(),
+				'archive_on'    => Competition_Archive::settings()['enabled'],
 			)
 		);
 	}
