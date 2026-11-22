@@ -28,7 +28,7 @@ _Avoid_: My account, profile (there is no login)
 
 **Past competitions**:
 The public page listing competitions whose results are published, newest first, each at its own address (the page's address followed by the competition's slug) showing its entered images, category by category, in ballot order. The club switches it on, and chooses whether it shows positions and scores; names show only when the page asks for them. An archived competition isn't in it. A member can hide all their images from it, or single images; an image shows only while the member shows their images and it isn't hidden itself. In an interclub competition the member is the club.
-_Avoid_: Archive (that's an archived competition), gallery
+_Avoid_: Gallery. The shortcode and code call it the archive (`[competition_archive]`); in prose say "past competitions" so it isn't mistaken for an **Archived** competition, which is never in it.
 
 ### Competitions
 

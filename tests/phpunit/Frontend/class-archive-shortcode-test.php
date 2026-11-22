@@ -142,6 +142,20 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertTrue( is_404(), 'unknown' );
 	}
 
+	public function test_the_query_var_on_another_page_is_ignored(): void {
+		$other = self::factory()->post->create(
+			array(
+				'post_type' => 'page',
+				'post_name' => 'about',
+			)
+		);
+
+		$this->go_to( add_query_arg( Archive_Shortcode::QUERY_VAR, 'unknown', get_permalink( $other ) ) );
+		$this->shortcode->not_found();
+
+		$this->assertFalse( is_404() );
+	}
+
 	public function test_while_the_archive_is_off_the_page_shows_nothing_and_permalinks_are_not_found(): void {
 		$this->competition( 'november-2026' );
 		Competition_Archive::save_settings( false, false );

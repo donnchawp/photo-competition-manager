@@ -1102,3 +1102,10 @@
 .photo-comp-archive-top3 .photo-comp-archive-result {
 	font-weight: 600;
 }
+
+.photo-comp-archive-top3-label {
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 0.8em;
+	letter-spacing: 0.05em;
+}

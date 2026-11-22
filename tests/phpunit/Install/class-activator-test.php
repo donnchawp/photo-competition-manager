@@ -769,6 +769,7 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $images );
 		$this->assertSame( 'entered', $images[0]->entry_status );
 		$this->assertSame( '', $images[0]->photographer );
+		$this->assertSame( '0', $images[0]->archive_hidden, 'version 12 shows it in the past competitions archive' );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 

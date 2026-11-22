@@ -44,16 +44,27 @@ class Archive_Shortcode {
 	private $archive;
 
 	/**
+	 * Competition labels.
+	 *
+	 * @var Competition_Labels
+	 */
+	private $labels;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competition_Archive|null $archive The archive.
+	 * @param Competition_Labels|null  $labels  Competition labels.
 	 */
-	public function __construct( ?Competition_Archive $archive = null ) {
+	public function __construct( ?Competition_Archive $archive = null, ?Competition_Labels $labels = null ) {
 		$this->archive = $archive ?? new Competition_Archive();
+		$this->labels  = $labels ?? new Competition_Labels();
 	}
 
 	/**
 	 * Attach hooks.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @return void
 	 */
@@ -70,6 +81,8 @@ class Archive_Shortcode {
 
 	/**
 	 * Register the rewrite rule for the archive page's permalinks.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @return void
 	 */
@@ -95,6 +108,8 @@ class Archive_Shortcode {
 	 * restored or deleted. When it has changed, the rewrite rules are rebuilt
 	 * on the next request, which registers the new path.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @return string The path, or '' when there's no published archive page.
 	 */
 	public static function refresh_page_path(): string {
@@ -109,6 +124,11 @@ class Archive_Shortcode {
 		if ( get_option( self::PAGE_PATH_OPTION, false ) !== $path ) {
 			update_option( self::PAGE_PATH_OPTION, $path );
 			delete_option( 'rewrite_rules' );
+
+			// Registered now as well, in case the rules are flushed later in this request.
+			if ( '' !== $path ) {
+				self::add_rewrite_rule();
+			}
 		}
 
 		return $path;
@@ -116,6 +136,8 @@ class Archive_Shortcode {
 
 	/**
 	 * Allow the query var.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @param array<int, string> $vars Public query vars.
 	 * @return array<int, string>
@@ -129,11 +151,13 @@ class Archive_Shortcode {
 	/**
 	 * Make a permalink to a competition that isn't in the archive a 404.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @return void
 	 */
 	public function not_found(): void {
 		$slug = (string) get_query_var( self::QUERY_VAR );
-		if ( '' === $slug || $this->archive->find( $slug ) ) {
+		if ( '' === $slug || ! $this->on_archive_page() || $this->archive->find( $slug ) ) {
 			return;
 		}
 
@@ -141,6 +165,17 @@ class Archive_Shortcode {
 		$wp_query->set_404();
 		status_header( 404 );
 		nocache_headers();
+	}
+
+	/**
+	 * Whether this request is for the archive page, so the query var means something.
+	 *
+	 * @return bool
+	 */
+	private function on_archive_page(): bool {
+		$page = get_queried_object();
+
+		return $page instanceof \WP_Post && has_shortcode( (string) $page->post_content, self::SHORTCODE );
 	}
 
 	/**
@@ -198,7 +233,6 @@ class Archive_Shortcode {
 	 */
 	private function render_list( string $page_url ): void {
 		$competitions = $this->archive->competitions();
-		$labels       = new Competition_Labels();
 
 		if ( empty( $competitions ) ) {
 			echo '<p>' . esc_html__( 'No past competitions yet.', 'photo-competition-manager' ) . '</p>';
@@ -208,7 +242,7 @@ class Archive_Shortcode {
 		<ul class="photo-comp-archive-list">
 			<?php foreach ( $competitions as $competition ) : ?>
 				<li>
-					<a href="<?php echo esc_url( $this->permalink( $page_url, $competition ) ); ?>"><?php echo esc_html( $labels->title_for_everyone( $competition ) ); ?></a>
+					<a href="<?php echo esc_url( $this->permalink( $page_url, $competition ) ); ?>"><?php echo esc_html( $this->labels->title_for_everyone( $competition ) ); ?></a>
 					<span class="photo-comp-archive-date"><?php echo esc_html( format_site_date( $competition->open_date ) ); ?></span>
 				</li>
 			<?php endforeach; ?>
@@ -225,7 +259,7 @@ class Archive_Shortcode {
 	 * @return void
 	 */
 	private function render_competition( object $competition, bool $show_names, string $page_url ): void {
-		$title = ( new Competition_Labels() )->title_for_everyone( $competition );
+		$title = $this->labels->title_for_everyone( $competition );
 		?>
 		<p class="photo-comp-archive-back"><a href="<?php echo esc_url( $page_url ); ?>"><?php esc_html_e( 'All past competitions', 'photo-competition-manager' ); ?></a></p>
 		<h2><?php echo esc_html( $title ); ?></h2>
@@ -243,12 +277,16 @@ class Archive_Shortcode {
 						continue;
 					}
 					?>
-					<li class="<?php echo esc_attr( null !== $entry->position && $entry->position <= 3 ? 'photo-comp-archive-entry photo-comp-archive-top3' : 'photo-comp-archive-entry' ); ?>">
+					<?php $top3 = null !== $entry->position && $entry->position <= 3; ?>
+					<li class="<?php echo esc_attr( $top3 ? 'photo-comp-archive-entry photo-comp-archive-top3' : 'photo-comp-archive-entry' ); ?>">
 						<a href="<?php echo esc_url( $entry->full ); ?>" target="_blank" rel="noopener noreferrer">
 							<img src="<?php echo esc_url( $entry->thumb ); ?>" alt="<?php echo esc_attr( '' !== $entry->by ? $entry->by : $category['label'] ); ?>" loading="lazy" />
 						</a>
 						<?php if ( '' !== $entry->by ) : ?>
 							<span class="photo-comp-archive-by"><?php echo esc_html( $entry->by ); ?></span>
+						<?php endif; ?>
+						<?php if ( $top3 ) : ?>
+							<span class="photo-comp-archive-top3-label"><?php esc_html_e( 'Top 3', 'photo-competition-manager' ); ?></span>
 						<?php endif; ?>
 						<?php if ( null !== $entry->position ) : ?>
 							<span class="photo-comp-archive-result">

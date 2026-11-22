@@ -292,10 +292,6 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( '', $this->grade_of( $member ) );
 	}
 
-	/**
-	 * Saving the club settings leaves every competition's stored settings
-	 * alone.
-	 */
 	public function test_saving_settings_switches_the_archive_and_its_winners_on_and_off(): void {
 		$this->save_grades(
 			$this->default_grade_rows(),
@@ -324,6 +320,10 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
+	/**
+	 * Saving the club settings leaves every competition's stored settings
+	 * alone.
+	 */
 	public function test_saving_club_settings_leaves_competitions_alone(): void {
 		$competitions = new Competitions_Repository();
 		$id           = $competitions->create(

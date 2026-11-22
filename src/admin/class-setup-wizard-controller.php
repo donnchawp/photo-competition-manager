@@ -58,12 +58,14 @@ class Setup_Wizard_Controller {
 		$results_page_title = sanitize_text_field( $this->get_post_string( 'results_page_title', 'Competition Results' ) );
 		$top3_page_title    = sanitize_text_field( $this->get_post_string( 'top3_page_title', 'Top 3 Winners' ) );
 		$member_page_title  = sanitize_text_field( $this->get_post_string( 'member_page_title', 'Your Entries' ) );
+		$archive_page_title = sanitize_text_field( $this->get_post_string( 'archive_page_title', 'Past Competitions' ) );
 
 		$create_upload_page  = isset( $_POST['create_upload_page'] ) && '1' === $_POST['create_upload_page'];
 		$create_voting_page  = isset( $_POST['create_voting_page'] ) && '1' === $_POST['create_voting_page'];
 		$create_results_page = isset( $_POST['create_results_page'] ) && '1' === $_POST['create_results_page'];
 		$create_top3_page    = isset( $_POST['create_top3_page'] ) && '1' === $_POST['create_top3_page'];
 		$create_member_page  = isset( $_POST['create_member_page'] ) && '1' === $_POST['create_member_page'];
+		$create_archive_page = isset( $_POST['create_archive_page'] ) && '1' === $_POST['create_archive_page'];
 		$results_hide_names  = isset( $_POST['results_hide_names'] ) && '1' === $_POST['results_hide_names'];
 
 		$created_pages = array();
@@ -165,6 +167,24 @@ class Setup_Wizard_Controller {
 			}
 		}
 
+		// Create past competitions page.
+		if ( $create_archive_page ) {
+			$archive_page_id = $this->create_page_with_shortcode(
+				$archive_page_title,
+				'[competition_archive]'
+			);
+
+			if ( is_wp_error( $archive_page_id ) ) {
+				$errors[] = sprintf(
+					/* translators: %s: error message */
+					__( 'Past competitions page error: %s', 'photo-competition-manager' ),
+					$archive_page_id->get_error_message()
+				);
+			} else {
+				$created_pages['archive'] = $archive_page_id;
+			}
+		}
+
 		// Update settings with created page URLs.
 		if ( ! empty( $created_pages ) ) {
 			// Flush rewrite rules to ensure permalinks work immediately.
@@ -191,8 +211,12 @@ class Setup_Wizard_Controller {
 				count( $created_pages )
 			);
 
-			// The member page links to itself, so it has no URL setting.
-			if ( array_diff_key( $created_pages, array( 'member' => true ) ) ) {
+			// The member and past competitions pages link to themselves, so they have no URL setting.
+			$self_linked = array(
+				'member'  => true,
+				'archive' => true,
+			);
+			if ( array_diff_key( $created_pages, $self_linked ) ) {
 				$message .= ' ' . __( 'Global settings have been updated with the new page URLs.', 'photo-competition-manager' );
 			}
 
@@ -263,6 +287,8 @@ class Setup_Wizard_Controller {
 		echo $this->render_top3_page_card();
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/setup-wizard/member-page-card.php' );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/setup-wizard/archive-page-card.php', array( 'settings_url' => admin_url( 'admin.php?page=photo-competition-manager-settings#past-competitions' ) ) );
 
 		submit_button( __( 'Create Pages', 'photo-competition-manager' ), 'primary', 'submit', true );
 
@@ -414,6 +440,7 @@ class Setup_Wizard_Controller {
 			'competition_results'    => __( 'Results', 'photo-competition-manager' ),
 			'competition_top3'       => __( 'Top 3', 'photo-competition-manager' ),
 			'competition_my_entries' => __( 'Member page', 'photo-competition-manager' ),
+			'competition_archive'    => __( 'Past competitions page', 'photo-competition-manager' ),
 		);
 
 		$found_pages = array();
