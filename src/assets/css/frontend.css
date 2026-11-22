@@ -1079,3 +1079,35 @@
 	color: #646970;
 }
 
+
+/* Member page: past competitions choices */
+.photo-comp-visibility-all {
+	margin-bottom: 1.5em;
+	padding: 1em;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+.photo-comp-visibility-choice {
+	border: 0;
+	margin: 0.5em 0 0;
+	padding: 0;
+}
+
+.photo-comp-visibility-choice label {
+	margin-right: 1em;
+}
+
+.photo-comp-visibility-status {
+	color: #646970;
+	font-size: 0.9em;
+}
+
+.photo-comp-visibility-off-notice {
+	color: #8a6d3b;
+}
+
+/* With JavaScript, each choice saves as it changes. */
+.photo-comp-visibility-js .photo-comp-visibility-save {
+	display: none;
+}

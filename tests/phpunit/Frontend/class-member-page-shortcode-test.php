@@ -10,7 +10,9 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 use PhotoCompetitionManager\Frontend\Member_Page_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Member_Page_Link;
+use PhotoCompetitionManager\Service\Member_Visibility;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -207,5 +209,77 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Your entries', $by_date );
 		$this->assertLessThan( strpos( $by_date, 'Spring' ), strpos( $by_date, 'Autumn' ), 'newest first by default' );
 		$this->assertLessThan( strpos( $by_position, 'Autumn' ), strpos( $by_position, 'Spring' ), 'best position first when asked' );
+	}
+
+	/**
+	 * A competition with one entry of Ann's.
+	 *
+	 * @return int Entry ID.
+	 */
+	private function ann_entry(): int {
+		$competition = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Spring',
+				'slug'       => 'spring',
+				'open_date'  => '2026-03-01 00:00:00',
+				'close_date' => '2026-03-02 00:00:00',
+			)
+		);
+
+		return Entry_Fixtures::insert_entry( $competition, 'colour', (int) $this->ann->id, array() );
+	}
+
+	public function test_while_past_competitions_are_on_the_page_offers_show_and_hide_for_all_images_and_each_one(): void {
+		$entry = $this->ann_entry();
+
+		$off = $this->open( $this->ann_key() );
+		Competition_Archive::save_settings( true, false );
+		$on = $this->open( $this->ann_key() );
+
+		$this->assertStringNotContainsString( 'name="visibility_all"', $off );
+		$this->assertStringContainsString( 'name="visibility_all"', $on );
+		$this->assertStringContainsString( 'name="visibility[' . $entry . ']"', $on );
+	}
+
+	public function test_saving_the_form_with_a_members_link_saves_their_choices(): void {
+		$entry = $this->ann_entry();
+		Competition_Archive::save_settings( true, false );
+		$_POST    = array(
+			'photo_comp_visibility' => '1',
+			'visibility_all'        => 'hide',
+			'visibility'            => array( $entry => 'hide' ),
+		);
+		$_REQUEST = $_POST;
+
+		$this->open( $this->ann_key() );
+
+		$this->assertSame(
+			array(
+				'shown'  => false,
+				'hidden' => 1,
+			),
+			( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )
+		);
+	}
+
+	public function test_opening_a_members_link_changes_nothing(): void {
+		$entry = $this->ann_entry();
+		Competition_Archive::save_settings( true, false );
+		$_GET = array(
+			Member_Page_Link::QUERY_ARG => $this->ann_key(),
+			'visibility_all'            => 'hide',
+			'visibility'                => array( $entry => 'hide' ),
+		);
+
+		$this->render();
+
+		$this->assertSame(
+			array(
+				'shown'  => true,
+				'hidden' => 0,
+			),
+			( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )
+		);
 	}
 }

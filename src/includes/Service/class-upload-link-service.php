@@ -195,9 +195,10 @@ class Upload_Link_Service {
 			$member,
 			$competition,
 			array(
-				'{upload_link}' => $upload_url,
-				'{voting_page}' => $voting_page,
-				'{voting_info}' => $voting_info,
+				'{upload_link}'  => $upload_url,
+				'{voting_page}'  => $voting_page,
+				'{voting_info}'  => $voting_info,
+				'{archive_info}' => ( new Member_Visibility() )->archive_paragraph( $member ),
 			)
 		);
 

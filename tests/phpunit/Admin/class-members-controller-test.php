@@ -291,6 +291,43 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Save the edit form for a member, with or without the past competitions box ticked.
+	 *
+	 * @param int  $id            Member ID.
+	 * @param bool $images_public Whether the box is ticked.
+	 */
+	private function save_images_public( int $id, bool $images_public ): void {
+		$_POST = array();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => $id,
+				'member_name'              => 'Ada',
+				'member_email'             => 'ada@example.com',
+				'member_grade'             => 'advanced',
+				'member_active'            => '1',
+			) + ( $images_public ? array( 'member_images_public' => '1' ) : array() )
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_an_admin_can_hide_and_show_all_of_a_members_images_in_past_competitions(): void {
+		$id = $this->create_member( array( 'name' => 'Ada' ) );
+
+		$this->save_images_public( $id, false );
+		$this->assertSame( '0', $this->members->find( $id )->images_public );
+
+		$this->save_images_public( $id, true );
+		$this->assertSame( '1', $this->members->find( $id )->images_public );
+	}
+
+	/**
 	 * Editing a member to a grade not in the club's list surfaces invalid_grade
 	 * and saves nothing.
 	 */

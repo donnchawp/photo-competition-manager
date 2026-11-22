@@ -335,6 +335,10 @@ class Members_Controller {
 				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
 			}
 
+			if ( ! is_wp_error( $result ) ) {
+				$this->members->set_images_public( $member_id, isset( $_POST['member_images_public'] ) );
+			}
+
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
 					'photo_competition_members',
