@@ -114,17 +114,16 @@ class Member_Page_Link_Test extends WP_UnitTestCase {
 	 * Ask for a link, recording every email sent.
 	 *
 	 * @param string $email Address typed into the form.
-	 * @param string $ip    Requester's IP address.
 	 * @return array<int, array<string, mixed>> Emails sent by this request.
 	 */
-	private function request( string $email, string $ip = '192.0.2.1' ): array {
+	private function request( string $email ): array {
 		$mails   = array();
 		$capture = function ( $atts ) use ( &$mails ) {
 			$mails[] = $atts;
 			return $atts;
 		};
 		add_filter( 'wp_mail', $capture );
-		( new Member_Page_Link() )->request( $email, $ip, self::PAGE );
+		( new Member_Page_Link() )->request( $email, self::PAGE );
 		remove_filter( 'wp_mail', $capture );
 
 		return $mails;
@@ -178,20 +177,9 @@ class Member_Page_Link_Test extends WP_UnitTestCase {
 
 	public function test_asking_again_for_the_same_address_soon_after_sends_nothing(): void {
 		$this->member( 'ann@example.com' );
-		$this->request( 'ann@example.com', '192.0.2.1' );
+		$this->request( 'ann@example.com' );
 
-		$this->assertSame( array(), $this->request( 'ANN@example.com', '198.51.100.7' ) );
-	}
-
-	public function test_one_ip_address_can_only_ask_a_few_times_an_hour(): void {
-		foreach ( range( 1, Member_Page_Link::REQUESTS_PER_IP ) as $n ) {
-			$this->member( "member{$n}@example.com" );
-			$this->assertCount( 1, $this->request( "member{$n}@example.com" ), "request {$n}" );
-		}
-		$this->member( 'one-too-many@example.com' );
-
-		$this->assertSame( array(), $this->request( 'one-too-many@example.com' ) );
-		$this->assertCount( 1, $this->request( 'one-too-many@example.com', '198.51.100.7' ), 'another IP address' );
+		$this->assertSame( array(), $this->request( 'ANN@example.com' ) );
 	}
 
 	public function test_a_link_for_a_deleted_member_is_refused(): void {

@@ -109,13 +109,12 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 	 * @return string
 	 */
 	private function post( string $email, string $nonce = '' ): string {
-		$_SERVER['REMOTE_ADDR'] = '192.0.2.1';
-		$_POST                  = array(
+		$_POST    = array(
 			'photo_comp_member_link'       => '1',
 			'member_email'                 => $email,
 			'photo_comp_member_link_nonce' => '' !== $nonce ? $nonce : wp_create_nonce( 'photo_comp_member_link' ),
 		);
-		$_REQUEST               = $_POST;
+		$_REQUEST = $_POST;
 
 		return $this->render();
 	}

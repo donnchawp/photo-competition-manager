@@ -70,8 +70,7 @@ class Member_Page_Shortcode {
 
 		if ( isset( $_POST['photo_comp_member_link'] ) && check_admin_referer( 'photo_comp_member_link', 'photo_comp_member_link_nonce' ) ) {
 			$email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-			$ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-			$this->link->request( $email, $ip, $page_url );
+			$this->link->request( $email, $page_url );
 
 			$message = '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
 		}

@@ -37,11 +37,6 @@ class Member_Page_Link {
 	const ADDRESS_WAIT = 5 * MINUTE_IN_SECONDS;
 
 	/**
-	 * How many times an hour one IP address can ask.
-	 */
-	const REQUESTS_PER_IP = 5;
-
-	/**
 	 * Members repository.
 	 *
 	 * @var Members_Repository
@@ -115,33 +110,28 @@ class Member_Page_Link {
 	/**
 	 * Email a member a link to their page, if the address is a member's.
 	 *
-	 * The caller learns nothing either way, so the form can't tell anyone who
-	 * is a member. Each address can ask once every few minutes and each IP
-	 * address a few times an hour, members or not, so the form can't be used
-	 * to flood an inbox.
+	 * The reply doesn't say whether the address is a member's. Each address
+	 * can ask once every few minutes, member or not, so the form can't be
+	 * used to flood an inbox. There's no limit per IP address: behind a proxy
+	 * or CDN every member would share one.
 	 *
 	 * @since 0.5.0
 	 *
 	 * @param string $email    Address typed into the form.
-	 * @param string $ip       Requester's IP address.
 	 * @param string $page_url URL of the page with the member page shortcode.
 	 * @return void
 	 */
-	public function request( string $email, string $ip, string $page_url ): void {
+	public function request( string $email, string $page_url ): void {
 		$email = strtolower( trim( $email ) );
 		if ( ! is_email( $email ) ) {
 			return;
 		}
 
-		$ip_key      = 'photo_comp_member_link_ip_' . md5( $ip );
 		$address_key = 'photo_comp_member_link_email_' . md5( $email );
-		$ip_requests = (int) get_transient( $ip_key );
-
-		if ( $ip_requests >= self::REQUESTS_PER_IP || get_transient( $address_key ) ) {
+		if ( get_transient( $address_key ) ) {
 			return;
 		}
 
-		set_transient( $ip_key, $ip_requests + 1, HOUR_IN_SECONDS );
 		set_transient( $address_key, 1, self::ADDRESS_WAIT );
 
 		$member = $this->members->find_by_email( $email );
