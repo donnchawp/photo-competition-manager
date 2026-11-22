@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Service\Member_Page_Link;
 use PhotoCompetitionManager\Service\Member_Visibility;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 
 use function PhotoCompetitionManager\Support\format_site_date;
 
@@ -25,6 +26,13 @@ use function PhotoCompetitionManager\Support\format_site_date;
  * @since 0.5.0
  */
 class Member_Page_Shortcode {
+
+	/**
+	 * The form asking for a link to the member page.
+	 *
+	 * @var Link_Request_Form|null
+	 */
+	private $link_form;
 
 	const SHORTCODE = 'competition_my_entries';
 
@@ -110,14 +118,13 @@ class Member_Page_Shortcode {
 		// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 		$page_url = (string) get_permalink();
-		$message  = '';
+		$message  = (string) $this->link_form()->handle(
+			function ( string $email ) use ( $page_url ): string {
+				$this->link->request( $email, $page_url );
 
-		if ( isset( $_POST['photo_comp_member_link'] ) && check_admin_referer( 'photo_comp_member_link', 'photo_comp_member_link_nonce' ) ) {
-			$email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-			$this->link->request( $email, $page_url );
-
-			$message = '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
-		}
+				return '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
+			}
+		);
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The key is its own authentication.
 		$key    = isset( $_GET[ Member_Page_Link::QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ Member_Page_Link::QUERY_ARG ] ) ) : '';
@@ -210,11 +217,11 @@ class Member_Page_Shortcode {
 	private function render_form(): void {
 		?>
 		<form method="post" class="photo-comp-member-link-form">
-			<?php wp_nonce_field( 'photo_comp_member_link', 'photo_comp_member_link_nonce' ); ?>
+			<?php $this->link_form()->nonce_field(); ?>
 			<p><?php esc_html_e( "Enter the email address you're registered with and we'll send you a link to every image you've entered.", 'photo-competition-manager' ); ?></p>
 			<p>
 				<label for="photo-comp-member-email"><?php esc_html_e( 'Your email address', 'photo-competition-manager' ); ?></label>
-				<input type="email" id="photo-comp-member-email" name="member_email" required />
+				<input type="email" id="photo-comp-member-email" name="member_email" value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>" required />
 			</p>
 			<p>
 				<button type="submit" name="photo_comp_member_link" value="1" class="button"><?php esc_html_e( 'Send me a link', 'photo-competition-manager' ); ?></button>
@@ -307,5 +314,18 @@ class Member_Page_Shortcode {
 			</form>
 		<?php endif; ?>
 		<?php
+	}
+
+	/**
+	 * The form asking for a link to the member page, one per request.
+	 *
+	 * @return Link_Request_Form
+	 */
+	private function link_form(): Link_Request_Form {
+		if ( ! $this->link_form ) {
+			$this->link_form = new Link_Request_Form( 'photo_comp_member_link', 'photo_comp_member_link_nonce' );
+		}
+
+		return $this->link_form;
 	}
 }

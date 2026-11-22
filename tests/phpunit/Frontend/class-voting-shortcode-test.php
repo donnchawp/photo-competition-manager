@@ -204,8 +204,8 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		);
 	}
 
-	private function request_token( string $email ): string {
-		$nonce = wp_create_nonce( 'photo_competition_request_voting_token' );
+	private function request_token( string $email, string $nonce = '' ): string {
+		$nonce = '' !== $nonce ? $nonce : wp_create_nonce( 'photo_competition_request_voting_token' );
 
 		$_POST['photo_competition_request_voting_token'] = '1';
 		$_POST['photo_competition_voting_nonce']         = $nonce;
@@ -288,6 +288,18 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'class="success"', $message );
 		$this->assertSame( 1, $this->mail_count );
 		$this->assertTrue( $this->tokens->has_recent_token( $member_id, (int) $this->competition->id, 'colour' ) );
+	}
+
+	public function test_a_stale_form_shows_the_form_again_and_the_retry_sends_the_link(): void {
+		$this->make_member( 'active@example.com', true );
+
+		$html = $this->request_token( 'active@example.com', 'stale' );
+
+		$this->assertStringContainsString( 'value="active@example.com"', $html );
+		$this->assertMatchesRegularExpression( '/<option value="colour"\s*selected/', $html, 'the category picked' );
+
+		$this->request_token( 'active@example.com' );
+		$this->assertSame( 1, $this->mail_count );
 	}
 
 	public function test_voting_link_template_fills_in_every_merge_tag(): void {
