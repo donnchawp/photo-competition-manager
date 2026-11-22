@@ -22,7 +22,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Flexible Voting** – Members vote with emailed voting links or a shared password, or external judges score the images with their own private links. A full-screen slideshow shows the images on club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
 * **Email Notifications** – Automated emails for upload confirmations, voting invitations, results announcements, and custom templates with merge tags
-* **Setup Wizard** – One-click page creation for upload, voting, results, and top-3 displays with pre-configured shortcodes
+* **Setup Wizard** – One-click page creation for upload, voting, results, top-3 and member pages with pre-configured shortcodes
 
 **Advanced Capabilities**
 
@@ -36,13 +36,14 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Privacy Tools** – Members and judges are covered by WordPress's Export Personal Data and Erase Personal Data tools, the privacy policy guide gets suggested text, and you choose how long logs are kept
 * **Repository Pattern** – All data stored in dedicated database tables for performance, portability, and clean separation from WordPress content
 
-**Five Shortcodes, Unlimited Possibilities**
+**Six Shortcodes, Unlimited Possibilities**
 
 * `[competition_upload]` – Member upload form with quota tracking
 * `[competition_voting]` – Interactive voting interface with live validation
 * `[competition_slideshow]` – Full-screen presentation mode for club meetings
 * `[competition_results]` – Complete results table with grade and category filtering
 * `[competition_top3]` – Responsive podium display showcasing winners
+* `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their positions
 
 Perfect for photography clubs, camera clubs, photo societies, and any organization running regular image competitions.
 
@@ -67,6 +68,7 @@ If you prefer manual control, create pages with these shortcodes:
 * `[competition_slideshow]` – Full-screen slideshow for in-person voting
 * `[competition_results]` – Complete results table
 * `[competition_top3]` – Podium-style top 3 display
+* `[competition_my_entries]` – A member's own entries, reached by a link they ask for by email
 
 **Shortcode Attributes**
 

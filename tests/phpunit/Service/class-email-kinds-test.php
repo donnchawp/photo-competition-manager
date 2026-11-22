@@ -16,9 +16,9 @@ use WP_UnitTestCase;
 class Email_Kinds_Test extends WP_UnitTestCase {
 
 	/**
-	 * The plugin sends seven kinds of email: two notifications and five requested emails.
+	 * The plugin sends eight kinds of email: two notifications and six requested emails.
 	 */
-	public function test_there_are_seven_kinds_of_email() {
+	public function test_there_are_eight_kinds_of_email() {
 		$notifications = array_filter(
 			Email_Kinds::all(),
 			function ( $kind ) {
@@ -27,7 +27,7 @@ class Email_Kinds_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame(
-			array( 'upload_reminder', 'voting_opened', 'voting_link', 'results_published', 'results_detailed', 'submission_confirmed', 'judge_link' ),
+			array( 'upload_reminder', 'voting_opened', 'voting_link', 'results_published', 'results_detailed', 'submission_confirmed', 'judge_link', 'member_page_link' ),
 			array_keys( Email_Kinds::all() )
 		);
 		$this->assertSame( array( 'voting_opened', 'submission_confirmed' ), array_keys( $notifications ) );

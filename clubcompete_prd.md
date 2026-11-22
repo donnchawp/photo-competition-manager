@@ -189,6 +189,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - HTML results page automatically generated per competition.
   - Shows top 3 winners per grade with thumbnails and scores.
 - Archive page lists all past competitions with links to their results.
+- **Member page:** `[competition_my_entries]` - a member types their email address and is sent a link, valid for 7 days, to every image they've entered, with total score and position where results are published.
 
 ---
 
@@ -252,6 +253,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_results competition="slug"]` | Complete results table for specific competition. |
 | `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
+| `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered. |
 
 ### Results Display Features
 

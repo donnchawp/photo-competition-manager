@@ -270,6 +270,25 @@ class Email_Kinds {
 					),
 				),
 			),
+			'member_page_link'     => array(
+				'label'        => __( 'Your entries link', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to a member who asks for a link to see every image they have entered.', 'photo-competition-manager' ),
+				'notification' => false,
+				'subject'      => __( 'Your competition entries at {site_name}', 'photo-competition-manager' ),
+				'body'         => self::body(
+					__( 'Hi {member_name},', 'photo-competition-manager' ),
+					__( 'Here is your link to see every image you have entered in our competitions, with your total scores and positions where results have been published.', 'photo-competition-manager' ),
+					self::button( '{member_page_link}', __( 'See your entries', 'photo-competition-manager' ) ),
+					__( "This link is yours alone and works for 7 days. Please don't share it.", 'photo-competition-manager' ),
+					__( "If you didn't ask for this link, you can ignore this email.", 'photo-competition-manager' )
+				),
+				'tags'         => array(
+					'{member_page_link}' => array(
+						'type'        => 'link',
+						'description' => __( "The member's own link to their entries.", 'photo-competition-manager' ),
+					),
+				),
+			),
 		);
 	}
 

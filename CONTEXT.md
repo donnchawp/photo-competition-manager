@@ -22,6 +22,10 @@ _Avoid_: Archived member, former member (that's a deleted one)
 Removing everything the club holds about a member, whether an admin does it from the Members screen or for an erasure request. Their entries, with their images and originals, go, and so does anything else that names them. The votes they cast stay without anything that identifies them, so the scores of every competition they voted in don't change. A member can be deleted while voting is open; their entries leave that category's ballot, as a disqualified entry would.
 _Avoid_: Erasing (except for WordPress's own tool), removing a member
 
+**Member page**:
+A member's own page listing every image they've entered, from every competition, newest first or best position first. Position and total score show once a competition's results are published. Entries in an archived competition are listed without their image. A member asks for a link to it by typing their email address on the page; the reply doesn't say whether the address is a member's, and each address can only ask once every few minutes. The link works for 7 days. Deactivated members can ask for one too and see the same page.
+_Avoid_: My account, profile (there is no login)
+
 ### Competitions
 
 **Competition type**:
