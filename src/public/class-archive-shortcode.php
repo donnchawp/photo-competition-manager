@@ -198,7 +198,7 @@ class Archive_Shortcode {
 	 *
 	 * @since 0.5.0
 	 *
-	 * @param array<string, string>|string $atts Shortcode attributes: show_names.
+	 * @param array<string, string>|string $atts Shortcode attributes: show_names, and columns (1 to 8, default 3).
 	 * @return string
 	 */
 	public function render( $atts ): string {
@@ -206,7 +206,14 @@ class Archive_Shortcode {
 			return '';
 		}
 
-		$atts = shortcode_atts( array( 'show_names' => 'false' ), $atts, self::SHORTCODE );
+		$atts = shortcode_atts(
+			array(
+				'show_names' => 'false',
+				'columns'    => '3',
+			),
+			$atts,
+			self::SHORTCODE
+		);
 
 		$page_url    = (string) get_permalink();
 		$slug        = (string) get_query_var( self::QUERY_VAR );
@@ -215,7 +222,7 @@ class Archive_Shortcode {
 		ob_start();
 		echo '<div class="photo-comp-archive">';
 		if ( $competition ) {
-			$this->render_competition( $competition, filter_var( $atts['show_names'], FILTER_VALIDATE_BOOLEAN ), $page_url );
+			$this->render_competition( $competition, filter_var( $atts['show_names'], FILTER_VALIDATE_BOOLEAN ), max( 1, min( 8, (int) $atts['columns'] ) ), $page_url );
 		} else {
 			$this->render_list( $page_url );
 		}
@@ -251,55 +258,71 @@ class Archive_Shortcode {
 	}
 
 	/**
-	 * One competition's images, category by category.
+	 * One competition's images, category by category, each as a core Gallery block.
+	 *
+	 * The images aren't Media Library attachments, so each Image block links
+	 * its thumbnail to the full image rather than using the block lightbox,
+	 * which would only enlarge the thumbnail.
 	 *
 	 * @param object $competition Competition row.
 	 * @param bool   $show_names  Whether to say who each image is by.
+	 * @param int    $columns     Gallery columns.
 	 * @param string $page_url    The archive page's URL.
 	 * @return void
 	 */
-	private function render_competition( object $competition, bool $show_names, string $page_url ): void {
-		$title = $this->labels->title_for_everyone( $competition );
-		?>
-		<p class="photo-comp-archive-back"><a href="<?php echo esc_url( $page_url ); ?>"><?php esc_html_e( 'All past competitions', 'photo-competition-manager' ); ?></a></p>
-		<h2><?php echo esc_html( $title ); ?></h2>
-		<?php foreach ( $this->archive->categories( $competition, $show_names ) as $category ) : ?>
-			<?php
-			if ( empty( $category['entries'] ) ) {
+	private function render_competition( object $competition, bool $show_names, int $columns, string $page_url ): void {
+		echo '<p class="photo-comp-archive-back"><a href="' . esc_url( $page_url ) . '">' . esc_html__( 'All past competitions', 'photo-competition-manager' ) . '</a></p>';
+		echo '<h2>' . esc_html( $this->labels->title_for_everyone( $competition ) ) . '</h2>';
+
+		foreach ( $this->archive->categories( $competition, $show_names ) as $category ) {
+			$images = array_filter(
+				$category['entries'],
+				static function ( $entry ): bool {
+					return '' !== $entry->thumb;
+				}
+			);
+			if ( empty( $images ) ) {
 				continue;
 			}
-			?>
-			<h3><?php echo esc_html( $category['label'] ); ?></h3>
-			<ul class="photo-comp-archive-gallery">
-				<?php foreach ( $category['entries'] as $entry ) : ?>
-					<?php
-					if ( '' === $entry->thumb ) {
-						continue;
-					}
-					?>
-					<?php $top3 = null !== $entry->position && $entry->position <= 3; ?>
-					<li class="<?php echo esc_attr( $top3 ? 'photo-comp-archive-entry photo-comp-archive-top3' : 'photo-comp-archive-entry' ); ?>">
-						<a href="<?php echo esc_url( $entry->full ); ?>" target="_blank" rel="noopener noreferrer">
-							<img src="<?php echo esc_url( $entry->thumb ); ?>" alt="<?php echo esc_attr( '' !== $entry->by ? $entry->by : $category['label'] ); ?>" loading="lazy" />
-						</a>
-						<?php if ( '' !== $entry->by ) : ?>
-							<span class="photo-comp-archive-by"><?php echo esc_html( $entry->by ); ?></span>
-						<?php endif; ?>
-						<?php if ( $top3 ) : ?>
-							<span class="photo-comp-archive-top3-label"><?php esc_html_e( 'Top 3', 'photo-competition-manager' ); ?></span>
-						<?php endif; ?>
-						<?php if ( null !== $entry->position ) : ?>
-							<span class="photo-comp-archive-result">
-								<?php
-								/* translators: 1: position, 2: grade name, 3: total score */
-								echo esc_html( sprintf( __( 'Position %1$d in %2$s, total score %3$d', 'photo-competition-manager' ), $entry->position, $entry->grade, $entry->score ) );
-								?>
-							</span>
-						<?php endif; ?>
-					</li>
-				<?php endforeach; ?>
-			</ul>
-		<?php endforeach; ?>
-		<?php
+
+			echo '<h3>' . esc_html( $category['label'] ) . '</h3>';
+			echo do_blocks( $this->gallery_block( $images, $category['label'], $columns ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Block markup built from escaped parts, rendered by core.
+		}
+	}
+
+	/**
+	 * Serialized core Gallery block markup for a category's images.
+	 *
+	 * @param array<int, object> $entries  Entries with a thumbnail, from Competition_Archive::categories().
+	 * @param string             $category Category label, the alt text when names are hidden.
+	 * @param int                $columns  Gallery columns.
+	 * @return string
+	 */
+	private function gallery_block( array $entries, string $category, int $columns ): string {
+		$images = '';
+		foreach ( $entries as $entry ) {
+			$caption = array();
+			if ( '' !== $entry->by ) {
+				$caption[] = esc_html( $entry->by );
+			}
+			if ( null !== $entry->position ) {
+				if ( $entry->position <= 3 ) {
+					$caption[] = '<strong>' . esc_html__( 'Top 3', 'photo-competition-manager' ) . '</strong>';
+				}
+				/* translators: 1: position, 2: grade name, 3: total score */
+				$caption[] = esc_html( sprintf( __( 'Position %1$d in %2$s, total score %3$d', 'photo-competition-manager' ), $entry->position, $entry->grade, $entry->score ) );
+			}
+
+			$figcaption = $caption ? '<figcaption class="wp-element-caption">' . implode( '<br>', $caption ) . '</figcaption>' : '';
+			$alt        = '' !== $entry->by ? $entry->by : $category;
+
+			$images .= '<!-- wp:image {"linkDestination":"media"} -->'
+				. '<figure class="wp-block-image"><a href="' . esc_url( $entry->full ) . '"><img src="' . esc_url( $entry->thumb ) . '" alt="' . esc_attr( $alt ) . '"/></a>' . $figcaption . '</figure>'
+				. '<!-- /wp:image -->';
+		}
+
+		return '<!-- wp:gallery {"columns":' . $columns . ',"linkTo":"media"} -->'
+			. '<figure class="wp-block-gallery has-nested-images columns-' . $columns . ' is-cropped">' . $images . '</figure>'
+			. '<!-- /wp:gallery -->';
 	}
 }

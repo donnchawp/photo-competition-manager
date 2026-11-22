@@ -77,6 +77,7 @@ If you prefer manual control, create pages with these shortcodes:
 * `competition="slug"` – Show a specific competition (results, top 3 and slideshow). The upload and voting pages always use the open competition
 * `category="slug"` – The category to show (slideshow, where it's required)
 * `hide_names="1"` – Leave out member names, and in interclub competitions the photographers, clubs and club standings (results only)
+* `columns="4"` – Gallery columns, 1 to 8 (past competitions only; default 3)
 * `show_names="true"` – Say who each image is by, and in interclub competitions the photographer and club (past competitions only; names are hidden without it)
 
 **Building From Source**
