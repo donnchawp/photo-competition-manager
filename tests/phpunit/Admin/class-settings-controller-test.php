@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -54,6 +55,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		delete_option( 'photo_comp_default_settings' );
 		delete_option( 'photo_comp_voting_ui_type' );
 		delete_option( Log_Retention::OPTION );
+		delete_option( Competition_Archive::OPTION );
 		parent::tear_down();
 	}
 
@@ -294,6 +296,34 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 	 * Saving the club settings leaves every competition's stored settings
 	 * alone.
 	 */
+	public function test_saving_settings_switches_the_archive_and_its_winners_on_and_off(): void {
+		$this->save_grades(
+			$this->default_grade_rows(),
+			array(
+				'archive_enabled'      => '1',
+				'archive_show_winners' => '1',
+			)
+		);
+		$this->assertSame(
+			array(
+				'enabled'      => true,
+				'show_winners' => true,
+			),
+			Competition_Archive::settings()
+		);
+
+		// Unticked boxes aren't posted.
+		unset( $_POST['archive_enabled'], $_POST['archive_show_winners'] );
+		$this->save_grades( $this->default_grade_rows() );
+		$this->assertSame(
+			array(
+				'enabled'      => false,
+				'show_winners' => false,
+			),
+			Competition_Archive::settings()
+		);
+	}
+
 	public function test_saving_club_settings_leaves_competitions_alone(): void {
 		$competitions = new Competitions_Repository();
 		$id           = $competitions->create(

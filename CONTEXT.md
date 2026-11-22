@@ -26,6 +26,10 @@ _Avoid_: Erasing (except for WordPress's own tool), removing a member
 A member's own page listing every image they've entered, from every competition, newest first or best position first. Position and total score show once a competition's results are published. Entries in an archived competition are listed without their image. A member asks for a link to it by typing their email address on the page; the reply doesn't say whether the address is a member's, and each address can only ask once every few minutes. The link works for 7 days. Deactivated members can ask for one too and see the same page.
 _Avoid_: My account, profile (there is no login)
 
+**Past competitions**:
+The public page listing competitions whose results are published, newest first, each at its own address (the page's address followed by the competition's slug) showing its entered images, category by category, in ballot order. The club switches it on, and chooses whether it shows positions and scores; names show only when the page asks for them. An archived competition isn't in it. A member can hide all their images from it, or single images; an image shows only while the member shows their images and it isn't hidden itself. In an interclub competition the member is the club.
+_Avoid_: Archive (that's an archived competition), gallery
+
 ### Competitions
 
 **Competition type**:

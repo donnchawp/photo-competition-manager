@@ -1061,3 +1061,44 @@
 .photo-comp-member-status {
 	color: #b32d2e;
 }
+
+/* Past competitions archive */
+.photo-comp-archive-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.photo-comp-archive-list li {
+	padding: 0.5em 0;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.photo-comp-archive-date {
+	margin-left: 0.75em;
+	color: #646970;
+}
+
+.photo-comp-archive-gallery {
+	list-style: none;
+	margin: 0 0 2em;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 1.5em;
+}
+
+.photo-comp-archive-entry img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+}
+
+.photo-comp-archive-entry span {
+	display: block;
+}
+
+.photo-comp-archive-top3 .photo-comp-archive-result {
+	font-weight: 600;
+}

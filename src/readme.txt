@@ -36,7 +36,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Privacy Tools** – Members and judges are covered by WordPress's Export Personal Data and Erase Personal Data tools, the privacy policy guide gets suggested text, and you choose how long logs are kept
 * **Repository Pattern** – All data stored in dedicated database tables for performance, portability, and clean separation from WordPress content
 
-**Six Shortcodes, Unlimited Possibilities**
+**Seven Shortcodes, Unlimited Possibilities**
 
 * `[competition_upload]` – Member upload form with quota tracking
 * `[competition_voting]` – Interactive voting interface with live validation
@@ -44,6 +44,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * `[competition_results]` – Complete results table with grade and category filtering
 * `[competition_top3]` – Responsive podium display showcasing winners
 * `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their positions
+* `[competition_archive]` – Past competitions, each at its own address showing the images entered
 
 Perfect for photography clubs, camera clubs, photo societies, and any organization running regular image competitions.
 
@@ -69,12 +70,14 @@ If you prefer manual control, create pages with these shortcodes:
 * `[competition_results]` – Complete results table
 * `[competition_top3]` – Podium-style top 3 display
 * `[competition_my_entries]` – A member's own entries, reached by a link they ask for by email
+* `[competition_archive]` – Past competitions; switch it on under **Competitions → Settings**
 
 **Shortcode Attributes**
 
 * `competition="slug"` – Show a specific competition (results, top 3 and slideshow). The upload and voting pages always use the open competition
 * `category="slug"` – The category to show (slideshow, where it's required)
 * `hide_names="1"` – Leave out member names, and in interclub competitions the photographers, clubs and club standings (results only)
+* `show_names="true"` – Say who each image is by, and in interclub competitions the photographer and club (past competitions only; names are hidden without it)
 
 **Building From Source**
 

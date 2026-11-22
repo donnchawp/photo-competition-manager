@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Install;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Frontend\Archive_Shortcode;
 use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
@@ -36,7 +37,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 11;
+	const DB_VERSION = 12;
 
 	/**
 	 * Option holding the installed data version.
@@ -56,7 +57,7 @@ class Activator {
 	}
 
 	/**
-	 * Register the image permalink's rewrite rule, then flush the rules.
+	 * Register the image permalink's and the archive page's rewrite rules, then flush the rules.
 	 *
 	 * Registered first, because the flush can run before init registers it. The
 	 * upgrade runs on plugins_loaded, before WordPress creates its rewrite
@@ -71,6 +72,7 @@ class Activator {
 		}
 
 		Image_Permalink::add_rewrite_rule();
+		Archive_Shortcode::add_rewrite_rule();
 		flush_rewrite_rules( false );
 	}
 
@@ -162,6 +164,12 @@ class Activator {
 		// competition can list its entrants. Every existing competition and
 		// member gets the one type, so a club with a single type sees no change.
 		if ( $installed < 10 && ( ! self::add_types_schema() || false === self::create_default_type() ) ) {
+			return;
+		}
+
+		// Members choose whether their images show in the past competitions
+		// archive, all of them and one by one. Everything starts shown.
+		if ( $installed < 12 && ! self::add_archive_visibility_schema() ) {
 			return;
 		}
 
@@ -652,6 +660,32 @@ class Activator {
 	}
 
 	/**
+	 * Add the archive visibility columns: a member's "all my images" choice and an image's own.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return bool False if a column is still missing, so the step runs again.
+	 */
+	private static function add_archive_visibility_schema(): bool {
+		global $wpdb;
+
+		$members = $wpdb->prefix . 'photocomp_members';
+		$images  = $wpdb->prefix . 'photocomp_images';
+
+		if ( ! self::column_exists( $members, 'images_public' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN images_public TINYINT(1) NOT NULL DEFAULT 1', $members ) );
+		}
+
+		if ( ! self::column_exists( $images, 'archive_hidden' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN archive_hidden TINYINT(1) NOT NULL DEFAULT 0', $images ) );
+		}
+
+		return self::column_exists( $members, 'images_public' ) && self::column_exists( $images, 'archive_hidden' );
+	}
+
+	/**
 	 * Create the one type every existing competition and member gets.
 	 *
 	 * Its competition defaults are the club's settings. A site that already
@@ -1029,6 +1063,7 @@ class Activator {
 			grade VARCHAR(100) NOT NULL,
 			active TINYINT(1) NOT NULL DEFAULT 1,
 			committee TINYINT(1) NOT NULL DEFAULT 0,
+			images_public TINYINT(1) NOT NULL DEFAULT 1,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
@@ -1065,6 +1100,7 @@ class Activator {
 			original_attachment_id BIGINT UNSIGNED NULL,
 			photographer VARCHAR(191) NOT NULL DEFAULT '',
 			entry_status VARCHAR(20) NOT NULL DEFAULT 'entered',
+			archive_hidden TINYINT(1) NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),

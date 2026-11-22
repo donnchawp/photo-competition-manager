@@ -59,6 +59,13 @@ class Frontend {
 	private $member_page_shortcode;
 
 	/**
+	 * Past competitions shortcode handler.
+	 *
+	 * @var Archive_Shortcode|null
+	 */
+	private $archive_shortcode;
+
+	/**
 	 * Attach public hooks.
 	 *
 	 * @return void
@@ -87,6 +94,10 @@ class Frontend {
 		// Register member page shortcode.
 		$this->member_page_shortcode = new Member_Page_Shortcode();
 		$this->member_page_shortcode->register();
+
+		// Register past competitions shortcode, with its permalinks.
+		$this->archive_shortcode = new Archive_Shortcode();
+		$this->archive_shortcode->register();
 
 		// Enqueue frontend styles.
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );

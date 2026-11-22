@@ -693,6 +693,31 @@ class Images_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Hide an image from the past competitions archive, or show it again.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int  $id     Image ID.
+	 * @param bool $hidden Whether it's hidden.
+	 * @return bool False if it couldn't be saved.
+	 */
+	public function set_archive_hidden( int $id, bool $hidden ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->update(
+			$this->table(),
+			array(
+				'archive_hidden' => $hidden ? 1 : 0,
+				'updated_at'     => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%d', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
 	 * Delete an image record.
 	 *
 	 * Also deletes any votes associated with the image. Its recorded results
