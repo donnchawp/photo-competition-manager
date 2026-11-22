@@ -1061,3 +1061,21 @@
 .photo-comp-member-status {
 	color: #b32d2e;
 }
+
+/* Past competitions archive */
+.photo-comp-archive-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.photo-comp-archive-list li {
+	padding: 0.5em 0;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.photo-comp-archive-date {
+	margin-left: 0.75em;
+	color: #646970;
+}
+

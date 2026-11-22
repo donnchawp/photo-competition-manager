@@ -769,6 +769,35 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertCount( 1, $images );
 		$this->assertSame( 'entered', $images[0]->entry_status );
 		$this->assertSame( '', $images[0]->photographer );
+		$this->assertSame( '0', $images[0]->archive_hidden, 'version 12 shows it in the past competitions archive' );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_12_shows_existing_members_images_in_the_archive(): void {
+		global $wpdb;
+
+		// The members table as version 11 left it, without the archive choice.
+		$this->shadowed = $wpdb->prefix . 'photocomp_members';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				name VARCHAR(191) NOT NULL,
+				email VARCHAR(191) NOT NULL,
+				grade VARCHAR(100) NOT NULL,
+				active TINYINT(1) NOT NULL DEFAULT 1,
+				committee TINYINT(1) NOT NULL DEFAULT 0,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				KEY email (email)
+			) {$wpdb->get_charset_collate()}"
+		);
+		$member = $this->insert_member( 0 );
+		update_option( 'photo_comp_db_version', 11 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( '1', ( new Members_Repository() )->find( $member )->images_public );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 

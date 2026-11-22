@@ -254,6 +254,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
 | `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered. |
+| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`. `show_names="true"` shows who each image is by. Off until switched on in Settings. |
 
 ### Results Display Features
 

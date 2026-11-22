@@ -10,6 +10,11 @@ namespace PhotoCompetitionManager\Tests\Admin;
 require_once __DIR__ . '/class-admin-controller-test-case.php';
 
 use PhotoCompetitionManager\Admin\Setup_Wizard_Controller;
+use PhotoCompetitionManager\Frontend\Archive_Shortcode;
+use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
  * The setup wizard creates the member page when it's ticked.
@@ -66,6 +71,32 @@ class Setup_Wizard_Controller_Test extends Admin_Controller_Test_Case {
 		$pages = $this->member_pages();
 		$this->assertCount( 1, $pages );
 		$this->assertSame( 'Your Entries', $pages[0]->post_title );
+	}
+
+	public function test_an_archive_page_made_by_the_wizard_has_working_permalinks_straight_away(): void {
+		$this->set_permalink_structure( '/%postname%/' );
+		Competition_Archive::save_settings( true, false );
+		$competition = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'November',
+				'slug'       => 'november',
+				'open_date'  => '2026-01-01 00:00:00',
+				'close_date' => '2026-01-06 00:00:00',
+			)
+		);
+		Workflow_Fixtures::publish_results( $competition );
+
+		$this->submit(
+			array(
+				'create_archive_page' => '1',
+				'archive_page_title'  => 'Past Competitions',
+			)
+		);
+
+		$this->go_to( home_url( '/past-competitions/november/' ) );
+		$this->assertSame( 'Past Competitions', get_queried_object()->post_title );
+		$this->assertSame( 'november', get_query_var( Archive_Shortcode::QUERY_VAR ) );
 	}
 
 	public function test_leaving_the_member_page_unticked_creates_none(): void {
