@@ -22,7 +22,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Flexible Voting** – Members vote with emailed voting links or a shared password, or external judges score the images with their own private links. A full-screen slideshow shows the images on club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
 * **Email Notifications** – Automated emails for upload confirmations, voting invitations, results announcements, and custom templates with merge tags
-* **Setup Wizard** – One-click page creation for upload, voting, results, and top-3 displays with pre-configured shortcodes
+* **Setup Wizard** – One-click page creation for upload, voting, results, top-3 and member pages with pre-configured shortcodes
 
 **Advanced Capabilities**
 
