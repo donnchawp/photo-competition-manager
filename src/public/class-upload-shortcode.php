@@ -31,13 +31,6 @@ use PhotoCompetitionManager\Support\Oversized_Post;
 class Upload_Shortcode {
 
 	/**
-	 * The address a stale link request form was sent with, to fill back in.
-	 *
-	 * @var string
-	 */
-	private $refill_email = '';
-
-	/**
 	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
 	 *
 	 * @var array<string, string>
@@ -281,12 +274,11 @@ class Upload_Shortcode {
 		}
 
 		// Handle token request form submission.
-		if ( isset( $_POST['photo_competition_request_token'] ) ) {
-			if ( Link_Request_Form::verified( 'photo_competition_request_token', 'photo_competition_nonce' ) ) {
-				$message = $this->handle_token_request( $competition, Link_Request_Form::typed_email() );
-			} else {
-				$message            = Link_Request_Form::stale_notice();
-				$this->refill_email = Link_Request_Form::typed_email();
+		$link_form = $this->link_form();
+		if ( $link_form->submitted() ) {
+			$message = $link_form->stale_notice();
+			if ( '' === $message ) {
+				$message = $this->handle_token_request( $competition, $link_form->email() );
 			}
 		}
 
@@ -562,7 +554,7 @@ class Upload_Shortcode {
 					<p><?php esc_html_e( 'To upload images, please enter your registered email address. We will send you a secure upload link.', 'photo-competition-manager' ); ?></p>
 
 					<form method="post" class="competition-token-request-form">
-						<?php wp_nonce_field( 'photo_competition_request_token', 'photo_competition_nonce' ); ?>
+						<?php $this->link_form()->nonce_field(); ?>
 
 						<p>
 							<label for="member_email">
@@ -573,7 +565,7 @@ class Upload_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
-								value="<?php echo esc_attr( $this->refill_email ); ?>"
+								value="<?php echo esc_attr( $this->link_form()->refill() ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
@@ -902,5 +894,14 @@ class Upload_Shortcode {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * The form asking for an upload link.
+	 *
+	 * @return Link_Request_Form
+	 */
+	private function link_form(): Link_Request_Form {
+		return new Link_Request_Form( 'photo_competition_request_token', 'photo_competition_request_token', 'photo_competition_nonce' );
 	}
 }

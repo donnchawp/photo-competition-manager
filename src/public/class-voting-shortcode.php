@@ -38,13 +38,6 @@ use PhotoCompetitionManager\Support\Link_Request_Form;
 class Voting_Shortcode {
 
 	/**
-	 * The address a stale link request form was sent with, to fill back in.
-	 *
-	 * @var string
-	 */
-	private $refill_email = '';
-
-	/**
 	 * Competitions repository.
 	 *
 	 * @var Competitions_Repository
@@ -473,16 +466,14 @@ class Voting_Shortcode {
 		$message = $this->refused && 'voting_closed' !== $this->refused['error']->get_error_code() ? $this->refused_notice() : '';
 
 		// Handle token request form submission.
-		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Link_Request_Form::verified() checks the nonce.
-		if ( isset( $_POST['photo_competition_request_voting_token'] ) ) {
-			if ( Link_Request_Form::verified( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
+		$link_form = $this->link_form();
+		if ( $link_form->submitted() ) {
+			$message = $link_form->stale_notice();
+			if ( '' === $message ) {
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- stale_notice() checked the nonce.
 				$message = $this->handle_token_request( $competition, $_POST );
-			} else {
-				$message            = Link_Request_Form::stale_notice();
-				$this->refill_email = Link_Request_Form::typed_email();
 			}
 		}
-		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		$view = array(
 			'heading'              => __( 'Voting', 'photo-competition-manager' ),
@@ -629,7 +620,7 @@ class Voting_Shortcode {
 					<p><?php esc_html_e( 'To vote, please enter your registered email address and select a category. We will send you a secure voting link.', 'photo-competition-manager' ); ?></p>
 
 					<form method="post" class="voting-token-request-form">
-						<?php wp_nonce_field( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ); ?>
+						<?php $this->link_form()->nonce_field(); ?>
 
 						<p>
 							<label for="member_email">
@@ -640,7 +631,7 @@ class Voting_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
-								value="<?php echo esc_attr( $this->refill_email ); ?>"
+								value="<?php echo esc_attr( $this->link_form()->refill() ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
@@ -1089,5 +1080,14 @@ class Voting_Shortcode {
 	 */
 	private function already_voted_notice( string $message ): string {
 		return '<p class="notice notice-success">' . esc_html( $message ) . '</p>';
+	}
+
+	/**
+	 * The form asking for a voting link.
+	 *
+	 * @return Link_Request_Form
+	 */
+	private function link_form(): Link_Request_Form {
+		return new Link_Request_Form( 'photo_competition_request_voting_token', 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' );
 	}
 }
