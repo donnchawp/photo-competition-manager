@@ -1102,6 +1102,24 @@
 
 .photo-comp-visibility-choice label {
 	margin-right: 1em;
+	cursor: pointer;
+}
+
+.photo-comp-visibility-choice input[type="radio"] {
+	accent-color: currentColor;
+	margin-right: 0.3em;
+}
+
+/* Themes outline a focused radio, even after a click. Keep it for the keyboard only, and round. */
+.photo-comp-visibility-choice input[type="radio"]:focus:not(:focus-visible) {
+	outline: none;
+	box-shadow: none;
+}
+
+.photo-comp-visibility-choice input[type="radio"]:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+	border-radius: 50%;
 }
 
 .photo-comp-visibility-status {
