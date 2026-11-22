@@ -194,6 +194,8 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
 * **Members**
   * New member page, `[competition_my_entries]`: members type their email address to get a link, valid for 7 days, to every image they've entered, newest first or best position first, with total scores and positions where results are published. Deactivated members can use it too. The Setup Wizard can create the page
+* **Past competitions**
+  * New past competitions page, `[competition_archive]`: lists competitions whose results are published, each at its own address (such as `/past-competitions/october-2026/`) showing the images entered, category by category, in a gallery that opens each image full size. Switch it on, and choose whether it shows positions and scores, under **Competitions → Settings**. Names are hidden unless the shortcode has `show_names="true"`. The Setup Wizard can create the page
 * **Privacy**
   * A results page with `hide_names` no longer shows members' names in its image addresses. Entry files are named after the member, so the thumbnails now use the name-free image links the voting and slideshow pages use
 
