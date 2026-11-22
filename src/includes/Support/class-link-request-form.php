@@ -21,18 +21,11 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 class Link_Request_Form {
 
 	/**
-	 * Name of the form's submit button.
+	 * Name of the form's submit button, which is also its nonce action.
 	 *
 	 * @var string
 	 */
-	private $button;
-
-	/**
-	 * Nonce action.
-	 *
-	 * @var string
-	 */
-	private $action;
+	private $name;
 
 	/**
 	 * Field the nonce is posted in.
@@ -42,17 +35,22 @@ class Link_Request_Form {
 	private $nonce_field;
 
 	/**
+	 * The address to fill back into the form after a stale nonce.
+	 *
+	 * @var string
+	 */
+	private $refill = '';
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.5.0
 	 *
-	 * @param string $button      Name of the form's submit button.
-	 * @param string $action      Nonce action.
+	 * @param string $name        Name of the form's submit button, and its nonce action.
 	 * @param string $nonce_field Field the nonce is posted in.
 	 */
-	public function __construct( string $button, string $action, string $nonce_field ) {
-		$this->button      = $button;
-		$this->action      = $action;
+	public function __construct( string $name, string $nonce_field ) {
+		$this->name        = $name;
 		$this->nonce_field = $nonce_field;
 	}
 
@@ -64,47 +62,36 @@ class Link_Request_Form {
 	 * @return void
 	 */
 	public function nonce_field(): void {
-		wp_nonce_field( $this->action, $this->nonce_field );
+		wp_nonce_field( $this->name, $this->nonce_field );
 	}
 
 	/**
-	 * Whether this request posted the form.
+	 * Handle the form, if this request posted it. A stale or missing nonce
+	 * gives a notice and keeps the address to fill back in; unlike
+	 * check_admin_referer(), it doesn't end the request. A valid one sends.
 	 *
 	 * @since 0.5.0
 	 *
-	 * @return bool
+	 * @param callable $send Takes the posted address; returns the message to show.
+	 * @return string|null The message to show, or null when the form wasn't posted.
 	 */
-	public function submitted(): bool {
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only which form was posted; stale_notice() checks the nonce.
-		return isset( $_POST[ $this->button ] );
-	}
-
-	/**
-	 * The notice for a posted form whose nonce is stale or missing. Unlike
-	 * check_admin_referer(), this doesn't end the request.
-	 *
-	 * @since 0.5.0
-	 *
-	 * @return string HTML, or '' when the form wasn't posted or its nonce is valid.
-	 */
-	public function stale_notice(): string {
-		if ( ! $this->stale() ) {
-			return '';
+	public function handle( callable $send ): ?string {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- This is the nonce check.
+		$this->refill = '';
+		if ( ! isset( $_POST[ $this->name ] ) ) {
+			return null;
 		}
 
-		return '<p class="error">' . esc_html__( 'This form had been open too long. Please send it again.', 'photo-competition-manager' ) . '</p>';
-	}
+		$email = isset( $_POST['member_email'] ) && is_string( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
+		$nonce = isset( $_POST[ $this->nonce_field ] ) && is_string( $_POST[ $this->nonce_field ] ) ? sanitize_key( wp_unslash( $_POST[ $this->nonce_field ] ) ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
-	/**
-	 * The address posted with the form.
-	 *
-	 * @since 0.5.0
-	 *
-	 * @return string Sanitized email address, or ''.
-	 */
-	public function email(): string {
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Callers send only after stale_notice() is empty.
-		return isset( $_POST['member_email'] ) && is_string( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
+		if ( '' === $nonce || false === wp_verify_nonce( $nonce, $this->name ) ) {
+			$this->refill = $email;
+			return '<p class="error">' . esc_html__( 'This form had been open too long. Please send it again.', 'photo-competition-manager' ) . '</p>';
+		}
+
+		return $send( $email );
 	}
 
 	/**
@@ -115,22 +102,6 @@ class Link_Request_Form {
 	 * @return string
 	 */
 	public function refill(): string {
-		return $this->stale() ? $this->email() : '';
-	}
-
-	/**
-	 * Whether the form was posted with a nonce that isn't valid.
-	 *
-	 * @return bool
-	 */
-	private function stale(): bool {
-		if ( ! $this->submitted() ) {
-			return false;
-		}
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- This is the nonce check.
-		$nonce = isset( $_POST[ $this->nonce_field ] ) && is_string( $_POST[ $this->nonce_field ] ) ? sanitize_key( wp_unslash( $_POST[ $this->nonce_field ] ) ) : '';
-
-		return '' === $nonce || false === wp_verify_nonce( $nonce, $this->action );
+		return $this->refill;
 	}
 }

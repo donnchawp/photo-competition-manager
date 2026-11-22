@@ -27,6 +27,13 @@ use function PhotoCompetitionManager\Support\format_site_date;
  */
 class Member_Page_Shortcode {
 
+	/**
+	 * The form asking for a link to the member page.
+	 *
+	 * @var Link_Request_Form|null
+	 */
+	private $link_form;
+
 	const SHORTCODE = 'competition_my_entries';
 
 	/**
@@ -111,17 +118,13 @@ class Member_Page_Shortcode {
 		// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 		$page_url = (string) get_permalink();
-		$message  = '';
+		$message  = (string) $this->link_form()->handle(
+			function ( string $email ) use ( $page_url ): string {
+				$this->link->request( $email, $page_url );
 
-		$link_form = $this->link_form();
-		if ( $link_form->submitted() ) {
-			$message = $link_form->stale_notice();
-			if ( '' === $message ) {
-				$this->link->request( $link_form->email(), $page_url );
-
-				$message = '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
+				return '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
 			}
-		}
+		);
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The key is its own authentication.
 		$key    = isset( $_GET[ Member_Page_Link::QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ Member_Page_Link::QUERY_ARG ] ) ) : '';
@@ -314,11 +317,15 @@ class Member_Page_Shortcode {
 	}
 
 	/**
-	 * The form asking for a link to the member page.
+	 * The form asking for a link to the member page, one per request.
 	 *
 	 * @return Link_Request_Form
 	 */
 	private function link_form(): Link_Request_Form {
-		return new Link_Request_Form( 'photo_comp_member_link', 'photo_comp_member_link', 'photo_comp_member_link_nonce' );
+		if ( ! $this->link_form ) {
+			$this->link_form = new Link_Request_Form( 'photo_comp_member_link', 'photo_comp_member_link_nonce' );
+		}
+
+		return $this->link_form;
 	}
 }

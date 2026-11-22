@@ -31,6 +31,13 @@ use PhotoCompetitionManager\Support\Oversized_Post;
 class Upload_Shortcode {
 
 	/**
+	 * The form asking for an upload link.
+	 *
+	 * @var Link_Request_Form|null
+	 */
+	private $link_form;
+
+	/**
 	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
 	 *
 	 * @var array<string, string>
@@ -274,13 +281,12 @@ class Upload_Shortcode {
 		}
 
 		// Handle token request form submission.
-		$link_form = $this->link_form();
-		if ( $link_form->submitted() ) {
-			$message = $link_form->stale_notice();
-			if ( '' === $message ) {
-				$message = $this->handle_token_request( $competition, $link_form->email() );
+		$requested = $this->link_form()->handle(
+			function ( string $email ) use ( $competition ): string {
+				return $this->handle_token_request( $competition, $email );
 			}
-		}
+		);
+		$message   = $requested ?? $message;
 
 		// A file over post_max_size reaches here with an empty $_POST, so neither the form's field nor its nonce is left to check.
 		if ( $token_record && $member && Oversized_Post::detected() ) {
@@ -897,11 +903,15 @@ class Upload_Shortcode {
 	}
 
 	/**
-	 * The form asking for an upload link.
+	 * The form asking for an upload link, one per request.
 	 *
 	 * @return Link_Request_Form
 	 */
 	private function link_form(): Link_Request_Form {
-		return new Link_Request_Form( 'photo_competition_request_token', 'photo_competition_request_token', 'photo_competition_nonce' );
+		if ( ! $this->link_form ) {
+			$this->link_form = new Link_Request_Form( 'photo_competition_request_token', 'photo_competition_nonce' );
+		}
+
+		return $this->link_form;
 	}
 }
