@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
@@ -38,14 +39,37 @@ class Member_Visibility {
 	private $images;
 
 	/**
+	 * Competitions repository.
+	 *
+	 * @var Competitions_Repository
+	 */
+	private $competitions;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Members_Repository|null $members Members repository.
-	 * @param Images_Repository|null  $images  Images repository.
+	 * @param Members_Repository|null      $members      Members repository.
+	 * @param Images_Repository|null       $images       Images repository.
+	 * @param Competitions_Repository|null $competitions Competitions repository.
 	 */
-	public function __construct( ?Members_Repository $members = null, ?Images_Repository $images = null ) {
-		$this->members = $members ?? new Members_Repository();
-		$this->images  = $images ?? new Images_Repository();
+	public function __construct( ?Members_Repository $members = null, ?Images_Repository $images = null, ?Competitions_Repository $competitions = null ) {
+		$this->members      = $members ?? new Members_Repository();
+		$this->images       = $images ?? new Images_Repository();
+		$this->competitions = $competitions ?? new Competitions_Repository();
+	}
+
+	/**
+	 * Whether an entry could show in past competitions at all: an entered
+	 * image in a competition that isn't archived. Only these get a choice.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $entry       Entry row.
+	 * @param object $competition Its competition row.
+	 * @return bool
+	 */
+	public static function may_show( object $entry, object $competition ): bool {
+		return 'entered' === (string) $entry->entry_status && null === $competition->deleted_at;
 	}
 
 	/**
@@ -81,22 +105,34 @@ class Member_Visibility {
 	}
 
 	/**
-	 * A member's choices: whether their images may show, and how many they've hidden one by one.
+	 * A member's choices: whether their images may show, and how many of
+	 * those that could show they've hidden one by one.
 	 *
 	 * @since 0.5.0
 	 *
 	 * @param object $member Member row.
-	 * @return array{shown: bool, hidden: int}
+	 * @return array{shown: bool, hidden_count: int}
 	 */
 	public function status( object $member ): array {
-		$hidden = 0;
+		$hidden       = 0;
+		$competitions = array();
 		foreach ( $this->images->find_by_member( (int) $member->id ) as $entry ) {
-			$hidden += (int) $entry->archive_hidden;
+			if ( ! (int) $entry->archive_hidden ) {
+				continue;
+			}
+
+			$competition_id = (int) $entry->competition_id;
+			if ( ! array_key_exists( $competition_id, $competitions ) ) {
+				$competitions[ $competition_id ] = $this->competitions->find( $competition_id, true );
+			}
+			if ( $competitions[ $competition_id ] && self::may_show( $entry, $competitions[ $competition_id ] ) ) {
+				++$hidden;
+			}
 		}
 
 		return array(
-			'shown'  => (bool) (int) $member->images_public,
-			'hidden' => $hidden,
+			'shown'        => (bool) (int) $member->images_public,
+			'hidden_count' => $hidden,
 		);
 	}
 
@@ -121,12 +157,12 @@ class Member_Visibility {
 		if ( ! $status['shown'] ) {
 			/* translators: %s: link to the past competitions page */
 			$text = sprintf( esc_html__( "Your images are hidden from the club's past competitions at %s.", 'photo-competition-manager' ), $link );
-		} elseif ( $status['hidden'] > 0 ) {
+		} elseif ( $status['hidden_count'] > 0 ) {
 			$text = sprintf(
 				/* translators: 1: link to the past competitions page, 2: number of images the member has hidden */
-				esc_html( _n( "Your images are shown in the club's past competitions at %1\$s, except %2\$d you've hidden.", "Your images are shown in the club's past competitions at %1\$s, except the %2\$d you've hidden.", $status['hidden'], 'photo-competition-manager' ) ),
+				esc_html( _n( "Your images are shown in the club's past competitions at %1\$s, except %2\$d you've hidden.", "Your images are shown in the club's past competitions at %1\$s, except the %2\$d you've hidden.", $status['hidden_count'], 'photo-competition-manager' ) ),
 				$link,
-				$status['hidden']
+				$status['hidden_count']
 			);
 		} else {
 			/* translators: %s: link to the past competitions page */

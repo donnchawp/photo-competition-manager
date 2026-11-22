@@ -70,10 +70,10 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 		$visibility = new Member_Visibility();
 
 		$this->assertTrue( $visibility->set_entry_shown( $this->ann(), $entry, false ) );
-		$this->assertSame( 1, $visibility->status( $this->ann() )['hidden'] );
+		$this->assertSame( 1, $visibility->status( $this->ann() )['hidden_count'] );
 
 		$this->assertTrue( $visibility->set_entry_shown( $this->ann(), $entry, true ) );
-		$this->assertSame( 0, $visibility->status( $this->ann() )['hidden'] );
+		$this->assertSame( 0, $visibility->status( $this->ann() )['hidden_count'] );
 	}
 
 	public function test_a_member_cannot_change_another_members_image(): void {
@@ -91,8 +91,8 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 		$visibility->set_all_shown( $this->ann(), false );
 		$this->assertSame(
 			array(
-				'shown'  => false,
-				'hidden' => 1,
+				'shown'        => false,
+				'hidden_count' => 1,
 			),
 			$visibility->status( $this->ann() )
 		);
@@ -100,11 +100,36 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 		$visibility->set_all_shown( $this->ann(), true );
 		$this->assertSame(
 			array(
-				'shown'  => true,
-				'hidden' => 1,
+				'shown'        => true,
+				'hidden_count' => 1,
 			),
 			$visibility->status( $this->ann() )
 		);
+	}
+
+	public function test_the_hidden_count_leaves_out_images_that_could_never_show(): void {
+		$images     = new Images_Repository();
+		$visibility = new Member_Visibility();
+		$entered    = Entry_Fixtures::insert_entry( $this->competition, 'colour', $this->ann, array() );
+		$substitute = Entry_Fixtures::insert_entry( $this->competition, 'mono', $this->ann, array() );
+		$images->update_entry_status( $substitute, 'substitute' );
+		$archived_competition = (int) ( new Competitions_Repository() )->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Old',
+				'slug'       => 'old',
+				'open_date'  => '2025-01-01 00:00:00',
+				'close_date' => '2025-01-06 00:00:00',
+			)
+		);
+		$archived             = Entry_Fixtures::insert_entry( $archived_competition, 'colour', $this->ann, array() );
+		( new Competitions_Repository() )->archive( $archived_competition );
+
+		foreach ( array( $entered, $substitute, $archived ) as $entry ) {
+			$images->set_archive_hidden( $entry, true );
+		}
+
+		$this->assertSame( 1, $visibility->status( $this->ann() )['hidden_count'] );
 	}
 
 	/**
@@ -114,7 +139,14 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 	 * @return string The page's URL.
 	 */
 	private function page_with( string $shortcode ): string {
-		return (string) get_permalink( self::factory()->post->create( array( 'post_type' => 'page', 'post_content' => '[' . $shortcode . ']' ) ) );
+		return (string) get_permalink(
+			self::factory()->post->create(
+				array(
+					'post_type'    => 'page',
+					'post_content' => '[' . $shortcode . ']',
+				)
+			)
+		);
 	}
 
 	public function test_the_upload_email_says_nothing_about_the_archive_while_it_is_off(): void {
@@ -135,13 +167,15 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 
 		$all_shown = $visibility->archive_paragraph( $this->ann() );
 		$visibility->set_entry_shown( $this->ann(), $entries[0], false );
+		$one_hidden = $visibility->archive_paragraph( $this->ann() );
 		$visibility->set_entry_shown( $this->ann(), $entries[1], false );
 		$two_hidden = $visibility->archive_paragraph( $this->ann() );
 		$visibility->set_all_shown( $this->ann(), false );
 		$all_hidden = $visibility->archive_paragraph( $this->ann() );
 
-		$this->assertCount( 3, array_unique( array( $all_shown, $two_hidden, $all_hidden ) ), 'each state reads differently' );
-		$this->assertStringContainsString( '2', wp_strip_all_tags( $two_hidden ) );
+		// The member links in each paragraph differ by when they expire, so compare the words.
+		$words = array_map( 'wp_strip_all_tags', array( $all_shown, $one_hidden, $two_hidden, $all_hidden ) );
+		$this->assertCount( 4, array_unique( $words ), 'all shown, one hidden, two hidden and all hidden each read differently' );
 		foreach ( array( $all_shown, $two_hidden, $all_hidden ) as $paragraph ) {
 			preg_match_all( '/href="([^"]+)"/', $paragraph, $links );
 			$links = array_map( 'html_entity_decode', $links[1] );

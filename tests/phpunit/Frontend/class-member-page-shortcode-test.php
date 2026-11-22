@@ -160,7 +160,7 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$stranger_reply = $this->post( 'stranger@example.com' );
 
 		$this->assertSame( $member_reply, $stranger_reply );
-		$this->assertStringContainsString( "If that address is on our list", $member_reply );
+		$this->assertStringContainsString( 'If that address is on our list', $member_reply );
 		$this->assertCount( 1, $this->mails );
 		$this->assertSame( 'ann@example.com', $this->mails[0]['to'] );
 		$this->assertStringContainsString( esc_url( get_permalink( $this->page_id ) ), (string) $this->mails[0]['message'] );
@@ -185,7 +185,10 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 	public function test_a_members_link_lists_their_entries_in_the_order_asked_for(): void {
 		$competitions = new Competitions_Repository();
 		$ids          = array();
-		foreach ( array( 'Spring' => '2026-03-01', 'Autumn' => '2026-09-01' ) as $title => $date ) {
+		foreach ( array(
+			'Spring' => '2026-03-01',
+			'Autumn' => '2026-09-01',
+		) as $title => $date ) {
 			$ids[ $title ] = (int) $competitions->create(
 				array(
 					'type_id'    => Type_Fixtures::id(),
@@ -256,11 +259,27 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertSame(
 			array(
-				'shown'  => false,
-				'hidden' => 1,
+				'shown'        => false,
+				'hidden_count' => 1,
 			),
 			( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )
 		);
+	}
+
+	public function test_the_form_says_when_a_choice_wasnt_saved(): void {
+		$entry = $this->ann_entry();
+		$bobs  = Entry_Fixtures::insert_scored_entry( (int) ( new \PhotoCompetitionManager\Repository\Images_Repository() )->find( $entry )->competition_id, 'colour', 'Bob', 'beginner', array() );
+		Competition_Archive::save_settings( true, false );
+		$_POST    = array(
+			'photo_comp_visibility' => '1',
+			'visibility'            => array( $bobs => 'hide' ),
+		);
+		$_REQUEST = $_POST;
+
+		$html = $this->open( $this->ann_key() );
+
+		$this->assertStringContainsString( '<p class="error">', $html );
+		$this->assertStringNotContainsString( '<p class="success">', $html );
 	}
 
 	public function test_opening_a_members_link_changes_nothing(): void {
@@ -276,8 +295,8 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertSame(
 			array(
-				'shown'  => true,
-				'hidden' => 0,
+				'shown'        => true,
+				'hidden_count' => 0,
 			),
 			( new Member_Visibility() )->status( ( new Members_Repository() )->find( (int) $this->ann->id ) )
 		);

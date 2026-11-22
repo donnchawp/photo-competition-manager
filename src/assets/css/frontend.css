@@ -1022,6 +1022,12 @@
 	color: #007017;
 }
 
+.photo-comp-member-page .error {
+	background: #fcf0f1;
+	border-left: 4px solid #d63638;
+	color: #8a2424;
+}
+
 .photo-comp-member-page .notice {
 	background: #fff8e5;
 	border-left: 4px solid #dba617;

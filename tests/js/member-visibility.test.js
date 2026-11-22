@@ -61,6 +61,27 @@ describe( 'member page past competitions choices', () => {
 		).toBe( 'Saved' );
 	} );
 
+	it( 'clears "Saved" after a few seconds', async () => {
+		jest.useFakeTimers();
+		renderForm();
+		global.fetch = jest.fn( () => Promise.resolve( { ok: true } ) );
+
+		const fieldset = choose( 'visibility[42]', 'hide' );
+		const status = fieldset.querySelector(
+			'.photo-comp-visibility-status'
+		);
+		// Let the fetch promise chain settle without real timers.
+		for ( let i = 0; i < 5; i++ ) {
+			await Promise.resolve();
+		}
+		expect( status.textContent ).toBe( 'Saved' );
+
+		jest.advanceTimersByTime( 5000 );
+		jest.useRealTimers();
+
+		expect( status.textContent ).toBe( '' );
+	} );
+
 	it( 'puts the choice back when it fails to save', async () => {
 		renderForm();
 		global.fetch = jest.fn( () => Promise.resolve( { ok: false } ) );

@@ -95,15 +95,10 @@ class Member_Visibility_API_Test extends WP_UnitTestCase {
 
 	public function test_a_members_key_saves_their_choice_for_all_images_or_one(): void {
 		$this->assertSame( 200, $this->post( array( 'key' => $this->key(), 'entry' => $this->entry, 'shown' => 'false' ) )->get_status() );
-		$this->assertSame( 200, $this->post( array( 'key' => $this->key(), 'entry' => 0, 'shown' => 'false' ) )->get_status() );
+		$this->assertSame( '1', ( new \PhotoCompetitionManager\Repository\Images_Repository() )->find( $this->entry )->archive_hidden, 'one image' );
 
-		$this->assertSame(
-			array(
-				'shown'  => false,
-				'hidden' => 1,
-			),
-			( new Member_Visibility() )->status( $this->ann() )
-		);
+		$this->assertSame( 200, $this->post( array( 'key' => $this->key(), 'entry' => 0, 'shown' => 'false' ) )->get_status() );
+		$this->assertFalse( ( new Member_Visibility() )->status( $this->ann() )['shown'], 'all images' );
 	}
 
 	public function test_without_a_valid_key_nothing_is_saved(): void {
@@ -113,7 +108,7 @@ class Member_Visibility_API_Test extends WP_UnitTestCase {
 		$this->assertTrue( ( new Member_Visibility() )->status( $this->ann() )['shown'] );
 	}
 
-	public function test_another_members_image_is_refused(): void {
+	public function test_a_choice_the_member_may_not_make_is_refused(): void {
 		$bobs = Entry_Fixtures::insert_scored_entry( (int) ( new \PhotoCompetitionManager\Repository\Images_Repository() )->find( $this->entry )->competition_id, 'colour', 'Bob', 'beginner', array() );
 
 		$this->assertSame( 400, $this->post( array( 'key' => $this->key(), 'entry' => $bobs, 'shown' => 'false' ) )->get_status() );

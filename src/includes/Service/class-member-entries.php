@@ -153,7 +153,7 @@ class Member_Entries {
 				'full'              => $urls['full'],
 				'thumb'             => $urls['thumb'],
 				'archive_hidden'    => (bool) (int) $entry->archive_hidden,
-				'may_show'          => 'entered' === (string) $entry->entry_status && ! $competition->archived,
+				'may_show'          => Member_Visibility::may_show( $entry, $competition->row ),
 				'score'             => $result ? (int) $result->total_score : null,
 				'position'          => $result ? (int) $result->position : null,
 				'grade'             => $result ? $this->grade_label( $competition->row, (string) $result->grade ) : null,

@@ -10,6 +10,7 @@
 
 ( function () {
 	const FORM_SELECTOR = '.photo-comp-visibility-form';
+	const SAVED_FOR_MS = 3000;
 
 	document.documentElement.classList.add( 'photo-comp-visibility-js' );
 
@@ -37,7 +38,7 @@
 
 	document.addEventListener( 'change', function ( e ) {
 		const radio = e.target;
-		const form = radio.closest ? radio.closest( FORM_SELECTOR ) : null;
+		const form = radio.closest( FORM_SELECTOR );
 		if ( ! form || 'radio' !== radio.type ) {
 			return;
 		}
@@ -65,6 +66,11 @@
 					throw new Error( 'Not saved' );
 				}
 				status.textContent = form.dataset.saved;
+				setTimeout( function () {
+					if ( form.dataset.saved === status.textContent ) {
+						status.textContent = '';
+					}
+				}, SAVED_FOR_MS );
 				if ( isAll ) {
 					showNotice( form, 'hide' === radio.value );
 				}

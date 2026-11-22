@@ -27,14 +27,44 @@ use WP_REST_Server;
 class Member_Visibility_API {
 
 	/**
+	 * REST namespace.
+	 */
+	const REST_NAMESPACE = 'photo-comp/v1';
+
+	/**
+	 * Route, under the namespace.
+	 */
+	const ROUTE = '/member-visibility';
+
+	/**
+	 * The member whose key the request carries, found by can_save().
+	 *
+	 * @var object|null
+	 */
+	private $member;
+
+	/**
+	 * The route's URL, for the member page.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return string
+	 */
+	public static function url(): string {
+		return rest_url( self::REST_NAMESPACE . self::ROUTE );
+	}
+
+	/**
 	 * Register the route.
+	 *
+	 * @since 0.5.0
 	 *
 	 * @return void
 	 */
 	public function register_routes(): void {
 		register_rest_route(
-			'photo-comp/v1',
-			'/member-visibility',
+			self::REST_NAMESPACE,
+			self::ROUTE,
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'save' ),
@@ -61,11 +91,14 @@ class Member_Visibility_API {
 	/**
 	 * Allow the request while past competitions are on and the key is a member's.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @param WP_REST_Request $request Request.
 	 * @return true|WP_Error
 	 */
 	public function can_save( WP_REST_Request $request ) {
-		if ( Competition_Archive::settings()['enabled'] && ( new Member_Page_Link() )->member( (string) $request->get_param( 'key' ) ) ) {
+		$this->member = Competition_Archive::settings()['enabled'] ? ( new Member_Page_Link() )->member( (string) $request->get_param( 'key' ) ) : null;
+		if ( $this->member ) {
 			return true;
 		}
 
@@ -75,11 +108,13 @@ class Member_Visibility_API {
 	/**
 	 * Save the choice.
 	 *
+	 * @since 0.5.0
+	 *
 	 * @param WP_REST_Request $request Request.
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function save( WP_REST_Request $request ) {
-		$member     = ( new Member_Page_Link() )->member( (string) $request->get_param( 'key' ) );
+		$member     = $this->member;
 		$visibility = new Member_Visibility();
 		$entry_id   = (int) $request->get_param( 'entry' );
 		$shown      = (bool) $request->get_param( 'shown' );
@@ -89,6 +124,6 @@ class Member_Visibility_API {
 			return new WP_Error( 'not_saved', __( "That choice couldn't be saved.", 'photo-competition-manager' ), array( 'status' => 400 ) );
 		}
 
-		return new WP_REST_Response( $visibility->status( $member ) );
+		return new WP_REST_Response( array( 'saved' => true ) );
 	}
 }
