@@ -1006,3 +1006,58 @@
 		font-size: 1.1em;
 	}
 }
+
+/* Member page */
+.photo-comp-member-page .error,
+.photo-comp-member-page .success,
+.photo-comp-member-page .notice {
+	padding: 1em;
+	margin-bottom: 1.5em;
+	border-radius: 4px;
+}
+
+.photo-comp-member-page .success {
+	background: #edfaef;
+	border-left: 4px solid #00a32a;
+	color: #007017;
+}
+
+.photo-comp-member-page .notice {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	color: #8a6d3b;
+}
+
+.photo-comp-member-entries {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 1.5em;
+}
+
+.photo-comp-member-entry img,
+.photo-comp-member-no-image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+}
+
+.photo-comp-member-no-image {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f0f0f1;
+	color: #646970;
+	text-align: center;
+}
+
+.photo-comp-member-entry-details span {
+	display: block;
+}
+
+.photo-comp-member-status {
+	color: #b32d2e;
+}

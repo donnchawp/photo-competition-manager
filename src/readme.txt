@@ -36,13 +36,14 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Privacy Tools** – Members and judges are covered by WordPress's Export Personal Data and Erase Personal Data tools, the privacy policy guide gets suggested text, and you choose how long logs are kept
 * **Repository Pattern** – All data stored in dedicated database tables for performance, portability, and clean separation from WordPress content
 
-**Five Shortcodes, Unlimited Possibilities**
+**Six Shortcodes, Unlimited Possibilities**
 
 * `[competition_upload]` – Member upload form with quota tracking
 * `[competition_voting]` – Interactive voting interface with live validation
 * `[competition_slideshow]` – Full-screen presentation mode for club meetings
 * `[competition_results]` – Complete results table with grade and category filtering
 * `[competition_top3]` – Responsive podium display showcasing winners
+* `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their places
 
 Perfect for photography clubs, camera clubs, photo societies, and any organization running regular image competitions.
 
@@ -67,6 +68,7 @@ If you prefer manual control, create pages with these shortcodes:
 * `[competition_slideshow]` – Full-screen slideshow for in-person voting
 * `[competition_results]` – Complete results table
 * `[competition_top3]` – Podium-style top 3 display
+* `[competition_my_entries]` – A member's own entries, reached by a link they ask for by email
 
 **Shortcode Attributes**
 
