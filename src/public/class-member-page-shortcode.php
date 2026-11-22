@@ -13,6 +13,8 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Service\Member_Page_Link;
 
+use function PhotoCompetitionManager\Support\format_site_date;
+
 /**
  * Shortcode [competition_my_entries]. Without a link it asks for an email
  * address and sends a link; with a valid link it lists the member's entries.
@@ -89,7 +91,7 @@ class Member_Page_Shortcode {
 		if ( $member ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort order only.
 			$sort = isset( $_GET['sort'] ) && Member_Entries::SORT_POSITION === $_GET['sort'] ? Member_Entries::SORT_POSITION : Member_Entries::SORT_DATE;
-			$this->render_entries( ( new Member_Entries() )->for_member( (int) $member->id, $sort ), $sort, add_query_arg( Member_Page_Link::QUERY_ARG, $key, $page_url ) );
+			$this->render_entries( ( new Member_Entries() )->for_member( $member, $sort ), $sort, add_query_arg( Member_Page_Link::QUERY_ARG, $key, $page_url ) );
 		} else {
 			$this->render_form();
 		}
@@ -162,9 +164,7 @@ class Member_Page_Shortcode {
 					<?php endif; ?>
 					<div class="photo-comp-member-entry-details">
 						<strong><?php echo esc_html( $entry->competition_title ); ?></strong>
-						<?php if ( '' !== $entry->competition_date ) : ?>
-							<span class="photo-comp-member-date"><?php echo esc_html( mysql2date( get_option( 'date_format' ), $entry->competition_date ) ); ?></span>
-						<?php endif; ?>
+						<span class="photo-comp-member-date"><?php echo esc_html( format_site_date( $entry->competition_date ) ); ?></span>
 						<span><?php echo esc_html( $entry->category ); ?></span>
 						<?php if ( '' !== $entry->photographer ) : ?>
 							<span><?php echo esc_html( $entry->photographer ); ?></span>

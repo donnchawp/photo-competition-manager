@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
@@ -79,6 +80,17 @@ class Member_Entries_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A member's listed entries.
+	 *
+	 * @param int    $member_id Member ID.
+	 * @param string $sort      Sort.
+	 * @return array<int, object>
+	 */
+	private function entries( int $member_id, string $sort = 'date' ): array {
+		return ( new Member_Entries() )->for_member( ( new Members_Repository() )->find( $member_id ), $sort );
+	}
+
+	/**
 	 * Entry IDs of a member's listed entries, in order.
 	 *
 	 * @param int    $member_id Member ID.
@@ -90,7 +102,7 @@ class Member_Entries_Test extends WP_UnitTestCase {
 			static function ( $entry ): int {
 				return (int) $entry->id;
 			},
-			( new Member_Entries() )->for_member( $member_id, $sort )
+			$this->entries( $member_id, $sort )
 		);
 	}
 
@@ -116,7 +128,7 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		Workflow_Fixtures::publish_results( $hidden );
 		$this->assertTrue( true === ( new Competition_Workflow() )->unpublish_results( $hidden ) );
 
-		$entries = array_column( ( new Member_Entries() )->for_member( $this->ann, 'date' ), null, 'id' );
+		$entries = array_column( $this->entries( $this->ann ), null, 'id' );
 
 		$this->assertSame( 17, $entries[ $scored ]->score );
 		$this->assertSame( 2, $entries[ $scored ]->position );
@@ -149,7 +161,7 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		$entry       = Entry_Fixtures::insert_entry( $competition, 'colour', $no_grade, array( 9 ) );
 		Workflow_Fixtures::publish_results( $competition );
 
-		$listed = ( new Member_Entries() )->for_member( $no_grade, 'date' );
+		$listed = $this->entries( $no_grade );
 
 		$this->assertSame( $entry, $listed[0]->id );
 		$this->assertSame( 'Ungraded', $listed[0]->grade );
@@ -161,10 +173,10 @@ class Member_Entries_Test extends WP_UnitTestCase {
 		Workflow_Fixtures::publish_results( $archived );
 		$this->competitions->archive( $archived );
 
-		$entries = ( new Member_Entries() )->for_member( $this->ann, 'date' );
+		$entries = $this->entries( $this->ann );
 
 		$this->assertSame( array( $entry ), $this->listed( $this->ann ) );
 		$this->assertSame( 1, $entries[0]->position );
-		$this->assertTrue( $entries[0]->archived );
+		$this->assertSame( '', $entries[0]->thumb );
 	}
 }

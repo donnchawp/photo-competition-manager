@@ -149,9 +149,9 @@ class Member_Page_Link {
 			return;
 		}
 
-		// A deactivated member's stored address is marked so mail to it bounces.
+		// Send to the address typed in: a deactivated member's stored address is marked so mail to it bounces.
 		$recipient        = clone $member;
-		$recipient->email = Members_Repository::unmark_deactivated_email( (string) $member->email );
+		$recipient->email = $email;
 
 		$this->email->send( 'member_page_link', $recipient, null, array( '{member_page_link}' => $this->url( $member, $page_url ) ) );
 	}
