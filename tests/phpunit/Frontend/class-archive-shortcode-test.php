@@ -166,6 +166,58 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertTrue( is_404() );
 	}
 
+	public function test_a_child_page_of_the_archive_page_still_shows(): void {
+		$child = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_name'   => 'rules',
+				'post_parent' => $this->page_id,
+			)
+		);
+		$this->rebuild_rules();
+
+		$this->visit( home_url( '/competitions/rules/' ) );
+
+		$this->assertFalse( is_404() );
+		$this->assertTrue( is_page( $child ) );
+	}
+
+	public function test_links_work_when_the_archive_page_is_the_front_page(): void {
+		$this->competition( 'november-2026' );
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $this->page_id );
+
+		$this->visit( home_url( '/' ) );
+		$this->assertStringContainsString( 'href="' . home_url( '/competitions/november-2026/' ) . '"', $this->shortcode->render( array() ) );
+
+		$this->visit( home_url( '/competitions/november-2026/' ) );
+		$this->assertFalse( is_404() );
+	}
+
+	public function test_the_archive_page_is_found_on_a_site_with_many_pages(): void {
+		$this->competition( 'november-2026' );
+		// Pages whose titles sort before the archive page's.
+		self::factory()->post->create_many(
+			100,
+			array(
+				'post_type'  => 'page',
+				'post_title' => 'About',
+			)
+		);
+		wp_update_post(
+			array(
+				'ID'        => $this->page_id,
+				'post_name' => 'past',
+			)
+		);
+		$this->rebuild_rules();
+
+		$this->visit( home_url( '/past/november-2026/' ) );
+
+		$this->assertFalse( is_404() );
+		$this->assertTrue( is_page( $this->page_id ) );
+	}
+
 	public function test_renaming_the_page_moves_the_permalinks(): void {
 		$this->competition( 'november-2026' );
 

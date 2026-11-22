@@ -80,6 +80,7 @@ class Archive_Shortcode {
 		add_shortcode( self::SHORTCODE, array( $this, 'render' ) );
 		add_filter( 'rewrite_rules_array', array( self::class, 'add_rewrite_rules' ) );
 		add_filter( 'query_vars', array( $this, 'add_query_var' ) );
+		add_filter( 'request', array( $this, 'route' ) );
 		add_action( 'template_redirect', array( $this, 'not_found' ) );
 
 		foreach ( array( 'save_post_page', 'trashed_post', 'untrashed_post', 'deleted_post' ) as $hook ) {
@@ -106,7 +107,32 @@ class Archive_Shortcode {
 			return $rules;
 		}
 
-		return array( '^' . preg_quote( $path, '#' ) . '/([^/]+)/?$' => 'index.php?pagename=' . $path . '&' . self::QUERY_VAR . '=$matches[1]' ) + $rules;
+		// The page's own feed, embed and trackback addresses keep WordPress's rules.
+		$regex = '^' . preg_quote( $path, '#' ) . '/(?!(?:feed|rdf|rss|rss2|atom|embed|trackback)/?$)([^/]+)/?$';
+
+		return array( $regex => 'index.php?pagename=' . $path . '&' . self::QUERY_VAR . '=$matches[1]' ) + $rules;
+	}
+
+	/**
+	 * Hand a request whose slug isn't a competition in the archive back to
+	 * WordPress as a child page of the archive page. That shows the child
+	 * page if there is one, and a 404 if not.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param array<string, mixed> $vars Query vars.
+	 * @return array<string, mixed>
+	 */
+	public function route( array $vars ): array {
+		$on_archive_page = isset( $vars['pagename'] ) && get_option( self::PAGE_PATH_OPTION, '' ) === $vars['pagename'];
+		if ( empty( $vars[ self::QUERY_VAR ] ) || ! $on_archive_page || $this->find( (string) $vars[ self::QUERY_VAR ] ) ) {
+			return $vars;
+		}
+
+		$vars['pagename'] .= '/' . $vars[ self::QUERY_VAR ];
+		unset( $vars[ self::QUERY_VAR ] );
+
+		return $vars;
 	}
 
 	/**
@@ -134,9 +160,21 @@ class Archive_Shortcode {
 	 * @return string The path, or '' when there's no published archive page.
 	 */
 	public static function refresh_page_path(): string {
+		global $wpdb;
+
+		// Only pages mentioning the shortcode, however many pages the site has.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Runs only when a page changes.
+		$ids  = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT ID FROM %i WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s ORDER BY menu_order, post_title, ID",
+				$wpdb->posts,
+				'%' . $wpdb->esc_like( '[' . self::SHORTCODE ) . '%'
+			)
+		);
 		$path = '';
-		foreach ( get_pages( array( 'number' => 100 ) ) as $page ) {
-			if ( has_shortcode( (string) $page->post_content, self::SHORTCODE ) ) {
+		foreach ( $ids as $id ) {
+			$page = get_post( (int) $id );
+			if ( $page && has_shortcode( (string) $page->post_content, self::SHORTCODE ) ) {
 				$path = (string) get_page_uri( $page );
 				break;
 			}
@@ -216,11 +254,14 @@ class Archive_Shortcode {
 	 * @return string
 	 */
 	private function permalink( string $page_url, object $competition ): string {
-		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+		$path = (string) get_option( self::PAGE_PATH_OPTION, '' );
+		if ( '' === (string) get_option( 'permalink_structure' ) || '' === $path ) {
 			return add_query_arg( self::QUERY_VAR, $competition->slug, $page_url );
 		}
 
-		return trailingslashit( $page_url ) . rawurlencode( (string) $competition->slug ) . '/';
+		// From the page's path, which the rewrite rule matches, not its URL:
+		// a front page's URL is the home address.
+		return home_url( '/' . $path . '/' . rawurlencode( (string) $competition->slug ) . '/' );
 	}
 
 	/**
@@ -306,7 +347,7 @@ class Archive_Shortcode {
 			$images = array_filter(
 				$category['entries'],
 				static function ( $entry ): bool {
-					return '' !== $entry->thumb;
+					return '' !== $entry->thumb && '' !== $entry->full;
 				}
 			);
 			if ( empty( $images ) ) {
@@ -366,6 +407,8 @@ class Archive_Shortcode {
 	 * @return string
 	 */
 	private function gallery_block( array $entries, string $category, int $columns ): string {
+		// A column's width in a content-width gallery, so the thumbnail is chosen only where it's big enough.
+		$sizes  = '(max-width: 600px) 50vw, ' . (int) ceil( 700 / $columns ) . 'px';
 		$images = '';
 		foreach ( $entries as $entry ) {
 			$caption = array();
@@ -385,8 +428,11 @@ class Archive_Shortcode {
 
 			// The images aren't attachments, so the lightbox enlarges the image's
 			// src. That's the full image; srcset offers the thumbnail for the gallery.
-			$images .= '<!-- wp:image {"lightbox":{"enabled":true}} -->'
-				. '<figure class="wp-block-image"><img src="' . esc_url( $entry->full ) . '" srcset="' . esc_url( $entry->thumb ) . ' 400w, ' . esc_url( $entry->full ) . ' 1920w" sizes="(max-width: 600px) 50vw, 400px" alt="' . esc_attr( $alt ) . '" loading="lazy"/>' . $figcaption . '</figure>'
+			// A thumbnail fits a 400px box, so its width follows from the full image's shape.
+			$full_width  = $entry->width > 0 ? $entry->width : 1920;
+			$thumb_width = $entry->width > 0 ? (int) round( 400 * min( 1, $entry->width / max( $entry->width, $entry->height ) ) ) : 400;
+			$images     .= '<!-- wp:image {"lightbox":{"enabled":true}} -->'
+				. '<figure class="wp-block-image"><img src="' . esc_url( $entry->full ) . '" srcset="' . esc_url( $entry->thumb ) . ' ' . $thumb_width . 'w, ' . esc_url( $entry->full ) . ' ' . $full_width . 'w" sizes="' . esc_attr( $sizes ) . '" alt="' . esc_attr( $alt ) . '" loading="lazy"/>' . $figcaption . '</figure>'
 				. '<!-- /wp:image -->';
 		}
 
