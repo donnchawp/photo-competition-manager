@@ -155,19 +155,16 @@ class Member_Visibility {
 		$link   = '<a href="' . esc_url( $archive_url ) . '">' . esc_html( $archive_url ) . '</a>';
 
 		if ( ! $status['shown'] ) {
-			/* translators: %s: link to the past competitions page */
-			$text = sprintf( esc_html__( "Your images are hidden from the club's past competitions at %s.", 'photo-competition-manager' ), $link );
+			/* translators: 1: link to the past competitions page */
+			$format = __( "Your images are hidden from the club's past competitions at %1\$s.", 'photo-competition-manager' );
 		} elseif ( $status['hidden_count'] > 0 ) {
-			$text = sprintf(
-				/* translators: 1: link to the past competitions page, 2: number of images the member has hidden */
-				esc_html( _n( "Your images are shown in the club's past competitions at %1\$s, except %2\$d you've hidden.", "Your images are shown in the club's past competitions at %1\$s, except the %2\$d you've hidden.", $status['hidden_count'], 'photo-competition-manager' ) ),
-				$link,
-				$status['hidden_count']
-			);
+			/* translators: 1: link to the past competitions page, 2: number of images the member has hidden */
+			$format = _n( "Your images are shown in the club's past competitions at %1\$s, except %2\$d you've hidden.", "Your images are shown in the club's past competitions at %1\$s, except the %2\$d you've hidden.", $status['hidden_count'], 'photo-competition-manager' );
 		} else {
-			/* translators: %s: link to the past competitions page */
-			$text = sprintf( esc_html__( "Your images are shown in the club's past competitions at %s.", 'photo-competition-manager' ), $link );
+			/* translators: 1: link to the past competitions page */
+			$format = __( "Your images are shown in the club's past competitions at %1\$s.", 'photo-competition-manager' );
 		}
+		$text = sprintf( esc_html( $format ), $link, $status['hidden_count'] );
 
 		$entries_url = Competition_Settings::find_page_url_with_shortcode( 'competition_my_entries' );
 		if ( '' !== $entries_url ) {

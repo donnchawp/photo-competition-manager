@@ -882,11 +882,15 @@ class Competition_Settings {
 			return '';
 		}
 
-		if ( in_array( $shortcode_tag, self::PAGE_SHORTCODES, true ) ) {
-			return self::competition_page_urls()[ $shortcode_tag ];
+		// Other shortcodes' pages join the request's cache as they're asked for.
+		$urls = self::competition_page_urls();
+		if ( ! array_key_exists( $shortcode_tag, $urls ) ) {
+			$urls[ $shortcode_tag ] = self::find_page_urls( array( $shortcode_tag ) )[ $shortcode_tag ];
+
+			self::$page_urls[ (string) wp_cache_get_last_changed( 'posts' ) ] = $urls;
 		}
 
-		return self::find_page_urls( array( $shortcode_tag ) )[ $shortcode_tag ];
+		return $urls[ $shortcode_tag ];
 	}
 
 	/**

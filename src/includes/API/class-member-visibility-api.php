@@ -37,13 +37,6 @@ class Member_Visibility_API {
 	const ROUTE = '/member-visibility';
 
 	/**
-	 * The member whose key the request carries, found by can_save().
-	 *
-	 * @var object|null
-	 */
-	private $member;
-
-	/**
 	 * The route's URL, for the member page.
 	 *
 	 * @since 0.5.0
@@ -97,8 +90,10 @@ class Member_Visibility_API {
 	 * @return true|WP_Error
 	 */
 	public function can_save( WP_REST_Request $request ) {
-		$this->member = Competition_Archive::settings()['enabled'] ? ( new Member_Page_Link() )->member( (string) $request->get_param( 'key' ) ) : null;
-		if ( $this->member ) {
+		$member = Competition_Archive::settings()['enabled'] ? ( new Member_Page_Link() )->member( (string) $request->get_param( 'key' ) ) : null;
+		if ( $member ) {
+			// Passed on to save(), as the upload API passes its token record.
+			$request->set_param( '_member', $member );
 			return true;
 		}
 
@@ -114,7 +109,7 @@ class Member_Visibility_API {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function save( WP_REST_Request $request ) {
-		$member     = $this->member;
+		$member     = $request->get_param( '_member' );
 		$visibility = new Member_Visibility();
 		$entry_id   = (int) $request->get_param( 'entry' );
 		$shown      = (bool) $request->get_param( 'shown' );

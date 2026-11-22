@@ -88,7 +88,7 @@ class Member_Page_Shortcode {
 
 		// Past competitions controls, only while the club shows them. Only a
 		// POST changes a choice: mail scanners open links.
-		$choices = null;
+		$shown = null;
 		if ( $member && Competition_Archive::settings()['enabled'] ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The member's key in the URL authenticates; there's no login session to forge.
 			if ( isset( $_POST['photo_comp_visibility'] ) ) {
@@ -98,7 +98,7 @@ class Member_Page_Shortcode {
 					? '<p class="success">' . esc_html__( 'Your choices are saved.', 'photo-competition-manager' ) . '</p>'
 					: '<p class="error">' . esc_html__( "Some of your choices couldn't be saved. Check them below and try again.", 'photo-competition-manager' ) . '</p>';
 			}
-			$choices = ( new Member_Visibility() )->status( $member );
+			$shown = (bool) (int) $member->images_public;
 		}
 
 		ob_start();
@@ -108,7 +108,7 @@ class Member_Page_Shortcode {
 		if ( $member ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort order only.
 			$sort = isset( $_GET['sort'] ) && Member_Entries::SORT_POSITION === $_GET['sort'] ? Member_Entries::SORT_POSITION : Member_Entries::SORT_DATE;
-			$this->render_entries( ( new Member_Entries() )->for_member( $member, $sort ), $sort, add_query_arg( Member_Page_Link::QUERY_ARG, $key, $page_url ), $choices, $key );
+			$this->render_entries( ( new Member_Entries() )->for_member( $member, $sort ), $sort, add_query_arg( Member_Page_Link::QUERY_ARG, $key, $page_url ), $shown, $key );
 		} else {
 			$this->render_form();
 		}
@@ -190,11 +190,11 @@ class Member_Page_Shortcode {
 	 * @param array<int, object> $entries  Entries, from Member_Entries.
 	 * @param string             $sort     Current sort.
 	 * @param string             $base_url   This page with the member's key.
-	 * @param array|null         $choices    The member's past competitions choices, an array{shown: bool, hidden_count: int} from Member_Visibility::status(), or null while past competitions are off.
+	 * @param bool|null          $shown      Whether the member shows their images in past competitions, or null while past competitions are off.
 	 * @param string             $key        The member's key, for saving choices in the background.
 	 * @return void
 	 */
-	private function render_entries( array $entries, string $sort, string $base_url, ?array $choices, string $key ): void {
+	private function render_entries( array $entries, string $sort, string $base_url, ?bool $shown, string $key ): void {
 		$sorts = array(
 			Member_Entries::SORT_DATE     => __( 'Newest first', 'photo-competition-manager' ),
 			Member_Entries::SORT_POSITION => __( 'Best position first', 'photo-competition-manager' ),
@@ -215,14 +215,14 @@ class Member_Page_Shortcode {
 				<?php endif; ?>
 			<?php endforeach; ?>
 		</p>
-		<?php if ( $choices ) : ?>
+		<?php if ( null !== $shown ) : ?>
 			<?php wp_enqueue_script( 'photo-comp-member-visibility', PHOTO_COMPETITION_MANAGER_URL . 'assets/js/member-visibility.js', array(), PHOTO_COMPETITION_MANAGER_VERSION, true ); ?>
 			<form method="post" action="<?php echo esc_url( $base_url ); ?>" class="photo-comp-visibility-form" data-endpoint="<?php echo esc_url( Member_Visibility_API::url() ); ?>" data-key="<?php echo esc_attr( $key ); ?>" data-saved="<?php esc_attr_e( 'Saved', 'photo-competition-manager' ); ?>" data-failed="<?php esc_attr_e( "Couldn't save. Try again.", 'photo-competition-manager' ); ?>">
 				<input type="hidden" name="photo_comp_visibility" value="1" />
 				<div class="photo-comp-visibility-all">
 					<p><strong><?php esc_html_e( 'Your images in past competitions', 'photo-competition-manager' ); ?></strong></p>
-					<?php $this->render_show_hide( 'visibility_all', $choices['shown'], __( 'All your images in past competitions', 'photo-competition-manager' ) ); ?>
-					<p class="photo-comp-visibility-off-notice"<?php echo $choices['shown'] ? ' hidden' : ''; ?>><?php esc_html_e( 'None of your images are public while this is set to Hide. Your choices for single images below are kept for when you show them again.', 'photo-competition-manager' ); ?></p>
+					<?php $this->render_show_hide( 'visibility_all', $shown, __( 'All your images in past competitions', 'photo-competition-manager' ) ); ?>
+					<p class="photo-comp-visibility-off-notice"<?php echo $shown ? ' hidden' : ''; ?>><?php esc_html_e( 'None of your images are public while this is set to Hide. Your choices for single images below are kept for when you show them again.', 'photo-competition-manager' ); ?></p>
 				</div>
 		<?php endif; ?>
 		<ul class="photo-comp-member-entries">
@@ -253,7 +253,7 @@ class Member_Page_Shortcode {
 								?>
 							</span>
 						<?php endif; ?>
-						<?php if ( $choices && $entry->may_show ) : ?>
+						<?php if ( null !== $shown && $entry->may_show ) : ?>
 							<?php
 							/* translators: 1: competition title, 2: category name */
 							$this->render_show_hide( 'visibility[' . $entry->id . ']', ! $entry->archive_hidden, sprintf( __( 'This image in past competitions: %1$s, %2$s', 'photo-competition-manager' ), $entry->competition_title, $entry->category ) );
@@ -263,7 +263,7 @@ class Member_Page_Shortcode {
 				</li>
 			<?php endforeach; ?>
 		</ul>
-		<?php if ( $choices ) : ?>
+		<?php if ( null !== $shown ) : ?>
 				<p class="photo-comp-visibility-save"><button type="submit" class="button"><?php esc_html_e( 'Save', 'photo-competition-manager' ); ?></button></p>
 			</form>
 		<?php endif; ?>
