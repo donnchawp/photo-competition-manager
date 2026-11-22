@@ -636,7 +636,7 @@ class Voting_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
-								value="<?php echo esc_attr( $this->link_form()->refill() ); ?>"
+								value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
@@ -650,7 +650,7 @@ class Voting_Shortcode {
 							<select id="category" name="category" required>
 								<option value=""><?php esc_html_e( '-- Select Category --', 'photo-competition-manager' ); ?></option>
 								<?php foreach ( $voting_categories as $cat ) : ?>
-									<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
+									<option value="<?php echo esc_attr( $cat['slug'] ); ?>"<?php selected( $this->link_form()->refill( 'category' ), $cat['slug'] ); ?>>
 										<?php echo esc_html( $cat['label'] ); ?>
 									</option>
 								<?php endforeach; ?>

@@ -35,11 +35,11 @@ class Link_Request_Form {
 	private $nonce_field;
 
 	/**
-	 * The address to fill back into the form after a stale nonce.
+	 * Whether this request posted the form with a stale or missing nonce.
 	 *
-	 * @var string
+	 * @var bool
 	 */
-	private $refill = '';
+	private $stale = false;
 
 	/**
 	 * Constructor.
@@ -67,7 +67,7 @@ class Link_Request_Form {
 
 	/**
 	 * Handle the form, if this request posted it. A stale or missing nonce
-	 * gives a notice and keeps the address to fill back in; unlike
+	 * gives a notice and leaves what was posted to fill back in; unlike
 	 * check_admin_referer(), it doesn't end the request. A valid one sends.
 	 *
 	 * @since 0.5.0
@@ -77,7 +77,7 @@ class Link_Request_Form {
 	 */
 	public function handle( callable $send ): ?string {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- This is the nonce check.
-		$this->refill = '';
+		$this->stale = false;
 		if ( ! isset( $_POST[ $this->name ] ) ) {
 			return null;
 		}
@@ -87,21 +87,23 @@ class Link_Request_Form {
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( '' === $nonce || false === wp_verify_nonce( $nonce, $this->name ) ) {
-			$this->refill = $email;
-			return '<p class="error">' . esc_html__( 'This form had been open too long. Please send it again.', 'photo-competition-manager' ) . '</p>';
+			$this->stale = true;
+			return '<p class="error">' . esc_html__( 'This form has expired. Please send it again.', 'photo-competition-manager' ) . '</p>';
 		}
 
 		return $send( $email );
 	}
 
 	/**
-	 * The address to fill back into the form: the one posted, if its nonce was stale.
+	 * A posted value to fill back into the form, if its nonce was stale.
 	 *
 	 * @since 0.5.0
 	 *
-	 * @return string
+	 * @param string $field Field name, such as 'member_email'.
+	 * @return string Sanitized text, or '' when the nonce wasn't stale.
 	 */
-	public function refill(): string {
-		return $this->refill;
+	public function refill( string $field ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only refills the form; nothing is sent.
+		return $this->stale && isset( $_POST[ $field ] ) && is_string( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field ] ) ) : '';
 	}
 }

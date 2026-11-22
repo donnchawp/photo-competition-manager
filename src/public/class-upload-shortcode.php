@@ -571,7 +571,7 @@ class Upload_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
-								value="<?php echo esc_attr( $this->link_form()->refill() ); ?>"
+								value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>

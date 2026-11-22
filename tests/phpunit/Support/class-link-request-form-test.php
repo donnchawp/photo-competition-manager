@@ -63,7 +63,7 @@ class Link_Request_Form_Test extends WP_UnitTestCase {
 
 			$this->assertStringContainsString( 'class="error"', (string) $this->handle( $form, $sent ) );
 			$this->assertSame( array(), $sent );
-			$this->assertSame( 'ann@example.com', $form->refill() );
+			$this->assertSame( 'ann@example.com', $form->refill( 'member_email' ) );
 		}
 	}
 
@@ -74,7 +74,7 @@ class Link_Request_Form_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 'sent', $this->handle( $form, $sent ) );
 		$this->assertSame( array( 'ann@example.com' ), $sent );
-		$this->assertSame( '', $form->refill() );
+		$this->assertSame( '', $form->refill( 'member_email' ) );
 	}
 
 	public function test_another_form_posted_is_left_alone(): void {

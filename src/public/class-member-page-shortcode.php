@@ -221,7 +221,7 @@ class Member_Page_Shortcode {
 			<p><?php esc_html_e( "Enter the email address you're registered with and we'll send you a link to every image you've entered.", 'photo-competition-manager' ); ?></p>
 			<p>
 				<label for="photo-comp-member-email"><?php esc_html_e( 'Your email address', 'photo-competition-manager' ); ?></label>
-				<input type="email" id="photo-comp-member-email" name="member_email" value="<?php echo esc_attr( $this->link_form()->refill() ); ?>" required />
+				<input type="email" id="photo-comp-member-email" name="member_email" value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>" required />
 			</p>
 			<p>
 				<button type="submit" name="photo_comp_member_link" value="1" class="button"><?php esc_html_e( 'Send me a link', 'photo-competition-manager' ); ?></button>

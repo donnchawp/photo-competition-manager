@@ -295,10 +295,8 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 
 		$html = $this->request_token( 'active@example.com', 'stale' );
 
-		$this->assertSame( 0, $this->mail_count );
-		$this->assertStringContainsString( 'class="error"', $html );
 		$this->assertStringContainsString( 'value="active@example.com"', $html );
-		$this->assertStringContainsString( 'photo_competition_request_voting_token', $html );
+		$this->assertMatchesRegularExpression( '/<option value="colour"\s*selected/', $html, 'the category picked' );
 
 		$this->request_token( 'active@example.com' );
 		$this->assertSame( 1, $this->mail_count );

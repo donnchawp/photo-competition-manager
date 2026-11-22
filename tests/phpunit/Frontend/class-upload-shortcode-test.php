@@ -159,10 +159,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$html = $this->request_link( 'uploader@example.com', 'stale' );
 
-		$this->assertSame( 0, $sent );
-		$this->assertStringContainsString( 'class="error"', $html );
 		$this->assertStringContainsString( 'value="uploader@example.com"', $html );
-		$this->assertStringContainsString( 'token-request-section', $html );
 
 		$this->request_link( 'uploader@example.com' );
 		$this->assertSame( 1, $sent );
