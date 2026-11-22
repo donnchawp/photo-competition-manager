@@ -18,7 +18,6 @@ use PhotoCompetitionManager\Tests\Admin\Redirect_Exception;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
-use WPDieException;
 use WP_UnitTestCase;
 
 require_once dirname( __DIR__ ) . '/Admin/class-redirect-exception.php';
@@ -182,13 +181,15 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( esc_url( get_permalink( $this->page_id ) ), (string) $this->mails[0]['message'] );
 	}
 
-	public function test_a_form_posted_without_a_valid_nonce_sends_nothing(): void {
-		try {
-			$this->post( 'ann@example.com', 'forged' );
-			$this->fail( 'A forged form should be refused.' );
-		} catch ( WPDieException $e ) {
-			$this->assertSame( array(), $this->mails );
-		}
+	public function test_a_stale_form_shows_the_form_again_and_the_retry_sends_the_link(): void {
+		$html = $this->post( 'ann@example.com', 'stale' );
+
+		$this->assertSame( array(), $this->mails );
+		$this->assertStringContainsString( '<p class="error">', $html );
+		$this->assertStringContainsString( 'value="ann@example.com"', $html );
+
+		$this->post( 'ann@example.com' );
+		$this->assertCount( 1, $this->mails );
 	}
 
 	public function test_a_bad_link_says_so_and_offers_the_form(): void {

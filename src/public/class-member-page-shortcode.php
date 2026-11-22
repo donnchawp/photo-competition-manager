@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Member_Entries;
 use PhotoCompetitionManager\Service\Member_Page_Link;
 use PhotoCompetitionManager\Service\Member_Visibility;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 
 use function PhotoCompetitionManager\Support\format_site_date;
 
@@ -25,6 +26,13 @@ use function PhotoCompetitionManager\Support\format_site_date;
  * @since 0.5.0
  */
 class Member_Page_Shortcode {
+
+	/**
+	 * The address a stale link request form was sent with, to fill back in.
+	 *
+	 * @var string
+	 */
+	private $refill_email = '';
 
 	const SHORTCODE = 'competition_my_entries';
 
@@ -112,11 +120,16 @@ class Member_Page_Shortcode {
 		$page_url = (string) get_permalink();
 		$message  = '';
 
-		if ( isset( $_POST['photo_comp_member_link'] ) && check_admin_referer( 'photo_comp_member_link', 'photo_comp_member_link_nonce' ) ) {
-			$email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-			$this->link->request( $email, $page_url );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Link_Request_Form::verified() checks the nonce.
+		if ( isset( $_POST['photo_comp_member_link'] ) ) {
+			if ( Link_Request_Form::verified( 'photo_comp_member_link', 'photo_comp_member_link_nonce' ) ) {
+				$this->link->request( Link_Request_Form::typed_email(), $page_url );
 
-			$message = '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
+				$message = '<p class="success">' . esc_html__( "If that address is on our list, we've sent you a link to your entries. It works for 7 days.", 'photo-competition-manager' ) . '</p>';
+			} else {
+				$message            = Link_Request_Form::stale_notice();
+				$this->refill_email = Link_Request_Form::typed_email();
+			}
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The key is its own authentication.
@@ -214,7 +227,7 @@ class Member_Page_Shortcode {
 			<p><?php esc_html_e( "Enter the email address you're registered with and we'll send you a link to every image you've entered.", 'photo-competition-manager' ); ?></p>
 			<p>
 				<label for="photo-comp-member-email"><?php esc_html_e( 'Your email address', 'photo-competition-manager' ); ?></label>
-				<input type="email" id="photo-comp-member-email" name="member_email" required />
+				<input type="email" id="photo-comp-member-email" name="member_email" value="<?php echo esc_attr( $this->refill_email ); ?>" required />
 			</p>
 			<p>
 				<button type="submit" name="photo_comp_member_link" value="1" class="button"><?php esc_html_e( 'Send me a link', 'photo-competition-manager' ); ?></button>

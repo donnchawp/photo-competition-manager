@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 use PhotoCompetitionManager\Support\Oversized_Post;
 
 /**
@@ -28,6 +29,13 @@ use PhotoCompetitionManager\Support\Oversized_Post;
  * @since 0.1.0
  */
 class Upload_Shortcode {
+
+	/**
+	 * The address a stale link request form was sent with, to fill back in.
+	 *
+	 * @var string
+	 */
+	private $refill_email = '';
 
 	/**
 	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
@@ -273,13 +281,13 @@ class Upload_Shortcode {
 		}
 
 		// Handle token request form submission.
-		if (
-			isset( $_POST['photo_competition_request_token'] )
-			&& check_admin_referer( 'photo_competition_request_token', 'photo_competition_nonce' )
-		) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
-			$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-			$message      = $this->handle_token_request( $competition, $member_email );
+		if ( isset( $_POST['photo_competition_request_token'] ) ) {
+			if ( Link_Request_Form::verified( 'photo_competition_request_token', 'photo_competition_nonce' ) ) {
+				$message = $this->handle_token_request( $competition, Link_Request_Form::typed_email() );
+			} else {
+				$message            = Link_Request_Form::stale_notice();
+				$this->refill_email = Link_Request_Form::typed_email();
+			}
 		}
 
 		// A file over post_max_size reaches here with an empty $_POST, so neither the form's field nor its nonce is left to check.
@@ -565,6 +573,7 @@ class Upload_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
+								value="<?php echo esc_attr( $this->refill_email ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>

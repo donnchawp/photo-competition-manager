@@ -25,6 +25,7 @@ use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Service\Voter;
 use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 
 /**
  * Shortcode renderer for competition voting (token- and password-based).
@@ -35,6 +36,13 @@ use PhotoCompetitionManager\Support\Competition_Settings;
  * @since 0.1.0
  */
 class Voting_Shortcode {
+
+	/**
+	 * The address a stale link request form was sent with, to fill back in.
+	 *
+	 * @var string
+	 */
+	private $refill_email = '';
 
 	/**
 	 * Competitions repository.
@@ -465,9 +473,16 @@ class Voting_Shortcode {
 		$message = $this->refused && 'voting_closed' !== $this->refused['error']->get_error_code() ? $this->refused_notice() : '';
 
 		// Handle token request form submission.
-		if ( isset( $_POST['photo_competition_request_voting_token'] ) && check_admin_referer( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
-			$message = $this->handle_token_request( $competition, $_POST );
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Link_Request_Form::verified() checks the nonce.
+		if ( isset( $_POST['photo_competition_request_voting_token'] ) ) {
+			if ( Link_Request_Form::verified( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
+				$message = $this->handle_token_request( $competition, $_POST );
+			} else {
+				$message            = Link_Request_Form::stale_notice();
+				$this->refill_email = Link_Request_Form::typed_email();
+			}
 		}
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		$view = array(
 			'heading'              => __( 'Voting', 'photo-competition-manager' ),
@@ -625,6 +640,7 @@ class Voting_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
+								value="<?php echo esc_attr( $this->refill_email ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
