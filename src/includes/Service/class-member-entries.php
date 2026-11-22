@@ -108,7 +108,9 @@ class Member_Entries {
 	 * Each has the entry's id and status, the competition's title and open
 	 * date, the category's label, the photographer (interclub only), the
 	 * image and thumbnail URLs ('' when the competition is archived or the
-	 * file is missing), and the total score, position and grade name (null
+	 * file is missing), whether the member has hidden it from past
+	 * competitions, whether it could show there at all (an entered image in
+	 * a competition that isn't archived), and the total score, position and grade name (null
 	 * until results are published; an entry ranked without a grade is
 	 * "Ungraded", as on the results page).
 	 *
@@ -150,6 +152,8 @@ class Member_Entries {
 				'photographer'      => $competition->interclub ? (string) $entry->photographer : '',
 				'full'              => $urls['full'],
 				'thumb'             => $urls['thumb'],
+				'archive_hidden'    => (bool) (int) $entry->archive_hidden,
+				'may_show'          => Member_Visibility::may_show( $entry, $competition->row ),
 				'score'             => $result ? (int) $result->total_score : null,
 				'position'          => $result ? (int) $result->position : null,
 				'grade'             => $result ? $this->grade_label( $competition->row, (string) $result->grade ) : null,

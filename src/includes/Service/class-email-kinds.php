@@ -70,6 +70,7 @@ class Email_Kinds {
 					self::button( '{upload_link}', __( 'Upload images', 'photo-competition-manager' ) ),
 					__( 'This link stays active for 14 days, so you can come back and carry on uploading.', 'photo-competition-manager' ),
 					'{voting_info}',
+					'{archive_info}',
 					__( "If you didn't ask for this email, your club's competitions officer may have sent it. You can ignore it if you don't want to enter this competition.", 'photo-competition-manager' ),
 					__( 'If you have any questions, please contact your club competitions officer.', 'photo-competition-manager' )
 				),
@@ -83,17 +84,21 @@ class Email_Kinds {
 					'skipped' => _n_noop( '%d member was skipped because they were emailed in the last 5 minutes.', '%d members were skipped because they were emailed in the last 5 minutes.', 'photo-competition-manager' ),
 				),
 				'tags'         => array(
-					'{upload_link}' => array(
+					'{upload_link}'  => array(
 						'type'        => 'link',
 						'description' => __( "The member's own upload link.", 'photo-competition-manager' ),
 					),
-					'{voting_page}' => array(
+					'{voting_page}'  => array(
 						'type'        => 'link',
 						'description' => __( 'The voting page.', 'photo-competition-manager' ),
 					),
-					'{voting_info}' => array(
+					'{voting_info}'  => array(
 						'type'        => 'html',
 						'description' => __( 'A paragraph saying where members can vote. Empty when judges score the competition.', 'photo-competition-manager' ),
+					),
+					'{archive_info}' => array(
+						'type'        => 'html',
+						'description' => __( "A paragraph saying whether the member's images show in the past competitions, with a link to their entries page to change it. Empty while past competitions are off.", 'photo-competition-manager' ),
 					),
 				),
 			),

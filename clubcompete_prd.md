@@ -189,7 +189,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - HTML results page automatically generated per competition.
   - Shows top 3 winners per grade with thumbnails and scores.
 - Archive page lists all past competitions with links to their results.
-- **Member page:** `[competition_my_entries]` - a member types their email address and is sent a link, valid for 7 days, to every image they've entered, with total score and position where results are published.
+- **Member page:** `[competition_my_entries]` - a member types their email address and is sent a link, valid for 7 days, to every image they've entered, with total score and position where results are published. While past competitions are on, the page has Show / Hide for all their images and for each one that could appear there, saved as each changes (through the `photo-comp/v1/member-visibility` REST route, authorised by the link's key) or with a Save button without JavaScript. The Upload link email's `{archive_info}` paragraph says whether their images show and links to this page; admins can show or hide all of a member's images on the Members screen.
 
 ---
 
@@ -253,8 +253,8 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_results competition="slug"]` | Complete results table for specific competition. |
 | `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
-| `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered. |
-| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`. `show_names="true"` shows who each image is by. Off until switched on in Settings. |
+| `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered, where they choose which show in past competitions. |
+| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`, leaving out images their members hide. `show_names="true"` shows who each image is by. Off until switched on in Settings. |
 
 ### Results Display Features
 

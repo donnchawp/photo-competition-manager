@@ -87,9 +87,10 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->member(),
 			$this->competition(),
 			array(
-				'{upload_link}' => 'https://example.org/upload/?t=abc',
-				'{voting_page}' => 'https://example.org/vote/',
-				'{voting_info}' => '<p>Once voting opens, you can vote at <a href="https://example.org/vote/">https://example.org/vote/</a></p>',
+				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{voting_page}'  => 'https://example.org/vote/',
+				'{voting_info}'  => '<p>Once voting opens, you can vote at <a href="https://example.org/vote/">https://example.org/vote/</a></p>',
+				'{archive_info}' => '',
 			)
 		);
 
@@ -112,9 +113,10 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->member(),
 			$this->competition(),
 			array(
-				'{upload_link}' => 'https://example.org/upload/?t=abc',
-				'{voting_page}' => 'https://example.org/vote/',
-				'{voting_info}' => '',
+				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{voting_page}'  => 'https://example.org/vote/',
+				'{voting_info}'  => '',
+				'{archive_info}' => '',
 			)
 		);
 	}
@@ -237,7 +239,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 	 */
 	public function wrong_tags(): array {
 		return array(
-			'missing a tag'    => array( array( '{upload_link}' => 'https://example.org/u' ) ),
+			'missing a tag'     => array( array( '{upload_link}' => 'https://example.org/u' ) ),
 			'an undeclared one' => array(
 				array(
 					'{upload_link}' => 'https://example.org/u',
@@ -245,7 +247,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 					'{close_date}'  => 'Friday',
 				),
 			),
-			'a shared one'     => array(
+			'a shared one'      => array(
 				array(
 					'{upload_link}' => 'https://example.org/u',
 					'{voting_page}' => '',
@@ -264,9 +266,10 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->member( 'Seán & <Co>' ),
 			$this->competition(),
 			array(
-				'{upload_link}' => 'https://example.org/upload/?a=1&b="><script>',
-				'{voting_page}' => 'javascript:alert(1)',
-				'{voting_info}' => '',
+				'{upload_link}'  => 'https://example.org/upload/?a=1&b="><script>',
+				'{voting_page}'  => 'javascript:alert(1)',
+				'{voting_info}'  => '',
+				'{archive_info}' => '',
 			)
 		);
 
@@ -328,9 +331,10 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->member( '{upload_link}' ),
 			$this->competition(),
 			array(
-				'{upload_link}' => 'https://example.org/upload/?t=abc',
-				'{voting_page}' => '',
-				'{voting_info}' => '',
+				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{voting_page}'  => '',
+				'{voting_info}'  => '',
+				'{archive_info}' => '',
 			)
 		);
 
@@ -436,8 +440,8 @@ class Email_Service_Test extends WP_UnitTestCase {
 	 * A recipient sees {grade} in the subject as their own grade's name.
 	 */
 	public function test_email_subject_uses_recipients_grade_title() {
-		$slug = Competition_Settings::club_grades()[0]['slug'];
-		$id   = (int) ( new Competitions_Repository() )->create(
+		$slug          = Competition_Settings::club_grades()[0]['slug'];
+		$id            = (int) ( new Competitions_Repository() )->create(
 			array(
 				'type_id'   => Type_Fixtures::create( 'Cup', array( $slug => 'Cup' ) ),
 				'title'     => '{grade} 2026',
@@ -445,7 +449,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 				'open_date' => '2020-01-01 00:00:00',
 			)
 		);
-		$member = $this->member();
+		$member        = $this->member();
 		$member->grade = $slug;
 
 		$this->service->send(
@@ -453,9 +457,10 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$member,
 			( new Competitions_Repository() )->find( $id ),
 			array(
-				'{upload_link}' => 'https://example.org/upload/?t=abc',
-				'{voting_page}' => 'https://example.org/vote/',
-				'{voting_info}' => '',
+				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{voting_page}'  => 'https://example.org/vote/',
+				'{voting_info}'  => '',
+				'{archive_info}' => '',
 			)
 		);
 
