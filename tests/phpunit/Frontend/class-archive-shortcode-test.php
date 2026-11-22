@@ -59,12 +59,11 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Register the rules as the next request would, and rebuild them.
+	 * Rebuild the rules, as the next request does after the page moves.
 	 *
 	 * @return void
 	 */
 	private function rebuild_rules(): void {
-		Archive_Shortcode::add_rewrite_rule();
 		flush_rewrite_rules( false );
 	}
 

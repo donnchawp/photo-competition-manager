@@ -72,7 +72,7 @@ class Activator {
 		}
 
 		Image_Permalink::add_rewrite_rule();
-		Archive_Shortcode::add_rewrite_rule();
+		add_filter( 'rewrite_rules_array', array( Archive_Shortcode::class, 'add_rewrite_rules' ) );
 		flush_rewrite_rules( false );
 	}
 

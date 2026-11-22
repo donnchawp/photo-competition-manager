@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
-use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
+use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -65,11 +65,11 @@ class Competition_Archive {
 	private $entries;
 
 	/**
-	 * Recorded results repository.
+	 * Results ranking, as the results pages use it.
 	 *
-	 * @var Recorded_Results_Repository
+	 * @var Results_Ranking
 	 */
-	private $recorded;
+	private $ranking;
 
 	/**
 	 * Competition labels.
@@ -81,13 +81,13 @@ class Competition_Archive {
 	/**
 	 * Constructor.
 	 *
-	 * @param Competitions_Repository|null     $competitions Competitions repository.
-	 * @param Images_Repository|null           $images       Images repository.
-	 * @param Members_Repository|null          $members      Members repository.
-	 * @param Competition_Workflow|null        $workflow     Competition workflow.
-	 * @param Entries|null                     $entries      Entries module.
-	 * @param Recorded_Results_Repository|null $recorded Recorded results repository.
-	 * @param Competition_Labels|null          $labels       Competition labels.
+	 * @param Competitions_Repository|null $competitions Competitions repository.
+	 * @param Images_Repository|null       $images       Images repository.
+	 * @param Members_Repository|null      $members      Members repository.
+	 * @param Competition_Workflow|null    $workflow     Competition workflow.
+	 * @param Entries|null                 $entries      Entries module.
+	 * @param Results_Ranking|null         $ranking      Results ranking.
+	 * @param Competition_Labels|null      $labels       Competition labels.
 	 */
 	public function __construct(
 		?Competitions_Repository $competitions = null,
@@ -95,7 +95,7 @@ class Competition_Archive {
 		?Members_Repository $members = null,
 		?Competition_Workflow $workflow = null,
 		?Entries $entries = null,
-		?Recorded_Results_Repository $recorded = null,
+		?Results_Ranking $ranking = null,
 		?Competition_Labels $labels = null
 	) {
 		$this->competitions = $competitions ?? new Competitions_Repository();
@@ -103,7 +103,7 @@ class Competition_Archive {
 		$this->members      = $members ?? new Members_Repository();
 		$this->workflow     = $workflow ?? new Competition_Workflow( $this->competitions, $this->images );
 		$this->entries      = $entries ?? new Entries( $this->competitions, $this->images, $this->members );
-		$this->recorded     = $recorded ?? new Recorded_Results_Repository();
+		$this->ranking      = $ranking ?? new Results_Ranking( $this->images, new Votes_Repository(), $this->members, $this->competitions, $this->workflow );
 		$this->labels       = $labels ?? new Competition_Labels();
 	}
 
@@ -183,9 +183,9 @@ class Competition_Archive {
 	 * hidden on its own. In an interclub competition the member is the club.
 	 *
 	 * Each entry has its id, its image and thumbnail URLs ('' when the file is
-	 * missing), the full image's width and height (0 when missing), who it's by ('' unless names are shown), and its position,
-	 * total score and grade name (null unless the club shows winners, or for
-	 * an entry ranked without a grade).
+	 * missing), the full image's width and height (0 when missing), who it's by ('' unless names are shown), and its
+	 * position, total score and grade name, as the results pages rank it
+	 * (null unless the club shows winners, or for an ungraded entry).
 	 *
 	 * @since 0.5.0
 	 *
@@ -200,7 +200,7 @@ class Competition_Archive {
 
 		foreach ( Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ) ) as $category ) {
 			$entered = $this->images->find_entered( (int) $competition->id, $category['slug'] );
-			$results = $winners ? array_column( $this->recorded->find_by_category( (int) $competition->id, $category['slug'] ), null, 'entry_id' ) : array();
+			$results = $winners ? $this->results( (int) $competition->id, $category['slug'] ) : array();
 			$entries = array();
 
 			foreach ( $this->images->shuffle_deterministic( $entered, (int) $competition->id, $category['slug'] ) as $entry ) {
@@ -212,7 +212,6 @@ class Competition_Archive {
 				$urls   = $this->entries->public_urls( $competition, $entry );
 				$size   = $this->entries->full_size( $competition, $entry );
 				$result = $results[ (int) $entry->id ] ?? null;
-				$result = $result && '' !== (string) $result->grade ? $result : null;
 
 				$entries[] = (object) array(
 					'id'       => (int) $entry->id,
@@ -221,9 +220,9 @@ class Competition_Archive {
 					'width'    => $size[0],
 					'height'   => $size[1],
 					'by'       => $show_names ? $this->labels->entry_by( $competition, $entry, $member ) : '',
-					'position' => $result ? (int) $result->position : null,
-					'score'    => $result ? (int) $result->total_score : null,
-					'grade'    => $result ? $this->labels->grade_label( $competition, (string) $result->grade ) : null,
+					'position' => $result['position'] ?? null,
+					'score'    => $result['score'] ?? null,
+					'grade'    => $result['grade'] ?? null,
 				);
 			}
 
@@ -234,5 +233,33 @@ class Competition_Archive {
 		}
 
 		return $categories;
+	}
+
+	/**
+	 * Each graded entry's position, total score and grade name in a category, keyed by entry ID.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return array<int, array{position: int, score: int, grade: string}>
+	 */
+	private function results( int $competition_id, string $category ): array {
+		$results = array();
+		foreach ( $this->ranking->rank_category( $competition_id, $category ) as $group ) {
+			if ( $group['ungraded'] ) {
+				continue;
+			}
+
+			foreach ( $group['entries'] as $ranked ) {
+				if ( $ranked['image'] ) {
+					$results[ (int) $ranked['image']->id ] = array(
+						'position' => (int) $ranked['position'],
+						'score'    => (int) $ranked['total_score'],
+						'grade'    => (string) $group['label'],
+					);
+				}
+			}
+		}
+
+		return $results;
 	}
 }

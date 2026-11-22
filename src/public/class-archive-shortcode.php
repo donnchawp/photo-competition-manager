@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Competition_Labels;
+use WP_Post;
 
 use function PhotoCompetitionManager\Support\format_site_date;
 
@@ -51,6 +52,13 @@ class Archive_Shortcode {
 	private $labels;
 
 	/**
+	 * Competitions looked up this request, by slug.
+	 *
+	 * @var array<string, object|null>
+	 */
+	private $found = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competition_Archive|null $archive The archive.
@@ -70,43 +78,56 @@ class Archive_Shortcode {
 	 */
 	public function register(): void {
 		add_shortcode( self::SHORTCODE, array( $this, 'render' ) );
-		add_action( 'init', array( self::class, 'add_rewrite_rule' ) );
+		add_filter( 'rewrite_rules_array', array( self::class, 'add_rewrite_rules' ) );
 		add_filter( 'query_vars', array( $this, 'add_query_var' ) );
 		add_action( 'template_redirect', array( $this, 'not_found' ) );
 
 		foreach ( array( 'save_post_page', 'trashed_post', 'untrashed_post', 'deleted_post' ) as $hook ) {
-			add_action( $hook, array( self::class, 'refresh_page_path' ) );
+			add_action( $hook, array( self::class, 'page_changed' ), 10, 2 );
 		}
 	}
 
 	/**
-	 * Register the rewrite rule for the archive page's permalinks.
+	 * Add the archive page's permalink rule whenever WordPress builds its
+	 * rewrite rules, so every flush uses the page's current path.
 	 *
 	 * @since 0.5.0
 	 *
-	 * @return void
+	 * @param array<string, string> $rules Rewrite rules.
+	 * @return array<string, string>
 	 */
-	public static function add_rewrite_rule(): void {
+	public static function add_rewrite_rules( array $rules ): array {
 		$path = get_option( self::PAGE_PATH_OPTION, false );
 		if ( false === $path ) {
 			$path = self::refresh_page_path();
 		}
 
 		if ( '' === $path ) {
-			return;
+			return $rules;
 		}
 
-		add_rewrite_rule(
-			'^' . preg_quote( $path, '#' ) . '/([^/]+)/?$',
-			'index.php?pagename=' . $path . '&' . self::QUERY_VAR . '=$matches[1]',
-			'top'
-		);
+		return array( '^' . preg_quote( $path, '#' ) . '/([^/]+)/?$' => 'index.php?pagename=' . $path . '&' . self::QUERY_VAR . '=$matches[1]' ) + $rules;
 	}
 
 	/**
-	 * Find the archive page's path again, after a page is saved, trashed,
-	 * restored or deleted. When it has changed, the rewrite rules are rebuilt
-	 * on the next request, which registers the new path.
+	 * Look for the archive page again when a page is saved, trashed, restored or deleted.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int          $post_id Post ID.
+	 * @param WP_Post|null $post    The post, when the hook passes it (deleted_post does, after it's gone).
+	 * @return void
+	 */
+	public static function page_changed( $post_id, $post = null ): void {
+		$post = $post instanceof WP_Post ? $post : get_post( (int) $post_id );
+		if ( $post && 'page' === $post->post_type ) {
+			self::refresh_page_path();
+		}
+	}
+
+	/**
+	 * Find the archive page's path again. When it has changed, the rewrite
+	 * rules are rebuilt on the next request, with the new path.
 	 *
 	 * @since 0.5.0
 	 *
@@ -124,11 +145,6 @@ class Archive_Shortcode {
 		if ( get_option( self::PAGE_PATH_OPTION, false ) !== $path ) {
 			update_option( self::PAGE_PATH_OPTION, $path );
 			delete_option( 'rewrite_rules' );
-
-			// Registered now as well, in case the rules are flushed later in this request.
-			if ( '' !== $path ) {
-				self::add_rewrite_rule();
-			}
 		}
 
 		return $path;
@@ -157,7 +173,7 @@ class Archive_Shortcode {
 	 */
 	public function not_found(): void {
 		$slug = (string) get_query_var( self::QUERY_VAR );
-		if ( '' === $slug || ! $this->on_archive_page() || $this->archive->find( $slug ) ) {
+		if ( '' === $slug || ! $this->on_archive_page() || $this->find( $slug ) ) {
 			return;
 		}
 
@@ -165,6 +181,20 @@ class Archive_Shortcode {
 		$wp_query->set_404();
 		status_header( 404 );
 		nocache_headers();
+	}
+
+	/**
+	 * A competition in the archive, looked up once per request.
+	 *
+	 * @param string $slug Competition slug.
+	 * @return object|null
+	 */
+	private function find( string $slug ): ?object {
+		if ( ! array_key_exists( $slug, $this->found ) ) {
+			$this->found[ $slug ] = $this->archive->find( $slug );
+		}
+
+		return $this->found[ $slug ];
 	}
 
 	/**
@@ -217,7 +247,7 @@ class Archive_Shortcode {
 
 		$page_url    = (string) get_permalink();
 		$slug        = (string) get_query_var( self::QUERY_VAR );
-		$competition = '' !== $slug ? $this->archive->find( $slug ) : null;
+		$competition = '' !== $slug ? $this->find( $slug ) : null;
 
 		ob_start();
 		echo '<div class="photo-comp-archive">';

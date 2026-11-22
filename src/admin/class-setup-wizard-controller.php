@@ -186,10 +186,11 @@ class Setup_Wizard_Controller {
 		}
 
 		// Update settings with created page URLs.
+		$urls_saved = false;
 		if ( ! empty( $created_pages ) ) {
 			// Flush rewrite rules to ensure permalinks work immediately.
 			flush_rewrite_rules();
-			$this->update_page_urls( $created_pages );
+			$urls_saved = $this->update_page_urls( $created_pages );
 		}
 
 		// Display feedback.
@@ -211,12 +212,7 @@ class Setup_Wizard_Controller {
 				count( $created_pages )
 			);
 
-			// The member and past competitions pages link to themselves, so they have no URL setting.
-			$self_linked = array(
-				'member'  => true,
-				'archive' => true,
-			);
-			if ( array_diff_key( $created_pages, $self_linked ) ) {
+			if ( $urls_saved ) {
 				$message .= ' ' . __( 'Global settings have been updated with the new page URLs.', 'photo-competition-manager' );
 			}
 
@@ -391,10 +387,23 @@ class Setup_Wizard_Controller {
 	/**
 	 * Update global settings with created page URLs.
 	 *
+	 * Pages that link to themselves, such as the member and past competitions pages, have no URL setting.
+	 *
 	 * @param  array<string, int> $created_pages Map of page type to page ID.
-	 * @return void
+	 * @return bool Whether any URL setting was saved.
 	 */
-	private function update_page_urls( array $created_pages ): void {
+	private function update_page_urls( array $created_pages ): bool {
+		// Each page's URL setting.
+		$keys = array(
+			'upload'  => 'upload_page',
+			'voting'  => 'voting_page',
+			'results' => 'results_page',
+			'top3'    => 'top3_page',
+		);
+		if ( ! array_intersect_key( $created_pages, $keys ) ) {
+			return false;
+		}
+
 		$settings = get_option( 'photo_comp_default_settings', '' );
 		$parsed   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $settings );
 
@@ -402,27 +411,13 @@ class Setup_Wizard_Controller {
 			$parsed['urls'] = array();
 		}
 
-		// Update upload page URL.
-		if ( isset( $created_pages['upload'] ) ) {
-			$parsed['urls']['upload_page'] = get_permalink( $created_pages['upload'] );
-		}
-
-		// Update voting page URL.
-		if ( isset( $created_pages['voting'] ) ) {
-			$parsed['urls']['voting_page'] = get_permalink( $created_pages['voting'] );
-		}
-
-		// Update results page URL (stored separately for now).
-		if ( isset( $created_pages['results'] ) ) {
-			$parsed['urls']['results_page'] = get_permalink( $created_pages['results'] );
-		}
-
-		// Update top 3 page URL.
-		if ( isset( $created_pages['top3'] ) ) {
-			$parsed['urls']['top3_page'] = get_permalink( $created_pages['top3'] );
+		foreach ( array_intersect_key( $keys, $created_pages ) as $page => $setting ) {
+			$parsed['urls'][ $setting ] = get_permalink( $created_pages[ $page ] );
 		}
 
 		update_option( 'photo_comp_default_settings', \PhotoCompetitionManager\Support\Competition_Settings::encode( $parsed ) );
+
+		return true;
 	}
 
 	/**
