@@ -24,6 +24,7 @@ use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Service\Actor;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
@@ -1036,16 +1037,141 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		return $id;
 	}
 
+	/*
+	 * -------------------------------------------------------------------------
+	 * Publishing the results of a competition that has closed.
+	 * -------------------------------------------------------------------------
+	 */
+
+	/**
+	 * A competition that closed without its results being published, as
+	 * November 2025 and January 2026 did on the club's site, can be
+	 * published from the Results screen, so it shows on the past competitions page.
+	 */
+	public function test_publish_results_of_a_closed_competition_publishes_them(): void {
+		$this->set_request(
+			array(
+				'action'      => 'publish_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_publish_results_' . $this->competition_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$workflow    = new Competition_Workflow();
+		$competition = $this->competitions->find( $this->competition_id );
+		$this->assertTrue( $workflow->results_published( $competition ) );
+		// Close Uploads was never pressed on it. Published results always have uploads
+		// closed, so moving its close date into the future later doesn't reopen uploads.
+		$this->assertTrue( $workflow->uploads_closed( $competition ) );
+		$this->assertContains( 'results_published', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
+	}
+
+	/**
+	 * The competition still running is published from Voting Controls, once
+	 * its voting is done, not from here.
+	 */
+	public function test_publish_results_of_a_competition_still_running_is_refused(): void {
+		$id = $this->create_open_competition();
+		Workflow_Fixtures::close_uploads( $id );
+		$this->set_request(
+			array(
+				'action'      => 'publish_results',
+				'competition' => $id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_publish_results_' . $id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertFalse( ( new Competition_Workflow() )->results_published( $this->competitions->find( $id ) ) );
+		$this->assertContains( 'competition_not_closed', $this->settings_error_codes( 'photo_competition_results' ) );
+	}
+
+	/**
+	 * A stale link to a competition that has since been archived, or deleted,
+	 * says so instead of pointing at Voting Controls.
+	 */
+	public function test_publish_results_of_an_archived_competition_is_not_found(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->set_request(
+			array(
+				'action'      => 'publish_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_publish_results_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_results' ) );
+	}
+
+	/**
+	 * A missing nonce aborts publishing via wp_die().
+	 */
+	public function test_publish_results_bad_nonce_dies(): void {
+		$this->set_request(
+			array(
+				'action'      => 'publish_results',
+				'competition' => $this->competition_id,
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	/**
+	 * The button shows only where it can work: on a closed competition whose
+	 * results aren't published yet.
+	 */
+	public function test_publish_results_button_shows_only_for_a_closed_unpublished_competition(): void {
+		$published = $this->create_competition();
+		Workflow_Fixtures::publish_results( $published );
+		$running = $this->create_open_competition();
+
+		$this->assertStringContainsString( 'action=publish_results', $this->render_screen( $this->competition_id ) );
+		$this->assertStringNotContainsString( 'action=publish_results', $this->render_screen( $published ) );
+		$this->assertStringNotContainsString( 'action=publish_results', $this->render_screen( $running ) );
+	}
+
+	/**
+	 * Render the Results screen, for a competition or the one it opens on.
+	 *
+	 * @param int|null $competition_id Competition ID, or null for the default.
+	 * @return string
+	 */
+	private function render_screen( ?int $competition_id = null ): string {
+		if ( null !== $competition_id ) {
+			$this->set_request( array( 'competition' => $competition_id ) );
+		}
+		ob_start();
+		$this->controller->render();
+
+		return (string) ob_get_clean();
+	}
+
 	/**
 	 * Render the Results screen and return the title selected in its competition selector.
 	 *
 	 * @return string|null
 	 */
 	private function selected_competition_title(): ?string {
-		ob_start();
-		$this->controller->render();
-		$html = (string) ob_get_clean();
-
-		return preg_match( '#<option[^>]* selected>([^<]+)</option>#', $html, $match ) ? $match[1] : null;
+		return preg_match( '#<option[^>]* selected>([^<]+)</option>#', $this->render_screen(), $match ) ? $match[1] : null;
 	}
 }

@@ -194,13 +194,7 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_email_results_' . $competition_id );
 
-			$redirect_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'competition' => $competition_id,
-				),
-				admin_url( 'admin.php' )
-			);
+			$redirect_url = $this->results_url( $competition_id );
 
 			// Members are told their positions only once they're read from the record.
 			$competition = $this->competitions->find( $competition_id );
@@ -247,13 +241,7 @@ class Results_Controller {
 
 			check_admin_referer( 'photo_competition_' . $action . '_' . $competition_id );
 
-			$redirect_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'competition' => $competition_id,
-				),
-				admin_url( 'admin.php' )
-			);
+			$redirect_url = $this->results_url( $competition_id );
 
 			$competition = $this->competitions->find( $competition_id );
 			if ( ! $competition ) {
@@ -334,6 +322,50 @@ class Results_Controller {
 
 			wp_safe_redirect( add_query_arg( 'job_id', $job_id, $redirect_url ) );
 			exit;
+		}
+
+		// The competition still running is published from Voting Controls; this
+		// publishes one that closed without its results being published.
+		if ( 'publish_results' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_publish_results_' . $competition_id );
+
+			$redirect_url = $this->results_url( $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_results',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
+			if ( ! $this->workflow->has_closed( $competition ) ) {
+				add_settings_error(
+					'photo_competition_results',
+					'competition_not_closed',
+					__( 'Only a competition that has closed can be published here. Publish the current competition\'s results from Voting Controls.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
+			// Its close date ended uploads, but Close Uploads may never have been
+			// pressed. Closing them keeps published results from reopening uploads
+			// if the close date is later moved into the future.
+			$closed = $this->workflow->close_uploads( $competition_id );
+
+			$this->notice_and_redirect(
+				'photo_competition_results',
+				is_wp_error( $closed ) ? $closed : $this->workflow->publish_results( $competition_id ),
+				'results_published',
+				__( 'Results are now published.', 'photo-competition-manager' ),
+				$redirect_url
+			);
 		}
 
 		if ( 'export_results_csv' === $action ) {
@@ -428,16 +460,8 @@ class Results_Controller {
 		$competition_options = array();
 		$labels              = new Competition_Labels();
 		foreach ( $competitions as $comp ) {
-			$url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'competition' => (int) $comp->id,
-				),
-				admin_url( 'admin.php' )
-			);
-
 			$competition_options[] = array(
-				'url'      => $url,
+				'url'      => $this->results_url( (int) $comp->id ),
 				'selected' => ( (int) $comp->id === (int) $competition->id ),
 				'title'    => $labels->title_for_everyone( $comp ),
 			);
@@ -455,17 +479,8 @@ class Results_Controller {
 			$cat_slug  = $category['slug'] ?? '';
 			$cat_label = $category['label'] ?? $cat_slug;
 
-			$cat_url = add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'competition' => (int) $competition->id,
-					'category'    => rawurlencode( $cat_slug ),
-				),
-				admin_url( 'admin.php' )
-			);
-
 			$category_tabs[] = array(
-				'url'    => $cat_url,
+				'url'    => add_query_arg( 'category', rawurlencode( $cat_slug ), $this->results_url( (int) $competition->id ) ),
 				'label'  => $cat_label,
 				'active' => ( $cat_slug === $selected_category ),
 				'count'  => $summary['categories'][ $cat_slug ]['images'] ?? 0,
@@ -495,17 +510,14 @@ class Results_Controller {
 			'photo_competition_export_results_' . (int) $competition->id
 		);
 
-		$email_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'        => 'photo-competition-manager-results',
-					'action'      => 'email_results',
-					'competition' => (int) $competition->id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'photo_competition_email_results_' . (int) $competition->id
-		);
+		$email_url = $this->action_url( 'email_results', (int) $competition->id );
+
+		// A competition that closed without its results being published. The one
+		// still running is published from Voting Controls.
+		$publish_url = '';
+		if ( $this->workflow->has_closed( $competition ) && ! $this->workflow->results_published( $competition ) ) {
+			$publish_url = $this->action_url( 'publish_results', (int) $competition->id );
+		}
 
 		// Share results section.
 		$share_hash   = $competition->share_hash ?? '';
@@ -518,29 +530,9 @@ class Results_Controller {
 		if ( ! empty( $share_hash ) && ! empty( $results_page ) ) {
 			$share_url = add_query_arg( 'share', $share_hash, $results_page );
 
-			$send_committee_url = wp_nonce_url(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager-results',
-						'action'      => 'send_results_committee',
-						'competition' => (int) $competition->id,
-					),
-					admin_url( 'admin.php' )
-				),
-				'photo_competition_send_results_committee_' . (int) $competition->id
-			);
+			$send_committee_url = $this->action_url( 'send_results_committee', (int) $competition->id );
 
-			$send_all_url = wp_nonce_url(
-				add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager-results',
-						'action'      => 'send_results_all',
-						'competition' => (int) $competition->id,
-					),
-					admin_url( 'admin.php' )
-				),
-				'photo_competition_send_results_all_' . (int) $competition->id
-			);
+			$send_all_url = $this->action_url( 'send_results_all', (int) $competition->id );
 		}
 
 		$send_all_confirm = __( 'This will send the results link to ALL active members. Continue?', 'photo-competition-manager' );
@@ -568,6 +560,7 @@ class Results_Controller {
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
+				'publish_url'          => $publish_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
 				'share_hash'           => $share_hash,
@@ -576,6 +569,48 @@ class Results_Controller {
 				'send_committee_url'   => $send_committee_url,
 				'send_all_url'         => $send_all_url,
 			)
+		);
+	}
+
+	/**
+	 * The Results screen for a competition.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function results_url( int $competition_id ): string {
+		return add_query_arg(
+			array(
+				'page'        => 'photo-competition-manager-results',
+				'competition' => $competition_id,
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * A nonced Results screen action for a competition, checked in
+	 * handle_actions() against photo_competition_<action>_<competition ID>.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $action         Action name.
+	 * @param int    $competition_id Competition ID.
+	 * @return string
+	 */
+	private function action_url( string $action, int $competition_id ): string {
+		return wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'        => 'photo-competition-manager-results',
+					'action'      => $action,
+					'competition' => $competition_id,
+				),
+				admin_url( 'admin.php' )
+			),
+			'photo_competition_' . $action . '_' . $competition_id
 		);
 	}
 
