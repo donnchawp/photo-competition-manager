@@ -48,19 +48,21 @@ class Competition_Settings {
 	/**
 	 * The range of each number on the type and competition settings forms, by
 	 * section and key. The forms' min, max and step attributes and the save
-	 * both come from here. Defaults are in defaults(). A field with no max
-	 * has no upper limit.
+	 * both come from here. Defaults are in defaults(), except a category
+	 * quota's: categories are a list there, so its default is here. A field
+	 * with no max has no upper limit.
 	 *
 	 * @since 0.5.0
 	 *
-	 * @var array<string, array<string, array{min: int, max?: int, step: int}>>
+	 * @var array<string, array<string, array{min: int, max?: int, step: int, default?: int}>>
 	 */
 	public const NUMBER_RANGES = array(
 		'categories' => array(
 			'quota' => array(
-				'min'  => 1,
-				'max'  => 10,
-				'step' => 1,
+				'min'     => 1,
+				'max'     => 10,
+				'step'    => 1,
+				'default' => 1,
 			),
 		),
 		'upload'     => array(
@@ -300,6 +302,10 @@ class Competition_Settings {
 	/**
 	 * Settings with their resize width and height kept to what the form allows.
 	 *
+	 * Only these two are checked on read: sites that saved a blank size before
+	 * #291 have 0 stored, which turned resizing off. Every number is checked
+	 * on save.
+	 *
 	 * @param array<string, mixed> $settings Settings merged with the defaults.
 	 * @return array<string, mixed>
 	 */
@@ -388,7 +394,7 @@ class Competition_Settings {
 				);
 			}
 
-			if ( ! isset( $category['quota'] ) || ! is_numeric( $category['quota'] ) || $category['quota'] < 1 ) {
+			if ( ! isset( $category['quota'] ) || ! is_numeric( $category['quota'] ) || $category['quota'] < self::NUMBER_RANGES['categories']['quota']['min'] ) {
 				return new WP_Error(
 					'invalid_quota',
 					sprintf(
@@ -409,7 +415,7 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
-			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < 1 ) {
+			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < self::NUMBER_RANGES['upload']['max_file_size_mb']['min'] ) {
 				return new WP_Error( 'invalid_file_size', __( 'Max file size must be at least 1 MB.', 'photo-competition-manager' ) );
 			}
 		}
@@ -438,7 +444,7 @@ class Competition_Settings {
 		}
 
 		foreach ( array( 'substitutes', 'photographer_limit' ) as $key ) {
-			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < 0 ) ) {
+			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < self::NUMBER_RANGES['interclub'][ $key ]['min'] ) ) {
 				return new WP_Error( 'invalid_interclub', __( 'Substitutes and the most images per photographer must be whole numbers, 0 or more.', 'photo-competition-manager' ) );
 			}
 		}
@@ -767,8 +773,7 @@ class Competition_Settings {
 	 *
 	 * A blank, or a 0 where the range doesn't allow 0, falls back to the
 	 * default: a blank field used to save 0, and a resize size of 0 turned
-	 * resizing off. A category quota has no default, so it falls back to its
-	 * minimum.
+	 * resizing off.
 	 *
 	 * @since 0.5.0
 	 *
@@ -782,7 +787,7 @@ class Competition_Settings {
 		$number = is_numeric( $value ) ? (int) $value : null;
 
 		if ( null === $number || ( 0 === $number && $range['min'] > 0 ) ) {
-			return (int) ( self::defaults()[ $section ][ $key ] ?? $range['min'] );
+			return (int) ( $range['default'] ?? self::defaults()[ $section ][ $key ] );
 		}
 
 		$number = max( $range['min'], $number );

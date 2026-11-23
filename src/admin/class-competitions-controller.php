@@ -1217,7 +1217,7 @@ class Competitions_Controller {
 			array(
 				'competition_id'      => (int) $competition->id,
 				'category_rows_html'  => $category_rows_html,
-				'upload_fields_html'  => $this->render_template( 'admin/shared/upload-constraint-fields.php', $upload + array( 'attributes' => Competition_Settings::number_attributes( 'upload' ) ) ),
+				'upload_fields_html'  => $this->render_upload_fields( $upload ),
 				'auth_mode'           => $auth_mode,
 				'scored_by_locked'    => $this->votes->has_votes( (int) $competition->id ),
 				'password_value'      => $password_value,
@@ -1360,26 +1360,6 @@ class Competitions_Controller {
 		}
 
 		return $options;
-	}
-
-	/**
-	 * Render category field row.
-	 *
-	 * @param  int   $index    Category index.
-	 * @param  array $category Category data.
-	 * @return string
-	 */
-	private function render_category_field( int $index, array $category ): string {
-		return $this->render_template(
-			'admin/shared/category-field.php',
-			array(
-				'index'            => $index,
-				'label'            => $category['label'],
-				'slug'             => $category['slug'],
-				'quota'            => $category['quota'],
-				'quota_attributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
-			)
-		);
 	}
 
 

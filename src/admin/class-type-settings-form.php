@@ -143,16 +143,7 @@ class Type_Settings_Form {
 		$rows_html = '';
 
 		foreach ( $categories as $index => $category ) {
-			$rows_html .= $this->render_template(
-				'admin/shared/category-field.php',
-				array(
-					'index'            => $index,
-					'label'            => $category['label'],
-					'slug'             => $category['slug'],
-					'quota'            => $category['quota'],
-					'quota_attributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
-				)
-			);
+			$rows_html .= $this->render_category_field( $index, $category );
 		}
 
 		return $this->render_template(
@@ -173,7 +164,7 @@ class Type_Settings_Form {
 		return $this->render_template(
 			'admin/types/upload-constraints-section.php',
 			array(
-				'fields_html' => $this->render_template( 'admin/shared/upload-constraint-fields.php', $upload + array( 'attributes' => Competition_Settings::number_attributes( 'upload' ) ) ),
+				'fields_html' => $this->render_upload_fields( $upload ),
 			)
 		);
 	}

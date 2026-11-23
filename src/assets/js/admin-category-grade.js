@@ -50,7 +50,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 					'<input type="number" name="categories[' +
 					categoryIndex +
 					'][quota]" value="1" ' +
-					( i18n.quotaAttributes || 'min="1" max="10" step="1"' ) +
+					i18n.quotaAttributes +
 					' class="small-text" required />' +
 					'</p>' +
 					'<button type="button" class="button remove-category" style="color: #b32d2e;">' +
