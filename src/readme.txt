@@ -21,6 +21,8 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * **Secure Submissions** – Members upload via magic-link authentication with automatic file validation, resizing, and quota enforcement
 * **Flexible Voting** – Members vote with emailed voting links or a shared password, or external judges score the images with their own private links. A full-screen slideshow shows the images on club nights
 * **Results Display** – Full results tables with filtering, responsive top-3 podium displays, and customizable member name visibility
+* **Past Competitions** – A public page listing past competitions, each at its own address with a gallery of the images entered. Names are hidden unless you choose to show them, and members choose which of their images appear
+* **Members' Entries** – Members ask for a link by email and see every image they've entered, with their scores and positions
 * **Email Notifications** – Automated emails for upload confirmations, voting invitations, results announcements, and custom templates with merge tags
 * **Setup Wizard** – One-click page creation for upload, voting, results, top-3, member and past competitions pages with pre-configured shortcodes
 
@@ -108,7 +110,7 @@ Members receive a magic-link email with a unique upload URL. No passwords or log
 = Can I customize the voting system? =
 
 Yes. Each competition picks who scores it on its Settings tab:
-1. **Voting links** – Members enter their email address on the voting page and get their own voting link
+1. **Voting links** – Each member votes with their own link. Voting Controls can email every member their link for the category taking votes, or a member enters their email address on the voting page to get one. If the competition has a voting password, link voters give it once on their device too, as a check that they're in the room
 2. **Password** – Share a single password with all voters, for example at a club meeting while the slideshow runs
 3. **Judges** – Invited judges score every image with their own private links, and members can't vote
 
@@ -128,13 +130,13 @@ Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a me
 
 The plugin sends automated emails for key events:
 * Upload confirmations when members submit images
-* Voting invitations with unique links or passwords
+* Voting links, emailed to every member from Voting Controls or to a member who asks on the voting page
 * Results announcements when competition closes
 * Custom templates with merge tags (member names, competition titles, links, etc.)
 
 Configure and customize all templates from **Competitions → Email Templates**. Each email sends the text that screen shows. Upload links, voting links and results emails always send. The voting opened and submission confirmed notifications are off until you switch them on.
 
-Emails going to many members (upload links, voting opened, results, and results links) are sent 5 at a time by the admin page you sent them from, so a big send can't time out a single request. The page shows progress while they go out, so keep it open until it says they've been sent. If you leave early, a notice on every admin page says where it stopped, with links to carry on without emailing anyone twice or to discard the rest. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
+Emails going to many members (upload links, voting links, voting opened, results, and results links) are sent 5 at a time by the admin page you sent them from, so a big send can't time out a single request. The page shows progress while they go out, so keep it open until it says they've been sent. If you leave early, a notice on every admin page says where it stopped, with links to carry on without emailing anyone twice or to discard the rest. To change the batch size, define `CLUB_COMPETE_EMAIL_BATCH_SIZE` in `wp-config.php`.
 
 = Can I customize categories and grades per competition? =
 
@@ -146,11 +148,15 @@ Grades are set once for the club in **Competitions → Settings**, and every com
 
 **For uploads:** Use the Upload Link action on the member's row in **Competitions → Members** to copy their link or send it again.
 
-**For voting:** The member enters their email address on the voting page again. The new link replaces the earlier one.
+**For voting:** The member enters their email address on the voting page again, and the new link replaces the earlier one. You can also send a member a new link from Voting Controls or the Members screen.
 
 = Can I hide member names in the results? =
 
 Yes. The "competition_results" shortcode has an optional "hide_names" parameter. Set that to 1 to hide the names. In an interclub competition it also leaves out the photographers, clubs and club standings.
+
+= Can members keep their images off the past competitions page? =
+
+Yes. The past competitions page is off until you switch it on under **Competitions → Settings**, and it hides names unless the shortcode has `show_names="true"`. Every member's images show there by default. Members can hide all their images, or one at a time, on their entries page (`[competition_my_entries]`), and an admin can show or hide all of a member's images on the Members screen. The Upload link email's `{archive_info}` tag tells members whether their images show, with a link to their entries page.
 
 = Does it work on mobile devices? =
 
@@ -179,12 +185,14 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 2. The results page, ranked within each category and grade
 3. The top 3 in each grade
 4. A member's upload page, with their entries and drag-and-drop upload
-5. Voting Controls taking a category through the club night, with each judge's progress
+5. Voting Controls taking a category through the club night, with the judges who have scored
 6. The competitions dashboard
 7. The Members screen, with each member's grade and competition types
 8. A competition type's interclub rules and its own names for the club's grades
 9. Club standings in an interclub competition
 10. The Results screen, with category statistics, CSV export and a share link
+11. A competition on the past competitions page, with each image's position and score
+12. A member's entries page, with their positions and the choice of which images show in past competitions
 
 == Changelog ==
 
