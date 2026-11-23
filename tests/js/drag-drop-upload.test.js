@@ -181,6 +181,28 @@ function quotaMessage() {
 }
 
 /**
+ * The interclub panel warning on screen, if there is one.
+ *
+ * @return {string|null} The warning.
+ */
+function quotaWarning() {
+	const warning = document.querySelector( '.photo-comp-quota-warning' );
+	return warning ? warning.textContent : null;
+}
+
+/**
+ * Tick or untick Substitute on the nth image.
+ *
+ * @param {number}  index   The image's place in the selection.
+ * @param {boolean} checked Whether it's a substitute.
+ */
+function setSubstitute( index, checked ) {
+	const checkbox = document.querySelectorAll( '.photo-comp-substitute-checkbox' )[ index ];
+	checkbox.checked = checked;
+	checkbox.dispatchEvent( new Event( 'change' ) );
+}
+
+/**
  * Send one.jpg and two.jpg, and answer the first request with a success.
  */
 async function sendTwoWithFirstUploaded() {
@@ -497,12 +519,30 @@ describe( 'drag-and-drop upload', () => {
 			expect( button.disabled ).toBe( false );
 		} );
 
+		it( 'says how many entries were chosen and how many to make substitutes', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg', 'three.jpg', 'four.jpg', 'five.jpg' ] );
+			expect( quotaWarning() ).toBe( "You've chosen 5 Colour entries, but the panel has room for 3 more. Tick Substitute on 2 images." );
+
+			setSubstitute( 0, true );
+			expect( quotaWarning() ).toBe( "You've chosen 4 Colour entries, but the panel has room for 3 more. Tick Substitute on 1 image." );
+
+			setSubstitute( 1, true );
+			expect( quotaWarning() ).toBeNull();
+		} );
+
+		it( 'says how many substitutes were ticked and how many to enter instead', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			[ 0, 1, 2 ].forEach( ( index ) => setSubstitute( index, true ) );
+			expect( quotaWarning() ).toBe( "You've ticked 3 Colour images as substitutes, but the panel has room for 2 more. Untick Substitute on 1 image to enter it." );
+
+			setSubstitute( 2, false );
+			expect( quotaWarning() ).toBeNull();
+		} );
+
 		it( "sends each image's photographer and whether it's a substitute", async () => {
 			await pickAndPreview( [ 'one.jpg' ] );
 			typePhotographer( 0, 'Ann Murphy' );
-			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
-			substitute.checked = true;
-			substitute.dispatchEvent( new Event( 'change' ) );
+			setSubstitute( 0, true );
 
 			document.querySelector( '.photo-comp-upload-all-btn' ).click();
 			await settle();
@@ -512,12 +552,12 @@ describe( 'drag-and-drop upload', () => {
 		} );
 	} );
 
-	describe( 'with a full panel and a substitute place left', () => {
+	describe( 'with a full panel and two substitute places left', () => {
 		const quotas = window.photoCompUpload.quotas;
 
 		beforeEach( () => {
-			window.photoCompUpload.interclub = { enabled: true, substitutes: 1 };
-			window.photoCompUpload.quotas = { colour: { current: 1, quota: 1, remaining: 1, entered_remaining: 0, substitutes_remaining: 1 } };
+			window.photoCompUpload.interclub = { enabled: true, substitutes: 2 };
+			window.photoCompUpload.quotas = { colour: { current: 1, quota: 1, remaining: 2, entered_remaining: 0, substitutes_remaining: 2 } };
 			renderPage();
 			document.dispatchEvent( new Event( 'DOMContentLoaded' ) );
 		} );
@@ -538,26 +578,23 @@ describe( 'drag-and-drop upload', () => {
 			const button = document.querySelector( '.photo-comp-upload-all-btn' );
 			expect( button.disabled ).toBe( true );
 
-			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
-			substitute.checked = true;
-			substitute.dispatchEvent( new Event( 'change' ) );
+			setSubstitute( 0, true );
 
 			expect( button.disabled ).toBe( false );
 		} );
 
-		it( 'says only a substitute place is left, until the image is a substitute', async () => {
-			pickFiles( [ 'one.jpg' ] );
-			for ( let i = 0; i < 50 && ! document.querySelector( '.photo-comp-substitute-checkbox' ); i++ ) {
+		it( 'says how many chosen entries to make substitutes, until they all are', async () => {
+			pickFiles( [ 'one.jpg', 'two.jpg' ] );
+			for ( let i = 0; i < 50 && document.querySelectorAll( '.photo-comp-substitute-checkbox' ).length < 2; i++ ) {
 				await settle();
 			}
-			const warning = () => document.querySelector( '.photo-comp-quota-warning' );
-			expect( warning().textContent ).toBe( 'The Colour panel has all its entries, but has room for 1 substitute. Tick Substitute on an image to add it as one.' );
+			expect( quotaWarning() ).toBe( "You've chosen 2 Colour entries, but the panel already has all its entries. Tick Substitute on 2 images." );
 
-			const substitute = document.querySelector( '.photo-comp-substitute-checkbox' );
-			substitute.checked = true;
-			substitute.dispatchEvent( new Event( 'change' ) );
+			setSubstitute( 0, true );
+			expect( quotaWarning() ).toBe( "You've chosen 1 Colour entry, but the panel already has all its entries. Tick Substitute on 1 image." );
 
-			expect( warning() ).toBeNull();
+			setSubstitute( 1, true );
+			expect( quotaWarning() ).toBeNull();
 		} );
 	} );
 
