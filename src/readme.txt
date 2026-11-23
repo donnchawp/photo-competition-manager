@@ -199,6 +199,11 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Voting Controls shows the voting password beside the QR code only when members need it, not when judges score the competition
 * **Judging**
   * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
+* **Uploads**
+  * The upload page says entries larger than the competition's width and height are resized to fit, so members know a big image won't be refused. The settings fields are now called "Resize entries to fit width" and "Resize entries to fit height"
+  * Interclub uploads say how many images were chosen against the room left, and how many to tick or untick as a substitute. Before, choosing 4 entries for a panel of 3 said "The Colour panel has room for 3 more entries."
+* **Settings**
+  * Every number on the competition and type settings forms is kept to its range when saved, and a blank field means its default. Before, a blank resize width and height saved 0 × 0, so entries weren't resized at all and the upload page said "0 × 0 pixels". A competition or type already saved with 0 resizes to 1920 × 1920 again without being saved
 * **Members**
   * New member page, `[competition_my_entries]`: members type their email address to get a link, valid for 7 days, to every image they've entered, newest first or best position first, with total scores and positions where results are published. Deactivated members can use it too. The Setup Wizard can create the page
 * **Past competitions**
