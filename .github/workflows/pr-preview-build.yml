@@ -1,7 +1,8 @@
 name: PR Preview - Build
 
 # Builds the plugin the way `make release` does (JS/CSS bundles included,
-# since they aren't committed) and hands the zip to "PR Preview - Publish".
+# since they aren't committed) and hands the zip to "PR Preview - Publish",
+# with a blueprint built from this PR's scripts/playground/seed.php.
 # Runs with read-only permissions, so it's safe for pull requests from forks.
 on:
   pull_request:
@@ -12,6 +13,7 @@ jobs:
     uses: WordPress/action-wp-playground-pr-preview/.github/workflows/preview-build.yml@v4
     with:
       artifacts: photo-competition-manager=build/photo-competition-manager.zip
+      blueprint-from-build: build/blueprint.json
       node-version: '20'
       build-command: |
         set -euo pipefail
@@ -22,3 +24,4 @@ jobs:
         rsync -a --exclude-from=.releaseignore src/ stage/photo-competition-manager/
         test -f stage/photo-competition-manager/assets/build/drag-drop-upload.js
         ( cd stage && zip -qr ../build/photo-competition-manager.zip photo-competition-manager )
+        php scripts/playground/build-blueprints.php build/blueprint.json

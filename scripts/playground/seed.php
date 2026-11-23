@@ -9,10 +9,10 @@
  * Entries are generated test cards, labelled with the member and
  * category, so there's nothing to download or license.
  *
- * This file is the source. `make blueprints` embeds it in blueprint.json,
- * .wordpress-org/blueprints/blueprint.json and the PR preview workflow.
- * The wordpress.org copy runs against the released plugin, so only use
- * APIs the latest release has.
+ * This file is the source. `make blueprints` embeds it in blueprint.json
+ * and .wordpress-org/blueprints/blueprint.json, and the PR preview build
+ * embeds it in that PR's blueprint. The wordpress.org copy runs against
+ * the released plugin, so only use APIs the latest release has.
  *
  * @package PhotoCompetitionManager
  */
@@ -20,13 +20,17 @@
 require_once '/wordpress/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';
 
-// The seed's entries are local files, not HTTP uploads. Both of these let
-// them through for this request only: the filter from 0.5.0, the constant
-// for 0.4.0 (the wordpress.org demo). Drop the constant once 0.5.0 is out.
+// The seed's entries are local files, not HTTP uploads. The filter lets
+// them through for this request only. 0.4.0 (the wordpress.org demo) has
+// no filter and skips the check under WP_TESTS_DOMAIN instead; drop that
+// branch once 0.5.0 is out.
 add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
-if ( ! defined( 'WP_TESTS_DOMAIN' ) ) {
+if ( ! function_exists( 'PhotoCompetitionManager\\Support\\is_http_upload' ) && ! defined( 'WP_TESTS_DOMAIN' ) ) {
 	define( 'WP_TESTS_DOMAIN', 'playground' );
 }
+
+// The plugin only uses its own sizes, so skip WordPress's media sizes.
+add_filter( 'intermediate_image_sizes_advanced', '__return_empty_array' );
 
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
@@ -65,25 +69,28 @@ foreach ( $pcm_pages as $pcm_title => $pcm_shortcode ) {
 
 $pcm_members = array();
 $pcm_repo    = new Members_Repository();
+// Name, email, grade, and the hue of their entries.
 foreach ( array(
-	array( 'Ann Beginner', 'ann@example.com', 'beginner' ),
-	array( 'Bob Intermediate', 'bob@example.com', 'intermediate' ),
-	array( 'Cat Advanced', 'cat@example.com', 'advanced' ),
-) as list( $pcm_name, $pcm_email, $pcm_grade ) ) {
-	$pcm_members[ $pcm_name ] = (int) $pcm_seed_fail(
-		$pcm_repo->create(
-			array(
-				'name'  => $pcm_name,
-				'email' => $pcm_email,
-				'grade' => $pcm_grade,
-			)
+	array( 'Ann Beginner', 'ann@example.com', 'beginner', 20 ),
+	array( 'Bob Intermediate', 'bob@example.com', 'intermediate', 200 ),
+	array( 'Cat Advanced', 'cat@example.com', 'advanced', 290 ),
+) as list( $pcm_name, $pcm_email, $pcm_grade, $pcm_hue ) ) {
+	$pcm_members[ $pcm_name ] = array(
+		'id'  => (int) $pcm_seed_fail(
+			$pcm_repo->create(
+				array(
+					'name'  => $pcm_name,
+					'email' => $pcm_email,
+					'grade' => $pcm_grade,
+				)
+			),
+			'member ' . $pcm_name
 		),
-		'member ' . $pcm_name
+		'hue' => $pcm_hue,
 	);
 }
 
-$pcm_types        = new Competition_Types_Repository();
-$pcm_type         = $pcm_types->only() ?? $pcm_types->all()[0];
+$pcm_type         = ( new Competition_Types_Repository() )->all()[0];
 $pcm_competitions = new Competitions_Repository();
 $pcm_create       = static function ( string $title, string $slug, int $open, int $close ) use ( $pcm_competitions, $pcm_type, $pcm_seed_fail ): object {
 	$id = (int) $pcm_seed_fail(
@@ -140,20 +147,15 @@ $pcm_card = static function ( string $label, int $hue, bool $mono ): array {
 };
 
 $pcm_entries = new Entries();
-$pcm_hues    = array(
-	'Ann Beginner'     => 20,
-	'Bob Intermediate' => 200,
-	'Cat Advanced'     => 290,
-);
 // Enters each member once per category; returns entry IDs by category.
-$pcm_enter = static function ( object $competition, array $names ) use ( $pcm_entries, $pcm_members, $pcm_hues, $pcm_card, $pcm_seed_fail ): array {
+$pcm_enter = static function ( object $competition, array $names ) use ( $pcm_entries, $pcm_members, $pcm_card, $pcm_seed_fail ): array {
 	$by_category = array();
 	foreach ( Competition_Settings::get_categories( Competition_Settings::parse( $competition->settings ) ) as $category ) {
 		foreach ( $names as $name ) {
-			$file = $pcm_card( strtok( $name, ' ' ) . ' - ' . $category['label'], $pcm_hues[ $name ], 'colour' !== $category['slug'] );
+			$file = $pcm_card( strtok( $name, ' ' ) . ' - ' . $category['label'], $pcm_members[ $name ]['hue'], 'colour' !== $category['slug'] );
 
 			$by_category[ $category['slug'] ][] = (int) $pcm_seed_fail(
-				$pcm_entries->add( Actor::admin(), (int) $competition->id, $pcm_members[ $name ], $category['slug'], $file ),
+				$pcm_entries->add( Actor::admin(), (int) $competition->id, $pcm_members[ $name ]['id'], $category['slug'], $file ),
 				'entry for ' . $name
 			);
 		}

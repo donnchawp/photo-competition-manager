@@ -1,9 +1,11 @@
 <?php
 /**
- * Writes the three Playground blueprints from scripts/playground/seed.php.
+ * Writes the Playground blueprints from scripts/playground/seed.php.
  *
- * They differ only in where the plugin comes from. Run `make blueprints`
- * after editing the seed; CI fails if the blueprints are out of date.
+ * With no argument it writes blueprint.json and the wordpress.org Live
+ * Preview blueprint: run `make blueprints` after editing the seed, and CI
+ * fails if they're out of date. With a path it writes only the PR preview
+ * blueprint there, which the PR Preview build bundles with its zip.
  *
  * @package PhotoCompetitionManager
  */
@@ -35,10 +37,21 @@ $blueprint = static function ( array $plugin ) use ( $seed ): string {
 			),
 		),
 	);
-	$json = json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-	// Two-space indents, like the hand-written blueprints were.
-	return preg_replace_callback( '/^ +/m', static fn( $m ) => str_repeat( ' ', strlen( $m[0] ) / 2 ), $json ) . "\n";
+	return json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "\n";
 };
+
+if ( isset( $argv[1] ) ) {
+	file_put_contents(
+		$argv[1],
+		$blueprint(
+			array(
+				'resource' => 'url',
+				'url'      => '{{ARTIFACT_URL:photo-competition-manager}}',
+			)
+		)
+	);
+	exit;
+}
 
 file_put_contents(
 	$root . '/blueprint.json',
@@ -59,21 +72,3 @@ file_put_contents(
 		)
 	)
 );
-
-// The workflow holds its blueprint in a YAML block scalar, between the
-// `blueprint: |` line and the next line indented less than the block.
-$workflow_file = $root . '/.github/workflows/pr-preview-publish.yml';
-$workflow      = file_get_contents( $workflow_file );
-$json          = $blueprint(
-	array(
-		'resource' => 'url',
-		'url'      => '{{ARTIFACT_URL:photo-competition-manager}}',
-	)
-);
-$indented      = preg_replace( '/^(?=.)/m', '        ', $json );
-$updated       = preg_replace( '/^(      blueprint: \|\n)(?:(?:        .*)?\n)+/m', '$1' . addcslashes( $indented, '\\$' ), $workflow, 1, $count );
-if ( 1 !== $count ) {
-	fwrite( STDERR, "Couldn't find the blueprint block in $workflow_file\n" );
-	exit( 1 );
-}
-file_put_contents( $workflow_file, $updated );
