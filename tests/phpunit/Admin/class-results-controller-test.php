@@ -272,7 +272,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Detailed results wait for Show Results, so the position each entrant
+	 * Detailed results wait for Publish Results, so the position each entrant
 	 * is told is the recorded one.
 	 */
 	public function test_email_results_before_results_are_published_is_refused(): void {
@@ -298,7 +298,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * A competition that closed without anyone pressing Show Results is read
+	 * A competition that closed without anyone pressing Publish Results is read
 	 * from its record, so its results can be emailed.
 	 */
 	public function test_email_results_once_the_competition_has_closed_is_allowed(): void {
