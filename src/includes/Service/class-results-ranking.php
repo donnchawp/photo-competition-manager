@@ -355,12 +355,7 @@ class Results_Ranking {
 		}
 
 		$rows    = $this->record->find_by_competition( (int) $competition->id );
-		$current = array();
-		foreach ( $rows as $row ) {
-			if ( null !== $row->member_id ) {
-				$current[ (int) $row->member_id ] = (string) $row->grade;
-			}
-		}
+		$current = self::grades_of( $rows );
 
 		$changes = array();
 		foreach ( $grades as $member_id => $grade ) {
@@ -389,7 +384,7 @@ class Results_Ranking {
 		foreach ( $rows as $row ) {
 			$grade = $changes[ (int) $row->member_id ]['to'] ?? (string) $row->grade;
 
-			$groups[ $row->category ][ $grade ][] = array(
+			$groups[ $row->category . "\0" . $grade ][] = array(
 				'id'          => (int) $row->id,
 				'grade'       => $grade,
 				'total_score' => (int) $row->total_score,
@@ -397,18 +392,84 @@ class Results_Ranking {
 		}
 
 		$ranked = array();
-		foreach ( $groups as $by_grade ) {
-			foreach ( $by_grade as $entries ) {
-				foreach ( $this->assign_positions( $entries ) as $entry ) {
-					$ranked[] = $entry;
-				}
-			}
+		foreach ( $groups as $entries ) {
+			array_push( $ranked, ...$this->assign_positions( $entries ) );
 		}
 
 		$updated = $this->record->update_rankings( $ranked );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
 
-		return is_wp_error( $updated ) ? $updated : $changes;
+		$this->log_grade_corrections( $competition, $changes );
+
+		return $changes;
 	}
+
+	/**
+	 * The grade each member's entries are recorded in, in a competition.
+	 * Members deleted since aren't in it.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object $competition Competition row.
+	 * @return array<int, string> Member ID => grade slug, '' for ungraded.
+	 */
+	public function recorded_grades( object $competition ): array {
+		return self::grades_of( $this->record->find_by_competition( (int) $competition->id ) );
+	}
+
+	/**
+	 * Member ID => recorded grade, from recorded rows.
+	 *
+	 * @param array<int, object> $rows Recorded rows.
+	 * @return array<int, string>
+	 */
+	private static function grades_of( array $rows ): array {
+		$grades = array();
+		foreach ( $rows as $row ) {
+			if ( null !== $row->member_id ) {
+				$grades[ (int) $row->member_id ] = (string) $row->grade;
+			}
+		}
+
+		return $grades;
+	}
+
+	/**
+	 * Log each member whose grade in a competition was corrected.
+	 *
+	 * @param object                                      $competition Competition row.
+	 * @param array<int, array{from: string, to: string}> $changes     Member ID => old and new grade slug.
+	 * @return void
+	 */
+	private function log_grade_corrections( object $competition, array $changes ): void {
+		$labels  = new Competition_Labels();
+		$logger  = new Event_Logger();
+		$members = $this->members->find_many( array_keys( $changes ) );
+		$title   = $labels->title_for_everyone( $competition );
+		foreach ( $changes as $member_id => $change ) {
+			$logger->log(
+				(int) $competition->id,
+				'grade_corrected',
+				'results',
+				sprintf(
+					/* translators: 1: member name, 2: competition title, 3: old grade name, 4: new grade name */
+					__( '%1$s\'s grade in %2$s was corrected from %3$s to %4$s.', 'photo-competition-manager' ),
+					isset( $members[ $member_id ] ) ? $members[ $member_id ]->name : '#' . $member_id,
+					$title,
+					$labels->recorded_grade_label( $competition, $change['from'] ),
+					$labels->grade_label( $competition, $change['to'] )
+				),
+				array(
+					'member_id' => $member_id,
+					'from'      => $change['from'],
+					'to'        => $change['to'],
+				)
+			);
+		}
+	}
+
 
 	/**
 	 * Record a competition's results if they're published, or it has closed,

@@ -4,8 +4,7 @@
  *
  * @package PhotoCompetitionManager
  *
- * $data['action_url'] string Form action URL (correct_grades on this competition).
- * $data['nonce']      string Nonce action.
+ * $data['action_url'] string Nonced form action URL (correct_grades on this competition).
  * $data['rows']       array<int, array{member_id: int, name: string, grade: string, options: array<string, string>}> Each member with recorded entries, their recorded grade, and the grades to choose from.
  */
 
@@ -17,7 +16,6 @@ echo '<details class="photo-comp-grades-panel" style="margin: 20px 0; padding: 1
 echo '<summary style="cursor: pointer;"><strong>' . esc_html__( 'Grades in this competition', 'photo-competition-manager' ) . '</strong></summary>';
 echo '<p class="description">' . esc_html__( 'The results keep the grade each member was in when they were recorded. If a member has moved grade since and is shown in the wrong one, choose the grade they entered in. Their entries in every category move to it, and the results are ranked again from the same scores.', 'photo-competition-manager' ) . '</p>';
 echo '<form method="post" action="' . esc_url( $data['action_url'] ) . '">';
-wp_nonce_field( $data['nonce'] );
 echo '<table class="widefat striped" style="max-width: 500px;"><tbody>';
 foreach ( $data['rows'] as $row ) {
 	$field_id = 'photo-comp-grade-' . (int) $row['member_id'];

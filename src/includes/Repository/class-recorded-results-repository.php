@@ -112,27 +112,21 @@ class Recorded_Results_Repository extends Abstract_Repository {
 
 		$grades    = array();
 		$positions = array();
-		$ids       = array();
-		$values    = array( $this->table() );
 		foreach ( $rows as $row ) {
-			$grades[] = 'WHEN %d THEN %s';
-			array_push( $values, (int) $row['id'], (string) $row['grade'] );
+			array_push( $grades, (int) $row['id'], (string) $row['grade'] );
+			array_push( $positions, (int) $row['id'], (int) $row['position'] );
 		}
-		foreach ( $rows as $row ) {
-			$positions[] = 'WHEN %d THEN %d';
-			array_push( $values, (int) $row['id'], (int) $row['position'] );
-		}
-		foreach ( $rows as $row ) {
-			$ids[]    = '%d';
-			$values[] = (int) $row['id'];
-		}
+		$ids    = array_map( 'intval', array_column( $rows, 'id' ) );
+		$count  = count( $rows );
+		$values = array_merge( array( $this->table() ), $grades, $positions, $ids );
 
 		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Literal placeholders per row; the count matches at runtime.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The CASE and IN lists only hold literal placeholders.
 		$updated = $wpdb->query(
 			$wpdb->prepare(
-				'UPDATE %i SET grade = CASE id ' . implode( ' ', $grades ) . ' END, position = CASE id ' . implode( ' ', $positions ) . ' END
-				WHERE id IN (' . implode( ', ', $ids ) . ')',
+				'UPDATE %i SET grade = CASE id ' . implode( ' ', array_fill( 0, $count, 'WHEN %d THEN %s' ) ) . ' END,
+				position = CASE id ' . implode( ' ', array_fill( 0, $count, 'WHEN %d THEN %d' ) ) . ' END
+				WHERE id IN (' . implode( ', ', array_fill( 0, $count, '%d' ) ) . ')',
 				$values
 			)
 		);
