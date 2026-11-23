@@ -1760,7 +1760,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Invalid settings (quota below 1) surface a validation error and redirect back.
+	 * Invalid settings (no categories) surface a validation error and redirect back.
 	 */
 	public function test_update_competition_settings_validation_error(): void {
 		$id = $this->create_competition( 'Bad Settings', 'bad-settings' );

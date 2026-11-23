@@ -771,9 +771,9 @@ class Competition_Settings {
 	/**
 	 * A number kept within its range in NUMBER_RANGES.
 	 *
-	 * A blank, or a 0 where the range doesn't allow 0, falls back to the
-	 * default: a blank field used to save 0, and a resize size of 0 turned
-	 * resizing off.
+	 * A blank, or a 0 or negative number where the range doesn't allow 0,
+	 * falls back to the default: a blank field used to save 0, and a resize
+	 * size of 0 turned resizing off.
 	 *
 	 * @since 0.5.0
 	 *
@@ -786,7 +786,7 @@ class Competition_Settings {
 		$range  = self::NUMBER_RANGES[ $section ][ $key ];
 		$number = is_numeric( $value ) ? (int) $value : null;
 
-		if ( null === $number || ( 0 === $number && $range['min'] > 0 ) ) {
+		if ( null === $number || ( $number <= 0 && $range['min'] > 0 ) ) {
 			return (int) ( $range['default'] ?? self::defaults()[ $section ][ $key ] );
 		}
 
