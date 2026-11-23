@@ -4,7 +4,7 @@ Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -188,7 +188,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 
 == Changelog ==
 
-= 0.5.0 (unreleased) =
+= 0.5.0 =
 * **Before you upgrade**
   * When members vote with emailed links and the competition has a voting password saved, link voters now need that password too. Clear the password on any links competition where you don't want the check.
   * If you've customised the Upload link email, add the new `{archive_info}` tag to it, so members are told whether their images show in past competitions.
@@ -426,6 +426,9 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.5.0 =
+Members voting with emailed links now need the competition's voting password if one is saved. If you've customised the Upload link email, add the new {archive_info} tag to it.
 
 = 0.4.0 =
 Back up your database first. This update upgrades the database on the first request, and rolling back to 0.3.0 afterwards loses the competition workflow state.
