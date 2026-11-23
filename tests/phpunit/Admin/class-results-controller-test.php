@@ -1063,7 +1063,12 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 			}
 		);
 
-		$this->assertTrue( ( new Competition_Workflow() )->results_published( $this->competitions->find( $this->competition_id ) ) );
+		$workflow    = new Competition_Workflow();
+		$competition = $this->competitions->find( $this->competition_id );
+		$this->assertTrue( $workflow->results_published( $competition ) );
+		// Close Uploads was never pressed on it. Published results always have uploads
+		// closed, so moving its close date into the future later doesn't reopen uploads.
+		$this->assertTrue( $workflow->uploads_closed( $competition ) );
 		$this->assertContains( 'results_published', $this->settings_error_codes( 'photo_competition_results' ) );
 		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
 	}
@@ -1091,6 +1096,29 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertFalse( ( new Competition_Workflow() )->results_published( $this->competitions->find( $id ) ) );
 		$this->assertContains( 'competition_not_closed', $this->settings_error_codes( 'photo_competition_results' ) );
+	}
+
+	/**
+	 * A stale link to a competition that has since been archived, or deleted,
+	 * says so instead of pointing at Voting Controls.
+	 */
+	public function test_publish_results_of_an_archived_competition_is_not_found(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->set_request(
+			array(
+				'action'      => 'publish_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_publish_results_' . $this->competition_id );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_results' ) );
 	}
 
 	/**

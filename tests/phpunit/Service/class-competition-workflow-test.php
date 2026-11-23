@@ -387,18 +387,6 @@ class Competition_Workflow_Test extends WP_UnitTestCase {
 		$this->assertSame( 'uploads_open', $this->workflow->publish_results( $id )->get_error_code() );
 	}
 
-	/**
-	 * A competition that closed by its date never had Close Uploads pressed
-	 * in some clubs, as with January 2026 on the club's site. Its close date
-	 * ended uploads, so its results can still be published.
-	 */
-	public function test_publishing_results_of_a_competition_closed_by_its_date_is_allowed(): void {
-		$id = $this->create_competition( array( 'close_date' => utc_time( -DAY_IN_SECONDS ) ) );
-
-		$this->assertTrue( $this->workflow->publish_results( $id ) );
-		$this->assertTrue( $this->workflow->results_published( $this->row( $id ) ) );
-	}
-
 	public function test_publishing_results_while_voting_is_open_is_refused(): void {
 		$id = $this->ready_to_open( 'colour' );
 		$this->workflow->open_voting( $id, 'colour' );

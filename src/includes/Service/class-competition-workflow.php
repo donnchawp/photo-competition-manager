@@ -396,14 +396,13 @@ class Competition_Workflow {
 
 	/**
 	 * Whether results may be published: uploads are closed and no category
-	 * is accepting votes. A competition that has closed has neither, whether
-	 * or not Close Uploads was pressed.
+	 * is accepting votes.
 	 *
 	 * @param object $competition Competition row.
 	 * @return true|WP_Error 'uploads_open' or 'voting_open'.
 	 */
 	public function can_publish_results( object $competition ) {
-		if ( ! $this->uploads_closed( $competition ) && ! $this->has_closed( $competition ) ) {
+		if ( ! $this->uploads_closed( $competition ) ) {
 			return new WP_Error( 'uploads_open', __( 'Close uploads before publishing results.', 'photo-competition-manager' ) );
 		}
 

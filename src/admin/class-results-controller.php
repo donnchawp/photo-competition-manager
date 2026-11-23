@@ -334,7 +334,17 @@ class Results_Controller {
 			$redirect_url = $this->results_url( $competition_id );
 
 			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition || ! $this->workflow->has_closed( $competition ) ) {
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_results',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
+			if ( ! $this->workflow->has_closed( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
 					'competition_not_closed',
@@ -344,9 +354,14 @@ class Results_Controller {
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
+			// Its close date ended uploads, but Close Uploads may never have been
+			// pressed. Closing them keeps published results from reopening uploads
+			// if the close date is later moved into the future.
+			$closed = $this->workflow->close_uploads( $competition_id );
+
 			$this->notice_and_redirect(
 				'photo_competition_results',
-				$this->workflow->publish_results( $competition_id ),
+				is_wp_error( $closed ) ? $closed : $this->workflow->publish_results( $competition_id ),
 				'results_published',
 				__( 'Results are now published.', 'photo-competition-manager' ),
 				$redirect_url
