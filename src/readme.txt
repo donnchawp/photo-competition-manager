@@ -197,6 +197,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Opening a category no longer sends the "Voting opened" email when members vote with emailed links. Their link email does that job
   * With emailed links, a voting password is now a check that the voter is in the room. Link voters give it once per competition on their device. Leave it blank to let members vote from home
   * Voting Controls shows the voting password beside the QR code only when members need it, not when judges score the competition
+  * The last button on Voting Controls is now called "Publish Results", not "Show Results". It publishes the results but doesn't close the competition; that happens on its close date
 * **Judging**
   * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
 * **Uploads**
