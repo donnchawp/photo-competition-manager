@@ -3,7 +3,8 @@
  * Single category row partial (shared by the settings and competition settings forms).
  *
  * Reads $data['index'] (int), $data['label'] (string), $data['slug']
- * (string), and $data['quota'] (int|string).
+ * (string), $data['quota'] (int|string), and $data['quota_attributes']
+ * (string): the quota input's escaped min, max and step.
  *
  * @package PhotoCompetitionManager
  */
@@ -24,7 +25,7 @@ echo '</p>';
 
 echo '<p style="margin: 5px 0;">';
 echo '<label>' . esc_html__( 'Upload Quota', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" name="categories[' . esc_attr( $data['index'] ) . '][quota]" value="' . esc_attr( $data['quota'] ) . '" min="1" max="10" class="small-text" required />';
+echo '<input type="number" name="categories[' . esc_attr( $data['index'] ) . '][quota]" value="' . esc_attr( $data['quota'] ) . '" ' . $data['quota_attributes'] . ' class="small-text" required />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by Competition_Settings::number_attributes().
 echo '</p>';
 
 echo '<button type="button" class="button remove-category" style="color: #b32d2e;">' . esc_html__( 'Remove', 'photo-competition-manager' ) . '</button>';

@@ -42,7 +42,7 @@ class Type_Settings_Form {
 			$categories[] = array(
 				'label' => sanitize_text_field( $category['label'] ),
 				'slug'  => sanitize_title( $category['slug'] ),
-				'quota' => absint( $category['quota'] ),
+				'quota' => Competition_Settings::number_in_range( 'categories', 'quota', $category['quota'] ),
 			);
 		}
 
@@ -67,9 +67,9 @@ class Type_Settings_Form {
 		$settings['upload']     = array_merge(
 			$current['upload'] ?? array(),
 			array(
-				'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-				'max_width'        => Competition_Settings::resize_size( 'max_width', $this->get_post_string( 'max_width' ) ),
-				'max_height'       => Competition_Settings::resize_size( 'max_height', $this->get_post_string( 'max_height' ) ),
+				'max_file_size_mb' => Competition_Settings::number_in_range( 'upload', 'max_file_size_mb', $this->get_post_string( 'max_file_size_mb' ) ),
+				'max_width'        => Competition_Settings::number_in_range( 'upload', 'max_width', $this->get_post_string( 'max_width' ) ),
+				'max_height'       => Competition_Settings::number_in_range( 'upload', 'max_height', $this->get_post_string( 'max_height' ) ),
 			)
 		);
 		$settings['voting']     = array_merge(
@@ -85,9 +85,9 @@ class Type_Settings_Form {
 			$current['slideshow'] ?? array(),
 			array(
 				'progress_meter_type' => $progress_meter_type,
-				'preview_duration'    => $this->posted_duration( 'preview_duration', (int) ( $current['slideshow']['preview_duration'] ?? 10 ) ),
-				'voting_duration'     => $this->posted_duration( 'voting_duration', (int) ( $current['slideshow']['voting_duration'] ?? 15 ) ),
-				'critique_duration'   => $this->posted_duration( 'critique_duration', (int) ( $current['slideshow']['critique_duration'] ?? 0 ) ),
+				'preview_duration'    => $this->posted_duration( 'preview_duration', $current ),
+				'voting_duration'     => $this->posted_duration( 'voting_duration', $current ),
+				'critique_duration'   => $this->posted_duration( 'critique_duration', $current ),
 			)
 		);
 
@@ -96,8 +96,8 @@ class Type_Settings_Form {
 		if ( '1' === $this->get_post_string( 'interclub_section' ) ) {
 			$settings['interclub'] = array(
 				'enabled'            => '1' === $this->get_post_string( 'interclub_enabled' ),
-				'substitutes'        => max( 0, (int) $this->get_post_string( 'interclub_substitutes', '0' ) ),
-				'photographer_limit' => max( 0, (int) $this->get_post_string( 'interclub_photographer_limit', '0' ) ),
+				'substitutes'        => Competition_Settings::number_in_range( 'interclub', 'substitutes', $this->get_post_string( 'interclub_substitutes' ) ),
+				'photographer_limit' => Competition_Settings::number_in_range( 'interclub', 'photographer_limit', $this->get_post_string( 'interclub_photographer_limit' ) ),
 			);
 		}
 
@@ -116,18 +116,21 @@ class Type_Settings_Form {
 			. $this->render_upload_constraints_section( $settings['upload'] )
 			. $this->render_voting_section( $settings['voting'] )
 			. $this->render_slideshow_section( $settings['slideshow'] )
-			. $this->render_template( 'admin/types/interclub-section.php', $settings['interclub'] );
+			. $this->render_template( 'admin/types/interclub-section.php', $settings['interclub'] + array( 'attributes' => Competition_Settings::number_attributes( 'interclub' ) ) );
 	}
 
 	/**
-	 * A posted slideshow duration in seconds, from 0 to 120.
+	 * A posted slideshow duration in seconds. The competition form doesn't
+	 * post the durations, so a missing one keeps its current value.
 	 *
-	 * @param string $key      POST key.
-	 * @param int    $fallback Value when nothing is posted: the current one.
+	 * @param string               $key     POST key, the same as the setting's.
+	 * @param array<string, mixed> $current Current settings.
 	 * @return int
 	 */
-	private function posted_duration( string $key, int $fallback ): int {
-		return min( 120, absint( $this->get_post_string( $key, (string) $fallback ) ) );
+	private function posted_duration( string $key, array $current ): int {
+		$fallback = (string) ( $current['slideshow'][ $key ] ?? Competition_Settings::defaults()['slideshow'][ $key ] );
+
+		return Competition_Settings::number_in_range( 'slideshow', $key, $this->get_post_string( $key, $fallback ) );
 	}
 
 	/**
@@ -140,15 +143,7 @@ class Type_Settings_Form {
 		$rows_html = '';
 
 		foreach ( $categories as $index => $category ) {
-			$rows_html .= $this->render_template(
-				'admin/shared/category-field.php',
-				array(
-					'index' => $index,
-					'label' => $category['label'],
-					'slug'  => $category['slug'],
-					'quota' => $category['quota'],
-				)
-			);
+			$rows_html .= $this->render_category_field( $index, $category );
 		}
 
 		return $this->render_template(
@@ -169,7 +164,7 @@ class Type_Settings_Form {
 		return $this->render_template(
 			'admin/types/upload-constraints-section.php',
 			array(
-				'fields_html' => $this->render_template( 'admin/shared/upload-constraint-fields.php', $upload ),
+				'fields_html' => $this->render_upload_fields( $upload ),
 			)
 		);
 	}
@@ -214,6 +209,7 @@ class Type_Settings_Form {
 				'preview_duration'    => $slideshow['preview_duration'],
 				'voting_duration'     => $slideshow['voting_duration'],
 				'critique_duration'   => $slideshow['critique_duration'],
+				'attributes'          => Competition_Settings::number_attributes( 'slideshow' ),
 			)
 		);
 	}

@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Competition_Settings;
+
 use function PhotoCompetitionManager\Support\render_template;
 
 /**
@@ -74,6 +76,7 @@ trait Form_Rendering {
 				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
 				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
 				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+				'quotaAttributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
 			)
 		);
 	}
@@ -289,5 +292,40 @@ trait Form_Rendering {
 	 */
 	protected function render_template( string $relative, array $data = array() ): string {
 		return render_template( $relative, $data );
+	}
+
+	/**
+	 * One category row, shared by the type and competition settings forms.
+	 *
+	 * @since 0.5.0
+	 * @param int                  $index    Row index.
+	 * @param array<string, mixed> $category Category: label, slug and quota.
+	 * @return string
+	 */
+	protected function render_category_field( int $index, array $category ): string {
+		return $this->render_template(
+			'admin/shared/category-field.php',
+			array(
+				'index'            => $index,
+				'label'            => $category['label'],
+				'slug'             => $category['slug'],
+				'quota'            => $category['quota'],
+				'quota_attributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
+			)
+		);
+	}
+
+	/**
+	 * The upload constraint fields, shared by the type and competition settings forms.
+	 *
+	 * @since 0.5.0
+	 * @param array<string, mixed> $upload Upload constraints.
+	 * @return string
+	 */
+	protected function render_upload_fields( array $upload ): string {
+		return $this->render_template(
+			'admin/shared/upload-constraint-fields.php',
+			$upload + array( 'attributes' => Competition_Settings::number_attributes( 'upload' ) )
+		);
 	}
 }

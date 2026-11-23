@@ -4,7 +4,9 @@
  *
  * Reads $data['meter_types'] (array<string,string>, meter-type slug =>
  * label), $data['progress_meter_type'] (string), $data['preview_duration'],
- * $data['voting_duration'], and $data['critique_duration'] (all int).
+ * $data['voting_duration'], and $data['critique_duration'] (all int), and
+ * $data['attributes'] (array<string, string>): each duration input's escaped
+ * min, max and step.
  *
  * @package PhotoCompetitionManager
  */
@@ -40,7 +42,7 @@ echo '<table class="form-table" style="margin-top: 16px;"><tbody>';
 				<label for="preview_duration"><?php esc_html_e( 'Preview Duration', 'photo-competition-manager' ); ?></label>
 			</th>
 			<td>
-				<input type="number" id="preview_duration" name="preview_duration" value="<?php echo esc_attr( $data['preview_duration'] ); ?>" min="0" max="120" step="1" class="small-text" />
+				<input type="number" id="preview_duration" name="preview_duration" value="<?php echo esc_attr( $data['preview_duration'] ); ?>" <?php echo $data['attributes']['preview_duration']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by Competition_Settings::number_attributes(). ?> class="small-text" />
 				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
 			</td>
 		</tr>
@@ -49,7 +51,7 @@ echo '<table class="form-table" style="margin-top: 16px;"><tbody>';
 				<label for="voting_duration"><?php esc_html_e( 'Voting Slideshow Duration', 'photo-competition-manager' ); ?></label>
 			</th>
 			<td>
-				<input type="number" id="voting_duration" name="voting_duration" value="<?php echo esc_attr( $data['voting_duration'] ); ?>" min="0" max="120" step="1" class="small-text" />
+				<input type="number" id="voting_duration" name="voting_duration" value="<?php echo esc_attr( $data['voting_duration'] ); ?>" <?php echo $data['attributes']['voting_duration']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by Competition_Settings::number_attributes(). ?> class="small-text" />
 				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
 			</td>
 		</tr>
@@ -58,7 +60,7 @@ echo '<table class="form-table" style="margin-top: 16px;"><tbody>';
 				<label for="critique_duration"><?php esc_html_e( 'Critique Duration', 'photo-competition-manager' ); ?></label>
 			</th>
 			<td>
-				<input type="number" id="critique_duration" name="critique_duration" value="<?php echo esc_attr( $data['critique_duration'] ); ?>" min="0" max="120" step="1" class="small-text" />
+				<input type="number" id="critique_duration" name="critique_duration" value="<?php echo esc_attr( $data['critique_duration'] ); ?>" <?php echo $data['attributes']['critique_duration']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by Competition_Settings::number_attributes(). ?> class="small-text" />
 				<span><?php esc_html_e( 'seconds (0 = manual advance)', 'photo-competition-manager' ); ?></span>
 			</td>
 		</tr>
