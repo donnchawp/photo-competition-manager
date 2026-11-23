@@ -598,31 +598,59 @@ class DragDropUpload {
 					);
 				}
 
-				return sprintf(
-					/* translators: 1: category label, 2: entries the panel still takes. */
-					_n(
-						'The %1$s panel has room for %2$d more entry.',
-						'The %1$s panel has room for %2$d more entries.',
-						quota.entered_remaining,
-						'photo-competition-manager'
+				// The images fit the category, so the extra entries fit as substitutes.
+				return [
+					sprintf(
+						/* translators: 1: entries chosen, 2: category label, 3: entries the panel still takes. */
+						_n(
+							"You've chosen %1$d %2$s entry, but the panel has room for %3$d more.",
+							"You've chosen %1$d %2$s entries, but the panel has room for %3$d more.",
+							count.entered,
+							'photo-competition-manager'
+						),
+						count.entered,
+						label,
+						quota.entered_remaining
 					),
-					label,
-					quota.entered_remaining
-				);
+					sprintf(
+						/* translators: %d: entries to make substitutes. */
+						_n(
+							'Tick Substitute on %d of them.',
+							'Tick Substitute on %d of them.',
+							count.entered - quota.entered_remaining,
+							'photo-competition-manager'
+						),
+						count.entered - quota.entered_remaining
+					)
+				].join(' ');
 			}
 
 			if (count.substitutes > quota.substitutes_remaining) {
-				return sprintf(
-					/* translators: 1: category label, 2: substitutes the panel still takes. */
-					_n(
-						'The %1$s panel has room for %2$d more substitute.',
-						'The %1$s panel has room for %2$d more substitutes.',
-						quota.substitutes_remaining,
-						'photo-competition-manager'
+				// The images fit the category, so the extra substitutes fit as entries.
+				return [
+					sprintf(
+						/* translators: 1: images ticked as substitutes, 2: category label, 3: substitutes the panel still takes. */
+						_n(
+							"You've ticked %1$d %2$s image as a substitute, but the panel has room for %3$d more.",
+							"You've ticked %1$d %2$s images as substitutes, but the panel has room for %3$d more.",
+							count.substitutes,
+							'photo-competition-manager'
+						),
+						count.substitutes,
+						label,
+						quota.substitutes_remaining
 					),
-					label,
-					quota.substitutes_remaining
-				);
+					sprintf(
+						/* translators: %d: substitutes to enter instead. */
+						_n(
+							'Untick Substitute on %d of them to enter it.',
+							'Untick Substitute on %d of them to enter them.',
+							count.substitutes - quota.substitutes_remaining,
+							'photo-competition-manager'
+						),
+						count.substitutes - quota.substitutes_remaining
+					)
+				].join(' ');
 			}
 		}
 

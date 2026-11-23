@@ -497,6 +497,40 @@ describe( 'drag-and-drop upload', () => {
 			expect( button.disabled ).toBe( false );
 		} );
 
+		/**
+		 * Tick or untick Substitute on the nth image.
+		 *
+		 * @param {number}  index   The image's place in the selection.
+		 * @param {boolean} checked Whether it's a substitute.
+		 */
+		function setSubstitute( index, checked ) {
+			const checkbox = document.querySelectorAll( '.photo-comp-substitute-checkbox' )[ index ];
+			checkbox.checked = checked;
+			checkbox.dispatchEvent( new Event( 'change' ) );
+		}
+
+		const warning = () => document.querySelector( '.photo-comp-quota-warning' )?.textContent ?? null;
+
+		it( 'says how many entries were chosen and how many to make substitutes', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg', 'three.jpg', 'four.jpg', 'five.jpg' ] );
+			expect( warning() ).toBe( "You've chosen 5 Colour entries, but the panel has room for 3 more. Tick Substitute on 2 of them." );
+
+			setSubstitute( 0, true );
+			expect( warning() ).toBe( "You've chosen 4 Colour entries, but the panel has room for 3 more. Tick Substitute on 1 of them." );
+
+			setSubstitute( 1, true );
+			expect( warning() ).toBeNull();
+		} );
+
+		it( 'says how many substitutes were ticked and how many to enter instead', async () => {
+			await pickAndPreview( [ 'one.jpg', 'two.jpg', 'three.jpg' ] );
+			[ 0, 1, 2 ].forEach( ( index ) => setSubstitute( index, true ) );
+			expect( warning() ).toBe( "You've ticked 3 Colour images as substitutes, but the panel has room for 2 more. Untick Substitute on 1 of them to enter it." );
+
+			setSubstitute( 2, false );
+			expect( warning() ).toBeNull();
+		} );
+
 		it( "sends each image's photographer and whether it's a substitute", async () => {
 			await pickAndPreview( [ 'one.jpg' ] );
 			typePhotographer( 0, 'Ann Murphy' );
