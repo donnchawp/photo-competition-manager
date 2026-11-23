@@ -33,6 +33,38 @@ class Type_Settings_Form_Test extends WP_UnitTestCase {
 		return ( new Type_Settings_Form() )->from_post( Competition_Settings::type_settings( (object) array() ) );
 	}
 
+	/**
+	 * A blank or 0 size turned resizing off (#291), and the form's 800–5000 is only a browser hint.
+	 *
+	 * @dataProvider posted_resize_sizes
+	 *
+	 * @param string $posted What the field held.
+	 * @param int    $saved  What's stored.
+	 */
+	public function test_the_resize_size_is_kept_within_800_to_5000_and_blank_means_1920( string $posted, int $saved ): void {
+		$settings = $this->parse(
+			array(
+				'max_width'  => $posted,
+				'max_height' => $posted,
+			)
+		);
+
+		$this->assertSame( array( $saved, $saved ), array( $settings['upload']['max_width'], $settings['upload']['max_height'] ) );
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: int}>
+	 */
+	public function posted_resize_sizes(): array {
+		return array(
+			'blank'         => array( '', 1920 ),
+			'zero'          => array( '0', 1920 ),
+			'below 800'     => array( '300', 800 ),
+			'above 5000'    => array( '9000', 5000 ),
+			'within range'  => array( '2400', 2400 ),
+		);
+	}
+
 	public function test_score_matrix_with_a_non_number_is_stored_as_a_list(): void {
 		$settings = $this->parse( array( 'score_matrix' => '10, x, 8' ) );
 

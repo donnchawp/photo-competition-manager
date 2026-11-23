@@ -230,7 +230,21 @@ class Competition_Settings {
 		// built-in lists aren't filled in.
 		unset( $defaults['grades'], $defaults['categories'] );
 
-		return self::merge_recursive( $defaults, $settings );
+		return self::with_resize_sizes( self::merge_recursive( $defaults, $settings ) );
+	}
+
+	/**
+	 * Settings with their resize width and height kept to what the form allows.
+	 *
+	 * @param array<string, mixed> $settings Settings merged with the defaults.
+	 * @return array<string, mixed>
+	 */
+	private static function with_resize_sizes( array $settings ): array {
+		foreach ( array( 'max_width', 'max_height' ) as $key ) {
+			$settings['upload'][ $key ] = self::resize_size( $key, $settings['upload'][ $key ] );
+		}
+
+		return $settings;
 	}
 
 	/**
@@ -445,7 +459,7 @@ class Competition_Settings {
 	 */
 	public static function type_settings( object $type ): array {
 		$stored = is_array( $type->settings ?? null ) ? $type->settings : array();
-		$merged = self::merge_recursive( self::defaults(), $stored );
+		$merged = self::with_resize_sizes( self::merge_recursive( self::defaults(), $stored ) );
 
 		return array_intersect_key( $merged, array_flip( self::TYPE_KEYS ) );
 	}
@@ -682,6 +696,27 @@ class Competition_Settings {
 	 */
 	public static function is_interclub( object $competition ): bool {
 		return ! empty( self::parse( $competition->settings )['interclub']['enabled'] );
+	}
+
+	/**
+	 * A resize width or height kept within the settings form's 800 to 5000 pixels.
+	 *
+	 * A blank or 0 size falls back to the default. Image editors refuse to
+	 * resize to 0, so it turned resizing off.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $key  'max_width' or 'max_height'.
+	 * @param mixed  $size Posted or stored size.
+	 * @return int
+	 */
+	public static function resize_size( string $key, $size ): int {
+		$size = absint( $size );
+		if ( 0 === $size ) {
+			return self::defaults()['upload'][ $key ];
+		}
+
+		return min( 5000, max( 800, $size ) );
 	}
 
 	/**

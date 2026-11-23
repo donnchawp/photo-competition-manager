@@ -68,8 +68,8 @@ class Type_Settings_Form {
 			$current['upload'] ?? array(),
 			array(
 				'max_file_size_mb' => absint( $this->get_post_string( 'max_file_size_mb', '5' ) ),
-				'max_width'        => absint( $this->get_post_string( 'max_width', '1920' ) ),
-				'max_height'       => absint( $this->get_post_string( 'max_height', '1920' ) ),
+				'max_width'        => Competition_Settings::resize_size( 'max_width', $this->get_post_string( 'max_width' ) ),
+				'max_height'       => Competition_Settings::resize_size( 'max_height', $this->get_post_string( 'max_height' ) ),
 			)
 		);
 		$settings['voting']     = array_merge(
