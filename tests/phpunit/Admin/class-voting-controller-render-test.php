@@ -851,7 +851,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		$html = $this->render_html();
 
-		$this->assertStringContainsString( 'Judge progress', $html );
+		$this->assertStringContainsString( 'photo-comp-judges-progress', $html );
 		$this->assertMatchesRegularExpression( '/Ann<\/td>\s*<td>Scored</', $html );
 		$this->assertMatchesRegularExpression( '/Bob<\/td>\s*<td>Waiting</', $html );
 		$this->assertStringNotContainsString( '>7<', $html );
@@ -888,7 +888,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$comp_id = $this->seed_judged_competition();
 		$this->competitions->save_workflow( $comp_id, array( 'uploads_closed' => true ) );
 
-		$this->assertStringNotContainsString( 'Judge progress', $this->render_html() );
+		$this->assertStringNotContainsString( 'photo-comp-judges-progress', $this->render_html() );
 	}
 
 	/**
@@ -902,7 +902,7 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 
-		$this->assertStringNotContainsString( 'Judge progress', $this->render_html() );
+		$this->assertStringNotContainsString( 'photo-comp-judges-progress', $this->render_html() );
 	}
 
 	/**
