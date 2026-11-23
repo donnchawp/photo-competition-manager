@@ -36,6 +36,9 @@ jobs:
       - name: Run PHPCS
         run: composer lint
 
+      - name: Check the Playground blueprints match scripts/playground/seed.php
+        run: make blueprints && git diff --exit-code -- blueprint.json .wordpress-org/blueprints .github/workflows/pr-preview-publish.yml
+
   js:
     name: Jest
     runs-on: ubuntu-latest
