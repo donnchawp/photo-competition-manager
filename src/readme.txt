@@ -4,7 +4,7 @@ Tags: competitions, photography, voting, shortcodes, member management
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -187,6 +187,33 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 10. The Results screen, with category statistics, CSV export and a share link
 
 == Changelog ==
+
+= 0.5.0 =
+* **Before you upgrade**
+  * When members vote with emailed links and the competition has a voting password saved, link voters now need that password too. Clear the password on any links competition where you don't want the check.
+  * If you've customised the Upload link email, add the new `{archive_info}` tag to it, so members are told whether their images show in past competitions.
+* **Voting**
+  * When members vote with emailed links, Voting Controls can email every member who may vote their own link for the category taking votes, so nobody has to type their email address on the night. It sends once per category until the category is reset. A member whose link didn't arrive can be sent a new one from Voting Controls or the Members screen
+  * Opening a category no longer sends the "Voting opened" email when members vote with emailed links. Their link email does that job
+  * With emailed links, a voting password is now a check that the voter is in the room. Link voters give it once per competition on their device. Leave it blank to let members vote from home
+  * Voting Controls shows the voting password beside the QR code only when members need it, not when judges score the competition
+  * The last button on Voting Controls is now called "Publish Results", not "Show Results". It publishes the results but doesn't close the competition; that happens on its close date
+* **Judging**
+  * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
+  * The judges card on Voting Controls, once called "Judge progress", says judging is by external judges, and to check every judge's scores have arrived before closing voting. Closing voting doesn't wait for a missing ballot. The list of who has scored updates when the page is reloaded
+* **Uploads**
+  * The upload page says entries larger than the competition's width and height are resized to fit, so members know a big image won't be refused. The settings fields are now called "Resize entries to fit width" and "Resize entries to fit height"
+  * Interclub uploads say how many images were chosen against the room left, and how many to tick or untick as a substitute. Before, choosing 4 entries for a panel of 3 said "The Colour panel has room for 3 more entries."
+* **Settings**
+  * Every number on the competition and type settings forms is kept to its range when saved, and a blank field means its default. Before, a blank resize width and height saved 0 × 0, so entries weren't resized at all and the upload page said "0 × 0 pixels". A competition or type already saved with 0 resizes to 1920 × 1920 again without being saved
+* **Members**
+  * New member page, `[competition_my_entries]`: members type their email address to get a link, valid for 7 days, to every image they've entered, newest first or best position first, with total scores and positions where results are published. Deactivated members can use it too. The Setup Wizard can create the page
+* **Past competitions**
+  * New past competitions page, `[competition_archive]`: lists competitions whose results are published, each at its own address (such as `/past-competitions/october-2026/`) showing the images entered, category by category, in a gallery that opens each image full size. Switch it on, and choose whether it shows positions and scores, under **Competitions → Settings**. Names are hidden unless the shortcode has `show_names="true"`. The Setup Wizard can create the page
+  * Members choose which of their images show there. On their entries page (`[competition_my_entries]`) they can show or hide all their images, or one at a time, and each choice saves as it changes. Admins can show or hide all of a member's images on the Members screen. The Upload link email's new `{archive_info}` paragraph tells members whether their images show, with a link to their entries page. If you've customised the Upload link email, add `{archive_info}` to it under **Competitions → Email Templates**
+  * A competition that closed without its results being published can now be published from the Results screen, so it joins the past competitions page. Before, only the competition running could be published, from Voting Controls. Publishing closes its uploads too, and its results can't be hidden again
+* **Privacy**
+  * A results page with `hide_names` no longer shows members' names in its image addresses. Entry files are named after the member, so the thumbnails now use the name-free image links the voting and slideshow pages use
 
 = 0.4.0 =
 * **Before you upgrade**
@@ -399,6 +426,9 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * PHPUnit test coverage for core functionality
 
 == Upgrade Notice ==
+
+= 0.5.0 =
+Members voting with emailed links now need the competition's voting password if one is saved. If you've customised the Upload link email, add the new {archive_info} tag to it.
 
 = 0.4.0 =
 Back up your database first. This update upgrades the database on the first request, and rolling back to 0.3.0 afterwards loses the competition workflow state.
