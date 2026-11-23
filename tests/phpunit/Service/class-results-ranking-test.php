@@ -675,6 +675,107 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		$this->assertFalse( $groups[0]['ungraded'] );
 	}
 
+	/**
+	 * A member moved up a grade before their competitions were recorded is put
+	 * back in the grade they entered in, in every category, and both grades are
+	 * ranked again from the recorded scores.
+	 */
+	public function test_correcting_a_members_grade_moves_their_entries_and_ranks_both_grades_again(): void {
+		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
+		$bob = $this->member_id_of( $this->seed_entry( 'Bob', 'intermediate', array( 8 ) ) );
+		Entry_Fixtures::insert_entry( $this->competition_id, 'black-white', $bob, array( 6 ) );
+		$this->seed_entry( 'Cat', 'beginner', array( 5 ) );
+		$this->seed_entry( 'Dan', 'intermediate', array( 7 ) );
+		$this->close_competition();
+
+		$changes = $this->ranking->correct_grades( $this->competition(), array( $bob => 'beginner' ) );
+
+		$this->assertSame(
+			array(
+				$bob => array(
+					'from' => 'intermediate',
+					'to'   => 'beginner',
+				),
+			),
+			$changes
+		);
+		$this->assertSame(
+			array(
+				'beginner'     => array( 'Ann:1:9', 'Bob:2:8', 'Cat:3:5' ),
+				'intermediate' => array( 'Dan:1:7' ),
+			),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+		$this->assertSame(
+			array( 'beginner' => array( 'Bob:1:6' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'black-white' ) )
+		);
+	}
+
+	/**
+	 * Until a competition has closed its results can still be recorded again,
+	 * which would undo a correction, so the member's own grade is what to change.
+	 */
+	public function test_a_competition_that_hasnt_closed_has_no_grades_to_correct(): void {
+		$bob = $this->member_id_of( $this->seed_entry( 'Bob', 'intermediate', array( 8 ) ) );
+		Workflow_Fixtures::publish_results( $this->competition_id );
+
+		$corrected = $this->ranking->correct_grades( $this->competition(), array( $bob => 'beginner' ) );
+
+		$this->assertWPError( $corrected );
+		$this->assertSame( 'competition_not_closed', $corrected->get_error_code() );
+	}
+
+	public function test_a_grade_that_isnt_the_clubs_is_refused_and_nothing_changes(): void {
+		$bob = $this->member_id_of( $this->seed_entry( 'Bob', 'intermediate', array( 8 ) ) );
+		$this->close_competition();
+
+		$corrected = $this->ranking->correct_grades( $this->competition(), array( $bob => 'expert' ) );
+
+		$this->assertWPError( $corrected );
+		$this->assertSame( 'invalid_grade', $corrected->get_error_code() );
+		$this->assertSame(
+			array( 'intermediate' => array( 'Bob:1:8' ) ),
+			$this->summarize( $this->ranking->rank_category( $this->competition_id, 'colour' ) )
+		);
+	}
+
+	/**
+	 * Saving the form sends every member's grade; only the ones that changed count,
+	 * and a grade no longer on the club's list can be left as it is.
+	 */
+	public function test_unchanged_grades_are_not_corrections(): void {
+		$ann = $this->member_id_of( $this->seed_entry( 'Ann', 'beginner', array( 9 ) ) );
+		$bob = $this->member_id_of( $this->seed_entry( 'Bob', 'advanced', array( 8 ) ) );
+		$this->close_competition();
+		$this->ranking->rank_category( $this->competition_id, 'colour' );
+		// The club drops Beginner after Ann's entry was recorded in it.
+		update_option(
+			'photo_comp_default_settings',
+			Competition_Settings::encode(
+				array(
+					'grades' => array(
+						array(
+							'slug'  => 'advanced',
+							'label' => 'Advanced',
+						),
+					),
+				)
+			)
+		);
+
+		$this->assertSame(
+			array(),
+			$this->ranking->correct_grades(
+				$this->competition(),
+				array(
+					$ann => 'beginner',
+					$bob => 'advanced',
+				)
+			)
+		);
+	}
+
 	public function test_results_are_not_published_when_they_cannot_be_recorded(): void {
 		$this->seed_entry( 'Ann', 'beginner', array( 9 ) );
 		Workflow_Fixtures::close_uploads( $this->competition_id );
@@ -739,6 +840,15 @@ class Results_Ranking_Test extends WP_UnitTestCase {
 		Workflow_Fixtures::publish_results( $this->competition_id );
 		$this->assertTrue( ( new Competition_Workflow() )->unpublish_results( $this->competition_id ) );
 		$this->record_made_at( utc_time( -HOUR_IN_SECONDS ) );
+	}
+
+	/**
+	 * The competition's row, as it is now.
+	 *
+	 * @return object
+	 */
+	private function competition(): object {
+		return ( new Competitions_Repository() )->find( $this->competition_id );
 	}
 
 	/**

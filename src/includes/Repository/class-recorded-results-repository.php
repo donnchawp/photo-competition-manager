@@ -72,6 +72,80 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * A competition's recorded rows, every category's.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<int, object>
+	 */
+	public function find_by_competition( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE competition_id = %d ORDER BY category, position, id',
+				$this->table(),
+				$competition_id
+			)
+		);
+	}
+
+	/**
+	 * Set recorded rows' grades and positions in one statement, so they change
+	 * whole or not at all. Unlike replace(), a failure leaves the record as it
+	 * was, which matters because a record can't be made again once entries or
+	 * members have gone.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param array<int, array{id: int, grade: string, position: int}> $rows Row IDs with their new grade and position.
+	 * @return true|WP_Error
+	 */
+	public function update_rankings( array $rows ) {
+		global $wpdb;
+
+		if ( empty( $rows ) ) {
+			return true;
+		}
+
+		$grades    = array();
+		$positions = array();
+		$ids       = array();
+		$values    = array( $this->table() );
+		foreach ( $rows as $row ) {
+			$grades[] = 'WHEN %d THEN %s';
+			array_push( $values, (int) $row['id'], (string) $row['grade'] );
+		}
+		foreach ( $rows as $row ) {
+			$positions[] = 'WHEN %d THEN %d';
+			array_push( $values, (int) $row['id'], (int) $row['position'] );
+		}
+		foreach ( $rows as $row ) {
+			$ids[]    = '%d';
+			$values[] = (int) $row['id'];
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Literal placeholders per row; the count matches at runtime.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The CASE and IN lists only hold literal placeholders.
+		$updated = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET grade = CASE id ' . implode( ' ', $grades ) . ' END, position = CASE id ' . implode( ' ', $positions ) . ' END
+				WHERE id IN (' . implode( ', ', $ids ) . ')',
+				$values
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+
+		if ( false === $updated ) {
+			return new WP_Error( 'record_failed', __( 'Could not record the results.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * A member's recorded rows, oldest competition first.
 	 *
 	 * @since 0.4.0

@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Event_Logger;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Results_Analytics;
 use PhotoCompetitionManager\Service\Results_Ranking;
@@ -368,6 +369,51 @@ class Results_Controller {
 			);
 		}
 
+		if ( 'correct_grades' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_correct_grades_' . $competition_id );
+
+			$redirect_url = $this->results_url( $competition_id );
+
+			$competition = $this->competitions->find( $competition_id );
+			if ( ! $competition ) {
+				add_settings_error(
+					'photo_competition_results',
+					'competition_not_found',
+					__( 'Competition not found.', 'photo-competition-manager' ),
+					'error'
+				);
+				$this->redirect_with_settings_errors( $redirect_url );
+			}
+
+			$grades = array();
+			if ( isset( $_POST['grades'] ) && is_array( $_POST['grades'] ) ) {
+				foreach ( wp_unslash( $_POST['grades'] ) as $member_id => $grade ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each value is sanitized below.
+					$grades[ absint( $member_id ) ] = sanitize_text_field( (string) $grade );
+				}
+			}
+
+			$changes = $this->ranking->correct_grades( $competition, $grades );
+			if ( is_wp_error( $changes ) ) {
+				$this->notice_and_redirect( 'photo_competition_results', $changes, '', '', $redirect_url );
+			}
+
+			$this->log_grade_corrections( $competition, $changes );
+
+			$this->notice_and_redirect(
+				'photo_competition_results',
+				true,
+				'grades_corrected',
+				empty( $changes ) ? __( 'No grades changed.', 'photo-competition-manager' ) : sprintf(
+					/* translators: %d: number of members */
+					_n( 'Corrected %d member\'s grade and ranked the results again.', 'Corrected %d members\' grades and ranked the results again.', count( $changes ), 'photo-competition-manager' ),
+					count( $changes )
+				),
+				$redirect_url
+			);
+		}
+
 		if ( 'export_results_csv' === $action ) {
 			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
 
@@ -560,6 +606,7 @@ class Results_Controller {
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
+				'grades_panel_html'    => $this->render_grades_panel( $competition, $rankings ),
 				'publish_url'          => $publish_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
@@ -611,6 +658,117 @@ class Results_Controller {
 				admin_url( 'admin.php' )
 			),
 			'photo_competition_' . $action . '_' . $competition_id
+		);
+	}
+
+	/**
+	 * Log each member whose grade in a competition was corrected.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object                                      $competition Competition row.
+	 * @param array<int, array{from: string, to: string}> $changes     Member ID => old and new grade slug.
+	 * @return void
+	 */
+	private function log_grade_corrections( object $competition, array $changes ): void {
+		$labels = new Competition_Labels();
+		$logger = new Event_Logger();
+		foreach ( $changes as $member_id => $change ) {
+			$member = $this->members->find( $member_id );
+			$logger->log(
+				(int) $competition->id,
+				'grade_corrected',
+				'results',
+				sprintf(
+					/* translators: 1: member name, 2: competition title, 3: old grade name, 4: new grade name */
+					__( '%1$s\'s grade in %2$s was corrected from %3$s to %4$s.', 'photo-competition-manager' ),
+					$member ? $member->name : '#' . $member_id,
+					$labels->title_for_everyone( $competition ),
+					'' === $change['from'] ? __( 'Ungraded', 'photo-competition-manager' ) : $labels->grade_label( $competition, $change['from'] ),
+					$labels->grade_label( $competition, $change['to'] )
+				),
+				array(
+					'member_id' => $member_id,
+					'from'      => $change['from'],
+					'to'        => $change['to'],
+				)
+			);
+		}
+	}
+
+	/**
+	 * The grades panel of a closed competition: each member with recorded
+	 * entries, and the grade they're recorded in. Empty for a competition
+	 * that hasn't closed, whose results follow members' own grades until
+	 * they're recorded for good.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object                           $competition Competition row.
+	 * @param array<string, array<int, array>> $rankings Category slug => Results_Ranking::rank_category() groups.
+	 * @return string
+	 */
+	private function render_grades_panel( object $competition, array $rankings ): string {
+		if ( ! $this->workflow->has_closed( $competition ) ) {
+			return '';
+		}
+
+		$members = array();
+		foreach ( $rankings as $groups ) {
+			foreach ( $groups as $group ) {
+				foreach ( $group['entries'] as $entry ) {
+					if ( $entry['member'] && $entry['recorded'] ) {
+						$members[ (int) $entry['member']->id ] = array(
+							'name'  => (string) $entry['member']->name,
+							'grade' => (string) $group['slug'],
+						);
+					}
+				}
+			}
+		}
+
+		if ( empty( $members ) ) {
+			return '';
+		}
+
+		uasort(
+			$members,
+			static function ( array $a, array $b ): int {
+				return strcasecmp( $a['name'], $b['name'] );
+			}
+		);
+
+		$grades = ( new Competition_Labels() )->grade_labels( $competition );
+		$rows   = array();
+		foreach ( $members as $member_id => $member ) {
+			$options = $grades;
+			// A recorded grade the club no longer has, or none, stays selectable as it is.
+			if ( ! isset( $options[ $member['grade'] ] ) ) {
+				$options = array( $member['grade'] => '' === $member['grade'] ? __( 'Ungraded', 'photo-competition-manager' ) : $member['grade'] ) + $options;
+			}
+
+			$rows[] = array(
+				'member_id' => $member_id,
+				'name'      => $member['name'],
+				'grade'     => $member['grade'],
+				'options'   => $options,
+			);
+		}
+
+		return $this->render_template(
+			'admin/results/grades-panel.php',
+			array(
+				'action_url' => add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager-results',
+						'action'      => 'correct_grades',
+						'competition' => (int) $competition->id,
+					),
+					admin_url( 'admin.php' )
+				),
+				'nonce'      => 'photo_competition_correct_grades_' . (int) $competition->id,
+				'rows'       => $rows,
+			)
 		);
 	}
 
