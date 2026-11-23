@@ -198,6 +198,28 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
 	}
 
+	/**
+	 * Entries aren't refused for being too big, so members are told the size
+	 * they'll be shrunk to (#289).
+	 */
+	public function test_the_upload_page_shows_the_size_entries_are_resized_to(): void {
+		global $wpdb;
+		$settings           = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT settings FROM {$wpdb->prefix}photocomp_competitions WHERE id = %d", $this->competition_id ) ), true );
+		$settings['upload'] = array_merge(
+			$settings['upload'] ?? array(),
+			array(
+				'max_width'  => 1600,
+				'max_height' => 1200,
+			)
+		);
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'settings' => wp_json_encode( $settings ) ), array( 'id' => $this->competition_id ) );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Images larger than 1600 × 1200 pixels will be resized to fit.', $output );
+	}
+
 	public function test_the_upload_page_loads_the_upload_script_translations(): void {
 		$_GET['token'] = $this->issue_token( true );
 

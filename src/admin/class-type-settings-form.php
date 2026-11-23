@@ -169,9 +169,7 @@ class Type_Settings_Form {
 		return $this->render_template(
 			'admin/types/upload-constraints-section.php',
 			array(
-				'max_file_size_mb' => $upload['max_file_size_mb'],
-				'max_width'        => $upload['max_width'],
-				'max_height'       => $upload['max_height'],
+				'fields_html' => $this->render_template( 'admin/shared/upload-constraint-fields.php', $upload ),
 			)
 		);
 	}
