@@ -14,12 +14,14 @@ use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Member_Deletion;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
 /**
@@ -153,6 +155,38 @@ class Members_Controller {
 			$action = sanitize_key( wp_unslash( $_POST['action'] ) );
 		} elseif ( isset( $_GET['action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe read of action for routing; mutations require explicit nonce checks below.
 			$action = sanitize_key( wp_unslash( $_GET['action'] ) );
+		}
+
+		// Per-member "Send Voting Link", for a member whose link didn't arrive.
+		if ( 'send_member_voting_link' === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$member_id = isset( $_GET['member'] ) ? absint( wp_unslash( $_GET['member'] ) ) : 0;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+
+			check_admin_referer( 'photo_competition_send_member_voting_link_' . $member_id . '_' . $competition_id . '_' . $category );
+
+			$competition = $this->competitions->find( $competition_id );
+			$member      = $this->members->find( $member_id );
+			$result      = $competition && $member
+				? ( new Voting_Link_Service( $this->competitions, $this->members ) )->send_from_admin( $competition, $member, $category )
+				: new \WP_Error( 'invalid_params', __( 'Invalid member or competition.', 'photo-competition-manager' ) );
+
+			if ( is_wp_error( $result ) ) {
+				add_settings_error( 'photo_competition_members', $result->get_error_code(), $result->get_error_message(), 'error' );
+			} else {
+				add_settings_error(
+					'photo_competition_members',
+					'voting_link_sent',
+					/* translators: %s: member name */
+					sprintf( __( 'Voting link sent to %s.', 'photo-competition-manager' ), esc_html( $member->name ) ),
+					'updated'
+				);
+			}
+
+			$this->redirect_with_settings_errors( $this->members_url() );
 		}
 
 		// Per-member "Send Upload Email".
@@ -298,10 +332,6 @@ class Members_Controller {
 
 			$result = $this->members->update( $member_id, $data );
 
-			if ( ! is_wp_error( $result ) && $this->types->has_several() ) {
-				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
-			}
-
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
 					'photo_competition_members',
@@ -320,6 +350,14 @@ class Members_Controller {
 						admin_url( 'admin.php' )
 					)
 				);
+			}
+
+			if ( $this->types->has_several() ) {
+				$this->members->set_types( $member_id, $this->posted_type_ids( 'member_types' ) );
+			}
+			// The form only offers the choice while past competitions are on.
+			if ( Competition_Archive::settings()['enabled'] ) {
+				$this->members->set_images_public( $member_id, isset( $_POST['member_images_public'] ) );
 			}
 
 			add_settings_error(
@@ -389,7 +427,7 @@ class Members_Controller {
 		if ( 'import_members_csv' === $action ) {
 			check_admin_referer( 'photo_competition_import_members', 'photo_competition_import_nonce' );
 
-			if ( empty( $_FILES['csv_file'] ) || ! isset( $_FILES['csv_file']['tmp_name'] ) || ! is_uploaded_file( $_FILES['csv_file']['tmp_name'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a file path and should not be sanitized.
+			if ( UPLOAD_ERR_NO_FILE === absint( $_FILES['csv_file']['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
 				add_settings_error(
 					'photo_competition_members',
 					'no_file',
@@ -867,9 +905,32 @@ class Members_Controller {
 		// Only members who may enter get an upload link to copy or send.
 		$may_enter = $active_competition ? ( new Competition_Entry( $this->competitions, $this->members ) )->eligible_member_ids( $active_competition ) : array();
 
+		// While the current competition's category takes votes by emailed links, a member
+		// can be sent a new link. The voting page serves only the current competition.
+		$current         = $this->competitions->find_current_active();
+		$voting_category = $current ? ( $this->workflow->categories_accepting_votes( $current )[0] ?? '' ) : '';
+		$voting_link_ids = $voting_category ? array_flip( wp_list_pluck( ( new Voting_Link_Service( $this->competitions, $this->members ) )->members_to_send( $current, $voting_category ), 'id' ) ) : array();
+
 		$rows = array();
 
 		foreach ( $members as $member ) {
+			$voting_link_url = '';
+			if ( isset( $voting_link_ids[ $member->id ] ) ) {
+				$voting_link_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'page'        => 'photo-competition-manager-members',
+							'action'      => 'send_member_voting_link',
+							'member'      => (int) $member->id,
+							'competition' => (int) $current->id,
+							'category'    => $voting_category,
+						),
+						admin_url( 'admin.php' )
+					),
+					'photo_competition_send_member_voting_link_' . (int) $member->id . '_' . (int) $current->id . '_' . $voting_category
+				);
+			}
+
 			$edit_link    = add_query_arg(
 				array(
 					'page'          => 'photo-competition-manager-members',
@@ -928,6 +989,7 @@ class Members_Controller {
 				'show_send_email' => $show_send_email,
 				'send_url'        => $send_url,
 				'upload_url'      => $upload_url,
+				'voting_link_url' => $voting_link_url,
 				'types_label'     => implode( ', ', array_map( fn( $type_id ) => $type_options[ $type_id ] ?? '', $tags[ (int) $member->id ] ?? array() ) ),
 			);
 		}
@@ -1042,6 +1104,7 @@ class Members_Controller {
 				'members_url'   => $this->members_url(),
 				'type_options'  => $type_options,
 				'member_types'  => $type_options ? $this->members->type_ids( (int) $member->id ) : array(),
+				'archive_on'    => Competition_Archive::settings()['enabled'],
 			)
 		);
 	}

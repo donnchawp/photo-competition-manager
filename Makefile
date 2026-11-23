@@ -10,7 +10,7 @@ WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
 PLUGIN_CHECK_CSV ?= plugin-check.csv
 
-.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn seed-competition plugin-check
+.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn publish-svn-assets seed-competition blueprints plugin-check
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -47,13 +47,13 @@ lint: ## Run PHP_CodeSniffer against the plugin
 fix: ## Auto-fix PHP coding standard violations
 	vendor/bin/phpcbf --standard=WordPress --extensions=php src
 
-test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI)
+test: ## Execute the PHPUnit test suite (inside the wp-env tests container, same as CI). UPDATE_SNAPSHOTS=1 rewrites render goldens
 	$(WP_ENV) start
 	@# The tests image has ImageMagick without a JPEG coder, so WordPress would use GD (queryFormats() needs the imagemagick package's config too). Imagick keeps
 	@# image metadata on save, which the author-stripping tests need. wp-env can't run as root, docker can.
 	docker exec -u root $(PLUGIN_NAME)-tests-cli-1 apk add --no-cache imagemagick imagemagick-jpeg >/dev/null
 	$(WP_ENV) run tests-cli --env-cwd=wp-content/pcm \
-		bash -c 'WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
+		bash -c 'UPDATE_SNAPSHOTS=$(UPDATE_SNAPSHOTS) WP_CORE_DIR=/var/www/html WP_ENV_TEST_DB_HOST=tests-mysql ./vendor/bin/phpunit -c phpunit.xml.dist $(ARGS)'
 
 test-js: ## Execute the JavaScript test suite
 	npm --prefix $(ASSETS_DIR) run test:js
@@ -92,8 +92,14 @@ release: clean-release build ## Build production release zip file
 publish-svn: ## Publish the tagged release to WordPress.org SVN (run from the v<version> tag). Usage: make publish-svn [VERSION=x.y.z]
 	./scripts/publish-svn.sh $(VERSION)
 
+publish-svn-assets: ## Publish only the listing assets in .wordpress-org/ (screenshots, Live Preview blueprint) to WordPress.org SVN
+	./scripts/publish-svn.sh --assets-only
+
 seed-competition: ## Seed 12 members, a competition, and test images for voting
 	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/pcm/scripts/seed-voting-data.php
+
+blueprints: ## Rebuild the three Playground blueprints from scripts/playground/seed.php
+	php scripts/playground/build-blueprints.php
 
 plugin-check: ## Run Plugin Check into plugin-check.csv (override: PLUGIN_CHECK_CSV=path)
 	$(WP_ENV) run cli -- wp plugin check $(PLUGIN_NAME) --format=strict-csv --fields=file,line,column,type,code,message,docs > $(PLUGIN_CHECK_CSV)

@@ -86,6 +86,7 @@ class Plugin {
 			function () {
 				$upload_api = new \PhotoCompetitionManager\API\Upload_API();
 				$upload_api->register_routes();
+				( new \PhotoCompetitionManager\API\Member_Visibility_API() )->register_routes();
 			}
 		);
 	}

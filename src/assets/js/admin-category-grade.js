@@ -5,6 +5,7 @@
  *
  * Expects `photoCompCategoryGrade` to be localized with:
  *   - labelText, slugText, uploadQuotaText, removeText
+ *   - quotaAttributes: the quota input's min, max and step attributes
  *
  * @package PhotoCompetitionManager
  */
@@ -48,7 +49,9 @@ document.addEventListener( 'DOMContentLoaded', function () {
 					'</label><br />' +
 					'<input type="number" name="categories[' +
 					categoryIndex +
-					'][quota]" value="1" min="1" max="10" class="small-text" required />' +
+					'][quota]" value="1" ' +
+					i18n.quotaAttributes +
+					' class="small-text" required />' +
 					'</p>' +
 					'<button type="button" class="button remove-category" style="color: #b32d2e;">' +
 					( i18n.removeText || 'Remove' ) +

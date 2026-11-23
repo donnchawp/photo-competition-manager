@@ -1254,6 +1254,22 @@ class Entries {
 	}
 
 	/**
+	 * Width and height of an entry's full image.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param object $competition Competition record.
+	 * @param object $entry       Entry record.
+	 * @return array{0: int, 1: int} Width and height, both 0 when the file is missing or unreadable.
+	 */
+	public function full_size( object $competition, object $entry ): array {
+		$path = $this->path_for( $competition, $entry, false );
+		$size = null === $path ? false : wp_getimagesize( $path );
+
+		return $size ? array( (int) $size[0], (int) $size[1] ) : array( 0, 0 );
+	}
+
+	/**
 	 * The permalink of an entry's image: the pretty URL, or the query form on plain permalinks, where the rewrite rule can't match.
 	 *
 	 * @param int  $entry_id Entry ID.

@@ -16,7 +16,10 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 class Entry_Fixtures {
 
 	/**
-	 * Voting token for the next vote, so every vote has its own voter.
+	 * Number for the next vote's voter name, so every vote has its own voter.
+	 *
+	 * Votes come from named voters: a link voter's vote needs a real voting link,
+	 * and a made-up link ID can match one the test creates.
 	 *
 	 * @var int
 	 */
@@ -58,7 +61,7 @@ class Entry_Fixtures {
 		);
 
 		foreach ( $scores as $score ) {
-			( new Votes_Repository() )->create_anonymous( $competition_id, $category, self::$next_voter++, $image_id, $score );
+			( new Votes_Repository() )->create( $competition_id, $category, 'Entry fixture voter ' . self::$next_voter++, $image_id, $score );
 		}
 
 		return $image_id;

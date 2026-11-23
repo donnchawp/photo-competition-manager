@@ -1006,3 +1006,138 @@
 		font-size: 1.1em;
 	}
 }
+
+/* Member page */
+.photo-comp-member-page .error,
+.photo-comp-member-page .success,
+.photo-comp-member-page .notice {
+	padding: 1em;
+	margin-bottom: 1.5em;
+	border-radius: 4px;
+}
+
+.photo-comp-member-page .success {
+	background: #edfaef;
+	border-left: 4px solid #00a32a;
+	color: #007017;
+}
+
+.photo-comp-member-page .error {
+	background: #fef7f8;
+	border-left: 4px solid #d63638;
+	color: #b32d2e;
+}
+
+.photo-comp-member-page .notice {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	color: #8a6d3b;
+}
+
+.photo-comp-member-entries {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 1.5em;
+}
+
+.photo-comp-member-entry img,
+.photo-comp-member-no-image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+}
+
+.photo-comp-member-no-image {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f0f0f1;
+	color: #646970;
+	text-align: center;
+}
+
+.photo-comp-member-entry-details span {
+	display: block;
+}
+
+.photo-comp-member-status {
+	color: #b32d2e;
+}
+
+/* Past competitions archive */
+.photo-comp-archive-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.photo-comp-archive-list li {
+	padding: 0.5em 0;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.photo-comp-archive-date {
+	margin-left: 0.75em;
+	color: #646970;
+}
+
+
+/* Member page: past competitions choices */
+.photo-comp-visibility-all {
+	margin-bottom: 1.5em;
+	padding: 1em;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+.photo-comp-visibility-choice {
+	border: 0;
+	margin: 0.5em 0 0;
+	padding: 0;
+}
+
+.photo-comp-visibility-choice label {
+	margin-right: 1em;
+	cursor: pointer;
+}
+
+.photo-comp-visibility-choice input[type="radio"] {
+	accent-color: currentColor;
+	margin-right: 0.3em;
+}
+
+/* Themes outline a focused radio, even after a click. Keep it for the keyboard only, and round. */
+.photo-comp-visibility-choice input[type="radio"]:focus:not(:focus-visible) {
+	outline: none;
+	box-shadow: none;
+}
+
+.photo-comp-visibility-choice input[type="radio"]:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+	border-radius: 50%;
+}
+
+.photo-comp-visibility-status {
+	color: #646970;
+	font-size: 0.9em;
+}
+
+.photo-comp-visibility-off-notice {
+	color: #8a6d3b;
+}
+
+/* With JavaScript, each choice saves as it changes. */
+.photo-comp-member-sort {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25em 1em;
+}
+
+.photo-comp-visibility-js .photo-comp-visibility-save {
+	display: none;
+}

@@ -28,6 +28,8 @@ use WP_UnitTestCase;
  */
 class Results_Table_Render_Test extends WP_UnitTestCase {
 
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
+
 	const SLUG = 'autumn-open';
 
 	/**
@@ -259,26 +261,13 @@ class Results_Table_Render_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Compare HTML against its stored snapshot, writing the snapshot when it's missing.
+	 * Compare HTML against its stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string $scenario Snapshot name.
 	 * @param string $html     Rendered HTML.
 	 */
 	private function assert_matches_snapshot( string $scenario, string $html ): void {
-		$dir  = __DIR__ . '/../fixtures/results-email-render';
-		$file = $dir . '/' . $scenario . '.html';
-
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) ) {
-				mkdir( $dir, 0777, true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-			}
-			if ( false === file_put_contents( $file, $html ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-				self::fail( "Could not write snapshot file {$file}." );
-			}
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Results table markup drifted for scenario {$scenario}." ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assert_snapshot( __DIR__ . '/../fixtures/results-email-render', $scenario, $html );
 	}
 
 	/**

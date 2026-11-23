@@ -46,6 +46,72 @@ class Competition_Settings {
 	public const METER_TYPES = array( 'bar', 'line', 'dots', 'radial' );
 
 	/**
+	 * The range of each number on the type and competition settings forms, by
+	 * section and key. The forms' min, max and step attributes and the save
+	 * both come from here. Defaults are in defaults(), except a category
+	 * quota's: categories are a list there, so its default is here. A field
+	 * with no max has no upper limit.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @var array<string, array<string, array{min: int, max?: int, step: int, default?: int}>>
+	 */
+	public const NUMBER_RANGES = array(
+		'categories' => array(
+			'quota' => array(
+				'min'     => 1,
+				'max'     => 10,
+				'step'    => 1,
+				'default' => 1,
+			),
+		),
+		'upload'     => array(
+			'max_file_size_mb' => array(
+				'min'  => 1,
+				'max'  => 50,
+				'step' => 1,
+			),
+			'max_width'        => array(
+				'min'  => 800,
+				'max'  => 5000,
+				'step' => 10,
+			),
+			'max_height'       => array(
+				'min'  => 800,
+				'max'  => 5000,
+				'step' => 10,
+			),
+		),
+		'slideshow'  => array(
+			'preview_duration'  => array(
+				'min'  => 0,
+				'max'  => 120,
+				'step' => 1,
+			),
+			'voting_duration'   => array(
+				'min'  => 0,
+				'max'  => 120,
+				'step' => 1,
+			),
+			'critique_duration' => array(
+				'min'  => 0,
+				'max'  => 120,
+				'step' => 1,
+			),
+		),
+		'interclub'  => array(
+			'substitutes'        => array(
+				'min'  => 0,
+				'step' => 1,
+			),
+			'photographer_limit' => array(
+				'min'  => 0,
+				'step' => 1,
+			),
+		),
+	);
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -230,7 +296,25 @@ class Competition_Settings {
 		// built-in lists aren't filled in.
 		unset( $defaults['grades'], $defaults['categories'] );
 
-		return self::merge_recursive( $defaults, $settings );
+		return self::with_resize_sizes( self::merge_recursive( $defaults, $settings ) );
+	}
+
+	/**
+	 * Settings with their resize width and height kept to what the form allows.
+	 *
+	 * Only these two are checked on read: sites that saved a blank size before
+	 * #291 have 0 stored, which turned resizing off. Every number is checked
+	 * on save.
+	 *
+	 * @param array<string, mixed> $settings Settings merged with the defaults.
+	 * @return array<string, mixed>
+	 */
+	private static function with_resize_sizes( array $settings ): array {
+		foreach ( array( 'max_width', 'max_height' ) as $key ) {
+			$settings['upload'][ $key ] = self::number_in_range( 'upload', $key, $settings['upload'][ $key ] );
+		}
+
+		return $settings;
 	}
 
 	/**
@@ -310,7 +394,7 @@ class Competition_Settings {
 				);
 			}
 
-			if ( ! isset( $category['quota'] ) || ! is_numeric( $category['quota'] ) || $category['quota'] < 1 ) {
+			if ( ! isset( $category['quota'] ) || ! is_numeric( $category['quota'] ) || $category['quota'] < self::NUMBER_RANGES['categories']['quota']['min'] ) {
 				return new WP_Error(
 					'invalid_quota',
 					sprintf(
@@ -331,7 +415,7 @@ class Competition_Settings {
 		}
 
 		if ( isset( $settings['upload']['max_file_size_mb'] ) ) {
-			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < 1 ) {
+			if ( ! is_numeric( $settings['upload']['max_file_size_mb'] ) || $settings['upload']['max_file_size_mb'] < self::NUMBER_RANGES['upload']['max_file_size_mb']['min'] ) {
 				return new WP_Error( 'invalid_file_size', __( 'Max file size must be at least 1 MB.', 'photo-competition-manager' ) );
 			}
 		}
@@ -360,7 +444,7 @@ class Competition_Settings {
 		}
 
 		foreach ( array( 'substitutes', 'photographer_limit' ) as $key ) {
-			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < 0 ) ) {
+			if ( isset( $settings['interclub'][ $key ] ) && ( ! is_int( $settings['interclub'][ $key ] ) || $settings['interclub'][ $key ] < self::NUMBER_RANGES['interclub'][ $key ]['min'] ) ) {
 				return new WP_Error( 'invalid_interclub', __( 'Substitutes and the most images per photographer must be whole numbers, 0 or more.', 'photo-competition-manager' ) );
 			}
 		}
@@ -445,7 +529,7 @@ class Competition_Settings {
 	 */
 	public static function type_settings( object $type ): array {
 		$stored = is_array( $type->settings ?? null ) ? $type->settings : array();
-		$merged = self::merge_recursive( self::defaults(), $stored );
+		$merged = self::with_resize_sizes( self::merge_recursive( self::defaults(), $stored ) );
 
 		return array_intersect_key( $merged, array_flip( self::TYPE_KEYS ) );
 	}
@@ -513,6 +597,19 @@ class Competition_Settings {
 		$categories = self::global_settings()['categories'] ?? array();
 
 		return ! empty( $categories ) ? $categories : self::defaults()['categories'];
+	}
+
+	/**
+	 * Whether a stored voting password is a legacy hash, from before
+	 * passwords were kept readable, rather than the password itself.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $password Stored voting password.
+	 * @return bool
+	 */
+	public static function is_legacy_password_hash( string $password ): bool {
+		return (bool) preg_match( '/^\$P\$|\$wp\$/', $password );
 	}
 
 	/**
@@ -669,6 +766,52 @@ class Competition_Settings {
 	 */
 	public static function is_interclub( object $competition ): bool {
 		return ! empty( self::parse( $competition->settings )['interclub']['enabled'] );
+	}
+
+	/**
+	 * A number kept within its range in NUMBER_RANGES.
+	 *
+	 * A blank, or a 0 or negative number where the range doesn't allow 0,
+	 * falls back to the default: a blank field used to save 0, and a resize
+	 * size of 0 turned resizing off.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $section Settings section, e.g. 'upload'.
+	 * @param string $key     Key within the section, e.g. 'max_width'.
+	 * @param mixed  $value   Posted or stored value.
+	 * @return int
+	 */
+	public static function number_in_range( string $section, string $key, $value ): int {
+		$range  = self::NUMBER_RANGES[ $section ][ $key ];
+		$number = is_numeric( $value ) ? (int) $value : null;
+
+		if ( null === $number || ( $number <= 0 && $range['min'] > 0 ) ) {
+			return (int) ( $range['default'] ?? self::defaults()[ $section ][ $key ] );
+		}
+
+		$number = max( $range['min'], $number );
+
+		return isset( $range['max'] ) ? min( $range['max'], $number ) : $number;
+	}
+
+	/**
+	 * The min, max and step attributes of each number input in a section.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param string $section Settings section, e.g. 'upload'.
+	 * @return array<string, string> Escaped attributes, keyed like the section's settings.
+	 */
+	public static function number_attributes( string $section ): array {
+		$attributes = array();
+		foreach ( self::NUMBER_RANGES[ $section ] as $key => $range ) {
+			$attributes[ $key ] = 'min="' . esc_attr( (string) $range['min'] ) . '"'
+				. ( isset( $range['max'] ) ? ' max="' . esc_attr( (string) $range['max'] ) . '"' : '' )
+				. ' step="' . esc_attr( (string) $range['step'] ) . '"';
+		}
+
+		return $attributes;
 	}
 
 	/**
@@ -869,11 +1012,15 @@ class Competition_Settings {
 			return '';
 		}
 
-		if ( in_array( $shortcode_tag, self::PAGE_SHORTCODES, true ) ) {
-			return self::competition_page_urls()[ $shortcode_tag ];
+		// Other shortcodes' pages join the request's cache as they're asked for.
+		$urls = self::competition_page_urls();
+		if ( ! array_key_exists( $shortcode_tag, $urls ) ) {
+			$urls[ $shortcode_tag ] = self::find_page_urls( array( $shortcode_tag ) )[ $shortcode_tag ];
+
+			self::$page_urls[ (string) wp_cache_get_last_changed( 'posts' ) ] = $urls;
 		}
 
-		return self::find_page_urls( array( $shortcode_tag ) )[ $shortcode_tag ];
+		return $urls[ $shortcode_tag ];
 	}
 
 	/**

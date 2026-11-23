@@ -546,6 +546,33 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Set a member's "all my images" choice for the past competitions archive.
+	 *
+	 * Written on its own, so a deactivated member's marked email address is left alone.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int  $id     Member ID.
+	 * @param bool $shown  Whether their images may show.
+	 * @return bool False if it couldn't be saved.
+	 */
+	public function set_images_public( int $id, bool $shown ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->update(
+			$this->table(),
+			array(
+				'images_public' => $shown ? 1 : 0,
+				'updated_at'    => utc_time(),
+			),
+			array( 'id' => $id ),
+			array( '%d', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
 	 * {@inheritDoc}
 	 */
 	protected function table_suffix(): string {

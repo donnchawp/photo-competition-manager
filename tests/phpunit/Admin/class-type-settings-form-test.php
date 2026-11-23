@@ -33,6 +33,96 @@ class Type_Settings_Form_Test extends WP_UnitTestCase {
 		return ( new Type_Settings_Form() )->from_post( Competition_Settings::type_settings( (object) array() ) );
 	}
 
+	/**
+	 * The form's min and max are only browser hints, and a blank field used to
+	 * save 0, which turned resizing off (#291, #292). Expected values come
+	 * from the ranges and defaults, so changing a range doesn't break this.
+	 *
+	 * @dataProvider posted_numbers
+	 *
+	 * @param string $section  Settings section.
+	 * @param string $key      Setting within it.
+	 * @param string $posted   What's posted: 'blank', 'zero', 'negative', 'below', 'above' or 'within'.
+	 * @param string $expected What's saved: 'default', 'min', 'max' or 'posted'.
+	 */
+	public function test_a_number_is_kept_to_the_forms_range_and_blank_means_the_default( string $section, string $key, string $posted, string $expected ): void {
+		$range = Competition_Settings::NUMBER_RANGES[ $section ][ $key ];
+		$value = array(
+			'blank'    => '',
+			'zero'     => '0',
+			'negative' => '-1',
+			'below'    => (string) ( $range['min'] - 1 ),
+			'above'    => (string) ( ( $range['max'] ?? 0 ) + 1 ),
+			'within'   => (string) ( $range['min'] + $range['step'] ),
+		)[ $posted ];
+
+		$settings = $this->parse( $this->post_number( $section, $key, $value ) );
+		$saved    = 'categories' === $section ? $settings['categories'][0]['quota'] : $settings[ $section ][ $key ];
+
+		$this->assertSame(
+			array(
+				'default' => $range['default'] ?? Competition_Settings::defaults()[ $section ][ $key ],
+				'min'     => $range['min'],
+				'max'     => $range['max'] ?? null,
+				'posted'  => (int) $value,
+			)[ $expected ],
+			$saved
+		);
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string, 2: string, 3: string}>
+	 */
+	public function posted_numbers(): array {
+		return array(
+			'blank width'           => array( 'upload', 'max_width', 'blank', 'default' ),
+			'zero width'            => array( 'upload', 'max_width', 'zero', 'default' ),
+			'negative width'        => array( 'upload', 'max_width', 'negative', 'default' ),
+			'width below range'     => array( 'upload', 'max_width', 'below', 'min' ),
+			'width above range'     => array( 'upload', 'max_width', 'above', 'max' ),
+			'width within range'    => array( 'upload', 'max_width', 'within', 'posted' ),
+			'blank height'          => array( 'upload', 'max_height', 'blank', 'default' ),
+			'blank file size'       => array( 'upload', 'max_file_size_mb', 'blank', 'default' ),
+			'file size above range' => array( 'upload', 'max_file_size_mb', 'above', 'max' ),
+			'blank quota'           => array( 'categories', 'quota', 'blank', 'default' ),
+			'quota above range'     => array( 'categories', 'quota', 'above', 'max' ),
+			'blank preview time'    => array( 'slideshow', 'preview_duration', 'blank', 'default' ),
+			'voting time above'     => array( 'slideshow', 'voting_duration', 'above', 'max' ),
+			'negative substitutes'  => array( 'interclub', 'substitutes', 'negative', 'min' ),
+		);
+	}
+
+	/**
+	 * The posted form for one number.
+	 *
+	 * @param string $section Settings section.
+	 * @param string $key     Setting within it.
+	 * @param string $value   Posted value.
+	 * @return array<string, mixed>
+	 */
+	private function post_number( string $section, string $key, string $value ): array {
+		if ( 'categories' === $section ) {
+			return array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => $value,
+					),
+				),
+			);
+		}
+
+		if ( 'interclub' === $section ) {
+			return array(
+				'interclub_section' => '1',
+				'interclub_' . $key => $value,
+			);
+		}
+
+		return array( $key => $value );
+	}
+
 	public function test_score_matrix_with_a_non_number_is_stored_as_a_list(): void {
 		$settings = $this->parse( array( 'score_matrix' => '10, x, 8' ) );
 

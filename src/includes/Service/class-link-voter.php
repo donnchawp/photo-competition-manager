@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Support\Device_Cookie;
 
 /**
  * A link voter: a member, proved by their voting link. The link is for one
@@ -98,5 +99,43 @@ final class Link_Voter implements Voter {
 	 */
 	public function has_ballot( Votes_Repository $votes, int $competition_id, string $category ): bool {
 		return $votes->has_voted_with_token( (int) $this->token->id );
+	}
+
+	/**
+	 * The cookie that remembers a competition's voting password on this device.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private static function password_cookie( int $competition_id ): string {
+		return 'photo_competition_voting_password_' . $competition_id;
+	}
+
+	/**
+	 * Remember the competition's voting password on this device for the
+	 * night, so a link voter gives it once, not in every category.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $password       The voting password they gave.
+	 * @return void
+	 */
+	public static function remember_password( int $competition_id, string $password ): void {
+		Device_Cookie::set( self::password_cookie( $competition_id ), $password, 12 * HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * The voting password this device remembers for a competition, or ''.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	public static function remembered_password( int $competition_id ): string {
+		return sanitize_text_field( Device_Cookie::get( self::password_cookie( $competition_id ) ) );
 	}
 }

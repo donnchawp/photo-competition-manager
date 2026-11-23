@@ -60,6 +60,35 @@ class Competitions_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Fetch competitions that haven't closed: open or scheduled, and not
+	 * archived. Matches Competition_Workflow::has_closed() being false.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return array<int, object>
+	 */
+	public function all_unclosed(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- unclosed_condition() is prepared.
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $this->unclosed_condition() . ' ORDER BY created_at DESC', $this->table() ) );
+	}
+
+	/**
+	 * WHERE clause for competitions that haven't closed: not archived, and
+	 * no close date or one still to come.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return string Prepared SQL condition.
+	 */
+	private function unclosed_condition(): string {
+		global $wpdb;
+
+		return $wpdb->prepare( 'deleted_at IS NULL AND (close_date IS NULL OR close_date > %s)', utc_time() );
+	}
+
+	/**
 	 * WHERE clause for competitions open now: not archived, and
 	 * open_date <= now < close_date. Matches Competition_Workflow::is_open().
 	 *
@@ -70,9 +99,7 @@ class Competitions_Repository extends Abstract_Repository {
 	private function open_condition(): string {
 		global $wpdb;
 
-		$current = utc_time();
-
-		return $wpdb->prepare( 'deleted_at IS NULL AND (open_date IS NULL OR open_date <= %s) AND (close_date IS NULL OR close_date > %s)', $current, $current );
+		return $this->unclosed_condition() . $wpdb->prepare( ' AND (open_date IS NULL OR open_date <= %s)', utc_time() );
 	}
 
 	/**

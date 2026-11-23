@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Competition_Settings;
+
 use function PhotoCompetitionManager\Support\render_template;
 
 /**
@@ -74,6 +76,7 @@ trait Form_Rendering {
 				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
 				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
 				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+				'quotaAttributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
 			)
 		);
 	}
@@ -155,6 +158,46 @@ trait Form_Rendering {
 			),
 			admin_url( 'admin.php' )
 		);
+	}
+
+	/**
+	 * The Judges section of a competition's settings tab, where judges are
+	 * assigned and Last sent shows each link's email.
+	 *
+	 * @since 0.4.0
+	 * @since 0.5.0 Shared by every screen, for the "needs judges" warning.
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return string
+	 */
+	private function judges_section_url( int $competition_id ): string {
+		return add_query_arg( 'tab', 'settings', $this->edit_url( $competition_id ) ) . '#photo-comp-judges';
+	}
+
+	/**
+	 * Warning naming each judged competition that hasn't closed and has no
+	 * judges, with a link to where they're assigned.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @return string Rendered HTML, or an empty string when none needs judges.
+	 */
+	private function render_judges_needed_notice(): string {
+		$competitions = ( new \PhotoCompetitionManager\Service\Judge_Assignments() )->competitions_needing_judges();
+		if ( empty( $competitions ) ) {
+			return '';
+		}
+
+		$labels = new \PhotoCompetitionManager\Service\Competition_Labels();
+		$rows   = array();
+		foreach ( $competitions as $competition ) {
+			$rows[] = array(
+				'title' => $labels->title_for_everyone( $competition ),
+				'url'   => $this->judges_section_url( (int) $competition->id ),
+			);
+		}
+
+		return $this->render_template( 'admin/notice-judges-needed.php', array( 'competitions' => $rows ) );
 	}
 
 	/**
@@ -249,5 +292,40 @@ trait Form_Rendering {
 	 */
 	protected function render_template( string $relative, array $data = array() ): string {
 		return render_template( $relative, $data );
+	}
+
+	/**
+	 * One category row, shared by the type and competition settings forms.
+	 *
+	 * @since 0.5.0
+	 * @param int                  $index    Row index.
+	 * @param array<string, mixed> $category Category: label, slug and quota.
+	 * @return string
+	 */
+	protected function render_category_field( int $index, array $category ): string {
+		return $this->render_template(
+			'admin/shared/category-field.php',
+			array(
+				'index'            => $index,
+				'label'            => $category['label'],
+				'slug'             => $category['slug'],
+				'quota'            => $category['quota'],
+				'quota_attributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
+			)
+		);
+	}
+
+	/**
+	 * The upload constraint fields, shared by the type and competition settings forms.
+	 *
+	 * @since 0.5.0
+	 * @param array<string, mixed> $upload Upload constraints.
+	 * @return string
+	 */
+	protected function render_upload_fields( array $upload ): string {
+		return $this->render_template(
+			'admin/shared/upload-constraint-fields.php',
+			$upload + array( 'attributes' => Competition_Settings::number_attributes( 'upload' ) )
+		);
 	}
 }

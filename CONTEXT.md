@@ -22,6 +22,14 @@ _Avoid_: Archived member, former member (that's a deleted one)
 Removing everything the club holds about a member, whether an admin does it from the Members screen or for an erasure request. Their entries, with their images and originals, go, and so does anything else that names them. The votes they cast stay without anything that identifies them, so the scores of every competition they voted in don't change. A member can be deleted while voting is open; their entries leave that category's ballot, as a disqualified entry would.
 _Avoid_: Erasing (except for WordPress's own tool), removing a member
 
+**Member page**:
+A member's own page listing every image they've entered, from every competition, newest first or best position first. Position and total score show once a competition's results are published. Entries in an archived competition are listed without their image. A member asks for a link to it by typing their email address on the page; the reply doesn't say whether the address is a member's, and each address can only ask once every few minutes. The link works for 7 days. Deactivated members can ask for one too and see the same page. While **Past competitions** are on, the page has Show / Hide for all their images and for each one that could appear there; each choice saves as it changes (or with a Save button without JavaScript), and only a POST changes one, since mail scanners open links.
+_Avoid_: My account, profile (there is no login)
+
+**Past competitions**:
+The public page listing competitions whose results are published, newest first, each at its own address (the page's address followed by the competition's slug) showing its entered images, category by category, in ballot order. The club switches it on, and chooses whether it shows positions and scores; names show only when the page asks for them. An archived competition isn't in it. A member can hide all their images from it, or single images; an image shows only while the member shows their images and it isn't hidden itself. In an interclub competition the member is the club.
+_Avoid_: Gallery. The shortcode and code call it the archive (`[competition_archive]`); in prose say "past competitions" so it isn't mistaken for an **Archived** competition, which is never in it.
+
 ### Competitions
 
 **Competition type**:
@@ -37,7 +45,7 @@ An image a member has entered in one category of a competition. It has an entry 
 _Avoid_: Submission, image (for the record)
 
 **Entrant**:
-A member who may enter a competition. A competition is either open to everyone in its type, where every active member tagged with the type is an entrant, or for selected entrants only, where an admin picks them from the type's members. Either way an entrant's grade must be one the type uses. In a selected-entrants competition an admin can add and remove entrants, and both stop once voting starts. If uploads are open, a new entrant is sent their upload link. An entrant can be removed only if they have no entries, and removing one revokes their link. An admin can create a member and enter them in one step. Only entrants get upload links and reminders, and only entrants can upload, on the upload page or through the API. In a competition open to everyone only active members of the type, in a grade it uses, can ask for a voting link; in a selected-entrants one only entrants can. When voting opens, the "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter (the entrants, in a selected-entrants competition) when voting links are emailed. Emailing the results link to all members goes to the type's active members.
+A member who may enter a competition. A competition is either open to everyone in its type, where every active member tagged with the type is an entrant, or for selected entrants only, where an admin picks them from the type's members. Either way an entrant's grade must be one the type uses. In a selected-entrants competition an admin can add and remove entrants, and both stop once voting starts. If uploads are open, a new entrant is sent their upload link. An entrant can be removed only if they have no entries, and removing one revokes their link. An admin can create a member and enter them in one step. Only entrants get upload links and reminders, and only entrants can upload, on the upload page or through the API. In a competition open to everyone only active members of the type, in a grade it uses, can ask for a voting link; in a selected-entrants one only entrants can. When voting opens, the "voting opened" email goes to the type's active members with an email when members vote with the password. When voting links are emailed, those who may enter (the entrants, in a selected-entrants competition) are sent their voting link instead, and no "voting opened" email. Emailing the results link to all members goes to the type's active members.
 _Avoid_: Participant, contestant
 
 **Interclub competition**:
@@ -81,6 +89,14 @@ The score one entry got on one ballot.
 Whoever casts a ballot. A link voter is a member, proved by their voting link. A judge is proved by their judge link. A named voter is a name given with the club's voting password, taken on trust. Names that differ only in case, accents or surrounding spaces belong to the same voter, so "Seán" and "sean" are one voter.
 Asking for a voting link replaces the member's earlier one. That's an accepted trade-off: anyone who knows a member's email can make their earlier link stop working, at most once every 5 minutes, but the member always receives the newest link, so no votes are lost.
 _Avoid_: User, member (for a named voter)
+
+**Voting link**:
+A member's private link to vote in one category of a competition whose members vote with emailed links. A member can ask for one on the voting page, and when a category opens an admin emails one to every member who may enter and hasn't voted there yet. An admin can also email one to a single member who says theirs never arrived. Any new link for a member replaces their earlier one for that category.
+_Avoid_: Magic link, token (for the link)
+
+**Voting password**:
+The competition's shared password. When members vote with the password, it is what lets a named voter in. When they vote with emailed links, a voting password is a second check that the voter is in the room, where it's shown: a link voter needs both their link and the password, once per competition. A blank password means no check. Judges never need it.
+_Avoid_: Room password, PIN
 
 **Judge**:
 Someone outside the club who scores a judged competition. The club keeps one list of judges, a name and an email, apart from its members. An admin chooses the judges for each competition, and each gets a private link that works only while they are chosen for it and a category is open. A judge scores every entry in the open category once. Deleting a judge keeps their scores without anything that identifies them, and a privacy erasure request covers judges.

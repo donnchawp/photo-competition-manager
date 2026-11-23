@@ -22,6 +22,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
+use PhotoCompetitionManager\Tests\Temp_Uploads;
 use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
 
 /**
@@ -30,6 +31,8 @@ use PhotoCompetitionManager\Tests\Type_Fixtures as Types;
  * @covers \PhotoCompetitionManager\Admin\Members_Controller
  */
 class Members_Controller_Test extends Admin_Controller_Test_Case {
+
+	use Temp_Uploads;
 
 	private const GROUP = 'photo_competition_members';
 
@@ -63,6 +66,15 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->competitions = new Competitions_Repository();
 		$this->members      = new Members_Repository();
 		$this->controller   = new Members_Controller( $this->competitions, $this->members );
+	}
+
+	/**
+	 * Remove temp CSV files.
+	 */
+	public function tear_down(): void {
+		$this->remove_tmp_files();
+
+		parent::tear_down();
 	}
 
 	/**
@@ -276,6 +288,57 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'member_action=edit', $location );
 		$this->assertContains( 'member_updated', $this->settings_error_codes( self::GROUP ) );
 		$this->assertSame( 'New Name', $this->members->find( $id )->name );
+	}
+
+	/**
+	 * Save the edit form for a member, with or without the past competitions box ticked.
+	 *
+	 * @param int  $id            Member ID.
+	 * @param bool $images_public Whether the box is ticked.
+	 */
+	private function save_images_public( int $id, bool $images_public ): void {
+		$_POST = array();
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => $id,
+				'member_name'              => 'Ada',
+				'member_email'             => 'ada@example.com',
+				'member_grade'             => 'advanced',
+				'member_active'            => '1',
+			) + ( $images_public ? array( 'member_images_public' => '1' ) : array() )
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+	}
+
+	public function test_an_admin_can_hide_and_show_all_of_a_members_images_in_past_competitions(): void {
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		$id = $this->create_member( array( 'name' => 'Ada' ) );
+
+		$this->save_images_public( $id, false );
+		$this->assertSame( '0', $this->members->find( $id )->images_public );
+
+		$this->save_images_public( $id, true );
+		$this->assertSame( '1', $this->members->find( $id )->images_public );
+	}
+
+	public function test_while_past_competitions_are_off_saving_a_member_keeps_their_choice(): void {
+		$id = $this->create_member( array( 'name' => 'Ada' ) );
+		$this->members->set_images_public( $id, false );
+
+		// The form leaves the box out, so nothing is posted for it.
+		$this->save_images_public( $id, false );
+
+		$this->assertSame( '0', $this->members->find( $id )->images_public );
+		$this->members->set_images_public( $id, true );
+		$this->save_images_public( $id, false );
+		$this->assertSame( '1', $this->members->find( $id )->images_public );
 	}
 
 	/**
@@ -591,6 +654,91 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Make the open competition one whose members vote with emailed links,
+	 * with colour taking votes.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function links_competition_taking_votes(): int {
+		$competition_id = $this->create_open_competition();
+		$this->competitions->update(
+			$competition_id,
+			array(
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => 1,
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'token' ),
+					'urls'       => array( 'voting_page' => 'https://example.com/vote/' ),
+				),
+			)
+		);
+		Entry_Fixtures::insert_entry( $competition_id, 'colour', $this->create_member( array( 'email' => 'entrant@example.com' ) ), array() );
+		\PhotoCompetitionManager\Tests\Workflow_Fixtures::set_stage( $competition_id, 'colour', \PhotoCompetitionManager\Service\Competition_Workflow::STAGE_VOTING );
+
+		return $competition_id;
+	}
+
+	/**
+	 * Render the members list.
+	 *
+	 * @return string
+	 */
+	private function render_members_list(): string {
+		ob_start();
+		$this->controller->render();
+		return (string) ob_get_clean();
+	}
+
+	public function test_send_member_voting_link_emails_the_member_their_link(): void {
+		$competition_id = $this->links_competition_taking_votes();
+		$member_id      = $this->create_member();
+		$recipients     = array();
+		add_filter(
+			'pre_wp_mail',
+			function ( $short_circuit, $atts ) use ( &$recipients ) {
+				$recipients[] = $atts['to'];
+				return true;
+			},
+			10,
+			2
+		);
+		$this->set_request(
+			array(
+				'action'      => 'send_member_voting_link',
+				'member'      => $member_id,
+				'competition' => $competition_id,
+				'category'    => 'colour',
+			)
+		);
+		$this->set_nonce( 'photo_competition_send_member_voting_link_' . $member_id . '_' . $competition_id . '_colour' );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'ada@example.com' ), $recipients );
+		$this->assertContains( 'voting_link_sent', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	public function test_members_list_offers_a_voting_link_only_while_a_links_category_takes_votes(): void {
+		$this->create_member();
+		$competition_id = $this->links_competition_taking_votes();
+
+		$this->assertStringContainsString( 'action=send_member_voting_link', str_replace( '&#038;', '&amp;', $this->render_members_list() ) );
+
+		( new \PhotoCompetitionManager\Service\Competition_Workflow() )->close_voting( $competition_id, 'colour' );
+
+		$this->assertStringNotContainsString( 'send_member_voting_link', $this->render_members_list() );
+	}
+
+	/**
 	 * With no upload page anywhere, the admin is told so rather than the
 	 * member getting a link to the home page.
 	 */
@@ -800,32 +948,53 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	 * -----------------------------------------------------------------
 	 * import_members_csv.
 	 *
-	 * The controller requires is_uploaded_file() to be true for the happy
-	 * path, which cannot be satisfied inside PHPUnit (no real HTTP upload).
-	 * Only the no-file and bad-nonce failure branches are exercised here.
+	 * The importer refuses files PHP didn't receive over HTTP; tests that
+	 * expect an import opt in with accept_temp_files_as_uploads().
 	 * -----------------------------------------------------------------
 	 */
 
 	/**
-	 * Importing with no file attached reports the no_file error.
+	 * Importing a CSV creates the members it lists.
 	 */
-	public function test_import_members_csv_no_file(): void {
-		$_FILES = array();
+	public function test_importing_a_csv_creates_its_members(): void {
+		$this->accept_temp_files_as_uploads();
 
-		$this->set_request(
-			array(
-				'photo_competition_action' => 'import_members_csv',
-			)
-		);
-		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
+		$this->post_csv_import( $this->csv_upload( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" ) );
 
-		$this->capture_redirect(
-			function () {
-				$this->controller->handle_actions();
-			}
-		);
+		$this->assertContains( 'import_complete', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( 'Ann Example', $this->members->find_by_email( 'ann@example.com' )->name );
+	}
+
+	/**
+	 * A CSV PHP didn't receive over HTTP gets the importer's security notice and imports nothing.
+	 */
+	public function test_a_csv_that_was_not_uploaded_over_http_is_refused(): void {
+		$this->post_csv_import( $this->csv_upload( "name,email,grade\nAnn Example,ann@example.com,Beginner\n" ) );
+
+		$this->assertContains( 'security_check_failed', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNull( $this->members->find_by_email( 'ann@example.com' ) );
+	}
+
+	/**
+	 * Submitting with the file input left blank asks for a file.
+	 */
+	public function test_importing_with_the_file_input_left_blank_asks_for_a_file(): void {
+		$this->post_csv_import( $this->failed_upload( UPLOAD_ERR_NO_FILE ) );
 
 		$this->assertContains( 'no_file', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * Post the import form.
+	 *
+	 * @param array<string, mixed> $file The csv_file entry, as $_FILES holds it.
+	 */
+	private function post_csv_import( array $file ): void {
+		$this->set_request( array( 'photo_competition_action' => 'import_members_csv' ) );
+		$this->set_nonce( 'photo_competition_import_members', 'photo_competition_import_nonce' );
+		$_FILES = array( 'csv_file' => $file );
+
+		$this->capture_redirect( array( $this->controller, 'handle_actions' ) );
 	}
 
 	/**

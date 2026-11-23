@@ -206,6 +206,24 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Once voting opens, you can vote at <a href="https://example.com/vote/">', $this->last_mail['message'] );
 	}
 
+	public function test_upload_link_email_says_whether_the_members_images_show_in_the_past_competitions(): void {
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'urls' => array( 'upload_page' => 'https://example.com/upload/' ) ) ) );
+		$archive_page = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_content' => '[competition_archive]',
+			)
+		);
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		$competition_id = $this->make_open_competition();
+		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
+
+		$this->service->send_to_member( $competition_id, $member_id );
+
+		// What the paragraph says is tested on Member_Visibility.
+		$this->assertStringContainsString( 'href="' . esc_url( get_permalink( $archive_page ) ) . '"', $this->last_mail['message'] );
+	}
+
 	public function test_send_to_member_links_the_pages_the_rule_finds() {
 		update_option(
 			'photo_comp_default_settings',

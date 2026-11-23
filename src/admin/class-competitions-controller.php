@@ -617,7 +617,7 @@ class Competitions_Controller {
 			// Store the password if provided, clear if empty or checkbox checked.
 			// For legacy hashed passwords (not shown in the form), preserve when field is blank.
 			$existing_password = $existing_settings['voting']['password'] ?? '';
-			$is_legacy_hash    = '' !== $existing_password && (bool) preg_match( '/^\$P\$|\$wp\$/', $existing_password );
+			$is_legacy_hash    = '' !== $existing_password && Competition_Settings::is_legacy_password_hash( $existing_password );
 			$hashed_password   = '';
 			if ( $voting_password_clear ) {
 				// Clear the password via checkbox (legacy hash flow).
@@ -975,18 +975,6 @@ class Competitions_Controller {
 	}
 
 	/**
-	 * The Judges section of a competition's settings tab, where Last sent shows each link's email.
-	 *
-	 * @since 0.4.0
-	 *
-	 * @param int $competition_id Competition ID.
-	 * @return string
-	 */
-	private function judges_section_url( int $competition_id ): string {
-		return $this->settings_tab_url( $competition_id ) . '#photo-comp-judges';
-	}
-
-	/**
 	 * The close date to save from the edit form, which only has the day.
 	 *
 	 * The same day keeps the stored time, such as the one Close Competition
@@ -1080,6 +1068,9 @@ class Competitions_Controller {
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_multiple_open_notice( $this->competitions->all_open(), false );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_judges_needed_notice();
 
 		echo $this->render_competition_table( $competitions, $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
@@ -1210,7 +1201,7 @@ class Competitions_Controller {
 
 		$auth_mode = $voting['auth_mode'] ?? 'password';
 
-		$is_plaintext_password = ! empty( $voting['password'] ) && ! preg_match( '/^\$P\$|\$wp\$/', $voting['password'] );
+		$is_plaintext_password = ! empty( $voting['password'] ) && ! Competition_Settings::is_legacy_password_hash( $voting['password'] );
 		$is_legacy_hash        = ! empty( $voting['password'] ) && ! $is_plaintext_password;
 		$password_value        = $is_plaintext_password ? $voting['password'] : '';
 
@@ -1226,7 +1217,7 @@ class Competitions_Controller {
 			array(
 				'competition_id'      => (int) $competition->id,
 				'category_rows_html'  => $category_rows_html,
-				'upload'              => $upload,
+				'upload_fields_html'  => $this->render_upload_fields( $upload ),
 				'auth_mode'           => $auth_mode,
 				'scored_by_locked'    => $this->votes->has_votes( (int) $competition->id ),
 				'password_value'      => $password_value,
@@ -1369,25 +1360,6 @@ class Competitions_Controller {
 		}
 
 		return $options;
-	}
-
-	/**
-	 * Render category field row.
-	 *
-	 * @param  int   $index    Category index.
-	 * @param  array $category Category data.
-	 * @return string
-	 */
-	private function render_category_field( int $index, array $category ): string {
-		return $this->render_template(
-			'admin/shared/category-field.php',
-			array(
-				'index' => $index,
-				'label' => $category['label'],
-				'slug'  => $category['slug'],
-				'quota' => $category['quota'],
-			)
-		);
 	}
 
 

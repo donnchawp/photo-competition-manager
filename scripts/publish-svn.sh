@@ -6,6 +6,11 @@
 # tags/<version>. Run after the git tag and GitHub release exist.
 #
 # Usage: scripts/publish-svn.sh [x.y.z]   (an argument must match the Stable tag)
+#        scripts/publish-svn.sh --assets-only
+#
+# --assets-only commits just the listing assets (screenshots and the Live
+# Preview blueprint) from .wordpress-org/, without building or tagging, so
+# they can change between releases.
 
 set -euo pipefail
 
@@ -21,6 +26,72 @@ LISTING_ASSETS_DIR=".wordpress-org"
 if ! command -v svn >/dev/null 2>&1; then
 	echo "svn is not installed." >&2
 	exit 1
+fi
+
+# No --delete: a banner or icon uploaded to assets some other way must survive.
+sync_listing_assets() {
+	if [[ -d "$LISTING_ASSETS_DIR" ]]; then
+		echo "Syncing $LISTING_ASSETS_DIR/ into assets..."
+		rsync -a --exclude='.svn/' --exclude='.DS_Store' "$LISTING_ASSETS_DIR/" "$SVN_DIR/assets/"
+	fi
+}
+
+# Stage additions and removals from svn status, and give listing images their MIME type.
+stage_changes() {
+	(
+		cd "$SVN_DIR"
+		while IFS= read -r line; do
+			flag="${line:0:1}"
+			# svn status puts the flags in columns 1-7, then a space, then the path.
+			path="${line:8}"
+			# A trailing @ stops svn reading an @ in a file name as a peg revision.
+			case "$flag" in
+				'?') svn add "${path}@" ;;
+				'!') svn rm "${path}@" ;;
+			esac
+		done < <(svn status)
+
+		# Without a MIME type the browser downloads a listing image instead of showing it.
+		for image in assets/*.png assets/*.jpg; do
+			[[ -e "$image" ]] || continue
+			case "$image" in
+				*.png) svn propset -q svn:mime-type image/png "${image}@" ;;
+				*.jpg) svn propset -q svn:mime-type image/jpeg "${image}@" ;;
+			esac
+		done
+	)
+
+	echo
+	echo "----- svn status -----"
+	( cd "$SVN_DIR" && svn status )
+	echo "----------------------"
+}
+
+if [[ "${1:-}" == "--assets-only" ]]; then
+	rm -rf "$SVN_DIR"
+	mkdir -p "$SVN_DIR"
+
+	echo "Checking out $SVN_URL (assets only)..."
+	svn checkout "$SVN_URL" "$SVN_DIR" --depth=empty
+	( cd "$SVN_DIR" && svn up assets )
+
+	sync_listing_assets
+	stage_changes
+
+	if [[ -z "$(cd "$SVN_DIR" && svn status -q)" ]]; then
+		echo "The listing assets on WordPress.org are already up to date."
+		exit 0
+	fi
+
+	read -r -p "Commit these listing assets to WordPress.org? [y/N] " confirm
+	if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+		echo "Stopped before committing. $SVN_DIR is left for inspection."
+		exit 1
+	fi
+
+	( cd "$SVN_DIR" && svn commit -m "Update listing assets" )
+	echo "Published the listing assets for $PLUGIN_SLUG to WordPress.org."
+	exit 0
 fi
 
 VERSION="$(sed -nE 's/^Stable tag: ([0-9A-Za-z.+-]+).*/\1/p' src/readme.txt | head -1)"
@@ -89,40 +160,9 @@ fi
 echo "Syncing the build into trunk..."
 rsync -a --delete --exclude='.svn/' "$TMP/$PLUGIN_SLUG/" "$SVN_DIR/trunk/"
 
-# No --delete: a banner or icon uploaded to assets some other way must survive.
-if [[ -d "$LISTING_ASSETS_DIR" ]]; then
-	echo "Syncing $LISTING_ASSETS_DIR/ into assets..."
-	rsync -a --exclude='.svn/' "$LISTING_ASSETS_DIR/" "$SVN_DIR/assets/"
-fi
+sync_listing_assets
+stage_changes
 
-# Stage additions and removals from svn status.
-(
-	cd "$SVN_DIR"
-	while IFS= read -r line; do
-		flag="${line:0:1}"
-		# svn status puts the flags in columns 1-7, then a space, then the path.
-		path="${line:8}"
-		# A trailing @ stops svn reading an @ in a file name as a peg revision.
-		case "$flag" in
-			'?') svn add "${path}@" ;;
-			'!') svn rm "${path}@" ;;
-		esac
-	done < <(svn status)
-
-	# Without a MIME type the browser downloads a listing image instead of showing it.
-	for image in assets/*.png assets/*.jpg; do
-		[[ -e "$image" ]] || continue
-		case "$image" in
-			*.png) svn propset -q svn:mime-type image/png "${image}@" ;;
-			*.jpg) svn propset -q svn:mime-type image/jpeg "${image}@" ;;
-		esac
-	done
-)
-
-echo
-echo "----- svn status -----"
-( cd "$SVN_DIR" && svn status )
-echo "----------------------"
 read -r -p "Commit trunk and assets, and create tags/$VERSION on WordPress.org? [y/N] " confirm
 if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
 	echo "Stopped before committing. $SVN_DIR is left for inspection."

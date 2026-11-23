@@ -129,6 +129,36 @@ class Voting_Token_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The members who have cast a ballot with their voting link in a category.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $category       Category slug.
+	 * @return array<int, int> Member IDs.
+	 */
+	public function voted_member_ids( int $competition_id, string $category ): array {
+		global $wpdb;
+
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT t.member_id FROM %i AS t INNER JOIN %i AS v ON v.voting_token_id = t.id WHERE t.competition_id = %d AND t.category = %s',
+				$this->table(),
+				$wpdb->prefix . 'photocomp_votes',
+				$competition_id,
+				$category
+			)
+		);
+
+		return array_map( 'intval', $ids );
+	}
+
+	/**
 	 * Find a valid token by hash.
 	 *
 	 * Tokens belonging to deactivated members are treated as invalid.

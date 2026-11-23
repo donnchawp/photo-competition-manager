@@ -17,6 +17,8 @@ use PhotoCompetitionManager\Repository\Competition_Types_Repository;
  */
 class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
+
 	/** @var Competition_Types_Repository */
 	private $types;
 
@@ -95,26 +97,13 @@ class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert live output equals the stored snapshot; write it on first run.
+	 * Assert live output equals the stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string $scenario Snapshot scenario name.
 	 * @param int[]  $type_ids Type IDs to normalize.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $type_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/types-render';
-		$file = $dir . '/' . $scenario . '.html';
-		$html = $this->render_normalized( $type_ids );
-
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) ) {
-				mkdir( $dir, 0777, true );
-			}
-			file_put_contents( $file, $html );
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-			return;
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/types-render', $scenario, $this->render_normalized( $type_ids ) );
 	}
 
 	public function test_render_list_with_one_type_has_no_delete(): void {

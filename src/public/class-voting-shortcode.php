@@ -16,7 +16,6 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
-use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
@@ -24,9 +23,9 @@ use PhotoCompetitionManager\Service\Judge_Voter;
 use PhotoCompetitionManager\Service\Link_Voter;
 use PhotoCompetitionManager\Service\Named_Voter;
 use PhotoCompetitionManager\Service\Voter;
+use PhotoCompetitionManager\Service\Voting_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
-use function PhotoCompetitionManager\Support\format_site_date;
-use function PhotoCompetitionManager\Support\utc_time;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 
 /**
  * Shortcode renderer for competition voting (token- and password-based).
@@ -37,6 +36,13 @@ use function PhotoCompetitionManager\Support\utc_time;
  * @since 0.1.0
  */
 class Voting_Shortcode {
+
+	/**
+	 * The form asking for a voting link.
+	 *
+	 * @var Link_Request_Form|null
+	 */
+	private $link_form;
 
 	/**
 	 * Competitions repository.
@@ -102,6 +108,13 @@ class Voting_Shortcode {
 	private $ballots;
 
 	/**
+	 * Sends voting links.
+	 *
+	 * @var Voting_Link_Service
+	 */
+	private $voting_links;
+
+	/**
 	 * A ballot refused earlier in this request, for the page to show with the
 	 * voter's form as they filled it in.
 	 *
@@ -142,6 +155,7 @@ class Voting_Shortcode {
 		$this->email_service     = $email_service ? $email_service : new Email_Service();
 		$this->entries           = $entries ? $entries : new Entries( $this->competitions_repo, $this->images_repo, $this->members_repo );
 		$this->ballots           = $ballots ? $ballots : new Ballots( $this->workflow, $this->votes_repo, $this->token_repo, $this->members_repo, $this->images_repo );
+		$this->voting_links      = new Voting_Link_Service( $this->competitions_repo, $this->members_repo, $this->token_repo, $this->email_service );
 	}
 
 	/**
@@ -185,8 +199,14 @@ class Voting_Shortcode {
 		} elseif ( 'token' === ( $voting['auth_mode'] ?? 'password' ) ) {
 			check_admin_referer( 'photo_competition_vote_with_token', 'photo_competition_vote_nonce' );
 			$token    = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-			$voter    = $this->ballots->link_voter( $competition, $token );
+			$password = isset( $_POST['voting_password'] ) ? sanitize_text_field( wp_unslash( $_POST['voting_password'] ) ) : Link_Voter::remembered_password( (int) $competition->id );
+			$voter    = $this->ballots->link_voter( $competition, $token, $password );
 			$category = is_wp_error( $voter ) ? '' : $voter->category();
+
+			// The password checked out, so it isn't asked again, even if the ballot itself is refused.
+			if ( ! is_wp_error( $voter ) && '' !== $password ) {
+				Link_Voter::remember_password( (int) $competition->id, $password );
+			}
 		} else {
 			check_admin_referer( 'photo_competition_vote', 'photo_competition_vote_nonce' );
 			$name     = isset( $_POST['voter_name'] ) ? sanitize_text_field( wp_unslash( $_POST['voter_name'] ) ) : '';
@@ -453,9 +473,12 @@ class Voting_Shortcode {
 		$message = $this->refused && 'voting_closed' !== $this->refused['error']->get_error_code() ? $this->refused_notice() : '';
 
 		// Handle token request form submission.
-		if ( isset( $_POST['photo_competition_request_voting_token'] ) && check_admin_referer( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ) ) {
-			$message = $this->handle_token_request( $competition, $_POST );
-		}
+		$requested = $this->link_form()->handle(
+			function ( string $email ) use ( $competition ): string {
+				return $this->handle_token_request( $competition, $email );
+			}
+		);
+		$message   = $requested ?? $message;
 
 		$view = array(
 			'heading'              => __( 'Voting', 'photo-competition-manager' ),
@@ -469,6 +492,8 @@ class Voting_Shortcode {
 			'category'             => $voter ? $voter->category() : '',
 			'post_category'        => false,
 			'check_open'           => true,
+			// Asked until this device has given the competition's voting password, if it has one.
+			'ask_password'         => $voter && null !== Ballots::link_voting_password_error( $competition, Link_Voter::remembered_password( (int) $competition->id ) ),
 		);
 
 		ob_start();
@@ -506,13 +531,13 @@ class Voting_Shortcode {
 	 *
 	 * @since 0.4.0 Only a member who may enter gets a link.
 	 *
-	 * @param object $competition Competition object.
-	 * @param array  $request     Request array (typically $_POST) already nonce-verified by the caller.
+	 * @param object $competition  Competition object.
+	 * @param string $member_email Address posted with the form.
 	 * @return string Message to display.
 	 */
-	private function handle_token_request( object $competition, array $request ): string {
-		$member_email = isset( $request['member_email'] ) ? sanitize_email( wp_unslash( $request['member_email'] ) ) : '';
-		$category     = isset( $request['category'] ) ? sanitize_text_field( wp_unslash( $request['category'] ) ) : '';
+	private function handle_token_request( object $competition, string $member_email ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Link_Request_Form::handle() checked the nonce.
+		$category = isset( $_POST['category'] ) && is_string( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
 
 		if ( empty( $member_email ) ) {
 			return '<p class="error">' . esc_html__( 'Please enter your email address.', 'photo-competition-manager' ) . '</p>';
@@ -530,51 +555,11 @@ class Voting_Shortcode {
 			return '<p class="error">' . esc_html__( 'Voting is not open for this category.', 'photo-competition-manager' ) . '</p>';
 		}
 
-		// Find member by email silently. Only a member who may enter gets a link.
+		// Find member by email silently. Anyone who can't be sent a link sees the same message.
 		$member = $this->members_repo->find_by_email( $member_email );
-		if ( ! $member || ! ( new Competition_Entry( $this->competitions_repo, $this->members_repo ) )->may_enter( $competition, $member ) ) {
-			// Return success message but don't send email.
-			return $generic_success;
-		}
+		$sent   = $member ? $this->voting_links->send_requested( $competition, $member, $category, (string) get_permalink() ) : true;
 
-		// Check for recent token to prevent spam.
-		if ( $this->token_repo->has_recent_token( $member->id, $competition->id, $category ) ) {
-			return $generic_success;
-		}
-
-		// Generate secure token.
-		$token_string = bin2hex( random_bytes( 32 ) );
-		$token_hash   = hash( 'sha256', $token_string );
-		$expires_at   = utc_time( HOUR_IN_SECONDS );
-
-		// Renew the member's one token for the category, so an earlier link stops working.
-		$token_id = $this->token_repo->renew( $member->id, $competition->id, $category, $token_hash, $expires_at );
-
-		if ( is_wp_error( $token_id ) ) {
-			return '<p class="error">' . esc_html__( 'Failed to create voting link. Please try again.', 'photo-competition-manager' ) . '</p>';
-		}
-
-		// Build magic link.
-		$voting_url = add_query_arg(
-			array(
-				'token'       => $token_string,
-				'competition' => $competition->slug,
-			),
-			get_permalink()
-		);
-
-		// Send email.
-		$email_sent = $this->email_service->send(
-			'voting_link',
-			$member,
-			$competition,
-			array(
-				'{voting_link}' => $voting_url,
-				'{close_date}'  => format_site_date( $competition->close_date ),
-			)
-		);
-
-		if ( is_wp_error( $email_sent ) ) {
+		if ( is_wp_error( $sent ) && ! Voting_Link_Service::is_refusal( $sent ) ) {
 			return '<p class="error">' . esc_html__( 'Failed to send email. Please contact the administrator.', 'photo-competition-manager' ) . '</p>';
 		}
 
@@ -593,8 +578,9 @@ class Voting_Shortcode {
 	 * @param array             $view            What differs between a member's page and a judge's: heading,
 	 *                                           identity, instructions_heading, instructions_rule, anonymity_notice,
 	 *                                           nonce_action, submit_label, category (the one voted in),
-	 *                                           post_category (send it with the form) and check_open (refuse
-	 *                                           when voting isn't open).
+	 *                                           post_category (send it with the form), check_open (refuse
+	 *                                           when voting isn't open) and, optionally, ask_password (a link
+	 *                                           voter must give the voting password).
 	 * @return void
 	 */
 	private function render_voting_interface( object $competition, string $message, ?Voter $voter, array $settings, array $submitted_votes, string $token_string, array $view ): void {
@@ -639,7 +625,7 @@ class Voting_Shortcode {
 					<p><?php esc_html_e( 'To vote, please enter your registered email address and select a category. We will send you a secure voting link.', 'photo-competition-manager' ); ?></p>
 
 					<form method="post" class="voting-token-request-form">
-						<?php wp_nonce_field( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' ); ?>
+						<?php $this->link_form()->nonce_field(); ?>
 
 						<p>
 							<label for="member_email">
@@ -650,6 +636,7 @@ class Voting_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
+								value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
@@ -663,7 +650,7 @@ class Voting_Shortcode {
 							<select id="category" name="category" required>
 								<option value=""><?php esc_html_e( '-- Select Category --', 'photo-competition-manager' ); ?></option>
 								<?php foreach ( $voting_categories as $cat ) : ?>
-									<option value="<?php echo esc_attr( $cat['slug'] ); ?>">
+									<option value="<?php echo esc_attr( $cat['slug'] ); ?>"<?php selected( $this->link_form()->refill( 'category' ), $cat['slug'] ); ?>>
 										<?php echo esc_html( $cat['label'] ); ?>
 									</option>
 								<?php endforeach; ?>
@@ -805,6 +792,14 @@ class Voting_Shortcode {
 							</div>
 						<?php endforeach; ?>
 					</div>
+
+					<?php if ( ! empty( $view['ask_password'] ) ) : ?>
+						<p class="voting-password">
+							<label for="voting_password"><?php esc_html_e( 'Voting password', 'photo-competition-manager' ); ?></label><br />
+							<input type="text" id="voting_password" name="voting_password" autocomplete="off" required />
+							<span class="description"><?php esc_html_e( 'It\'s shown in the room.', 'photo-competition-manager' ); ?></span>
+						</p>
+					<?php endif; ?>
 
 					<div class="voting-submit">
 						<button type="submit" name="photo_competition_vote" class="button button-primary button-large">
@@ -1090,5 +1085,18 @@ class Voting_Shortcode {
 	 */
 	private function already_voted_notice( string $message ): string {
 		return '<p class="notice notice-success">' . esc_html( $message ) . '</p>';
+	}
+
+	/**
+	 * The form asking for a voting link, one per request.
+	 *
+	 * @return Link_Request_Form
+	 */
+	private function link_form(): Link_Request_Form {
+		if ( ! $this->link_form ) {
+			$this->link_form = new Link_Request_Form( 'photo_competition_request_voting_token', 'photo_competition_voting_nonce' );
+		}
+
+		return $this->link_form;
 	}
 }

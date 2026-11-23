@@ -71,6 +71,33 @@ function utc_time( int $offset_seconds = 0 ): string {
 }
 
 /**
+ * Whether a path is a file PHP received in an HTTP POST upload.
+ *
+ * Refusing anything else stops a request from pointing an upload handler at a
+ * file already on the server.
+ *
+ * @since 0.5.0
+ *
+ * @param string $path Temporary path from a $_FILES entry.
+ * @return bool
+ */
+function is_http_upload( string $path ): bool {
+	/**
+	 * Filters whether a path counts as an HTTP POST upload.
+	 *
+	 * Exists so tests and the Playground seed (scripts/playground/seed.php)
+	 * can pass temp files as uploads. Returning true in production turns off
+	 * a security check.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param bool   $is_upload Whether is_uploaded_file() accepts the path.
+	 * @param string $path      Temporary path from a $_FILES entry.
+	 */
+	return (bool) apply_filters( 'photo_competition_manager_is_uploaded_file', is_uploaded_file( $path ), $path );
+}
+
+/**
  * Format a stored UTC datetime as a date in the site's date format and timezone.
  *
  * @since 0.4.0

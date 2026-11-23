@@ -20,6 +20,7 @@ use PhotoCompetitionManager\Service\Actor;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Link_Request_Form;
 use PhotoCompetitionManager\Support\Oversized_Post;
 
 /**
@@ -28,6 +29,13 @@ use PhotoCompetitionManager\Support\Oversized_Post;
  * @since 0.1.0
  */
 class Upload_Shortcode {
+
+	/**
+	 * The form asking for an upload link.
+	 *
+	 * @var Link_Request_Form|null
+	 */
+	private $link_form;
 
 	/**
 	 * Message key for each upload refusal someone can act on. Any other error says 'upload_failed'.
@@ -273,14 +281,12 @@ class Upload_Shortcode {
 		}
 
 		// Handle token request form submission.
-		if (
-			isset( $_POST['photo_competition_request_token'] )
-			&& check_admin_referer( 'photo_competition_request_token', 'photo_competition_nonce' )
-		) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
-			$member_email = isset( $_POST['member_email'] ) ? sanitize_email( wp_unslash( $_POST['member_email'] ) ) : '';
-			$message      = $this->handle_token_request( $competition, $member_email );
-		}
+		$requested = $this->link_form()->handle(
+			function ( string $email ) use ( $competition ): string {
+				return $this->handle_token_request( $competition, $email );
+			}
+		);
+		$message   = $requested ?? $message;
 
 		// A file over post_max_size reaches here with an empty $_POST, so neither the form's field nor its nonce is left to check.
 		if ( $token_record && $member && Oversized_Post::detected() ) {
@@ -554,7 +560,7 @@ class Upload_Shortcode {
 					<p><?php esc_html_e( 'To upload images, please enter your registered email address. We will send you a secure upload link.', 'photo-competition-manager' ); ?></p>
 
 					<form method="post" class="competition-token-request-form">
-						<?php wp_nonce_field( 'photo_competition_request_token', 'photo_competition_nonce' ); ?>
+						<?php $this->link_form()->nonce_field(); ?>
 
 						<p>
 							<label for="member_email">
@@ -565,6 +571,7 @@ class Upload_Shortcode {
 								type="email"
 								id="member_email"
 								name="member_email"
+								value="<?php echo esc_attr( $this->link_form()->refill( 'member_email' ) ); ?>"
 								required
 							/>
 							<small><?php esc_html_e( 'Enter the email address associated with your club membership.', 'photo-competition-manager' ); ?></small>
@@ -854,10 +861,12 @@ class Upload_Shortcode {
 									<?php
 									echo esc_html(
 										sprintf(
-											/* translators: 1: max file size in MB, 2: allowed formats */
-											__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
+											/* translators: 1: max file size in MB, 2: allowed formats, 3: width in pixels, 4: height in pixels */
+											__( 'Max size: %1$d MB. Formats: %2$s. Images larger than %3$d × %4$d pixels will be resized to fit.', 'photo-competition-manager' ),
 											floor( $max_file_size / MB_IN_BYTES ),
-											strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
+											strtoupper( implode( ', ', $constraints['allowed_formats'] ) ),
+											$constraints['max_width'],
+											$constraints['max_height']
 										)
 									);
 									?>
@@ -893,5 +902,18 @@ class Upload_Shortcode {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * The form asking for an upload link, one per request.
+	 *
+	 * @return Link_Request_Form
+	 */
+	private function link_form(): Link_Request_Form {
+		if ( ! $this->link_form ) {
+			$this->link_form = new Link_Request_Form( 'photo_competition_request_token', 'photo_competition_nonce' );
+		}
+
+		return $this->link_form;
 	}
 }

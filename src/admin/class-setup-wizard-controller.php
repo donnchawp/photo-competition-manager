@@ -57,11 +57,15 @@ class Setup_Wizard_Controller {
 		$voting_page_title  = sanitize_text_field( $this->get_post_string( 'voting_page_title', 'Vote on Photos' ) );
 		$results_page_title = sanitize_text_field( $this->get_post_string( 'results_page_title', 'Competition Results' ) );
 		$top3_page_title    = sanitize_text_field( $this->get_post_string( 'top3_page_title', 'Top 3 Winners' ) );
+		$member_page_title  = sanitize_text_field( $this->get_post_string( 'member_page_title', 'Your Entries' ) );
+		$archive_page_title = sanitize_text_field( $this->get_post_string( 'archive_page_title', 'Past Competitions' ) );
 
 		$create_upload_page  = isset( $_POST['create_upload_page'] ) && '1' === $_POST['create_upload_page'];
 		$create_voting_page  = isset( $_POST['create_voting_page'] ) && '1' === $_POST['create_voting_page'];
 		$create_results_page = isset( $_POST['create_results_page'] ) && '1' === $_POST['create_results_page'];
 		$create_top3_page    = isset( $_POST['create_top3_page'] ) && '1' === $_POST['create_top3_page'];
+		$create_member_page  = isset( $_POST['create_member_page'] ) && '1' === $_POST['create_member_page'];
+		$create_archive_page = isset( $_POST['create_archive_page'] ) && '1' === $_POST['create_archive_page'];
 		$results_hide_names  = isset( $_POST['results_hide_names'] ) && '1' === $_POST['results_hide_names'];
 
 		$created_pages = array();
@@ -145,11 +149,48 @@ class Setup_Wizard_Controller {
 			}
 		}
 
+		// Create member page.
+		if ( $create_member_page ) {
+			$member_page_id = $this->create_page_with_shortcode(
+				$member_page_title,
+				'[competition_my_entries]'
+			);
+
+			if ( is_wp_error( $member_page_id ) ) {
+				$errors[] = sprintf(
+					/* translators: %s: error message */
+					__( 'Member page error: %s', 'photo-competition-manager' ),
+					$member_page_id->get_error_message()
+				);
+			} else {
+				$created_pages['member'] = $member_page_id;
+			}
+		}
+
+		// Create past competitions page.
+		if ( $create_archive_page ) {
+			$archive_page_id = $this->create_page_with_shortcode(
+				$archive_page_title,
+				'[competition_archive]'
+			);
+
+			if ( is_wp_error( $archive_page_id ) ) {
+				$errors[] = sprintf(
+					/* translators: %s: error message */
+					__( 'Past competitions page error: %s', 'photo-competition-manager' ),
+					$archive_page_id->get_error_message()
+				);
+			} else {
+				$created_pages['archive'] = $archive_page_id;
+			}
+		}
+
 		// Update settings with created page URLs.
+		$urls_saved = false;
 		if ( ! empty( $created_pages ) ) {
 			// Flush rewrite rules to ensure permalinks work immediately.
 			flush_rewrite_rules();
-			$this->update_page_urls( $created_pages );
+			$urls_saved = $this->update_page_urls( $created_pages );
 		}
 
 		// Display feedback.
@@ -171,7 +212,9 @@ class Setup_Wizard_Controller {
 				count( $created_pages )
 			);
 
-			$message .= ' ' . __( 'Global settings have been updated with the new page URLs.', 'photo-competition-manager' );
+			if ( $urls_saved ) {
+				$message .= ' ' . __( 'Global settings have been updated with the new page URLs.', 'photo-competition-manager' );
+			}
 
 			add_settings_error(
 				'photo_competition_setup',
@@ -238,6 +281,10 @@ class Setup_Wizard_Controller {
 		echo $this->render_results_page_card();
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_top3_page_card();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/setup-wizard/member-page-card.php' );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/setup-wizard/archive-page-card.php', array( 'settings_url' => admin_url( 'admin.php?page=photo-competition-manager-settings#past-competitions' ) ) );
 
 		submit_button( __( 'Create Pages', 'photo-competition-manager' ), 'primary', 'submit', true );
 
@@ -340,10 +387,23 @@ class Setup_Wizard_Controller {
 	/**
 	 * Update global settings with created page URLs.
 	 *
+	 * Pages that link to themselves, such as the member and past competitions pages, have no URL setting.
+	 *
 	 * @param  array<string, int> $created_pages Map of page type to page ID.
-	 * @return void
+	 * @return bool Whether any URL setting was saved.
 	 */
-	private function update_page_urls( array $created_pages ): void {
+	private function update_page_urls( array $created_pages ): bool {
+		// Each page's URL setting.
+		$keys = array(
+			'upload'  => 'upload_page',
+			'voting'  => 'voting_page',
+			'results' => 'results_page',
+			'top3'    => 'top3_page',
+		);
+		if ( ! array_intersect_key( $created_pages, $keys ) ) {
+			return false;
+		}
+
 		$settings = get_option( 'photo_comp_default_settings', '' );
 		$parsed   = \PhotoCompetitionManager\Support\Competition_Settings::parse( $settings );
 
@@ -351,27 +411,13 @@ class Setup_Wizard_Controller {
 			$parsed['urls'] = array();
 		}
 
-		// Update upload page URL.
-		if ( isset( $created_pages['upload'] ) ) {
-			$parsed['urls']['upload_page'] = get_permalink( $created_pages['upload'] );
-		}
-
-		// Update voting page URL.
-		if ( isset( $created_pages['voting'] ) ) {
-			$parsed['urls']['voting_page'] = get_permalink( $created_pages['voting'] );
-		}
-
-		// Update results page URL (stored separately for now).
-		if ( isset( $created_pages['results'] ) ) {
-			$parsed['urls']['results_page'] = get_permalink( $created_pages['results'] );
-		}
-
-		// Update top 3 page URL.
-		if ( isset( $created_pages['top3'] ) ) {
-			$parsed['urls']['top3_page'] = get_permalink( $created_pages['top3'] );
+		foreach ( array_intersect_key( $keys, $created_pages ) as $page => $setting ) {
+			$parsed['urls'][ $setting ] = get_permalink( $created_pages[ $page ] );
 		}
 
 		update_option( 'photo_comp_default_settings', \PhotoCompetitionManager\Support\Competition_Settings::encode( $parsed ) );
+
+		return true;
 	}
 
 	/**
@@ -384,10 +430,12 @@ class Setup_Wizard_Controller {
 
 		// Find pages with competition shortcodes.
 		$shortcodes = array(
-			'competition_upload'  => __( 'Upload', 'photo-competition-manager' ),
-			'competition_voting'  => __( 'Voting', 'photo-competition-manager' ),
-			'competition_results' => __( 'Results', 'photo-competition-manager' ),
-			'competition_top3'    => __( 'Top 3', 'photo-competition-manager' ),
+			'competition_upload'     => __( 'Upload', 'photo-competition-manager' ),
+			'competition_voting'     => __( 'Voting', 'photo-competition-manager' ),
+			'competition_results'    => __( 'Results', 'photo-competition-manager' ),
+			'competition_top3'       => __( 'Top 3', 'photo-competition-manager' ),
+			'competition_my_entries' => __( 'Member page', 'photo-competition-manager' ),
+			'competition_archive'    => __( 'Past competitions page', 'photo-competition-manager' ),
 		);
 
 		$found_pages = array();

@@ -1644,7 +1644,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->controller->render();
 		$html = (string) ob_get_clean();
 
-		$this->assertStringContainsString( 'name="max_file_size_mb" min="1" max="50" value="10"', $html );
+		$this->assertMatchesRegularExpression( '/name="max_file_size_mb"[^>]* value="10"/', $html );
 	}
 
 	/**
@@ -1760,7 +1760,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Invalid settings (quota below 1) surface a validation error and redirect back.
+	 * Invalid settings (no categories) surface a validation error and redirect back.
 	 */
 	public function test_update_competition_settings_validation_error(): void {
 		$id = $this->create_competition( 'Bad Settings', 'bad-settings' );
@@ -1769,13 +1769,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 			array(
 				'photo_competition_action' => 'update_competition_settings',
 				'competition_id'           => $id,
-				'categories'               => array(
-					array(
-						'label' => 'Colour',
-						'slug'  => 'colour',
-						'quota' => '0',
-					),
-				),
 				'grades'                   => array(),
 			)
 		);
@@ -1789,7 +1782,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'action=edit', $location );
 		$this->assertStringContainsString( 'tab=settings', $location );
-		$this->assertContains( 'invalid_quota', $this->settings_error_codes( 'photo_competition_manager' ) );
+		$this->assertContains( 'missing_categories', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	/**

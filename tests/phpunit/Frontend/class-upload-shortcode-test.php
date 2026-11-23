@@ -29,6 +29,8 @@ require_once __DIR__ . '/../Admin/class-redirect-exception.php';
  */
 class Upload_Shortcode_Test extends WP_UnitTestCase {
 
+	use \PhotoCompetitionManager\Tests\Temp_Uploads;
+
 	/**
 	 * @var Upload_Shortcode
 	 */
@@ -118,6 +120,51 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<h2>Beginner Upload</h2>', $output );
 	}
 
+	/**
+	 * Post the form asking for an upload link.
+	 *
+	 * @param string $email Address.
+	 * @param string $nonce Nonce, or '' for a valid one.
+	 * @return string The rendered page.
+	 */
+	private function request_link( string $email, string $nonce = '' ): string {
+		$nonce    = '' !== $nonce ? $nonce : wp_create_nonce( 'photo_competition_request_token' );
+		$_POST    = array(
+			'photo_competition_request_token' => '1',
+			'photo_competition_nonce'         => $nonce,
+			'member_email'                    => $email,
+		);
+		$_REQUEST = $_POST;
+
+		return $this->shortcode->render( array() );
+	}
+
+	public function test_a_stale_form_shows_the_form_again_and_the_retry_sends_the_link(): void {
+		$this->issue_token( true );
+		self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_status'  => 'publish',
+				'post_content' => '[competition_upload]',
+			)
+		);
+		$sent = 0;
+		add_filter(
+			'pre_wp_mail',
+			function () use ( &$sent ) {
+				++$sent;
+				return true;
+			}
+		);
+
+		$html = $this->request_link( 'uploader@example.com', 'stale' );
+
+		$this->assertStringContainsString( 'value="uploader@example.com"', $html );
+
+		$this->request_link( 'uploader@example.com' );
+		$this->assertSame( 1, $sent );
+	}
+
 	public function test_active_member_token_opens_upload_page(): void {
 		$_GET['token'] = $this->issue_token( true );
 
@@ -149,6 +196,28 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( "Max size: {$shown_mb} MB.", $output );
 		$this->assertSame( $shown_mb * MB_IN_BYTES, (int) $this->upload_script_data()['maxFileSize'] );
+	}
+
+	/**
+	 * Entries aren't refused for being too big, so members are told the size
+	 * they'll be shrunk to (#289).
+	 */
+	public function test_the_upload_page_shows_the_size_entries_are_resized_to(): void {
+		global $wpdb;
+		$settings           = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT settings FROM {$wpdb->prefix}photocomp_competitions WHERE id = %d", $this->competition_id ) ), true );
+		$settings['upload'] = array_merge(
+			$settings['upload'] ?? array(),
+			array(
+				'max_width'  => 1600,
+				'max_height' => 1200,
+			)
+		);
+		$wpdb->update( $wpdb->prefix . 'photocomp_competitions', array( 'settings' => wp_json_encode( $settings ) ), array( 'id' => $this->competition_id ) );
+		$_GET['token'] = $this->issue_token( true );
+
+		$output = $this->shortcode->render( array() );
+
+		$this->assertStringContainsString( 'Images larger than 1600 × 1200 pixels will be resized to fit.', $output );
 	}
 
 	public function test_the_upload_page_loads_the_upload_script_translations(): void {
@@ -452,6 +521,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	public function test_a_file_of_the_wrong_type_says_so(): void {
 		$text_file = wp_tempnam( 'entry.gif' );
 		file_put_contents( $text_file, 'not an image' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->accept_temp_files_as_uploads();
 
 		$location = $this->post_upload(
 			$this->issue_token( true ),

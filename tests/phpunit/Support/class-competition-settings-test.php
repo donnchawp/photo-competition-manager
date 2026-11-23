@@ -133,6 +133,21 @@ class Competition_Settings_Test extends WP_UnitTestCase {
 		);
 	}
 
+	/**
+	 * Sites that saved a blank size before #291 have 0 stored, which turned resizing off.
+	 */
+	public function test_a_competition_with_a_stored_0_resize_size_resizes_to_1920(): void {
+		$upload = Competition_Settings::get_upload_constraints( Competition_Settings::parse( '{"upload":{"max_width":0,"max_height":0}}' ) );
+
+		$this->assertSame( array( 1920, 1920 ), array( $upload['max_width'], $upload['max_height'] ) );
+	}
+
+	public function test_a_type_with_a_stored_0_resize_size_shows_1920(): void {
+		$upload = Competition_Settings::type_settings( (object) array( 'settings' => array( 'upload' => array( 'max_width' => 0, 'max_height' => 0 ) ) ) )['upload'];
+
+		$this->assertSame( array( 1920, 1920 ), array( $upload['max_width'], $upload['max_height'] ) );
+	}
+
 	public function test_parse_fills_in_a_section_stored_empty(): void {
 		// wp_json_encode() writes an empty section as [], not {}.
 		$parsed = Competition_Settings::parse( '{"slideshow":[]}' );

@@ -3,11 +3,12 @@
  * Edit-member form partial for the admin members page.
  *
  * Reads $data['member'] (object with id, name, email, grade, active,
- * committee), $data['grade_options'] (array<string,string> of grade slug =>
+ * committee, images_public), $data['grade_options'] (array<string,string> of grade slug =>
  * label), $data['grade_notes'] (string[]: how types that differ name and use
  * the grades), $data['members_url'] (string), $data['type_options'] (array<int,string>
- * of type ID => name; empty unless the club has several types) and
- * $data['member_types'] (int[] of the member's type IDs).
+ * of type ID => name; empty unless the club has several types),
+ * $data['member_types'] (int[] of the member's type IDs) and
+ * $data['archive_on'] (bool: whether past competitions are on).
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -61,6 +62,16 @@ echo '<input type="checkbox" name="member_committee" value="1"' . checked( (bool
 echo esc_html__( 'Committee Member', 'photo-competition-manager' );
 echo '</label>';
 echo '</p>';
+
+if ( ! empty( $data['archive_on'] ) ) {
+	echo '<p>';
+	echo '<label>';
+	echo '<input type="checkbox" name="member_images_public" value="1"' . checked( (bool) (int) ( $data['member']->images_public ?? 1 ), true, false ) . ' /> ';
+	echo esc_html__( 'Show their images in past competitions', 'photo-competition-manager' );
+	echo '</label>';
+	echo '</p>';
+	echo '<p class="description">' . esc_html__( 'Members can change this themselves, and hide single images, on their entries page.', 'photo-competition-manager' ) . '</p>';
+}
 
 if ( $data['type_options'] ) {
 	echo '<fieldset>';

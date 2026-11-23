@@ -82,7 +82,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 - A competition's entry setting is **open to everyone in the type** or **selected entrants only**.
 - In a selected-entrants competition entrants can be added and removed, and both stop once voting starts. If uploads are open a new entrant is sent their upload link. An entrant can be removed only if they have no entries, which revokes their link. An admin can create a member and enter them in one step.
 - Only those who may enter receive upload links and reminders, and only they can upload, through the upload page or the API.
-- In a competition open to everyone only active members of the type can ask for a voting link; in a selected-entrants one only entrants can. The "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter when voting links are emailed. Emailing the results link to all members goes to the type's active members.
+- In a competition open to everyone only active members of the type can ask for a voting link; in a selected-entrants one only entrants can. The "voting opened" email goes to the type's active members with an email when members vote with the password. When voting links are emailed, no "voting opened" email goes out: once a category takes votes, an admin presses "Email voting links" on Voting Controls to send every member who may vote, and hasn't yet, their own link for that category. That works once per category until it's reset, since sending again would replace the links of members part-way through voting. A member whose link didn't arrive can be sent a new one from Voting Controls or the Members screen. Emailing the results link to all members goes to the type's active members. When members vote with emailed links and the competition has a voting password, a link voter must also give the password before their ballot counts, as a check that they're in the room where it's shown. They give it once per competition on a device, and it's remembered for the night. A blank password means no check, so members can vote from home. Voting Controls shows the password beside the QR code in both modes. The "voting opened" email goes to the type's active members with an email when members vote with the password, and to those who may enter when voting links are emailed. Emailing the results link to all members goes to the type's active members.
 - Changing a competition's type before it has entries replaces its categories and type settings with the new type's, keeping its page links. A competition always keeps at least one category.
 
 ### 4.1c Interclub Competitions
@@ -151,7 +151,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 #### External judging
 - Each competition has a "Who scores" setting: the voting password, members' voting links, or judges.
 - Judges live on their own admin screen as a name and email; they are not members. Deleting a judge keeps their scores without identifying them, and the privacy eraser covers judges.
-- An admin chooses the judges for a competition and emails them their links. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
+- An admin chooses the judges for a competition and emails them their links. While a judged competition that hasn't closed has no judges, the Judges, Competitions and Voting Controls screens warn about it and link to where they're chosen. A judge's link (`?judge=<token>` on the voting page) works only while the judge is chosen for that competition and a category is open.
 - A judge scores every entry in the open category from the competition's score list, one ballot per judge per category. An entry's total is the sum of the judges' scores.
 - In a judged competition members get no voting links and the password doesn't work. They aren't sent "voting opened", and upload emails don't mention voting.
 - Public results pages and the results email show only the total and position. Admins can still see individual scores on the Results screen and in the export, where each judge is named, or shown as "Former judge #<id>" once deleted.
@@ -189,6 +189,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - HTML results page automatically generated per competition.
   - Shows top 3 winners per grade with thumbnails and scores.
 - Archive page lists all past competitions with links to their results.
+- **Member page:** `[competition_my_entries]` - a member types their email address and is sent a link, valid for 7 days, to every image they've entered, with total score and position where results are published. While past competitions are on, the page has Show / Hide for all their images and for each one that could appear there, saved as each changes (through the `photo-comp/v1/member-visibility` REST route, authorised by the link's key) or with a Save button without JavaScript. The Upload link email's `{archive_info}` paragraph says whether their images show and links to this page; admins can show or hide all of a member's images on the Members screen.
 
 ---
 
@@ -252,6 +253,8 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_results competition="slug"]` | Complete results table for specific competition. |
 | `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
+| `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered, where they choose which show in past competitions. |
+| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`, leaving out images their members hide. `show_names="true"` shows who each image is by. Off until switched on in Settings. |
 
 ### Results Display Features
 

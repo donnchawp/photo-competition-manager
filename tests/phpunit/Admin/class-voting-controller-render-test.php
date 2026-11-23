@@ -22,7 +22,9 @@ use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
+use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 use function PhotoCompetitionManager\Support\utc_time;
 
@@ -30,6 +32,8 @@ use function PhotoCompetitionManager\Support\utc_time;
  * @covers \PhotoCompetitionManager\Admin\Voting_Controller
  */
 class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
+
+	use \PhotoCompetitionManager\Tests\Matches_Snapshot;
 
 	/** @var Competitions_Repository */
 	private $competitions;
@@ -91,33 +95,13 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Assert live output equals the stored snapshot; write it on first run.
+	 * Assert live output equals the stored snapshot (see Matches_Snapshot).
 	 *
 	 * @param string         $scenario    Snapshot scenario name.
 	 * @param array<int,int> $dynamic_ids Auto-increment IDs to normalize before comparing.
 	 */
 	private function assert_matches_snapshot( string $scenario, array $dynamic_ids = array() ): void {
-		$dir  = __DIR__ . '/../fixtures/voting-render';
-		$file = $dir . '/' . $scenario . '.html';
-		$html = $this->render_normalized( $dynamic_ids );
-
-		if ( ! file_exists( $file ) ) {
-			if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
-				// wp_mkdir_p() has been observed to fail silently in this test
-				// environment; fall back to a plain mkdir() before giving up.
-				mkdir( $dir, 0777, true );
-			}
-			if ( ! is_dir( $dir ) ) {
-				self::fail( "Could not create snapshot directory {$dir}." );
-			}
-			if ( false === file_put_contents( $file, $html ) ) {
-				self::fail( "Could not write snapshot file {$file}." );
-			}
-			$this->markTestSkipped( "Snapshot written for {$scenario}; re-run to assert." );
-			return;
-		}
-
-		$this->assertSame( file_get_contents( $file ), $html, "Rendered markup drifted for scenario {$scenario}." );
+		$this->assert_snapshot( __DIR__ . '/../fixtures/voting-render', $scenario, $this->render_normalized( $dynamic_ids ) );
 	}
 
 	/**
@@ -511,6 +495,136 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'href="https://example.com/spring-top3"', $html );
 		$this->assertStringNotContainsString( 'club-results', $html );
 		$this->assertStringNotContainsString( 'club-top3', $html );
+	}
+
+	/**
+	 * Voting modes, and whether the quick actions show the saved voting password.
+	 *
+	 * @return array<string, array{0: string, 1: bool}>
+	 */
+	public function voting_password_modes(): array {
+		return array(
+			'members vote with the password'  => array( 'password', true ),
+			'members vote with emailed links' => array( 'token', true ),
+			'judges score it'                 => array( 'judges', false ),
+		);
+	}
+
+	/**
+	 * The quick actions show the voting password whenever members need it: to
+	 * vote with it, or with their emailed links as a check they're in the room.
+	 * Judges never need it, so showing it would have the admin share one nobody
+	 * can use (#262).
+	 *
+	 * @dataProvider voting_password_modes
+	 *
+	 * @param string $auth_mode How the competition's votes are cast.
+	 * @param bool   $shown     Whether the password should be shown.
+	 */
+	public function test_render_quick_actions_show_the_voting_password_only_when_members_need_it( string $auth_mode, bool $shown ): void {
+		$comp_id = $this->competitions->create(
+			array(
+				'type_id'  => Type_Fixtures::id(),
+				'title'    => 'Spring Show',
+				'slug'     => 'spring-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'voting'     => array(
+						'auth_mode' => $auth_mode,
+						'password'  => 'snapdragon',
+					),
+					// The password goes with the voting page's QR code.
+					'urls'       => array( 'voting_page' => 'https://example.com/spring-vote' ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+				'random_number'  => 100,
+			)
+		);
+
+		$html = $this->render_html();
+
+		$this->assertSame( $shown, str_contains( $html, 'snapdragon' ) );
+	}
+
+	/**
+	 * Seed a competition whose members vote with emailed links, with Ada's
+	 * colour entry and colour taking votes.
+	 *
+	 * @return int Competition ID.
+	 */
+	private function seed_links_competition_taking_votes(): int {
+		$comp_id   = $this->competitions->create(
+			array(
+				'type_id'  => Type_Fixtures::id(),
+				'title'    => 'Links Show',
+				'slug'     => 'links-show',
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'voting'     => array( 'auth_mode' => 'token' ),
+					'urls'       => array( 'voting_page' => 'https://example.com/vote' ),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $member_id, array() );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', Competition_Workflow::STAGE_VOTING );
+
+		return $comp_id;
+	}
+
+	public function test_render_offers_to_email_voting_links_until_they_are_sent(): void {
+		$comp_id = $this->seed_links_competition_taking_votes();
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( 'action=email_voting_links', str_replace( '&#038;', '&amp;', $html ) );
+		$this->assertMatchesRegularExpression( '/<option value="\d+">Ada<\/option>/', $html );
+
+		( new Competition_Workflow() )->record_voting_links_sent( $comp_id, 'colour' );
+		$html = $this->render_html();
+
+		$this->assertStringNotContainsString( 'action=email_voting_links', str_replace( '&#038;', '&amp;', $html ) );
+		$this->assertMatchesRegularExpression( '/<option value="\d+">Ada<\/option>/', $html );
+	}
+
+	public function test_render_offers_no_voting_links_when_members_vote_with_the_password(): void {
+		$comp_id = $this->seed_links_competition_taking_votes();
+		$this->competitions->update( $comp_id, array( 'settings' => array( 'voting' => array( 'auth_mode' => 'password' ) ) ) );
+
+		$html = $this->render_html();
+
+		$this->assertStringNotContainsString( 'email_voting_links', $html );
+		$this->assertStringNotContainsString( 'send_voting_link', $html );
 	}
 
 	/**

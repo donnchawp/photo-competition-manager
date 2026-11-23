@@ -12,6 +12,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 use PhotoCompetitionManager\Admin\Traits\Date_Formatting;
 use PhotoCompetitionManager\Admin\Traits\Form_Rendering;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -137,6 +138,7 @@ class Settings_Controller {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 			update_option( Log_Retention::OPTION, $log_retention_months );
+			Competition_Archive::save_settings( '' !== $this->get_post_string( 'archive_enabled' ), '' !== $this->get_post_string( 'archive_show_winners' ) );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -175,7 +177,7 @@ class Settings_Controller {
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Settings', 'photo-competition-manager' ) . '</h1>';
-		echo '<p class="description">' . esc_html__( 'Grades, the voting form, email, page URLs and logs apply to the whole club.', 'photo-competition-manager' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Grades, the voting form, email, page URLs, past competitions and logs apply to the whole club.', 'photo-competition-manager' ) . '</p>';
 
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="card" style="max-width: 720px; padding: 16px; margin-top: 20px;">';
 		wp_nonce_field( 'photo_competition_global_settings', 'photo_competition_nonce' );
@@ -187,6 +189,7 @@ class Settings_Controller {
 		echo $this->render_template( 'admin/settings/voting-ui-section.php', array( 'voting_ui_type' => $voting_ui_type ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_email_section( $email_config ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_urls_section( $urls ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/settings/archive-section.php', Competition_Archive::settings() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/settings/logs-section.php', array( 'months' => Log_Retention::months() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );

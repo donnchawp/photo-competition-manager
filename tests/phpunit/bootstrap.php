@@ -55,4 +55,6 @@ require_once __DIR__ . '/fixtures/class-entry-fixtures.php';
 require_once __DIR__ . '/fixtures/class-workflow-fixtures.php';
 require_once __DIR__ . '/fixtures/class-type-fixtures.php';
 require_once __DIR__ . '/fixtures/class-legacy-tables.php';
+require_once __DIR__ . '/fixtures/trait-temp-uploads.php';
 require_once __DIR__ . '/fixtures/trait-photo-uploads.php';
+require_once __DIR__ . '/fixtures/trait-matches-snapshot.php';
