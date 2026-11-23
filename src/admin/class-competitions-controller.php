@@ -1217,7 +1217,7 @@ class Competitions_Controller {
 			array(
 				'competition_id'      => (int) $competition->id,
 				'category_rows_html'  => $category_rows_html,
-				'upload'              => $upload,
+				'upload_fields_html'  => $this->render_template( 'admin/shared/upload-constraint-fields.php', $upload ),
 				'auth_mode'           => $auth_mode,
 				'scored_by_locked'    => $this->votes->has_votes( (int) $competition->id ),
 				'password_value'      => $password_value,

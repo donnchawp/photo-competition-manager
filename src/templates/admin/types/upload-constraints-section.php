@@ -2,8 +2,8 @@
 /**
  * Upload constraints section partial for the competition type form.
  *
- * Reads $data['max_file_size_mb'], $data['max_width'], and
- * $data['max_height'] (all int|string).
+ * Reads $data['fields_html'] (string): pre-rendered
+ * admin/shared/upload-constraint-fields.php markup.
  *
  * @package PhotoCompetitionManager
  */
@@ -12,17 +12,4 @@ defined( 'ABSPATH' ) || exit;
 
 echo '<h2>' . esc_html__( 'Upload Constraints', 'photo-competition-manager' ) . '</h2>';
 
-echo '<p>';
-echo '<label for="max_file_size_mb">' . esc_html__( 'Max File Size (MB)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_file_size_mb" name="max_file_size_mb" min="1" max="50" value="' . esc_attr( $data['max_file_size_mb'] ) . '" class="small-text" />';
-echo '</p>';
-
-echo '<p>';
-echo '<label for="max_width">' . esc_html__( 'Max Width (pixels)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_width" name="max_width" min="800" max="5000" step="10" value="' . esc_attr( $data['max_width'] ) . '" class="small-text" />';
-echo '</p>';
-
-echo '<p>';
-echo '<label for="max_height">' . esc_html__( 'Max Height (pixels)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_height" name="max_height" min="800" max="5000" step="10" value="' . esc_attr( $data['max_height'] ) . '" class="small-text" />';
-echo '</p>';
+echo $data['fields_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.

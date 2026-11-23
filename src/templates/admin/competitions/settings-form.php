@@ -4,8 +4,8 @@
  *
  * Reads $data['competition_id'] (int), $data['category_rows_html'] (string):
  * pre-rendered category row markup, one row per configured category.
- * $data['upload'] (array{max_file_size_mb: int,
- * max_width: int, max_height: int}): upload constraints. $data['auth_mode']
+ * $data['upload_fields_html'] (string): pre-rendered
+ * admin/shared/upload-constraint-fields.php markup. $data['auth_mode']
  * (string): 'password', 'token' or 'judges'. $data['scored_by_locked']
  * (bool): whether votes exist, so who scores can't move between members and
  * judges. $data['password_value'] (string):
@@ -45,20 +45,7 @@ echo '</p>';
 
 echo '<h3>' . esc_html__( 'Upload Constraints', 'photo-competition-manager' ) . '</h3>';
 
-echo '<p>';
-echo '<label for="max_file_size_mb">' . esc_html__( 'Max File Size (MB)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_file_size_mb" name="max_file_size_mb" min="1" max="50" value="' . esc_attr( $data['upload']['max_file_size_mb'] ) . '" class="small-text" />';
-echo '</p>';
-
-echo '<p>';
-echo '<label for="max_width">' . esc_html__( 'Max Width (pixels)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_width" name="max_width" min="800" max="5000" step="10" value="' . esc_attr( $data['upload']['max_width'] ) . '" class="small-text" />';
-echo '</p>';
-
-echo '<p>';
-echo '<label for="max_height">' . esc_html__( 'Max Height (pixels)', 'photo-competition-manager' ) . '</label><br />';
-echo '<input type="number" id="max_height" name="max_height" min="800" max="5000" step="10" value="' . esc_attr( $data['upload']['max_height'] ) . '" class="small-text" />';
-echo '</p>';
+echo $data['upload_fields_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 echo '<h3>' . esc_html__( 'Voting Configuration', 'photo-competition-manager' ) . '</h3>';
 

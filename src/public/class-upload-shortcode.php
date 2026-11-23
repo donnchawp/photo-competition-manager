@@ -861,10 +861,12 @@ class Upload_Shortcode {
 									<?php
 									echo esc_html(
 										sprintf(
-											/* translators: 1: max file size in MB, 2: allowed formats */
-											__( 'Max size: %1$d MB. Formats: %2$s. Images will be automatically resized if needed.', 'photo-competition-manager' ),
+											/* translators: 1: max file size in MB, 2: allowed formats, 3: width in pixels, 4: height in pixels */
+											__( 'Max size: %1$d MB. Formats: %2$s. Images larger than %3$d × %4$d pixels will be resized to fit.', 'photo-competition-manager' ),
 											floor( $max_file_size / MB_IN_BYTES ),
-											strtoupper( implode( ', ', $constraints['allowed_formats'] ) )
+											strtoupper( implode( ', ', $constraints['allowed_formats'] ) ),
+											$constraints['max_width'],
+											$constraints['max_height']
 										)
 									);
 									?>
