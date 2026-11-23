@@ -21,13 +21,8 @@ require_once '/wordpress/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';
 
 // The seed's entries are local files, not HTTP uploads. The filter lets
-// them through for this request only. 0.4.0 (the wordpress.org demo) has
-// no filter and skips the check under WP_TESTS_DOMAIN instead; drop that
-// branch once 0.5.0 is out.
+// them through for this request only.
 add_filter( 'photo_competition_manager_is_uploaded_file', '__return_true' );
-if ( ! function_exists( 'PhotoCompetitionManager\\Support\\is_http_upload' ) && ! defined( 'WP_TESTS_DOMAIN' ) ) {
-	define( 'WP_TESTS_DOMAIN', 'playground' );
-}
 
 // The plugin only uses its own sizes, so skip WordPress's media sizes.
 add_filter( 'intermediate_image_sizes_advanced', '__return_empty_array' );
@@ -49,13 +44,11 @@ $pcm_seed_fail = static function ( $result, string $what ) {
 };
 
 $pcm_pages = array(
-	'Upload'  => '[competition_upload]',
-	'Voting'  => '[competition_voting]',
-	'Results' => '[competition_results]',
+	'Upload'     => '[competition_upload]',
+	'Voting'     => '[competition_voting]',
+	'Results'    => '[competition_results]',
+	'My Entries' => '[competition_my_entries]',
 );
-if ( shortcode_exists( 'competition_my_entries' ) ) {
-	$pcm_pages['My Entries'] = '[competition_my_entries]';
-}
 foreach ( $pcm_pages as $pcm_title => $pcm_shortcode ) {
 	wp_insert_post(
 		array(
