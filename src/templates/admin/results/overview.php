@@ -12,6 +12,7 @@
  * $data['selected_category']   string Selected category slug, empty when there are no categories.
  * $data['breakdown']           array{images?: int, votes?: int, average_score?: float, min_score?: float, max_score?: float, participation_rate?: float} Category breakdown stats; empty when no category is selected.
  * $data['results_table_html'] string Pre-rendered results table HTML (trusted, pre-escaped); empty when no category is selected.
+ * $data['publish_url']        string Nonced publish-results URL for a closed competition whose results aren't published; empty otherwise.
  * $data['export_url']         string Nonced CSV export URL.
  * $data['email_url']          string Nonced email-results URL.
  * $data['share_hash']         string Competition share hash, empty when not generated.
@@ -39,6 +40,15 @@ foreach ( $data['competition_options'] as $option ) {
 }
 echo '</select>';
 echo '</div>';
+
+// A closed competition whose results were never published.
+if ( '' !== $data['publish_url'] ) {
+	echo '<div class="notice notice-warning inline photo-comp-publish-results"><p>';
+	echo esc_html__( 'This competition closed without its results being published, so they don\'t show on the results pages or the past competitions page. Once published, they can\'t be hidden again.', 'photo-competition-manager' );
+	echo '</p><p><a href="' . esc_url( $data['publish_url'] ) . '" class="button button-primary" onclick="return confirm(\'' . esc_js( __( 'Publish these results? They can\'t be hidden again once published.', 'photo-competition-manager' ) ) . '\');">';
+	echo esc_html__( 'Publish Results', 'photo-competition-manager' );
+	echo '</a></p></div>';
+}
 
 // Summary cards.
 echo '<div class="photo-comp-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">';
