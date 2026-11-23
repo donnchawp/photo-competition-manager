@@ -9,6 +9,8 @@ namespace PhotoCompetitionManager\Admin\Traits;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Support\Competition_Settings;
+
 use function PhotoCompetitionManager\Support\render_template;
 
 /**
@@ -74,6 +76,7 @@ trait Form_Rendering {
 				'slugText'        => __( 'Slug', 'photo-competition-manager' ),
 				'uploadQuotaText' => __( 'Upload Quota', 'photo-competition-manager' ),
 				'removeText'      => __( 'Remove', 'photo-competition-manager' ),
+				'quotaAttributes' => Competition_Settings::number_attributes( 'categories' )['quota'],
 			)
 		);
 	}

@@ -65,6 +65,59 @@ class Type_Settings_Form_Test extends WP_UnitTestCase {
 		);
 	}
 
+	/**
+	 * The form's min and max are only browser hints, and a blank field used
+	 * to save 0 (#292).
+	 *
+	 * @dataProvider posted_numbers
+	 *
+	 * @param array<string, mixed> $post  Posted fields.
+	 * @param string[]             $path  Where the value is stored.
+	 * @param int                  $saved What's stored.
+	 */
+	public function test_a_number_is_kept_to_the_forms_range_and_blank_means_the_default( array $post, array $path, int $saved ): void {
+		$settings = $this->parse( $post );
+
+		foreach ( $path as $key ) {
+			$settings = $settings[ $key ];
+		}
+		$this->assertSame( $saved, $settings );
+	}
+
+	/**
+	 * @return array<string, array{0: array<string, mixed>, 1: string[], 2: int}>
+	 */
+	public function posted_numbers(): array {
+		$quota = static function ( string $quota ): array {
+			return array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => $quota,
+					),
+				),
+			);
+		};
+
+		return array(
+			'blank file size'       => array( array( 'max_file_size_mb' => '' ), array( 'upload', 'max_file_size_mb' ), 5 ),
+			'file size over 50'     => array( array( 'max_file_size_mb' => '80' ), array( 'upload', 'max_file_size_mb' ), 50 ),
+			'blank quota'           => array( $quota( '' ), array( 'categories', 0, 'quota' ), 1 ),
+			'quota over 10'         => array( $quota( '25' ), array( 'categories', 0, 'quota' ), 10 ),
+			'blank preview time'    => array( array( 'preview_duration' => '' ), array( 'slideshow', 'preview_duration' ), 10 ),
+			'voting time over 120'  => array( array( 'voting_duration' => '200' ), array( 'slideshow', 'voting_duration' ), 120 ),
+			'negative substitutes'  => array(
+				array(
+					'interclub_section'     => '1',
+					'interclub_substitutes' => '-3',
+				),
+				array( 'interclub', 'substitutes' ),
+				0,
+			),
+		);
+	}
+
 	public function test_score_matrix_with_a_non_number_is_stored_as_a_list(): void {
 		$settings = $this->parse( array( 'score_matrix' => '10, x, 8' ) );
 
