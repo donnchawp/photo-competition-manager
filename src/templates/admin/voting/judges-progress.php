@@ -1,9 +1,11 @@
 <?php
 /**
- * Judges' progress partial for the admin voting controls page.
+ * Judges partial for the admin voting controls page.
  *
- * Shows whether each judge has scored the open category, and never the
- * scores themselves.
+ * Says the competition is scored by external judges, and whether each one
+ * has scored the open category as of this page load, never the scores
+ * themselves. The judges are in the room, so it doesn't refresh itself; it's
+ * there to check before closing voting, which doesn't wait for missing ballots.
  *
  * @package PhotoCompetitionManager
  *
@@ -19,7 +21,8 @@ defined( 'ABSPATH' ) || exit;
 // The heading sits inside .inside, as on the page's other cards, which gives it the card's padding.
 echo '<div class="postbox photo-comp-judges-progress">';
 echo '<div class="inside">';
-echo '<h2>' . esc_html__( 'Judge progress', 'photo-competition-manager' ) . '</h2>';
+echo '<h2>' . esc_html__( 'Judges', 'photo-competition-manager' ) . '</h2>';
+echo '<p>' . esc_html__( 'Judging is by external judges. Before you close voting, check every judge\'s scores have arrived. Reload the page to update this list.', 'photo-competition-manager' ) . '</p>';
 echo '<table class="widefat striped"><tbody>';
 foreach ( $data['judges'] as $judge ) {
 	echo '<tr>';

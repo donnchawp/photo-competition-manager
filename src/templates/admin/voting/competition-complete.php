@@ -64,7 +64,7 @@ defined( 'ABSPATH' ) || exit;
 					<?php if ( ! $data['results_visible'] ) : ?>
 						<a href="<?php echo esc_url( $data['show_results_url'] ); ?>" class="button button-primary button-large">
 							<span class="dashicons dashicons-visibility" style="margin-top: 4px;"></span>
-							<?php esc_html_e( 'Show Results', 'photo-competition-manager' ); ?>
+							<?php esc_html_e( 'Publish Results', 'photo-competition-manager' ); ?>
 						</a>
 					<?php endif; ?>
 
