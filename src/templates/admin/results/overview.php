@@ -45,7 +45,7 @@ echo '</div>';
 if ( '' !== $data['publish_url'] ) {
 	echo '<div class="notice notice-warning inline photo-comp-publish-results"><p>';
 	echo esc_html__( 'This competition closed without its results being published, so they don\'t show on the results pages or the past competitions page. Once published, they can\'t be hidden again.', 'photo-competition-manager' );
-	echo '</p><p><a href="' . esc_url( $data['publish_url'] ) . '" class="button button-primary" onclick="return confirm(\'' . esc_js( __( 'Publish these results? They can\'t be hidden again once published.', 'photo-competition-manager' ) ) . '\');">';
+	echo '</p><p><a href="' . esc_url( $data['publish_url'] ) . '" class="button button-primary" onclick="return confirm(\'' . esc_js( __( 'Publish these results?', 'photo-competition-manager' ) ) . '\');">';
 	echo esc_html__( 'Publish Results', 'photo-competition-manager' );
 	echo '</a></p></div>';
 }

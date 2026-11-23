@@ -1123,17 +1123,19 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Render the Results screen for a competition.
+	 * Render the Results screen, for a competition or the one it opens on.
 	 *
-	 * @param int $competition_id Competition ID.
+	 * @param int|null $competition_id Competition ID, or null for the default.
 	 * @return string
 	 */
-	private function render_screen( int $competition_id ): string {
-		$this->set_request( array( 'competition' => $competition_id ) );
+	private function render_screen( ?int $competition_id = null ): string {
+		if ( null !== $competition_id ) {
+			$this->set_request( array( 'competition' => $competition_id ) );
+		}
 		ob_start();
 		$this->controller->render();
 
-		return html_entity_decode( (string) ob_get_clean() );
+		return (string) ob_get_clean();
 	}
 
 	/**
@@ -1142,10 +1144,6 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	 * @return string|null
 	 */
 	private function selected_competition_title(): ?string {
-		ob_start();
-		$this->controller->render();
-		$html = (string) ob_get_clean();
-
-		return preg_match( '#<option[^>]* selected>([^<]+)</option>#', $html, $match ) ? $match[1] : null;
+		return preg_match( '#<option[^>]* selected>([^<]+)</option>#', $this->render_screen(), $match ) ? $match[1] : null;
 	}
 }
