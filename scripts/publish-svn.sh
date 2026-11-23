@@ -7,10 +7,15 @@
 #
 # Usage: scripts/publish-svn.sh [x.y.z]   (an argument must match the Stable tag)
 #        scripts/publish-svn.sh --assets-only
+#        scripts/publish-svn.sh --readme-only
 #
 # --assets-only commits just the listing assets (screenshots and the Live
 # Preview blueprint) from .wordpress-org/, without building or tagging, so
 # they can change between releases.
+#
+# --readme-only copies src/readme.txt into trunk and tags/<Stable tag>, without
+# building or tagging. WordPress.org shows the readme from the Stable tag's
+# folder, so a readme fix between releases has to go there as well as trunk.
 
 set -euo pipefail
 
@@ -98,6 +103,57 @@ VERSION="$(sed -nE 's/^Stable tag: ([0-9A-Za-z.+-]+).*/\1/p' src/readme.txt | he
 if [[ -z "$VERSION" ]]; then
 	echo "Could not read Stable tag from src/readme.txt." >&2
 	exit 1
+fi
+
+if [[ "${1:-}" == "--readme-only" ]]; then
+	# Publish what's committed, not a half-finished edit.
+	if ! git diff --quiet HEAD -- src/readme.txt; then
+		echo "src/readme.txt has uncommitted changes. Commit them first." >&2
+		exit 1
+	fi
+
+	rm -rf "$SVN_DIR"
+	mkdir -p "$SVN_DIR"
+
+	echo "Checking out $SVN_URL (trunk and tags/$VERSION readme only)..."
+	svn checkout "$SVN_URL" "$SVN_DIR" --depth=empty
+	(
+		cd "$SVN_DIR"
+		svn up -q trunk tags --depth=empty
+		svn up -q "tags/$VERSION" --depth=empty
+		svn up -q trunk/readme.txt "tags/$VERSION/readme.txt"
+	)
+
+	# A new Stable tag means a release, which needs the full publish.
+	if [[ ! -f "$SVN_DIR/tags/$VERSION/readme.txt" ]]; then
+		echo "tags/$VERSION isn't on WordPress.org. Release it with make publish-svn first." >&2
+		exit 1
+	fi
+
+	cp src/readme.txt "$SVN_DIR/trunk/readme.txt"
+	cp src/readme.txt "$SVN_DIR/tags/$VERSION/readme.txt"
+
+	if [[ -z "$(cd "$SVN_DIR" && svn status -q)" ]]; then
+		echo "The readme on WordPress.org is already up to date."
+		exit 0
+	fi
+
+	echo
+	echo "----- svn diff tags/$VERSION/readme.txt -----"
+	( cd "$SVN_DIR" && svn diff "tags/$VERSION/readme.txt" )
+	echo "----- svn status -----"
+	( cd "$SVN_DIR" && svn status )
+	echo "----------------------"
+
+	read -r -p "Commit this readme to trunk and tags/$VERSION on WordPress.org? [y/N] " confirm
+	if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+		echo "Stopped before committing. $SVN_DIR is left for inspection."
+		exit 1
+	fi
+
+	( cd "$SVN_DIR" && svn commit -m "Update readme for $VERSION" )
+	echo "Published the readme for $PLUGIN_SLUG $VERSION to WordPress.org."
+	exit 0
 fi
 
 EXPECTED="${1:-}"
