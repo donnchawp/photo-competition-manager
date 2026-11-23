@@ -10,7 +10,7 @@ WP_ENV := COMPOSE_PROJECT_NAME=$(PLUGIN_NAME) npx @wordpress/env
 RELEASE_DIR := release
 PLUGIN_CHECK_CSV ?= plugin-check.csv
 
-.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn publish-svn-assets seed-competition plugin-check
+.PHONY: logs help install up down destroy dev build lint fix test test-js check mailpit-start mailpit-stop release clean-release publish-svn publish-svn-assets seed-competition blueprints plugin-check
 
 help: ## Show available targets
 	@echo "Photo Competition Manager Make targets:"
@@ -97,6 +97,9 @@ publish-svn-assets: ## Publish only the listing assets in .wordpress-org/ (scree
 
 seed-competition: ## Seed 12 members, a competition, and test images for voting
 	$(WP_ENV) run cli -- wp eval-file /var/www/html/wp-content/pcm/scripts/seed-voting-data.php
+
+blueprints: ## Rebuild the three Playground blueprints from scripts/playground/seed.php
+	php scripts/playground/build-blueprints.php
 
 plugin-check: ## Run Plugin Check into plugin-check.csv (override: PLUGIN_CHECK_CSV=path)
 	$(WP_ENV) run cli -- wp plugin check $(PLUGIN_NAME) --format=strict-csv --fields=file,line,column,type,code,message,docs > $(PLUGIN_CHECK_CSV)

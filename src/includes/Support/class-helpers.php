@@ -85,8 +85,9 @@ function is_http_upload( string $path ): bool {
 	/**
 	 * Filters whether a path counts as an HTTP POST upload.
 	 *
-	 * Exists so tests can pass temp files as uploads. Returning true in
-	 * production turns off a security check.
+	 * Exists so tests and the Playground seed (scripts/playground/seed.php)
+	 * can pass temp files as uploads. Returning true in production turns off
+	 * a security check.
 	 *
 	 * @since 0.5.0
 	 *

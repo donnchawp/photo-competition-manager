@@ -23,6 +23,9 @@ jobs:
           coverage: none
           tools: composer
 
+      - name: Check the Playground blueprints match scripts/playground/seed.php
+        run: make blueprints && git diff --exit-code
+
       - name: Cache Composer packages
         uses: actions/cache@v6
         with:
