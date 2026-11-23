@@ -200,6 +200,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * The last button on Voting Controls is now called "Publish Results", not "Show Results". It publishes the results but doesn't close the competition; that happens on its close date
 * **Judging**
   * The Judges, Competitions and Voting Controls screens warn about a judged competition that has no judges yet, with a link to where they're chosen
+  * The judges card on Voting Controls, once called "Judge progress", says judging is by external judges, and to check every judge's scores have arrived before closing voting. Closing voting doesn't wait for a missing ballot. The list of who has scored updates when the page is reloaded
 * **Uploads**
   * The upload page says entries larger than the competition's width and height are resized to fit, so members know a big image won't be refused. The settings fields are now called "Resize entries to fit width" and "Resize entries to fit height"
   * Interclub uploads say how many images were chosen against the room left, and how many to tick or untick as a substitute. Before, choosing 4 entries for a panel of 3 said "The Colour panel has room for 3 more entries."
