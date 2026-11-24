@@ -196,9 +196,10 @@ class Results_Controller {
 
 			$redirect_url = $this->results_url( $competition_id );
 
+			$competition = $this->find_competition_or_redirect( $competition_id, $redirect_url );
+
 			// Members are told their positions only once they're read from the record.
-			$competition = $this->competitions->find( $competition_id );
-			if ( $competition && ! $this->workflow->reads_recorded_results( $competition ) ) {
+			if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
 					'results_not_published',
@@ -672,14 +673,21 @@ class Results_Controller {
 			return '';
 		}
 
-		$this->ranking->record_if_missing( $competition );
+		$recorded = $this->ranking->record_if_missing( $competition );
+		if ( is_wp_error( $recorded ) ) {
+			return $this->render_template( 'admin/results/notice-grades-not-recorded.php', array( 'message' => $recorded->get_error_message() ) );
+		}
+
 		$recorded = $this->ranking->recorded_grades( $competition );
 		if ( empty( $recorded ) ) {
 			return '';
 		}
 
-		$labels  = new Competition_Labels();
-		$grades  = $labels->grade_labels( $competition );
+		$labels = new Competition_Labels();
+		$grades = array();
+		foreach ( array_keys( $labels->grade_labels( $competition ) ) as $slug ) {
+			$grades[ $slug ] = $labels->admin_grade_label( $competition, (string) $slug );
+		}
 		$members = $this->members->find_many( array_keys( $recorded ) );
 		$rows    = array();
 		foreach ( $recorded as $member_id => $grade ) {

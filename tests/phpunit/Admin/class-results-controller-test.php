@@ -589,6 +589,29 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A stale link to a competition archived since queues no email to its members.
+	 */
+	public function test_email_results_of_an_archived_competition_is_not_found(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+	}
+
+	/**
 	 * A missing competition yields a not-found error.
 	 */
 	public function test_send_results_competition_not_found(): void {
@@ -1210,6 +1233,36 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertStringContainsString( 'name="grades[', $this->render_screen( $this->competition_id ) );
 		$this->assertStringNotContainsString( 'name="grades[', $this->render_screen( $running ) );
+	}
+
+	/**
+	 * When a closed competition's results can't be recorded, the panel says
+	 * so instead of quietly not showing, so the admin knows why there's
+	 * nothing to correct.
+	 */
+	public function test_grades_panel_says_when_the_results_could_not_be_recorded(): void {
+		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		$fail_record = static function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_recorded_results' ) ? '' : $query;
+		};
+		add_filter( 'query', $fail_record );
+
+		$html = $this->render_screen( $this->competition_id );
+		remove_filter( 'query', $fail_record );
+
+		$this->assertStringContainsString( 'Could not record the results.', $html );
+	}
+
+	/**
+	 * A grade the competition's type renames is offered under both names, as
+	 * the rest of the admin shows it, so the admin can tell which club grade
+	 * it is.
+	 */
+	public function test_grades_panel_names_a_renamed_grade_with_the_clubs_grade(): void {
+		$id = $this->create_competition( array( 'type_id' => Type_Fixtures::create( 'Cup', array( 'advanced' => 'Cup' ) ) ) );
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->assertMatchesRegularExpression( '#<option value="advanced"[^>]*>Cup \(Advanced\)</option>#', $this->render_screen( $id ) );
 	}
 
 	/**
