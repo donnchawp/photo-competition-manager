@@ -72,6 +72,74 @@ class Recorded_Results_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * A competition's recorded rows, every category's.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return array<int, object>
+	 */
+	public function find_by_competition( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT * FROM %i WHERE competition_id = %d ORDER BY category, position, id',
+				$this->table(),
+				$competition_id
+			)
+		);
+	}
+
+	/**
+	 * Set recorded rows' grades and positions in one statement, so they change
+	 * whole or not at all. Unlike replace(), a failure leaves the record as it
+	 * was, which matters because a record can't be made again once entries or
+	 * members have gone.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param array<int, array{id: int, grade: string, position: int}> $rows Row IDs with their new grade and position.
+	 * @return true|WP_Error
+	 */
+	public function update_rankings( array $rows ) {
+		global $wpdb;
+
+		if ( empty( $rows ) ) {
+			return true;
+		}
+
+		$grades    = array();
+		$positions = array();
+		foreach ( $rows as $row ) {
+			array_push( $grades, (int) $row['id'], (string) $row['grade'] );
+			array_push( $positions, (int) $row['id'], (int) $row['position'] );
+		}
+		$ids    = array_map( 'intval', array_column( $rows, 'id' ) );
+		$count  = count( $rows );
+		$values = array_merge( array( $this->table() ), $grades, $positions, $ids );
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Literal placeholders per row; the count matches at runtime.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The CASE and IN lists only hold literal placeholders.
+		$updated = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET grade = CASE id ' . implode( ' ', array_fill( 0, $count, 'WHEN %d THEN %s' ) ) . ' END,
+				position = CASE id ' . implode( ' ', array_fill( 0, $count, 'WHEN %d THEN %d' ) ) . ' END
+				WHERE id IN (' . implode( ', ', array_fill( 0, $count, '%d' ) ) . ')',
+				$values
+			)
+		);
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+
+		if ( false === $updated ) {
+			return new WP_Error( 'record_failed', __( 'Could not record the results.', 'photo-competition-manager' ), $wpdb->last_error );
+		}
+
+		return true;
+	}
+
+	/**
 	 * A member's recorded rows, oldest competition first.
 	 *
 	 * @since 0.4.0

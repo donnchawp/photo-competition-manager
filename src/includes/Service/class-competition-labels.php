@@ -77,6 +77,19 @@ class Competition_Labels {
 	}
 
 	/**
+	 * The name of a grade recorded in a competition's results: "Ungraded" for
+	 * an entry ranked without one, as the results page shows it.
+	 *
+	 * @since 0.5.1
+	 * @param object $competition Competition row.
+	 * @param string $grade_slug  Recorded grade slug, '' when ungraded.
+	 * @return string
+	 */
+	public function recorded_grade_label( object $competition, string $grade_slug ): string {
+		return '' === $grade_slug ? __( 'Ungraded', 'photo-competition-manager' ) : $this->grade_label( $competition, $grade_slug );
+	}
+
+	/**
 	 * The club's grades as slug => name for a competition, with its type's renames applied.
 	 *
 	 * @since 0.4.0

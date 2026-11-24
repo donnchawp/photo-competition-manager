@@ -196,9 +196,10 @@ class Results_Controller {
 
 			$redirect_url = $this->results_url( $competition_id );
 
+			$competition = $this->find_competition_or_redirect( $competition_id, $redirect_url );
+
 			// Members are told their positions only once they're read from the record.
-			$competition = $this->competitions->find( $competition_id );
-			if ( $competition && ! $this->workflow->reads_recorded_results( $competition ) ) {
+			if ( ! $this->workflow->reads_recorded_results( $competition ) ) {
 				add_settings_error(
 					'photo_competition_results',
 					'results_not_published',
@@ -243,16 +244,7 @@ class Results_Controller {
 
 			$redirect_url = $this->results_url( $competition_id );
 
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_results',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $redirect_url );
-			}
+			$competition = $this->find_competition_or_redirect( $competition_id, $redirect_url );
 
 			// The committee checks results before they're public, so only their link goes early.
 			if ( 'send_results_all' === $action && ! $this->workflow->reads_recorded_results( $competition ) ) {
@@ -333,16 +325,7 @@ class Results_Controller {
 
 			$redirect_url = $this->results_url( $competition_id );
 
-			$competition = $this->competitions->find( $competition_id );
-			if ( ! $competition ) {
-				add_settings_error(
-					'photo_competition_results',
-					'competition_not_found',
-					__( 'Competition not found.', 'photo-competition-manager' ),
-					'error'
-				);
-				$this->redirect_with_settings_errors( $redirect_url );
-			}
+			$competition = $this->find_competition_or_redirect( $competition_id, $redirect_url );
 
 			if ( ! $this->workflow->has_closed( $competition ) ) {
 				add_settings_error(
@@ -364,6 +347,40 @@ class Results_Controller {
 				is_wp_error( $closed ) ? $closed : $this->workflow->publish_results( $competition_id ),
 				'results_published',
 				__( 'Results are now published.', 'photo-competition-manager' ),
+				$redirect_url
+			);
+		}
+
+		if ( 'correct_grades' === $action ) {
+			$competition_id = isset( $_GET['competition'] ) ? absint( wp_unslash( $_GET['competition'] ) ) : 0;
+
+			check_admin_referer( 'photo_competition_correct_grades_' . $competition_id );
+
+			$redirect_url = $this->results_url( $competition_id );
+
+			$competition = $this->find_competition_or_redirect( $competition_id, $redirect_url );
+
+			$grades = array();
+			if ( isset( $_POST['grades'] ) && is_array( $_POST['grades'] ) ) {
+				foreach ( wp_unslash( $_POST['grades'] ) as $member_id => $grade ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each value is sanitized below.
+					$grades[ absint( $member_id ) ] = sanitize_text_field( (string) $grade );
+				}
+			}
+
+			$changes = $this->ranking->correct_grades( $competition, $grades );
+			if ( is_wp_error( $changes ) ) {
+				$this->notice_and_redirect( 'photo_competition_results', $changes, '', '', $redirect_url );
+			}
+
+			$this->notice_and_redirect(
+				'photo_competition_results',
+				true,
+				'grades_corrected',
+				empty( $changes ) ? __( 'No grades changed.', 'photo-competition-manager' ) : sprintf(
+					/* translators: %d: number of members */
+					_n( 'Corrected %d member\'s grade and ranked the results again.', 'Corrected %d members\' grades and ranked the results again.', count( $changes ), 'photo-competition-manager' ),
+					count( $changes )
+				),
 				$redirect_url
 			);
 		}
@@ -560,6 +577,7 @@ class Results_Controller {
 				'selected_category'    => $selected_category,
 				'breakdown'            => $breakdown,
 				'results_table_html'   => $results_table_html,
+				'grades_panel_html'    => $this->render_grades_panel( $competition ),
 				'publish_url'          => $publish_url,
 				'export_url'           => $export_url,
 				'email_url'            => $email_url,
@@ -570,6 +588,31 @@ class Results_Controller {
 				'send_all_url'         => $send_all_url,
 			)
 		);
+	}
+
+	/**
+	 * A competition an action works on, or back to the Results screen saying
+	 * it's gone, such as from a stale link to one since archived.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param string $redirect_url   Where to go when it's not found.
+	 * @return object
+	 */
+	private function find_competition_or_redirect( int $competition_id, string $redirect_url ): object {
+		$competition = $this->competitions->find( $competition_id );
+		if ( ! $competition ) {
+			add_settings_error(
+				'photo_competition_results',
+				'competition_not_found',
+				__( 'Competition not found.', 'photo-competition-manager' ),
+				'error'
+			);
+			$this->redirect_with_settings_errors( $redirect_url );
+		}
+
+		return $competition;
 	}
 
 	/**
@@ -611,6 +654,71 @@ class Results_Controller {
 				admin_url( 'admin.php' )
 			),
 			'photo_competition_' . $action . '_' . $competition_id
+		);
+	}
+
+	/**
+	 * The grades panel of a closed competition: each member with recorded
+	 * entries, and the grade they're recorded in. Empty for a competition
+	 * that hasn't closed, whose results follow members' own grades until
+	 * they're recorded for good.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object $competition Competition row.
+	 * @return string
+	 */
+	private function render_grades_panel( object $competition ): string {
+		if ( ! $this->workflow->has_closed( $competition ) ) {
+			return '';
+		}
+
+		$recorded = $this->ranking->record_if_missing( $competition );
+		if ( is_wp_error( $recorded ) ) {
+			return $this->render_template( 'admin/results/notice-grades-not-recorded.php', array( 'message' => $recorded->get_error_message() ) );
+		}
+
+		$recorded = $this->ranking->recorded_grades( $competition );
+		if ( empty( $recorded ) ) {
+			return '';
+		}
+
+		$labels = new Competition_Labels();
+		$grades = array();
+		foreach ( array_keys( $labels->grade_labels( $competition ) ) as $slug ) {
+			$grades[ $slug ] = $labels->admin_grade_label( $competition, (string) $slug );
+		}
+		$members = $this->members->find_many( array_keys( $recorded ) );
+		$rows    = array();
+		foreach ( $recorded as $member_id => $grade ) {
+			if ( ! isset( $members[ $member_id ] ) ) {
+				continue;
+			}
+
+			// A recorded grade the club no longer has, or none, stays selectable as it is.
+			$options = isset( $grades[ $grade ] ) ? $grades : array( $grade => $labels->recorded_grade_label( $competition, $grade ) ) + $grades;
+
+			$rows[] = array(
+				'member_id' => $member_id,
+				'name'      => (string) $members[ $member_id ]->name,
+				'grade'     => $grade,
+				'options'   => $options,
+			);
+		}
+
+		usort(
+			$rows,
+			static function ( array $a, array $b ): int {
+				return strcasecmp( $a['name'], $b['name'] );
+			}
+		);
+
+		return $this->render_template(
+			'admin/results/grades-panel.php',
+			array(
+				'action_url' => $this->action_url( 'correct_grades', (int) $competition->id ),
+				'rows'       => $rows,
+			)
 		);
 	}
 

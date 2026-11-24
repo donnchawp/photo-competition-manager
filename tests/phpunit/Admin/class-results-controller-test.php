@@ -17,6 +17,7 @@ use PhotoCompetitionManager\Admin\Results_Controller;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
+use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
@@ -588,6 +589,29 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * A stale link to a competition archived since queues no email to its members.
+	 */
+	public function test_email_results_of_an_archived_competition_is_not_found(): void {
+		$this->competitions->archive( $this->competition_id );
+		$this->set_request(
+			array(
+				'action'      => 'email_results',
+				'competition' => $this->competition_id,
+			)
+		);
+		$this->set_nonce( 'photo_competition_email_results_' . $this->competition_id );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_found' ), $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringNotContainsString( 'job_id=', $location );
+	}
+
+	/**
 	 * A missing competition yields a not-found error.
 	 */
 	public function test_send_results_competition_not_found(): void {
@@ -1148,6 +1172,114 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'action=publish_results', $this->render_screen( $this->competition_id ) );
 		$this->assertStringNotContainsString( 'action=publish_results', $this->render_screen( $published ) );
 		$this->assertStringNotContainsString( 'action=publish_results', $this->render_screen( $running ) );
+	}
+
+	/**
+	 * Saving the grades panel moves a member's entries to the grade they
+	 * entered in, says so, and logs who changed what.
+	 */
+	public function test_correct_grades_moves_a_members_entries_and_logs_it(): void {
+		$member_id = $this->seed_member_with_image( $this->competition_id, 'colour' );
+		$this->members->update( $member_id, array( 'grade' => 'intermediate' ) );
+		$this->post_grades( $this->competition_id, array( $member_id => 'beginner' ) );
+
+		$location = $this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$groups = ( new Results_Ranking( $this->images, new Votes_Repository(), $this->members ) )->rank_category( $this->competition_id, 'colour' );
+		$this->assertSame( array( 'beginner' ), array_column( $groups, 'slug' ) );
+		$this->assertContains( 'grades_corrected', $this->settings_error_codes( 'photo_competition_results' ) );
+		$this->assertStringContainsString( 'competition=' . $this->competition_id, $location );
+
+		$logs = ( new Logs_Repository() )->find_about_members( array( $member_id ), array() );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'grade_corrected', $logs[0]->event_type );
+	}
+
+	public function test_correct_grades_of_a_competition_still_running_is_refused(): void {
+		$id        = $this->create_open_competition();
+		$member_id = $this->seed_member_with_image( $id, 'colour' );
+		$this->post_grades( $id, array( $member_id => 'advanced' ) );
+
+		$this->capture_redirect(
+			function () {
+				$this->controller->handle_actions();
+			}
+		);
+
+		$this->assertSame( array( 'competition_not_closed' ), $this->settings_error_codes( 'photo_competition_results' ) );
+	}
+
+	public function test_correct_grades_bad_nonce_dies(): void {
+		$member_id = $this->seed_member_with_image( $this->competition_id, 'colour' );
+		$this->post_grades( $this->competition_id, array( $member_id => 'advanced' ) );
+		$this->set_request( array( '_wpnonce' => 'stale' ) );
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
+	/**
+	 * The panel shows where a correction sticks: a closed competition with
+	 * recorded entries. One still running follows members' own grades.
+	 */
+	public function test_grades_panel_shows_only_for_a_closed_competition(): void {
+		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		$running = $this->create_open_competition();
+		$this->seed_member_with_image( $running, 'colour' );
+
+		$this->assertStringContainsString( 'name="grades[', $this->render_screen( $this->competition_id ) );
+		$this->assertStringNotContainsString( 'name="grades[', $this->render_screen( $running ) );
+	}
+
+	/**
+	 * When a closed competition's results can't be recorded, the panel says
+	 * so instead of quietly not showing, so the admin knows why there's
+	 * nothing to correct.
+	 */
+	public function test_grades_panel_says_when_the_results_could_not_be_recorded(): void {
+		$this->seed_member_with_image( $this->competition_id, 'colour' );
+		$fail_record = static function ( $query ) {
+			return 0 === strpos( $query, 'DELETE' ) && false !== strpos( $query, 'photocomp_recorded_results' ) ? '' : $query;
+		};
+		add_filter( 'query', $fail_record );
+
+		$html = $this->render_screen( $this->competition_id );
+		remove_filter( 'query', $fail_record );
+
+		$this->assertStringContainsString( 'Could not record the results.', $html );
+	}
+
+	/**
+	 * A grade the competition's type renames is offered under both names, as
+	 * the rest of the admin shows it, so the admin can tell which club grade
+	 * it is.
+	 */
+	public function test_grades_panel_names_a_renamed_grade_with_the_clubs_grade(): void {
+		$id = $this->create_competition( array( 'type_id' => Type_Fixtures::create( 'Cup', array( 'advanced' => 'Cup' ) ) ) );
+		$this->seed_member_with_image( $id, 'colour' );
+
+		$this->assertMatchesRegularExpression( '#<option value="advanced"[^>]*>Cup \(Advanced\)</option>#', $this->render_screen( $id ) );
+	}
+
+	/**
+	 * Post the grades panel for a competition, with a valid nonce.
+	 *
+	 * @param int                $competition_id Competition ID.
+	 * @param array<int, string> $grades         Member ID => grade slug.
+	 */
+	private function post_grades( int $competition_id, array $grades ): void {
+		$this->set_request(
+			array(
+				'action'      => 'correct_grades',
+				'competition' => $competition_id,
+				'grades'      => $grades,
+			)
+		);
+		$this->set_nonce( 'photo_competition_correct_grades_' . $competition_id );
 	}
 
 	/**

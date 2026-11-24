@@ -12,6 +12,7 @@
  * $data['selected_category']   string Selected category slug, empty when there are no categories.
  * $data['breakdown']           array{images?: int, votes?: int, average_score?: float, min_score?: float, max_score?: float, participation_rate?: float} Category breakdown stats; empty when no category is selected.
  * $data['results_table_html'] string Pre-rendered results table HTML (trusted, pre-escaped); empty when no category is selected.
+ * $data['grades_panel_html']  string Pre-rendered grades panel of a closed competition (trusted, pre-escaped); empty otherwise.
  * $data['publish_url']        string Nonced publish-results URL for a closed competition whose results aren't published; empty otherwise.
  * $data['export_url']         string Nonced CSV export URL.
  * $data['email_url']          string Nonced email-results URL.
@@ -101,6 +102,9 @@ if ( ! empty( $data['selected_category'] ) ) {
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 	echo $data['results_table_html'];
 }
+
+// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+echo $data['grades_panel_html'];
 
 // Action buttons.
 echo '<div class="photo-comp-actions" style="margin: 20px 0;">';

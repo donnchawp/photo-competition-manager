@@ -328,6 +328,149 @@ class Results_Ranking {
 	}
 
 	/**
+	 * Correct the grade members entered a closed competition in, and rank its
+	 * categories again from the recorded scores.
+	 *
+	 * Results are recorded with each member's grade at the time, and a
+	 * competition recorded by the 0.4.0 upgrade took members' grades on the
+	 * upgrade day. Each member's grade applies to all their entries in the
+	 * competition. A grade must be one of the club's, unless it's the one
+	 * already recorded. Members with no recorded entries are ignored.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object             $competition Competition row.
+	 * @param array<int, string> $grades      Member ID => grade slug.
+	 * @return array<int, array{from: string, to: string}>|WP_Error The members whose grade changed, or an error, when nothing changes.
+	 */
+	public function correct_grades( object $competition, array $grades ) {
+		// Until it has closed, publishing again records it afresh and would undo the correction.
+		if ( ! $this->workflow->has_closed( $competition ) ) {
+			return new WP_Error( 'competition_not_closed', __( 'Grades can be corrected once the competition has closed. Until then, change the member\'s grade on the Members screen.', 'photo-competition-manager' ) );
+		}
+
+		$recorded = $this->record_if_missing( $competition );
+		if ( is_wp_error( $recorded ) ) {
+			return $recorded;
+		}
+
+		$rows    = $this->record->find_by_competition( (int) $competition->id );
+		$current = self::grades_of( $rows );
+
+		$changes = array();
+		foreach ( $grades as $member_id => $grade ) {
+			$member_id = (int) $member_id;
+			$grade     = (string) $grade;
+			if ( ! isset( $current[ $member_id ] ) || $current[ $member_id ] === $grade ) {
+				continue;
+			}
+
+			if ( ! Competition_Settings::is_club_grade( $grade ) ) {
+				return new WP_Error( 'invalid_grade', __( 'Choose one of the club\'s grades.', 'photo-competition-manager' ) );
+			}
+
+			$changes[ $member_id ] = array(
+				'from' => $current[ $member_id ],
+				'to'   => $grade,
+			);
+		}
+
+		if ( empty( $changes ) ) {
+			return array();
+		}
+
+		// Each category's grades, ranked again with the corrected grades.
+		$groups = array();
+		foreach ( $rows as $row ) {
+			$grade = $changes[ (int) $row->member_id ]['to'] ?? (string) $row->grade;
+
+			$groups[ $row->category . "\0" . $grade ][] = array(
+				'id'          => (int) $row->id,
+				'grade'       => $grade,
+				'total_score' => (int) $row->total_score,
+			);
+		}
+
+		$ranked = array();
+		foreach ( $groups as $entries ) {
+			array_push( $ranked, ...$this->assign_positions( $entries ) );
+		}
+
+		$updated = $this->record->update_rankings( $ranked );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		$this->log_grade_corrections( $competition, $changes );
+
+		return $changes;
+	}
+
+	/**
+	 * The grade each member's entries are recorded in, in a competition.
+	 * Members deleted since aren't in it.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object $competition Competition row.
+	 * @return array<int, string> Member ID => grade slug, '' for ungraded.
+	 */
+	public function recorded_grades( object $competition ): array {
+		return self::grades_of( $this->record->find_by_competition( (int) $competition->id ) );
+	}
+
+	/**
+	 * Member ID => recorded grade, from recorded rows.
+	 *
+	 * @param array<int, object> $rows Recorded rows.
+	 * @return array<int, string>
+	 */
+	private static function grades_of( array $rows ): array {
+		$grades = array();
+		foreach ( $rows as $row ) {
+			if ( null !== $row->member_id ) {
+				$grades[ (int) $row->member_id ] = (string) $row->grade;
+			}
+		}
+
+		return $grades;
+	}
+
+	/**
+	 * Log each member whose grade in a competition was corrected.
+	 *
+	 * @param object                                      $competition Competition row.
+	 * @param array<int, array{from: string, to: string}> $changes     Member ID => old and new grade slug.
+	 * @return void
+	 */
+	private function log_grade_corrections( object $competition, array $changes ): void {
+		$labels  = new Competition_Labels();
+		$logger  = new Event_Logger();
+		$members = $this->members->find_many( array_keys( $changes ) );
+		$title   = $labels->title_for_everyone( $competition );
+		foreach ( $changes as $member_id => $change ) {
+			$logger->log(
+				(int) $competition->id,
+				'grade_corrected',
+				'results',
+				sprintf(
+					/* translators: 1: member name, 2: competition title, 3: old grade name, 4: new grade name */
+					__( '%1$s\'s grade in %2$s was corrected from %3$s to %4$s.', 'photo-competition-manager' ),
+					isset( $members[ $member_id ] ) ? $members[ $member_id ]->name : '#' . $member_id,
+					$title,
+					$labels->recorded_grade_label( $competition, $change['from'] ),
+					$labels->grade_label( $competition, $change['to'] )
+				),
+				array(
+					'member_id' => $member_id,
+					'from'      => $change['from'],
+					'to'        => $change['to'],
+				)
+			);
+		}
+	}
+
+	/**
 	 * Record a competition's results if they're published, or it has closed,
 	 * and they have no trusted record yet.
 	 *

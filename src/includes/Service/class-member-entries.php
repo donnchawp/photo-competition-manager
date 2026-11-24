@@ -156,7 +156,7 @@ class Member_Entries {
 				'may_show'          => Member_Visibility::may_show( $entry, $competition->row ),
 				'score'             => $result ? (int) $result->total_score : null,
 				'position'          => $result ? (int) $result->position : null,
-				'grade'             => $result ? $this->grade_label( $competition->row, (string) $result->grade ) : null,
+				'grade'             => $result ? $this->labels->recorded_grade_label( $competition->row, (string) $result->grade ) : null,
 			);
 		}
 
@@ -201,16 +201,5 @@ class Member_Entries {
 			'published'  => $this->workflow->results_published( $row ),
 			'interclub'  => Competition_Settings::is_interclub( $row ),
 		);
-	}
-
-	/**
-	 * The grade name of a recorded result: "Ungraded" for an entry ranked without a grade.
-	 *
-	 * @param object $competition Competition row.
-	 * @param string $grade       Recorded grade slug, '' when ungraded.
-	 * @return string
-	 */
-	private function grade_label( object $competition, string $grade ): string {
-		return '' === $grade ? __( 'Ungraded', 'photo-competition-manager' ) : $this->labels->grade_label( $competition, $grade );
 	}
 }
