@@ -144,6 +144,14 @@ Categories, yes. Set the default categories, quotas, and scoring for each compet
 
 Grades are set once for the club in **Competitions → Settings**, and every competition uses them. A competition type can give them its own names. Renaming a grade renames it in every competition's results, past ones included.
 
+= What happens to past results when a member moves up a grade? =
+
+Nothing. Each entry's grade is recorded with the results, when they're published or, if they never were, the first time they're needed after the competition closes. Moving a member up later doesn't move them in competitions already recorded.
+
+The grade recorded is the member's grade on that day, not the day they entered. So move members up between competitions: after the last competition's results are published, and before the next one opens. A member moved while a competition is running, or before its results are recorded, is recorded in their new grade there.
+
+If a member ends up in the wrong grade in a closed competition, open it on the **Results** screen and choose the grade they entered in under **Grades in this competition**. Their entries in every category move, and the results are ranked again from the same scores. If its close date is later moved into the future, the results are recorded again with everyone's grade at that time, which undoes the correction.
+
 = What if someone loses their magic link or voting token? =
 
 **For uploads:** Use the Upload Link action on the member's row in **Competitions → Members** to copy their link or send it again.
