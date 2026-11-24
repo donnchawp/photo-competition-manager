@@ -470,7 +470,6 @@ class Results_Ranking {
 		}
 	}
 
-
 	/**
 	 * Record a competition's results if they're published, or it has closed,
 	 * and they have no trusted record yet.

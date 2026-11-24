@@ -672,6 +672,7 @@ class Results_Controller {
 			return '';
 		}
 
+		$this->ranking->record_if_missing( $competition );
 		$recorded = $this->ranking->recorded_grades( $competition );
 		if ( empty( $recorded ) ) {
 			return '';
