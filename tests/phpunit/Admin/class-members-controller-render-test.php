@@ -368,7 +368,8 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		ob_start();
 		$this->controller->render();
 		$off = (string) ob_get_clean();
-		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( false );
 		ob_start();
 		$this->controller->render();
 		$on = (string) ob_get_clean();

@@ -128,7 +128,7 @@ echo '<h3 style="margin-top: 0;">' . esc_html__( 'Share Results', 'photo-competi
 if ( ! empty( $data['share_hash'] ) && ! empty( $data['results_page'] ) ) {
 	echo '<p class="description">';
 	echo esc_html__( 'Share link (bypasses visibility setting):', 'photo-competition-manager' );
-	echo '<br><code>' . esc_html( $data['share_url'] ) . '</code>';
+	echo '<br><a href="' . esc_url( $data['share_url'] ) . '" target="_blank" rel="noopener noreferrer"><code>' . esc_html( $data['share_url'] ) . '</code></a>';
 	echo '</p>';
 	echo '<p>';
 	echo '<a href="' . esc_url( $data['send_committee_url'] ) . '" class="button" onclick="return confirm(\'' . esc_js( __( 'This will send the results link to all committee members. Continue?', 'photo-competition-manager' ) ) . '\');">';

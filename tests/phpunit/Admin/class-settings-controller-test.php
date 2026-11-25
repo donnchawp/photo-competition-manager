@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -292,32 +293,44 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( '', $this->grade_of( $member ) );
 	}
 
-	public function test_saving_settings_switches_the_archive_and_its_winners_on_and_off(): void {
+	public function test_one_choice_decides_who_sees_results_and_past_competitions(): void {
+		$cases = array(
+			'private' => array( false, false ),
+			'public'  => array( true, false ),
+			'archive' => array( true, true ),
+		);
+		foreach ( $cases as $choice => list( $public, $archive ) ) {
+			$this->save_grades( $this->default_grade_rows(), array( 'results_visibility' => $choice ) );
+
+			$this->assertSame( $public, Public_Results::enabled(), $choice );
+			$this->assertSame( $archive, Competition_Archive::settings()['enabled'], $choice );
+		}
+	}
+
+	public function test_a_settings_form_without_the_results_choice_leaves_it_alone(): void {
+		Public_Results::save( Public_Results::WITH_ARCHIVE );
+
+		// A Settings page loaded before the choice existed doesn't post it.
+		unset( $_POST['results_visibility'] );
+		$this->save_grades( $this->default_grade_rows() );
+
+		$this->assertSame( Public_Results::WITH_ARCHIVE, Public_Results::visibility() );
+	}
+
+	public function test_saving_settings_switches_past_competitions_winners_on_and_off(): void {
 		$this->save_grades(
 			$this->default_grade_rows(),
 			array(
-				'archive_enabled'      => '1',
+				'results_visibility'   => 'archive',
 				'archive_show_winners' => '1',
 			)
 		);
-		$this->assertSame(
-			array(
-				'enabled'      => true,
-				'show_winners' => true,
-			),
-			Competition_Archive::settings()
-		);
+		$this->assertTrue( Competition_Archive::settings()['show_winners'] );
 
-		// Unticked boxes aren't posted.
-		unset( $_POST['archive_enabled'], $_POST['archive_show_winners'] );
+		// An unticked box isn't posted.
+		unset( $_POST['archive_show_winners'] );
 		$this->save_grades( $this->default_grade_rows() );
-		$this->assertSame(
-			array(
-				'enabled'      => false,
-				'show_winners' => false,
-			),
-			Competition_Archive::settings()
-		);
+		$this->assertFalse( Competition_Archive::settings()['show_winners'] );
 	}
 
 	/**

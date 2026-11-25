@@ -214,7 +214,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 				'post_content' => '[competition_archive]',
 			)
 		);
-		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( false );
 		$competition_id = $this->make_open_competition();
 		$member_id      = $this->make_member( 'Alice', 'alice@example.com' );
 

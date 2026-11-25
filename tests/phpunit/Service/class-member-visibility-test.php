@@ -156,7 +156,8 @@ class Member_Visibility_Test extends WP_UnitTestCase {
 	}
 
 	public function test_the_upload_email_tells_members_whether_their_images_show_and_links_to_their_entries_page(): void {
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 		$archive_url = $this->page_with( 'competition_archive' );
 		$entries_url = $this->page_with( 'competition_my_entries' );
 		$entries     = array(

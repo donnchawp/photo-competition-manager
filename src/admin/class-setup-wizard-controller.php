@@ -284,7 +284,7 @@ class Setup_Wizard_Controller {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/setup-wizard/member-page-card.php' );
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_template( 'admin/setup-wizard/archive-page-card.php', array( 'settings_url' => admin_url( 'admin.php?page=photo-competition-manager-settings#past-competitions' ) ) );
+		echo $this->render_template( 'admin/setup-wizard/archive-page-card.php', array( 'settings_url' => admin_url( 'admin.php?page=photo-competition-manager-settings#results' ) ) );
 
 		submit_button( __( 'Create Pages', 'photo-competition-manager' ), 'primary', 'submit', true );
 

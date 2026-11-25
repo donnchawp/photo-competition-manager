@@ -19,8 +19,10 @@ use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
@@ -37,7 +39,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 12;
+	const DB_VERSION = 13;
 
 	/**
 	 * Option holding the installed data version.
@@ -170,6 +172,24 @@ class Activator {
 		// Members choose whether their images show in the past competitions
 		// archive, all of them and one by one. Everything starts shown.
 		if ( $installed < 12 && ! self::add_archive_visibility_schema() ) {
+			return;
+		}
+
+		// Who sees published results is one choice now, and past
+		// competitions are its third option. A club that showed past
+		// competitions keeps them, one with competitions keeps its results
+		// public, and a new install starts private.
+		if ( $installed < 13 ) {
+			if ( Competition_Archive::was_enabled() ) {
+				$visibility = Public_Results::WITH_ARCHIVE;
+			} else {
+				$visibility = self::has_competitions() ? Public_Results::PUBLIC : Public_Results::PRIVATE;
+			}
+			add_option( Public_Results::OPTION, $visibility );
+		}
+
+		// Private results need a share link, and older competitions may not have one.
+		if ( $installed < 13 && ! self::give_competitions_share_hashes() ) {
 			return;
 		}
 
@@ -683,6 +703,44 @@ class Activator {
 		}
 
 		return self::column_exists( $members, 'images_public' ) && self::column_exists( $images, 'archive_hidden' );
+	}
+
+	/**
+	 * Give every competition without a share hash its own, so its results
+	 * can be shared while the club's results are private.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return bool False if a competition still has none, so the step runs again.
+	 */
+	private static function give_competitions_share_hashes(): bool {
+		global $wpdb;
+
+		$table = ( new Competitions_Repository() )->table();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM %i WHERE share_hash = ''", $table ) );
+
+		foreach ( $ids as $id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update( $table, array( 'share_hash' => Competition_Settings::generate_share_hash() ), array( 'id' => (int) $id ), array( '%s' ), array( '%d' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE share_hash = ''", $table ) );
+	}
+
+	/**
+	 * Whether the site has any competitions, archived ones included.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return bool
+	 */
+	private static function has_competitions(): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i LIMIT 1', ( new Competitions_Repository() )->table() ) );
 	}
 
 	/**

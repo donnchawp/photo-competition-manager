@@ -42,7 +42,8 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 		parent::setUp();
 
 		$this->set_permalink_structure( '/%postname%/' );
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 
 		$this->shortcode = new Archive_Shortcode();
 		$this->shortcode->register();
@@ -157,7 +158,7 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_while_the_archive_is_off_the_page_shows_nothing_and_permalinks_are_not_found(): void {
 		$this->competition( 'november-2026' );
-		Competition_Archive::save_settings( false, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::PUBLIC );
 
 		$this->visit( home_url( '/competitions/' ) );
 		$this->assertSame( '', $this->render() );

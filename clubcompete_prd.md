@@ -72,7 +72,8 @@ To provide photography clubs with an easy-to-use system for running periodic pho
   - Categories with a quota per member (at least one).
   - Default settings: upload limits, voting (who scores and the score range) and slideshow.
   - Grade display names: a type can show a grade under another name (e.g. Cup for Advanced). Members and the public see the display name everywhere; admins see "Cup (Advanced)".
-- Settings keeps what applies to the whole club: grades, email, page URLs, voting form layout and log retention.
+- Settings keeps what applies to the whole club: grades, email, page URLs, voting form layout, who sees results and log retention.
+- **Who sees results** is one choice: *Private* (the results and top 3 pages show a competition's results only with its share link, `?share=<hash>`, which members get in the results email, and there are no past competitions), *Public*, or *Public, with past competitions*. New installs start private; an upgrade keeps a club with competitions public, keeps past competitions on where they were, and gives every competition a share link.
 - A new competition copies its type's categories and settings and the club's page links. Later edits to the type don't change existing competitions.
 - A competition's type can't be changed once it has entries. A type can't be deleted while a competition uses it, or when it is the only type.
 - On upgrade the club gets one type, Individual, built from its old settings. Every member is tagged with it, every competition is set to it and open to everyone, and a competition with no categories of its own is given the club's list.
@@ -249,12 +250,12 @@ Admins can upload or replace images for any member directly from the dashboard.
 | `[competition_upload]` | Member upload form for the active competition. |
 | `[competition_voting competition="slug"]` | Public/mobile voting interface. |
 | `[competition_slideshow competition="slug"]` | Admin slideshow view. |
-| `[competition_results]` | Complete results table for the latest competition with visible results. |
+| `[competition_results]` | Complete results table for the latest competition with visible results; while results are private, only with that competition's share link. |
 | `[competition_results competition="slug"]` | Complete results table for specific competition. |
-| `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results. |
+| `[competition_top3]` | Top 3 winners per grade for the latest competition with visible results; while results are private, only with that competition's share link. |
 | `[competition_top3 competition="slug"]` | Top 3 winners per grade for specific competition. |
 | `[competition_my_entries]` | Member page: asks for an email address and sends a link to every image the member has entered, where they choose which show in past competitions. |
-| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`, leaving out images their members hide. `show_names="true"` shows who each image is by. Off until switched on in Settings. |
+| `[competition_archive]` | Past competitions with published results, each at `<page>/<competition-slug>/`, leaving out images their members hide. `show_names="true"` shows who each image is by. Off unless Settings → Results is *Public, with past competitions*. |
 
 ### Results Display Features
 

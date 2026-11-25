@@ -318,7 +318,8 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_an_admin_can_hide_and_show_all_of_a_members_images_in_past_competitions(): void {
-		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		\PhotoCompetitionManager\Service\Competition_Archive::save_settings( false );
 		$id = $this->create_member( array( 'name' => 'Ada' ) );
 
 		$this->save_images_public( $id, false );

@@ -280,7 +280,7 @@ class Results_Controller {
 				$this->redirect_with_settings_errors( $redirect_url );
 			}
 
-			$share_url = add_query_arg( 'share', $share_hash, $results_page_url );
+			$share_url = Competition_Settings::share_url( $competition );
 
 			if ( 'send_results_committee' === $action ) {
 				$recipients = $this->members->find_committee_members();
@@ -545,7 +545,7 @@ class Results_Controller {
 		$send_all_url       = '';
 
 		if ( ! empty( $share_hash ) && ! empty( $results_page ) ) {
-			$share_url = add_query_arg( 'share', $share_hash, $results_page );
+			$share_url = Competition_Settings::share_url( $competition );
 
 			$send_committee_url = $this->action_url( 'send_results_committee', (int) $competition->id );
 

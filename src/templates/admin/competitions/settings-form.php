@@ -17,8 +17,8 @@
  * (string): 'bar', 'line', 'dots', or 'radial'. $data['urls']
  * (array{upload_page: string, voting_page: string}).
  * $data['share_hash'] (string): results share hash, or '' when not
- * generated. $data['results_page_url'] (string): the competition's results
- * page from Competition_Settings::page_url(), or '' when none is found.
+ * generated. $data['share_url'] (string): the results page with the share
+ * link, from Competition_Settings::share_url(), or '' when there's no page.
  *
  * @package PhotoCompetitionManager
  */
@@ -147,9 +147,8 @@ if ( ! empty( $data['share_hash'] ) ) {
 	echo '<label>' . esc_html__( 'Results Share Hash', 'photo-competition-manager' ) . '</label><br />';
 	echo '<code>' . esc_html( $data['share_hash'] ) . '</code>';
 
-	if ( '' !== $data['results_page_url'] ) {
-		$share_url = add_query_arg( 'share', $data['share_hash'], $data['results_page_url'] );
-		echo '<br /><span class="description">' . esc_html__( 'Share link:', 'photo-competition-manager' ) . ' <a href="' . esc_url( $share_url ) . '" target="_blank">' . esc_html( $share_url ) . '</a></span>';
+	if ( '' !== $data['share_url'] ) {
+		echo '<br /><span class="description">' . esc_html__( 'Share link:', 'photo-competition-manager' ) . ' <a href="' . esc_url( $data['share_url'] ) . '" target="_blank">' . esc_html( $data['share_url'] ) . '</a></span>';
 	}
 	echo '</p>';
 }

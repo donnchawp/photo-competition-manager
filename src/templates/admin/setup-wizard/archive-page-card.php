@@ -23,7 +23,7 @@ echo '</p>';
 echo '<p class="description">';
 printf(
 	/* translators: %s: link to the Settings screen */
-	esc_html__( 'Creates a page with the [competition_archive] shortcode, listing competitions whose results are published, each at its own address. The page shows nothing until you switch it on in %s.', 'photo-competition-manager' ),
+	esc_html__( 'Creates a page with the [competition_archive] shortcode, listing competitions whose results are published, each at its own address. The page shows nothing until you choose public results with past competitions in %s.', 'photo-competition-manager' ),
 	'<a href="' . esc_url( $data['settings_url'] ) . '">' . esc_html__( 'Settings', 'photo-competition-manager' ) . '</a>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Link built from escaped parts.
 );
 echo '</p>';

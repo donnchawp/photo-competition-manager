@@ -252,7 +252,8 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 		$entry = $this->ann_entry();
 
 		$off = $this->open( $this->ann_key() );
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 		$on = $this->open( $this->ann_key() );
 
 		$this->assertStringNotContainsString( 'name="visibility_all"', $off );
@@ -302,7 +303,8 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_saving_the_form_saves_the_choices_and_goes_back_to_the_list_so_a_refresh_cant_post_them_again(): void {
 		$entry = $this->ann_entry();
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 
 		$location = $this->save_form(
 			array(
@@ -329,7 +331,8 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 	public function test_the_form_says_when_a_choice_wasnt_saved(): void {
 		$entry = $this->ann_entry();
 		$bobs  = Entry_Fixtures::insert_scored_entry( (int) ( new \PhotoCompetitionManager\Repository\Images_Repository() )->find( $entry )->competition_id, 'colour', 'Bob', 'beginner', array() );
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 
 		$html = $this->follow( $this->save_form( array( 'visibility' => array( $bobs => 'hide' ) ) ) );
 
@@ -346,7 +349,8 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 
 	public function test_opening_a_members_link_changes_nothing(): void {
 		$entry = $this->ann_entry();
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 		$_GET = array(
 			Member_Page_Link::QUERY_ARG => $this->ann_key(),
 			'visibility_all'            => 'hide',

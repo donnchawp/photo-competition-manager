@@ -149,7 +149,7 @@ class Results_Shortcode {
 		if ( ! $this->results_viewable( $competition, $share_hash ) ) {
 			echo '<div class="photo-comp-results">';
 			echo '<h2>' . esc_html( ( new Competition_Labels() )->title_for_everyone( $competition ) ) . ' - ' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';
-			echo '<p class="notice">' . esc_html__( 'Results are not yet available. Please check back later.', 'photo-competition-manager' ) . '</p>';
+			echo '<p class="notice">' . esc_html( $this->unviewable_message( $competition ) ) . '</p>';
 			echo '</div>';
 			return;
 		}
