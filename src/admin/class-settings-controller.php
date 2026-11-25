@@ -139,7 +139,10 @@ class Settings_Controller {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 			update_option( Log_Retention::OPTION, $log_retention_months );
-			Public_Results::save( sanitize_key( $this->get_post_string( 'results_visibility' ) ) );
+			// A Settings page loaded before the choice existed doesn't post it, and mustn't make results private.
+			if ( isset( $_POST['results_visibility'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Checked at the top of the handler.
+				Public_Results::save( sanitize_key( $this->get_post_string( 'results_visibility' ) ) );
+			}
 			Competition_Archive::save_settings( '' !== $this->get_post_string( 'archive_show_winners' ) );
 
 			add_settings_error(

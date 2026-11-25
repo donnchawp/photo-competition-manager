@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -304,7 +305,8 @@ class Voting_Controller {
 	}
 
 	/**
-	 * Make competition results visible to the public.
+	 * Publish a competition's results: to everyone, or to those with its
+	 * share link while the club's results are private.
 	 *
 	 * @param string $focus Focus-panel key to preserve across the redirect.
 	 * @return void
@@ -316,7 +318,9 @@ class Voting_Controller {
 		$this->finish_voting_update(
 			$this->workflow->publish_results( $competition_id ),
 			'results_shown',
-			__( 'Results are now visible to the public.', 'photo-competition-manager' ),
+			Public_Results::enabled()
+				? __( 'Results are now visible to the public.', 'photo-competition-manager' )
+				: __( 'Results are published. Members can see them with the results share link.', 'photo-competition-manager' ),
 			$focus
 		);
 	}

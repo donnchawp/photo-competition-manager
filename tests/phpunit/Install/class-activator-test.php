@@ -724,7 +724,23 @@ class Activator_Test extends WP_UnitTestCase {
 		$bare  = $this->insert_v2_competition( array() );
 		$own   = $this->insert_v2_competition( array() );
 		$wpdb->update( $table, array( 'settings' => null ), array( 'id' => $bare ) );
-		$wpdb->update( $table, array( 'settings' => wp_json_encode( array( 'categories' => array( array( 'slug' => 'solo', 'label' => 'Solo', 'quota' => 2 ) ) ) ) ), array( 'id' => $own ) );
+		$wpdb->update(
+			$table,
+			array(
+				'settings' => wp_json_encode(
+					array(
+						'categories' => array(
+							array(
+								'slug'  => 'solo',
+								'label' => 'Solo',
+								'quota' => 2,
+							),
+						),
+					)
+				),
+			),
+			array( 'id' => $own )
+		);
 		$this->downgrade_to_9();
 
 		Activator::maybe_upgrade();
@@ -841,6 +857,33 @@ class Activator_Test extends WP_UnitTestCase {
 			Competition_Archive::settings()
 		);
 		$this->assertTrue( Public_Results::enabled() );
+	}
+
+	public function test_upgrade_to_13_gives_every_competition_a_share_link(): void {
+		$repository = new Competitions_Repository();
+		$id         = (int) $repository->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Old',
+				'open_date'  => '2098-01-01 00:00:00',
+				'close_date' => '2098-01-10 00:00:00',
+			)
+		);
+		$other      = (int) $repository->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Shared',
+				'open_date'  => '2099-01-01 00:00:00',
+				'close_date' => '2099-01-10 00:00:00',
+				'share_hash' => '0123456789abcdef0123456789abcdef',
+			)
+		);
+		update_option( 'photo_comp_db_version', 12 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertMatchesRegularExpression( '/^[0-9a-f]{32}$/', $repository->find( $id )->share_hash );
+		$this->assertSame( '0123456789abcdef0123456789abcdef', $repository->find( $other )->share_hash, 'an existing link keeps working' );
 	}
 
 	public function test_a_new_install_keeps_results_private(): void {

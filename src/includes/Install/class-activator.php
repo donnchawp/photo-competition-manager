@@ -188,6 +188,11 @@ class Activator {
 			add_option( Public_Results::OPTION, $visibility );
 		}
 
+		// Private results need a share link, and older competitions may not have one.
+		if ( $installed < 13 && ! self::give_competitions_share_hashes() ) {
+			return;
+		}
+
 		if ( $installed < 9 ) {
 			self::flush_image_permalink_rule();
 		}
@@ -698,6 +703,30 @@ class Activator {
 		}
 
 		return self::column_exists( $members, 'images_public' ) && self::column_exists( $images, 'archive_hidden' );
+	}
+
+	/**
+	 * Give every competition without a share hash its own, so its results
+	 * can be shared while the club's results are private.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return bool False if a competition still has none, so the step runs again.
+	 */
+	private static function give_competitions_share_hashes(): bool {
+		global $wpdb;
+
+		$table = ( new Competitions_Repository() )->table();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM %i WHERE share_hash = ''", $table ) );
+
+		foreach ( $ids as $id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update( $table, array( 'share_hash' => Competition_Settings::generate_share_hash() ), array( 'id' => (int) $id ), array( '%s' ), array( '%d' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM %i WHERE share_hash = ''", $table ) );
 	}
 
 	/**
