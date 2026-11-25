@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Member_Page_Shortcode;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
@@ -54,6 +55,9 @@ class Member_Page_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
+
+		// Past competitions show only while published results are public.
+		Public_Results::save( true );
 
 		$this->page_id   = self::factory()->post->create(
 			array(

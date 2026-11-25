@@ -13,6 +13,7 @@ use PhotoCompetitionManager\Admin\Setup_Wizard_Controller;
 use PhotoCompetitionManager\Frontend\Archive_Shortcode;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
@@ -76,6 +77,7 @@ class Setup_Wizard_Controller_Test extends Admin_Controller_Test_Case {
 	public function test_an_archive_page_made_by_the_wizard_has_working_permalinks_straight_away(): void {
 		$this->set_permalink_structure( '/%postname%/' );
 		Competition_Archive::save_settings( true, false );
+		Public_Results::save( true );
 		$competition = (int) ( new Competitions_Repository() )->create(
 			array(
 				'type_id'    => Type_Fixtures::id(),

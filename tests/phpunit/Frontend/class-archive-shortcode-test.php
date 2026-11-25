@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Frontend;
 
 use PhotoCompetitionManager\Frontend\Archive_Shortcode;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
@@ -40,6 +41,9 @@ class Archive_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
+
+		// Past competitions show only while published results are public.
+		Public_Results::save( true );
 
 		$this->set_permalink_structure( '/%postname%/' );
 		Competition_Archive::save_settings( true, false );

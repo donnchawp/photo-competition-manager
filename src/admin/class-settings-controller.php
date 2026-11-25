@@ -192,7 +192,7 @@ class Settings_Controller {
 		echo $this->render_email_section( $email_config ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_urls_section( $urls ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/settings/results-section.php', array( 'public' => Public_Results::enabled() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_template( 'admin/settings/archive-section.php', Competition_Archive::settings() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/settings/archive-section.php', Competition_Archive::saved_settings() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/settings/logs-section.php', array( 'months' => Log_Retention::months() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );

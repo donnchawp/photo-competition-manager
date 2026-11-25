@@ -8,6 +8,7 @@
 namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Dependencies;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -47,6 +48,9 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function setUp(): void {
 		parent::setUp();
+
+		// Past competitions show only while published results are public.
+		Public_Results::save( true );
 		$this->service = new Upload_Link_Service();
 		$this->comps   = new Competitions_Repository();
 		$this->members = new Members_Repository();

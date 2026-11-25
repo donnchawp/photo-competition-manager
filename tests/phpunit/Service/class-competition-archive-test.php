@@ -11,6 +11,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Tests\Entry_Fixtures;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
@@ -38,6 +39,7 @@ class Competition_Archive_Test extends WP_UnitTestCase {
 
 		$this->competitions = new Competitions_Repository();
 		Competition_Archive::save_settings( true, false );
+		Public_Results::save( true );
 	}
 
 	/**
@@ -103,6 +105,16 @@ class Competition_Archive_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), $this->listed() );
 		$this->assertNull( ( new Competition_Archive() )->find( 'january' ) );
+	}
+
+	public function test_while_results_are_private_nothing_is_listed_or_found(): void {
+		$january = $this->competition( 'january', '2026-01-01 00:00:00' );
+		Workflow_Fixtures::publish_results( $january );
+		Public_Results::save( false );
+
+		$this->assertSame( array(), $this->listed() );
+		$this->assertNull( ( new Competition_Archive() )->find( 'january' ) );
+		$this->assertTrue( Competition_Archive::saved_settings()['enabled'], 'the club\'s archive choice is kept for when results are public again' );
 	}
 
 	public function test_a_competition_is_found_by_slug_only_once_its_results_are_published(): void {

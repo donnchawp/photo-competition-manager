@@ -306,7 +306,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 				'enabled'      => true,
 				'show_winners' => true,
 			),
-			Competition_Archive::settings()
+			Competition_Archive::saved_settings()
 		);
 
 		// Unticked boxes aren't posted.
@@ -317,7 +317,7 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 				'enabled'      => false,
 				'show_winners' => false,
 			),
-			Competition_Archive::settings()
+			Competition_Archive::saved_settings()
 		);
 	}
 
