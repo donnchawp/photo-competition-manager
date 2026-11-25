@@ -704,7 +704,7 @@ class Activator {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i LIMIT 1', $wpdb->prefix . 'photocomp_competitions' ) );
+		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i LIMIT 1', ( new Competitions_Repository() )->table() ) );
 	}
 
 	/**
