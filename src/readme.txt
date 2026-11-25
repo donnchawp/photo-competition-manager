@@ -200,6 +200,10 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 * **Results**
   * New choice of who sees published results, under **Competitions → Settings → Results**: Private, Public, or Public with past competitions (which replaces the old past competitions checkbox). While private, the results and top three pages show a competition's results only with its share link, which members get in the results email, and there's no past competitions page. New installs start private. Sites that already have competitions, or have past competitions on, stay public, so nothing changes until you choose Private
   * A member recorded in the wrong grade can be put back in the grade they entered in, from a closed competition's Results screen, under **Grades in this competition**. Their entries in every category move, and the results are ranked again from the same scores. Results are recorded with members' grades at the time, and the 0.4.0 upgrade recorded every earlier competition with grades on the upgrade day, so a member moved up a grade before then was ranked in the new grade in older competitions
+* **Competitions**
+  * Each competition's actions sit under its title and show on hover, like the Posts screen, and the title opens its edit screen
+  * New **View Results** link on each competition, opening its results page with the share link
+  * The share link on the Results screen opens the results page, and Voting Controls' **Full Results** and **Top 3 Results** buttons use the share link, so they work while results are private
 
 = 0.5.0 =
 * **Before you upgrade**
