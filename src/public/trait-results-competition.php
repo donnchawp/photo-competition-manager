@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Frontend;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Service\Public_Results;
 use WP_Error;
 
 /**
@@ -61,19 +62,39 @@ trait Results_Competition {
 
 	/**
 	 * Whether a competition's results may be shown: they've been
-	 * published, or the request carries the competition's share hash.
+	 * published and the club's results are public, or the request carries
+	 * the competition's share hash.
+	 *
+	 * @since 0.5.1 Published results need the hash while the club's results are private.
 	 *
 	 * @param object $competition Competition.
 	 * @param string $share_hash  Share hash from the request, or ''.
 	 * @return bool
 	 */
 	private function results_viewable( object $competition, string $share_hash ): bool {
-		if ( $this->workflow->results_published( $competition ) ) {
+		if ( Public_Results::enabled() && $this->workflow->results_published( $competition ) ) {
 			return true;
 		}
 
 		$stored_hash = (string) ( $competition->share_hash ?? '' );
 
 		return '' !== $stored_hash && hash_equals( $stored_hash, $share_hash );
+	}
+
+	/**
+	 * Why a competition's results can't be shown: they're published but
+	 * private, or they're not out yet.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param object $competition Competition whose results aren't viewable.
+	 * @return string
+	 */
+	private function unviewable_message( object $competition ): string {
+		if ( $this->workflow->results_published( $competition ) ) {
+			return __( 'These results aren\'t public. Members get a link to them by email.', 'photo-competition-manager' );
+		}
+
+		return __( 'Results are not yet available. Please check back later.', 'photo-competition-manager' );
 	}
 }

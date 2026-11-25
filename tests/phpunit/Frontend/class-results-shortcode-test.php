@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Frontend;
 use PhotoCompetitionManager\Frontend\Results_Shortcode;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Actor;
@@ -37,6 +38,9 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
+
+		// These tests show published results without the share link.
+		Public_Results::save( true );
 
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(

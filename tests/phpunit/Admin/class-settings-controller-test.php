@@ -15,6 +15,7 @@ use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
@@ -318,6 +319,16 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 			),
 			Competition_Archive::settings()
 		);
+	}
+
+	public function test_saving_settings_switches_public_results_on_and_off(): void {
+		$this->save_grades( $this->default_grade_rows(), array( 'results_public' => '1' ) );
+		$this->assertTrue( Public_Results::enabled() );
+
+		// An unticked box isn't posted.
+		unset( $_POST['results_public'] );
+		$this->save_grades( $this->default_grade_rows() );
+		$this->assertFalse( Public_Results::enabled() );
 	}
 
 	/**

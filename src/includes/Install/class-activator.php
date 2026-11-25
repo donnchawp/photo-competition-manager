@@ -21,6 +21,7 @@ use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Results_Ranking;
 use PhotoCompetitionManager\Support\Competition_Settings;
 use wpdb;
@@ -37,7 +38,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 12;
+	const DB_VERSION = 13;
 
 	/**
 	 * Option holding the installed data version.
@@ -171,6 +172,13 @@ class Activator {
 		// archive, all of them and one by one. Everything starts shown.
 		if ( $installed < 12 && ! self::add_archive_visibility_schema() ) {
 			return;
+		}
+
+		// Results pages need a share link unless the club makes results
+		// public. A club that already has competitions keeps them public;
+		// a new install starts private.
+		if ( $installed < 13 ) {
+			add_option( Public_Results::OPTION, self::has_competitions() ? '1' : '0' );
 		}
 
 		if ( $installed < 9 ) {
@@ -683,6 +691,20 @@ class Activator {
 		}
 
 		return self::column_exists( $members, 'images_public' ) && self::column_exists( $images, 'archive_hidden' );
+	}
+
+	/**
+	 * Whether the site has any competitions, archived ones included.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return bool
+	 */
+	private static function has_competitions(): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i LIMIT 1', $wpdb->prefix . 'photocomp_competitions' ) );
 	}
 
 	/**
