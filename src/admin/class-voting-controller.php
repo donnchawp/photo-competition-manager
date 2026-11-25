@@ -522,6 +522,15 @@ class Voting_Controller {
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
+		// Once results are published, the Results and Top 3 buttons carry the
+		// share link, so they work while the club's results are private. Not
+		// before: the share link shows results that aren't published yet.
+		$share_hash = (string) ( $active_competition->share_hash ?? '' );
+		if ( '' !== $share_hash && $this->workflow->results_published( $active_competition ) ) {
+			$results_page = '' === $results_page ? '' : add_query_arg( 'share', $share_hash, $results_page );
+			$top3_page    = '' === $top3_page ? '' : add_query_arg( 'share', $share_hash, $top3_page );
+		}
+
 		// Find the category accepting votes, checking the current competition
 		// first, since that's the voting members can reach. Only one
 		// category in the club can accept votes, but competitions saved

@@ -628,6 +628,66 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Once results are published, the Results and Top 3 buttons carry the
+	 * share link, so they work while the club's results are private. Not
+	 * before, as the share link shows results that aren't published yet.
+	 */
+	public function test_render_results_buttons_carry_the_share_link_once_results_are_published(): void {
+		$hash    = '0123456789abcdef0123456789abcdef';
+		$comp_id = $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'share_hash' => $hash,
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+					'urls'       => array(
+						'voting_page'  => 'https://example.com/vote',
+						'results_page' => 'https://example.com/results',
+						'top3_page'    => 'https://example.com/top3',
+					),
+				),
+			)
+		);
+		$member_id = $this->members->create(
+			array(
+				'name'  => 'Ada',
+				'email' => 'ada@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$this->images->create(
+			array(
+				'competition_id' => $comp_id,
+				'member_id'      => $member_id,
+				'category'       => 'colour',
+				'filename'       => 'colour.jpg',
+				'random_number'  => 100,
+			)
+		);
+		$render = function (): string {
+			ob_start();
+			$this->controller->render();
+			return (string) ob_get_clean();
+		};
+
+		$before = $render();
+		$this->assertStringContainsString( 'href="https://example.com/results"', $before );
+		$this->assertStringNotContainsString( $hash, $before );
+
+		Workflow_Fixtures::publish_results( $comp_id );
+		$after = $render();
+		$this->assertStringContainsString( 'href="https://example.com/results?share=' . $hash . '"', $after );
+		$this->assertStringContainsString( 'href="https://example.com/top3?share=' . $hash . '"', $after );
+	}
+
+	/**
 	 * With no top 3 page anywhere, the Voting screen offers no Top 3 button.
 	 */
 	public function test_render_quick_actions_omit_top3_without_a_top3_page(): void {
