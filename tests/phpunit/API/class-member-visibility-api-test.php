@@ -44,7 +44,8 @@ class Member_Visibility_API_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 		do_action( 'rest_api_init' );
 
 		$this->ann   = Member_Fixtures::insert_with_grade( 'Ann', 'ann@example.com', 'beginner' );
@@ -115,7 +116,7 @@ class Member_Visibility_API_Test extends WP_UnitTestCase {
 	}
 
 	public function test_while_past_competitions_are_off_nothing_is_saved(): void {
-		Competition_Archive::save_settings( false, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::PUBLIC );
 
 		$this->assertSame( 403, $this->post( array( 'key' => $this->key(), 'entry' => 0, 'shown' => 'false' ) )->get_status() );
 		$this->assertTrue( ( new Member_Visibility() )->status( $this->ann() )['shown'] );

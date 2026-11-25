@@ -10,6 +10,8 @@ namespace PhotoCompetitionManager\Tests\Install;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
+use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -799,6 +801,55 @@ class Activator_Test extends WP_UnitTestCase {
 
 		$this->assertSame( '1', ( new Members_Repository() )->find( $member )->images_public );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_13_keeps_a_clubs_results_public(): void {
+		delete_option( Public_Results::OPTION );
+		( new Competitions_Repository() )->create(
+			array(
+				'type_id' => Type_Fixtures::id(),
+				'title'   => 'Old',
+			)
+		);
+		update_option( 'photo_comp_db_version', 12 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertTrue( Public_Results::enabled() );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_13_keeps_past_competitions_on_where_they_were(): void {
+		delete_option( Public_Results::OPTION );
+		// Version 12 kept the archive's own switch.
+		update_option(
+			Competition_Archive::OPTION,
+			array(
+				'enabled'      => true,
+				'show_winners' => true,
+			)
+		);
+		update_option( 'photo_comp_db_version', 12 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame(
+			array(
+				'enabled'      => true,
+				'show_winners' => true,
+			),
+			Competition_Archive::settings()
+		);
+		$this->assertTrue( Public_Results::enabled() );
+	}
+
+	public function test_a_new_install_keeps_results_private(): void {
+		delete_option( Public_Results::OPTION );
+		delete_option( 'photo_comp_db_version' );
+
+		Activator::maybe_upgrade();
+
+		$this->assertFalse( Public_Results::enabled() );
 	}
 
 	/**

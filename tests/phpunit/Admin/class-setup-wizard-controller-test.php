@@ -75,7 +75,8 @@ class Setup_Wizard_Controller_Test extends Admin_Controller_Test_Case {
 
 	public function test_an_archive_page_made_by_the_wizard_has_working_permalinks_straight_away(): void {
 		$this->set_permalink_structure( '/%postname%/' );
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 		$competition = (int) ( new Competitions_Repository() )->create(
 			array(
 				'type_id'    => Type_Fixtures::id(),

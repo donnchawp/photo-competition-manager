@@ -37,7 +37,8 @@ class Competition_Archive_Test extends WP_UnitTestCase {
 		parent::setUp();
 
 		$this->competitions = new Competitions_Repository();
-		Competition_Archive::save_settings( true, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( false );
 	}
 
 	/**
@@ -99,7 +100,7 @@ class Competition_Archive_Test extends WP_UnitTestCase {
 	public function test_while_the_archive_is_off_nothing_is_listed_or_found(): void {
 		$january = $this->competition( 'january', '2026-01-01 00:00:00' );
 		Workflow_Fixtures::publish_results( $january );
-		Competition_Archive::save_settings( false, false );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::PUBLIC );
 
 		$this->assertSame( array(), $this->listed() );
 		$this->assertNull( ( new Competition_Archive() )->find( 'january' ) );
@@ -226,7 +227,8 @@ class Competition_Archive_Test extends WP_UnitTestCase {
 
 		$this->assertNull( $this->entries( $january )[ $first ]->position );
 
-		Competition_Archive::save_settings( true, true );
+		\PhotoCompetitionManager\Service\Public_Results::save( \PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE );
+		Competition_Archive::save_settings( true );
 		$entries = $this->entries( $january );
 
 		$this->assertSame( 1, $entries[ $first ]->position );

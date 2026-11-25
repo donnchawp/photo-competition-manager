@@ -332,9 +332,9 @@ class Competitions_Controller {
 					'error'
 				);
 			} else {
-				$results_page_url = Competition_Settings::page_url( 'results_page', $competition );
-				if ( '' !== $results_page_url ) {
-					$share_url = add_query_arg( 'share', $new_hash, $results_page_url );
+				$competition->share_hash = $new_hash;
+				$share_url               = Competition_Settings::share_url( $competition );
+				if ( '' !== $share_url ) {
 					add_settings_error(
 						'photo_competition_manager',
 						'results_link_generated',
@@ -390,10 +390,10 @@ class Competitions_Controller {
 			$nonces         = array(
 				'send_emails'  => 'photo_competition_send_emails_',
 				'email_judges' => 'photo_competition_email_judges_',
-				'archive'     => 'photo_competition_archive_',
-				'restore'     => 'photo_competition_restore_',
-				'delete'      => 'photo_competition_delete_',
-				'reset_votes' => 'photo_competition_reset_votes_',
+				'archive'      => 'photo_competition_archive_',
+				'restore'      => 'photo_competition_restore_',
+				'delete'       => 'photo_competition_delete_',
+				'reset_votes'  => 'photo_competition_reset_votes_',
 			);
 			$nonce_action   = $nonces[ $action ];
 
@@ -1228,7 +1228,7 @@ class Competitions_Controller {
 				'progress_meter_type' => $progress_meter_type,
 				'urls'                => $urls,
 				'share_hash'          => $competition->share_hash ?? '',
-				'results_page_url'    => Competition_Settings::page_url( 'results_page', $competition ),
+				'share_url'           => Competition_Settings::share_url( $competition ),
 			)
 		);
 	}
