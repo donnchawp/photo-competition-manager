@@ -198,7 +198,7 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
 
 = 0.5.1 (unreleased) =
 * **Results**
-  * A new setting, **Show published results to the public**, on the Settings screen. While it's off, the results and top three pages show a competition's results only with its share link, which members get in the results email. New installs start with it off. Sites that already have competitions keep it on, so nothing changes until you switch it off
+  * A new setting, **Show published results to the public**, on the Settings screen. While it's off, the results and top three pages show a competition's results only with its share link, which members get in the results email, and past competitions aren't shown. New installs start with it off. Sites that already have competitions keep it on, so nothing changes until you switch it off
   * A member recorded in the wrong grade can be put back in the grade they entered in, from a closed competition's Results screen, under **Grades in this competition**. Their entries in every category move, and the results are ranked again from the same scores. Results are recorded with members' grades at the time, and the 0.4.0 upgrade recorded every earlier competition with grades on the upgrade day, so a member moved up a grade before then was ranked in the new grade in older competitions
 
 = 0.5.0 =
