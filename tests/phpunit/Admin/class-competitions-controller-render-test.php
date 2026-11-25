@@ -220,6 +220,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_list_links_each_competitions_results_page_with_its_share_link(): void {
+		// No club results page, so No Page has none to fall back to.
+		delete_option( 'photo_comp_default_settings' );
 		$hash = '0123456789abcdef0123456789abcdef';
 		$this->seed_competition(
 			'Spring Show',
@@ -246,7 +248,11 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'href="https://example.com/results?share=' . $hash . '"', $html );
-		$this->assertSame( 1, substr_count( $html, 'View Results' ), 'a competition without a results page has no link' );
+
+		// Check No Page's own row, not the whole page.
+		preg_match( '#<tr>(?:(?!</tr>).)*No Page.*?</tr>#s', $html, $row );
+		$this->assertNotEmpty( $row );
+		$this->assertStringNotContainsString( 'View Results', $row[0], 'a competition without a results page has no link' );
 	}
 
 	public function test_render_list_active_with_rows(): void {
