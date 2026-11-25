@@ -8,7 +8,6 @@
 namespace PhotoCompetitionManager\Tests\API;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
-use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Member_Page_Link;
@@ -44,9 +43,6 @@ class Member_Visibility_API_Test extends WP_UnitTestCase {
 	 */
 	public function setUp(): void {
 		parent::setUp();
-
-		// Past competitions show only while published results are public.
-		Public_Results::save( true );
 
 		Competition_Archive::save_settings( true, false );
 		do_action( 'rest_api_init' );

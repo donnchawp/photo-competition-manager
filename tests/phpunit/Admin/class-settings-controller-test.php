@@ -293,42 +293,34 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( '', $this->grade_of( $member ) );
 	}
 
-	public function test_saving_settings_switches_the_archive_and_its_winners_on_and_off(): void {
+	public function test_one_choice_decides_who_sees_results_and_past_competitions(): void {
+		$cases = array(
+			'private' => array( false, false ),
+			'public'  => array( true, false ),
+			'archive' => array( true, true ),
+		);
+		foreach ( $cases as $choice => list( $public, $archive ) ) {
+			$this->save_grades( $this->default_grade_rows(), array( 'results_visibility' => $choice ) );
+
+			$this->assertSame( $public, Public_Results::enabled(), $choice );
+			$this->assertSame( $archive, Competition_Archive::settings()['enabled'], $choice );
+		}
+	}
+
+	public function test_saving_settings_switches_past_competitions_winners_on_and_off(): void {
 		$this->save_grades(
 			$this->default_grade_rows(),
 			array(
-				'archive_enabled'      => '1',
+				'results_visibility'   => 'archive',
 				'archive_show_winners' => '1',
 			)
 		);
-		$this->assertSame(
-			array(
-				'enabled'      => true,
-				'show_winners' => true,
-			),
-			Competition_Archive::saved_settings()
-		);
-
-		// Unticked boxes aren't posted.
-		unset( $_POST['archive_enabled'], $_POST['archive_show_winners'] );
-		$this->save_grades( $this->default_grade_rows() );
-		$this->assertSame(
-			array(
-				'enabled'      => false,
-				'show_winners' => false,
-			),
-			Competition_Archive::saved_settings()
-		);
-	}
-
-	public function test_saving_settings_switches_public_results_on_and_off(): void {
-		$this->save_grades( $this->default_grade_rows(), array( 'results_public' => '1' ) );
-		$this->assertTrue( Public_Results::enabled() );
+		$this->assertTrue( Competition_Archive::settings()['show_winners'] );
 
 		// An unticked box isn't posted.
-		unset( $_POST['results_public'] );
+		unset( $_POST['archive_show_winners'] );
 		$this->save_grades( $this->default_grade_rows() );
-		$this->assertFalse( Public_Results::enabled() );
+		$this->assertFalse( Competition_Archive::settings()['show_winners'] );
 	}
 
 	/**

@@ -139,8 +139,10 @@ class Settings_Controller {
 			$this->save_global_settings( $settings );
 			update_option( 'photo_comp_voting_ui_type', $voting_ui_type_input );
 			update_option( Log_Retention::OPTION, $log_retention_months );
-			Competition_Archive::save_settings( '' !== $this->get_post_string( 'archive_enabled' ), '' !== $this->get_post_string( 'archive_show_winners' ) );
-			Public_Results::save( '' !== $this->get_post_string( 'results_public' ) );
+			// One choice: private, public, or public with past competitions, which show published results too.
+			$visibility = sanitize_key( $this->get_post_string( 'results_visibility' ) );
+			Public_Results::save( in_array( $visibility, array( 'public', 'archive' ), true ) );
+			Competition_Archive::save_settings( 'archive' === $visibility, '' !== $this->get_post_string( 'archive_show_winners' ) );
 
 			add_settings_error(
 				'photo_competition_settings',
@@ -151,6 +153,31 @@ class Settings_Controller {
 		}
 
 		$this->redirect_with_settings_errors( $this->settings_url() );
+	}
+
+	/**
+	 * Who sees published results, as the settings form's one choice, and
+	 * whether past competitions show winners.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return array{visibility: string, show_winners: bool}
+	 */
+	private function results_visibility(): array {
+		$archive = Competition_Archive::settings();
+
+		if ( $archive['enabled'] ) {
+			$visibility = 'archive';
+		} elseif ( Public_Results::enabled() ) {
+			$visibility = 'public';
+		} else {
+			$visibility = 'private';
+		}
+
+		return array(
+			'visibility'   => $visibility,
+			'show_winners' => $archive['show_winners'],
+		);
 	}
 
 	/**
@@ -191,8 +218,7 @@ class Settings_Controller {
 		echo $this->render_template( 'admin/settings/voting-ui-section.php', array( 'voting_ui_type' => $voting_ui_type ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_email_section( $email_config ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_urls_section( $urls ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_template( 'admin/settings/results-section.php', array( 'public' => Public_Results::enabled() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_template( 'admin/settings/archive-section.php', Competition_Archive::saved_settings() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_template( 'admin/settings/results-section.php', $this->results_visibility() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 		echo $this->render_template( 'admin/settings/logs-section.php', array( 'months' => Log_Retention::months() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 
 		submit_button( __( 'Save Settings', 'photo-competition-manager' ) );

@@ -108,31 +108,13 @@ class Competition_Archive {
 	}
 
 	/**
-	 * The club's archive settings in effect: whether it's on, and whether it
-	 * shows winners. Both default to off, and the archive is off while the
-	 * club's results are private, since it shows published results.
+	 * The club's archive settings: whether it's on, and whether it shows winners. Both default to off.
 	 *
 	 * @since 0.5.0
-	 * @since 0.5.1 Off while the club's results are private.
 	 *
 	 * @return array{enabled: bool, show_winners: bool}
 	 */
 	public static function settings(): array {
-		$settings            = self::saved_settings();
-		$settings['enabled'] = $settings['enabled'] && Public_Results::enabled();
-
-		return $settings;
-	}
-
-	/**
-	 * The archive settings as the club saved them, whether or not its
-	 * results are public.
-	 *
-	 * @since 0.5.1
-	 *
-	 * @return array{enabled: bool, show_winners: bool}
-	 */
-	public static function saved_settings(): array {
 		$saved = get_option( self::OPTION, array() );
 		$saved = is_array( $saved ) ? $saved : array();
 

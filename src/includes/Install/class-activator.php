@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Repository\Recorded_Results_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Repository\Voting_Token_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Public_Results;
@@ -175,10 +176,10 @@ class Activator {
 		}
 
 		// Results pages need a share link unless the club makes results
-		// public. A club that already has competitions keeps them public;
-		// a new install starts private.
+		// public. A club that already has competitions, or shows past
+		// competitions, keeps them public; a new install starts private.
 		if ( $installed < 13 ) {
-			add_option( Public_Results::OPTION, self::has_competitions() ? '1' : '0' );
+			add_option( Public_Results::OPTION, self::has_competitions() || Competition_Archive::settings()['enabled'] ? '1' : '0' );
 		}
 
 		if ( $installed < 9 ) {

@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Tests\Install;
 use PhotoCompetitionManager\Install\Activator;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -816,6 +817,16 @@ class Activator_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( Public_Results::enabled() );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_13_keeps_results_public_where_past_competitions_are_on(): void {
+		delete_option( Public_Results::OPTION );
+		Competition_Archive::save_settings( true, false );
+		update_option( 'photo_comp_db_version', 12 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertTrue( Public_Results::enabled() );
 	}
 
 	public function test_a_new_install_keeps_results_private(): void {
