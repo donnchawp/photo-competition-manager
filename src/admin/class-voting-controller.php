@@ -522,10 +522,10 @@ class Voting_Controller {
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
 
-		// Once results are published, the Results and Top 3 buttons carry the
-		// share link, so they work while the club's results are private. Not
-		// before: the share link shows results that aren't published yet.
-		if ( '' !== (string) ( $active_competition->share_hash ?? '' ) && $this->workflow->results_published( $active_competition ) ) {
+		// The Results and Top 3 buttons carry the share link, so they work
+		// while the club's results are private. It shows results before
+		// they're published too, so the admin can check them first.
+		if ( '' !== (string) ( $active_competition->share_hash ?? '' ) ) {
 			$results_page = Competition_Settings::share_url( $active_competition );
 			$top3_page    = Competition_Settings::share_url( $active_competition, 'top3_page' );
 		}

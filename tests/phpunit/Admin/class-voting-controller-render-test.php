@@ -628,11 +628,10 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
-	 * Once results are published, the Results and Top 3 buttons carry the
-	 * share link, so they work while the club's results are private. Not
-	 * before, as the share link shows results that aren't published yet.
+	 * The Results and Top 3 buttons carry the share link, before and after
+	 * results are published, so they work while the club's results are private.
 	 */
-	public function test_render_results_buttons_carry_the_share_link_once_results_are_published(): void {
+	public function test_render_results_buttons_carry_the_share_link(): void {
 		$hash    = '0123456789abcdef0123456789abcdef';
 		$comp_id = $this->competitions->create(
 			array(
@@ -677,14 +676,14 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			return (string) ob_get_clean();
 		};
 
-		$before = $render();
-		$this->assertStringContainsString( 'href="https://example.com/results"', $before );
-		$this->assertStringNotContainsString( $hash, $before );
-
-		Workflow_Fixtures::publish_results( $comp_id );
-		$after = $render();
-		$this->assertStringContainsString( 'href="https://example.com/results?share=' . $hash . '"', $after );
-		$this->assertStringContainsString( 'href="https://example.com/top3?share=' . $hash . '"', $after );
+		foreach ( array( 'before publishing', 'after publishing' ) as $when ) {
+			if ( 'after publishing' === $when ) {
+				Workflow_Fixtures::publish_results( $comp_id );
+			}
+			$html = $render();
+			$this->assertStringContainsString( 'href="https://example.com/results?share=' . $hash . '"', $html, $when );
+			$this->assertStringContainsString( 'href="https://example.com/top3?share=' . $hash . '"', $html, $when );
+		}
 	}
 
 	/**
