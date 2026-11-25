@@ -307,6 +307,16 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		}
 	}
 
+	public function test_a_settings_form_without_the_results_choice_leaves_it_alone(): void {
+		Public_Results::save( Public_Results::WITH_ARCHIVE );
+
+		// A Settings page loaded before the choice existed doesn't post it.
+		unset( $_POST['results_visibility'] );
+		$this->save_grades( $this->default_grade_rows() );
+
+		$this->assertSame( Public_Results::WITH_ARCHIVE, Public_Results::visibility() );
+	}
+
 	public function test_saving_settings_switches_past_competitions_winners_on_and_off(): void {
 		$this->save_grades(
 			$this->default_grade_rows(),

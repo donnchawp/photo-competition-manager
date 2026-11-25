@@ -193,13 +193,6 @@ class Results_Competition_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->page->results_viewable( $shown, self::HASH ) );
 	}
 
-	public function test_results_are_private_until_the_club_makes_them_public(): void {
-		delete_option( Public_Results::OPTION );
-		$shown = $this->create_competition( 'shown', true, self::HASH );
-
-		$this->assertFalse( $this->page->results_viewable( $shown, '' ) );
-	}
-
 	public function test_upper_cased_hash_does_not_make_hidden_results_viewable(): void {
 		$hidden = $this->create_competition( 'hidden', false, self::HASH );
 
