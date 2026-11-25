@@ -219,6 +219,42 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertDoesNotMatchRegularExpression( '/action=email_judges&(#038;|amp;)?competition=(' . $unjudged . '|' . $members . ')&/', $html );
 	}
 
+	public function test_render_list_links_each_competitions_results_page_with_its_share_link(): void {
+		// No club results page, so No Page has none to fall back to.
+		delete_option( 'photo_comp_default_settings' );
+		$hash = '0123456789abcdef0123456789abcdef';
+		$this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'open_date'  => '2099-01-01 00:00:00',
+				'close_date' => '2099-01-10 00:00:00',
+				'share_hash' => $hash,
+				'settings'   => array( 'urls' => array( 'results_page' => 'https://example.com/results' ) ),
+			)
+		);
+		$this->seed_competition(
+			'No Page',
+			'no-page',
+			array(
+				'open_date'  => '2099-02-01 00:00:00',
+				'close_date' => '2099-02-10 00:00:00',
+				'share_hash' => 'ffffffffffffffffffffffffffffffff',
+			)
+		);
+
+		ob_start();
+		$this->controller->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'href="https://example.com/results?share=' . $hash . '"', $html );
+
+		// Check No Page's own row, not the whole page.
+		preg_match( '#<tr>(?:(?!</tr>).)*No Page.*?</tr>#s', $html, $row );
+		$this->assertNotEmpty( $row );
+		$this->assertStringNotContainsString( 'View Results', $row[0], 'a competition without a results page has no link' );
+	}
+
 	public function test_render_list_active_with_rows(): void {
 		// Two active competitions exercising both states of the per-row
 		// branches: Spring Show is currently open (open_date in the past,
@@ -473,6 +509,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'Retired Salon', $html );
 		$this->assertDoesNotMatchRegularExpression( '/action=(edit|generate_results_link)&(#038;|amp;)?competition=' . $comp_id . '\b/', $html );
 		$this->assertStringNotContainsString( 'Send Upload Emails', $html );
+		$this->assertStringNotContainsString( 'View Results', $html );
 	}
 
 	public function test_render_list_with_settings_error(): void {

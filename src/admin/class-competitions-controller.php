@@ -1539,6 +1539,9 @@ class Competitions_Controller {
 				'photo_competition_delete_' . $comp_id
 			);
 
+			// The results page with the share link shows the results however the club has set who sees them.
+			$results_url = $is_archived ? '' : Competition_Settings::share_url( $competition );
+
 			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
 			$rows[] = array(
@@ -1556,6 +1559,7 @@ class Competitions_Controller {
 				'email_judges_url'   => $email_judges_url,
 				'close_url'          => $close_url,
 				'generate_link_url'  => $generate_link_url,
+				'results_url'        => $results_url,
 				'restore_url'        => $restore_url,
 				'archive_url'        => $archive_url,
 				'reset_votes_url'    => $reset_votes_url,

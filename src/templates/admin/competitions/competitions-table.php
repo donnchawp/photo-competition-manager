@@ -10,6 +10,7 @@
  * (why uploads can't reopen; empty when they can), is_open: bool,
  * send_email_url: string, email_judges_url: string (empty unless judges
  * score it, it has judges and it hasn't closed), close_url: string, generate_link_url: string (empty when archived),
+ * results_url: string (the results page with the share link; empty when archived or there's no results page),
  * restore_url: string,
  * archive_url: string, reset_votes_url: string, delete_url: string}>): rows
  * for the current view; empty when no competitions match.
@@ -44,13 +45,13 @@ if ( empty( $data['rows'] ) ) {
 	return;
 }
 
-echo '<table class="widefat striped">';
+// Actions sit under each title and show on hover or keyboard focus, like the Posts screen.
+echo '<table class="widefat striped table-view-list">';
 echo '<thead><tr>';
-echo '<th>' . esc_html__( 'Title', 'photo-competition-manager' ) . '</th>';
+echo '<th class="column-primary">' . esc_html__( 'Title', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Opens', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Closes', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Last Updated', 'photo-competition-manager' ) . '</th>';
-echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
 echo '</tr></thead>';
 echo '<tbody>';
 
@@ -59,6 +60,8 @@ $allowed_html = array(
 		'href'         => array(),
 		'class'        => array(),
 		'data-confirm' => array(),
+		'target'       => array(),
+		'rel'          => array(),
 	),
 	'span' => array(
 		'title' => array(),
@@ -68,12 +71,6 @@ $allowed_html = array(
 );
 
 foreach ( $data['rows'] as $row ) {
-	echo '<tr>';
-	echo '<td>' . esc_html( $row['title'] ) . '</td>';
-	echo '<td>' . esc_html( $row['opens'] ) . '</td>';
-	echo '<td>' . esc_html( $row['closes'] ) . '</td>';
-	echo '<td>' . esc_html( $row['last_updated'] ) . '</td>';
-
 	$actions = array();
 
 	if ( '' !== $row['edit_url'] ) {
@@ -117,6 +114,10 @@ foreach ( $data['rows'] as $row ) {
 		);
 	}
 
+	if ( '' !== $row['results_url'] ) {
+		$actions[] = sprintf( '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>', esc_url( $row['results_url'] ), esc_html__( 'View Results', 'photo-competition-manager' ) );
+	}
+
 	// Generate Results Link action.
 	if ( '' !== $row['generate_link_url'] ) {
 		$actions[] = sprintf(
@@ -149,7 +150,16 @@ foreach ( $data['rows'] as $row ) {
 		esc_html__( 'Delete', 'photo-competition-manager' )
 	);
 
-	echo '<td>' . wp_kses( implode( ' | ', $actions ), $allowed_html ) . '</td>';
+	$row_title = '' !== $row['edit_url']
+		? '<a class="row-title" href="' . esc_url( $row['edit_url'] ) . '">' . esc_html( $row['title'] ) . '</a>'
+		: esc_html( $row['title'] );
+
+	echo '<tr>';
+	echo '<td class="has-row-actions column-primary"><strong>' . $row_title . '</strong>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts above.
+	echo '<div class="row-actions">' . wp_kses( implode( ' | ', $actions ), $allowed_html ) . '</div></td>';
+	echo '<td>' . esc_html( $row['opens'] ) . '</td>';
+	echo '<td>' . esc_html( $row['closes'] ) . '</td>';
+	echo '<td>' . esc_html( $row['last_updated'] ) . '</td>';
 	echo '</tr>';
 }
 
