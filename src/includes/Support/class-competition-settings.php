@@ -112,6 +112,13 @@ class Competition_Settings {
 	);
 
 	/**
+	 * Query parameter that carries a competition's share hash.
+	 *
+	 * @since 0.5.1
+	 */
+	public const SHARE_PARAM = 'share';
+
+	/**
 	 * Shortcode tag of each competition page, keyed by its settings URL key.
 	 *
 	 * @var array<string, string>
@@ -982,6 +989,22 @@ class Competition_Settings {
 		}
 
 		return $url;
+	}
+
+	/**
+	 * A competition's results or top three page with its share link, which
+	 * shows its results whoever the club lets see them.
+	 *
+	 * @since 0.5.1
+	 * @param object $competition Competition row.
+	 * @param string $page        'results_page' or 'top3_page'.
+	 * @return string The URL, or '' when the competition has no share hash or there's no page.
+	 */
+	public static function share_url( object $competition, string $page = 'results_page' ): string {
+		$hash = (string) ( $competition->share_hash ?? '' );
+		$url  = '' === $hash ? '' : self::page_url( $page, $competition );
+
+		return '' === $url ? '' : add_query_arg( self::SHARE_PARAM, $hash, $url );
 	}
 
 	/**

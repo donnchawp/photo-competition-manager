@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Frontend;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Service\Public_Results;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -29,7 +30,7 @@ trait Results_Competition {
 	 * @return string
 	 */
 	private function requested_share_hash(): string {
-		return isset( $_GET['share'] ) ? sanitize_text_field( wp_unslash( $_GET['share'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public read-only parameter for share link access.
+		return isset( $_GET[ Competition_Settings::SHARE_PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ Competition_Settings::SHARE_PARAM ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public read-only parameter for share link access.
 	}
 
 	/**
