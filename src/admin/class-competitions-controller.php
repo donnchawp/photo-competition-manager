@@ -1540,8 +1540,7 @@ class Competitions_Controller {
 			);
 
 			// The results page with the share link shows the results however the club has set who sees them.
-			$results_page = $is_archived || empty( $competition->share_hash ) ? '' : Competition_Settings::page_url( 'results_page', $competition );
-			$results_url  = '' === $results_page ? '' : add_query_arg( 'share', $competition->share_hash, $results_page );
+			$results_url = $is_archived ? '' : Competition_Settings::share_url( $competition );
 
 			$last_updated_raw = ! empty( $competition->updated_at ) ? $competition->updated_at : $competition->created_at;
 
