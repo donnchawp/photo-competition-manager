@@ -40,7 +40,7 @@ class Results_Shortcode_Test extends WP_UnitTestCase {
 		parent::setUp();
 
 		// These tests show published results without the share link.
-		Public_Results::save( true );
+		Public_Results::save( Public_Results::PUBLIC );
 
 		$competitions         = new Competitions_Repository();
 		$this->competition_id = (int) $competitions->create(

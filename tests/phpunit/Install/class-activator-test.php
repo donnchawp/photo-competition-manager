@@ -819,13 +819,27 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
-	public function test_upgrade_to_13_keeps_results_public_where_past_competitions_are_on(): void {
+	public function test_upgrade_to_13_keeps_past_competitions_on_where_they_were(): void {
 		delete_option( Public_Results::OPTION );
-		Competition_Archive::save_settings( true, false );
+		// Version 12 kept the archive's own switch.
+		update_option(
+			Competition_Archive::OPTION,
+			array(
+				'enabled'      => true,
+				'show_winners' => true,
+			)
+		);
 		update_option( 'photo_comp_db_version', 12 );
 
 		Activator::maybe_upgrade();
 
+		$this->assertSame(
+			array(
+				'enabled'      => true,
+				'show_winners' => true,
+			),
+			Competition_Archive::settings()
+		);
 		$this->assertTrue( Public_Results::enabled() );
 	}
 

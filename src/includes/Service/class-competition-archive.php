@@ -108,9 +108,11 @@ class Competition_Archive {
 	}
 
 	/**
-	 * The club's archive settings: whether it's on, and whether it shows winners. Both default to off.
+	 * The club's archive settings: whether it's on, and whether it shows
+	 * winners. Both default to off.
 	 *
 	 * @since 0.5.0
+	 * @since 0.5.1 It's on when the club's results are public with past competitions.
 	 *
 	 * @return array{enabled: bool, show_winners: bool}
 	 */
@@ -119,28 +121,36 @@ class Competition_Archive {
 		$saved = is_array( $saved ) ? $saved : array();
 
 		return array(
-			'enabled'      => ! empty( $saved['enabled'] ),
+			'enabled'      => Public_Results::archive_enabled(),
 			'show_winners' => ! empty( $saved['show_winners'] ),
 		);
 	}
 
 	/**
-	 * Save the club's archive settings.
+	 * Whether the archive was on before 0.5.1, when it had its own switch.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @return bool
+	 */
+	public static function was_enabled(): bool {
+		$saved = get_option( self::OPTION, array() );
+
+		return is_array( $saved ) && ! empty( $saved['enabled'] );
+	}
+
+	/**
+	 * Save whether the archive shows positions and scores. Whether it's on
+	 * is the club's results choice (Public_Results).
 	 *
 	 * @since 0.5.0
+	 * @since 0.5.1 Takes only whether it shows winners.
 	 *
-	 * @param bool $enabled      Whether the archive is on.
 	 * @param bool $show_winners Whether it shows positions and scores.
 	 * @return void
 	 */
-	public static function save_settings( bool $enabled, bool $show_winners ): void {
-		update_option(
-			self::OPTION,
-			array(
-				'enabled'      => $enabled,
-				'show_winners' => $show_winners,
-			)
-		);
+	public static function save_settings( bool $show_winners ): void {
+		update_option( self::OPTION, array( 'show_winners' => $show_winners ) );
 	}
 
 	/**

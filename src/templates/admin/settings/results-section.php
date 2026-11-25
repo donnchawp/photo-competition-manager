@@ -15,9 +15,9 @@ defined( 'ABSPATH' ) || exit;
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Included inside a method, so these are its locals.
 
 $choices = array(
-	'private' => __( 'Private: the results and top three pages need the results share link, which members get in the results email', 'photo-competition-manager' ),
-	'public'  => __( 'Public: anyone can see published results on the results and top three pages', 'photo-competition-manager' ),
-	'archive' => __( 'Public, with past competitions: a page listing every competition whose results are published, too', 'photo-competition-manager' ),
+	\PhotoCompetitionManager\Service\Public_Results::PRIVATE      => __( 'Private: the results and top three pages need the results share link, which members get in the results email', 'photo-competition-manager' ),
+	\PhotoCompetitionManager\Service\Public_Results::PUBLIC       => __( 'Public: anyone can see published results on the results and top three pages', 'photo-competition-manager' ),
+	\PhotoCompetitionManager\Service\Public_Results::WITH_ARCHIVE => __( 'Public, with past competitions: a page listing every competition whose results are published, too', 'photo-competition-manager' ),
 );
 
 echo '<h2 id="results">' . esc_html__( 'Results', 'photo-competition-manager' ) . '</h2>';

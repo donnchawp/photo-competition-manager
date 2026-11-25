@@ -53,7 +53,7 @@ class Results_Competition_Test extends WP_UnitTestCase {
 	public function setUp(): void {
 		parent::setUp();
 
-		Public_Results::save( true );
+		Public_Results::save( Public_Results::PUBLIC );
 
 		$this->competitions = new Competitions_Repository();
 		$this->page         = new class( $this->competitions ) {
@@ -187,7 +187,7 @@ class Results_Competition_Test extends WP_UnitTestCase {
 
 	public function test_published_results_need_the_hash_while_the_club_keeps_results_private(): void {
 		$shown = $this->create_competition( 'shown', true, self::HASH );
-		Public_Results::save( false );
+		Public_Results::save( Public_Results::PRIVATE );
 
 		$this->assertFalse( $this->page->results_viewable( $shown, '' ) );
 		$this->assertTrue( $this->page->results_viewable( $shown, self::HASH ) );

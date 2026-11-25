@@ -173,7 +173,7 @@ $pcm_workflow = new Competition_Workflow();
 $pcm_seed_fail( $pcm_workflow->close_uploads( (int) $pcm_past->id ), 'close uploads' );
 $pcm_seed_fail( $pcm_workflow->publish_results( (int) $pcm_past->id ), 'publish results' );
 // Show published results without the share link, so the demo's results pages have something to show.
-update_option( 'photo_comp_results_public', '1' );
+update_option( 'photo_comp_results_visibility', 'public' );
 
 // This month's competition, open for a week. Cat hasn't entered yet.
 $pcm_enter( $pcm_create( 'Test competition', 'test-competition', time(), strtotime( '+7 days' ) ), array( 'Ann Beginner', 'Bob Intermediate' ) );

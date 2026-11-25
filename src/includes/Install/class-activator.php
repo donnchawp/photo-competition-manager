@@ -175,11 +175,17 @@ class Activator {
 			return;
 		}
 
-		// Results pages need a share link unless the club makes results
-		// public. A club that already has competitions, or shows past
-		// competitions, keeps them public; a new install starts private.
+		// Who sees published results is one choice now, and past
+		// competitions are its third option. A club that showed past
+		// competitions keeps them, one with competitions keeps its results
+		// public, and a new install starts private.
 		if ( $installed < 13 ) {
-			add_option( Public_Results::OPTION, self::has_competitions() || Competition_Archive::settings()['enabled'] ? '1' : '0' );
+			if ( Competition_Archive::was_enabled() ) {
+				$visibility = Public_Results::WITH_ARCHIVE;
+			} else {
+				$visibility = self::has_competitions() ? Public_Results::PUBLIC : Public_Results::PRIVATE;
+			}
+			add_option( Public_Results::OPTION, $visibility );
 		}
 
 		if ( $installed < 9 ) {
