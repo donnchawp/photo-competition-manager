@@ -645,7 +645,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 		$_POST          = array();
 		$_GET['ballot'] = 'cast';
 		$page           = $this->shortcode->render();
-		$this->assertStringContainsString( 'Thank you for voting! Your votes have been recorded anonymously.', $page );
+		$this->assertStringContainsString( 'Thank you for voting! Your votes have been recorded.', $page );
 		$this->assertStringNotContainsString( 'already been recorded', $page );
 	}
 
