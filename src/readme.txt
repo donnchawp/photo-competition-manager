@@ -204,6 +204,8 @@ Members and judges are included in **Tools → Export Personal Data** and **Tool
   * Each competition's actions sit under its title and show on hover, like the Posts screen, and the title opens its edit screen
   * New **View Results** link on each competition, opening its results page with the share link
   * The share link on the Results screen opens the results page, and Voting Controls' **Full Results** and **Top 3 Results** buttons use the share link, so they work while results are private
+* **Voting**
+  * The voting page no longer tells members who vote with emailed links that their votes are anonymous, because the admin can see who voted. The button says **Vote** again, the notice says other members won't see how you voted, and the thank-you message drops "anonymously"
 
 = 0.5.0 =
 * **Before you upgrade**
