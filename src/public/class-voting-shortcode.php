@@ -375,7 +375,7 @@ class Voting_Shortcode {
 		} elseif ( 'judges' === $auth_mode ) {
 			$message = '<p class="success">' . esc_html__( 'Thank you, your scores have been recorded.', 'photo-competition-manager' ) . '</p>';
 		} elseif ( 'token' === $auth_mode ) {
-			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded anonymously.', 'photo-competition-manager' ) . '</p>';
+			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
 		} else {
 			$message = '<p class="success">' . esc_html__( 'Thank you for voting! Your votes have been recorded.', 'photo-competition-manager' ) . '</p>';
 		}
@@ -488,7 +488,7 @@ class Voting_Shortcode {
 			'instructions_rule'    => __( 'You must vote for all images to submit your votes.', 'photo-competition-manager' ),
 			'anonymity_notice'     => true,
 			'nonce_action'         => 'photo_competition_vote_with_token',
-			'submit_label'         => __( 'Submit Anonymous Votes', 'photo-competition-manager' ),
+			'submit_label'         => __( 'Vote', 'photo-competition-manager' ),
 			'category'             => $voter ? $voter->category() : '',
 			'post_category'        => false,
 			'check_open'           => true,
@@ -739,7 +739,7 @@ class Voting_Shortcode {
 					<p><strong><?php echo esc_html( $view['instructions_rule'] ); ?></strong></p>
 					<?php if ( $view['anonymity_notice'] ) : ?>
 					<p class="anonymity-notice" style="color: #666; font-style: italic;">
-						<?php esc_html_e( 'Your votes are completely anonymous. Your name will not be associated with your votes.', 'photo-competition-manager' ); ?>
+						<?php esc_html_e( 'Other members won\'t see how you voted.', 'photo-competition-manager' ); ?>
 					</p>
 					<?php endif; ?>
 				</div>
