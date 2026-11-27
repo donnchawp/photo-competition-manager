@@ -800,12 +800,19 @@ class Competitions_Controller {
 					$this->enter_existing_member( $competition, $existing );
 					break;
 				}
+				$name       = sanitize_text_field( $this->get_post_string( 'member_name' ) );
+				$type_ids   = array( (int) $competition->type_id );
+				$wrong_kind = $this->entry->wrong_kind( $competition, $type_ids, $name );
+				if ( $wrong_kind ) {
+					$this->entrant_notice( $wrong_kind, '', '' );
+					break;
+				}
 				$new_id = $this->members->create(
 					array(
-						'name'     => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
+						'name'     => $name,
 						'email'    => $email,
 						'grade'    => sanitize_key( $this->get_post_string( 'member_grade' ) ),
-						'type_ids' => array( (int) $competition->type_id ),
+						'type_ids' => $type_ids,
 					)
 				);
 				if ( is_wp_error( $new_id ) ) {

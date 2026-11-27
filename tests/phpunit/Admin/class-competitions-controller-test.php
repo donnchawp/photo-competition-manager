@@ -2414,6 +2414,37 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entry_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
+	/**
+	 * A competition made interclub on its own Settings tab takes clubs, and a
+	 * new member would be tagged only with its people type, so they'd be
+	 * refused. Refused before they're created, so no member is left behind.
+	 */
+	public function test_create_member_who_would_be_the_wrong_kind_creates_no_one(): void {
+		$id = $this->create_entry_competition();
+		$this->competitions->update(
+			$id,
+			array(
+				'settings' => array(
+					'urls'      => array( 'upload_page' => 'https://example.com/upload/' ),
+					'interclub' => array( 'enabled' => true ),
+				),
+			)
+		);
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Dan Guest',
+				'member_email' => 'dan@example.com',
+				'member_grade' => 'beginner',
+			)
+		);
+
+		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
+		$this->assertContains( 'not_a_club', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
 	public function test_create_member_while_open_to_all_creates_no_one(): void {
 		$id = $this->create_entry_competition( 'all' );
 

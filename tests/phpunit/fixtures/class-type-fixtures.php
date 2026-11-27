@@ -63,6 +63,7 @@ class Type_Fixtures {
 	 * @param string[]             $unused_grades Slugs of the club's grades the type doesn't use.
 	 * @param array<string,mixed>  $settings      Settings beyond the one Open category, such as interclub.
 	 * @return int Type ID.
+	 * @throws \RuntimeException When the type's settings aren't valid.
 	 */
 	public static function create( string $name, array $grade_names = array(), array $unused_grades = array(), array $settings = array() ): int {
 		$id = ( new Competition_Types_Repository() )->create(
@@ -79,6 +80,9 @@ class Type_Fixtures {
 			$grade_names,
 			$unused_grades
 		);
+		if ( is_wp_error( $id ) ) {
+			throw new \RuntimeException( 'Type_Fixtures::create: ' . $id->get_error_message() ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+		}
 
 		return (int) $id;
 	}

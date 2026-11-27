@@ -198,6 +198,35 @@ class Competition_Entry {
 	}
 
 	/**
+	 * Why an admin can't enter a member with these type tags, when they're
+	 * the wrong kind for the competition.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param int[]  $type_ids    The member's type tags.
+	 * @param string $name        The member's name, for the message.
+	 * @return WP_Error|null 'not_a_club' or 'is_a_club', or null when they're the right kind.
+	 */
+	public function wrong_kind( object $competition, array $type_ids, string $name ): ?WP_Error {
+		if ( $this->is_right_kind( $competition, $type_ids ) ) {
+			return null;
+		}
+
+		return Competition_Settings::is_interclub( $competition )
+			? new WP_Error(
+				'not_a_club',
+				/* translators: %s: Member name */
+				sprintf( __( '%s isn\'t a club, so they can\'t enter a competition between clubs.', 'photo-competition-manager' ), $name )
+			)
+			: new WP_Error(
+				'is_a_club',
+				/* translators: %s: Club name */
+				sprintf( __( '%s is a club, so it can\'t enter a competition for individual photographers.', 'photo-competition-manager' ), $name )
+			);
+	}
+
+	/**
 	 * The active members who may enter a competition and have an email address.
 	 *
 	 * @param object $competition Competition row.
@@ -283,18 +312,9 @@ class Competition_Entry {
 			);
 		}
 
-		if ( ! $this->is_right_kind( $competition, $type_ids ) ) {
-			return Competition_Settings::is_interclub( $competition )
-				? new WP_Error(
-					'not_a_club',
-					/* translators: %s: Member name */
-					sprintf( __( '%s isn\'t a club, so they can\'t enter a competition between clubs.', 'photo-competition-manager' ), $member->name )
-				)
-				: new WP_Error(
-					'is_a_club',
-					/* translators: %s: Club name */
-					sprintf( __( '%s is a club, so it can\'t enter a competition for individual photographers.', 'photo-competition-manager' ), $member->name )
-				);
+		$wrong_kind = $this->wrong_kind( $competition, $type_ids, $member->name );
+		if ( $wrong_kind ) {
+			return $wrong_kind;
 		}
 
 		if ( ! $this->uses_grade_of( $competition, $member ) ) {
