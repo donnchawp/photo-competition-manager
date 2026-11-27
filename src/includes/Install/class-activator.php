@@ -39,7 +39,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 13;
+	const DB_VERSION = 14;
 
 	/**
 	 * Option holding the installed data version.
@@ -190,6 +190,12 @@ class Activator {
 
 		// Private results need a share link, and older competitions may not have one.
 		if ( $installed < 13 && ! self::give_competitions_share_hashes() ) {
+			return;
+		}
+
+		// A competition for selected entrants can charge an entry fee, and
+		// each entrant is paid or not. Existing entrants count as paid.
+		if ( $installed < 14 && ! self::add_entry_fee_schema() ) {
 			return;
 		}
 
@@ -706,6 +712,40 @@ class Activator {
 	}
 
 	/**
+	 * Add the entry fee and payment instructions to competitions, and paid
+	 * status to entrants. Existing entrants take the default: paid.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @return bool False if a column is still missing, so the step runs again.
+	 */
+	private static function add_entry_fee_schema(): bool {
+		global $wpdb;
+
+		$competitions = $wpdb->prefix . 'photocomp_competitions';
+		$entrants     = $wpdb->prefix . 'photocomp_entrants';
+
+		if ( ! self::column_exists( $competitions, 'entry_fee' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN entry_fee VARCHAR(191) NOT NULL DEFAULT ''", $competitions ) );
+		}
+
+		if ( ! self::column_exists( $competitions, 'payment_instructions' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN payment_instructions TEXT NULL', $competitions ) );
+		}
+
+		if ( ! self::column_exists( $entrants, 'paid' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN paid TINYINT(1) NOT NULL DEFAULT 1', $entrants ) );
+		}
+
+		return self::column_exists( $competitions, 'entry_fee' )
+			&& self::column_exists( $competitions, 'payment_instructions' )
+			&& self::column_exists( $entrants, 'paid' );
+	}
+
+	/**
 	 * Give every competition without a share hash its own, so its results
 	 * can be shared while the club's results are private.
 	 *
@@ -1142,6 +1182,8 @@ class Activator {
 			deleted_at DATETIME NULL,
 			type_id BIGINT UNSIGNED NULL,
 			entry_mode VARCHAR(20) NOT NULL DEFAULT 'all',
+			entry_fee VARCHAR(191) NOT NULL DEFAULT '',
+			payment_instructions TEXT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY slug (slug),
 			KEY share_hash (share_hash),
@@ -1297,6 +1339,7 @@ class Activator {
 		$entrants = "CREATE TABLE {$wpdb->prefix}photocomp_entrants (
 			competition_id BIGINT UNSIGNED NOT NULL,
 			member_id BIGINT UNSIGNED NOT NULL,
+			paid TINYINT(1) NOT NULL DEFAULT 1,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (competition_id, member_id),
 			KEY member_id (member_id)

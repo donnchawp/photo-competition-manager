@@ -12,6 +12,7 @@ use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Public_Results;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -816,6 +817,36 @@ class Activator_Test extends WP_UnitTestCase {
 		Activator::maybe_upgrade();
 
 		$this->assertSame( '1', ( new Members_Repository() )->find( $member )->images_public );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
+	public function test_upgrade_to_14_keeps_existing_entrants_as_paid(): void {
+		global $wpdb;
+
+		// The entrants table as version 13 left it, without paid status.
+		$this->shadowed = $wpdb->prefix . 'photocomp_entrants';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				competition_id BIGINT UNSIGNED NOT NULL,
+				member_id BIGINT UNSIGNED NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (competition_id, member_id),
+				KEY member_id (member_id)
+			) {$wpdb->get_charset_collate()}"
+		);
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'competition_id' => 7,
+				'member_id'      => 3,
+			)
+		);
+		update_option( 'photo_comp_db_version', 13 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array( 3 ), ( new Entrants_Repository() )->member_ids( 7 ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->unpaid_member_ids( 7 ) );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 

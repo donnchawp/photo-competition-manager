@@ -16,6 +16,7 @@ use PhotoCompetitionManager\Admin\Voting_Controller;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Competition_Judges_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -171,6 +172,65 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 			);
 		}
 		$this->assert_matches_snapshot( 'happy-path', array( $comp_id ) );
+	}
+
+	/**
+	 * Seed a selected-entrants competition with a colour entry from each of
+	 * Ann and Bob, both entrants.
+	 *
+	 * @param string $fee Entry fee, or '' for none.
+	 * @return array{0:int,1:int,2:int} Competition, Ann and Bob IDs.
+	 */
+	private function seed_fee_competition( string $fee ): array {
+		$comp_id = $this->competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Spring Show',
+				'slug'       => 'spring-show',
+				'entry_mode' => 'selected',
+				'entry_fee'  => $fee,
+				'settings'   => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+						),
+					),
+				),
+			)
+		);
+		$entrants = new Entrants_Repository();
+		$ids      = array( $comp_id );
+		foreach ( array( 'Ann', 'Bob' ) as $name ) {
+			$member_id = $this->members->create(
+				array(
+					'name'  => $name,
+					'email' => strtolower( $name ) . '@example.com',
+					'grade' => 'beginner',
+				)
+			);
+			$entrants->add( $comp_id, $member_id );
+			Entry_Fixtures::insert_entry( $comp_id, 'colour', $member_id, array() );
+			$ids[] = $member_id;
+		}
+
+		return $ids;
+	}
+
+	public function test_render_warns_about_entrants_who_have_not_paid(): void {
+		list( $comp_id, $ann ) = $this->seed_fee_competition( '€20' );
+		( new Entrants_Repository() )->set_paid( $comp_id, $ann, false );
+
+		$html = $this->render_html();
+
+		$this->assertStringContainsString( '1 entrant hasn&#039;t paid the entry fee: Ann.', $html );
+		$this->assertStringContainsString( 'tab=entrants', $html );
+	}
+
+	public function test_render_has_no_payment_warning_when_everyone_has_paid(): void {
+		$this->seed_fee_competition( '€20' );
+
+		$this->assertStringNotContainsString( 'paid the entry fee', $this->render_html() );
 	}
 
 	/**

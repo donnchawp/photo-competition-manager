@@ -359,6 +359,85 @@ class Competition_Entry {
 	}
 
 	/**
+	 * Set a competition's entry fee and payment instructions. A blank fee
+	 * means none. Only a competition for selected entrants takes a fee, and
+	 * it can change at any time, since payment is often checked afterwards.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition  Competition row.
+	 * @param string $fee          Fee, such as "€20", or '' for none.
+	 * @param string $instructions How to pay.
+	 * @return true|WP_Error 'not_selected_mode', or the update's error.
+	 */
+	public function set_fee( object $competition, string $fee, string $instructions ) {
+		if ( ! self::is_selected( $competition ) ) {
+			return new WP_Error( 'not_selected_mode', __( 'Only a competition for selected entrants can have an entry fee.', 'photo-competition-manager' ) );
+		}
+
+		$updated = $this->competitions->update(
+			(int) $competition->id,
+			array(
+				'entry_fee'            => $fee,
+				'payment_instructions' => $instructions,
+			)
+		);
+
+		return is_wp_error( $updated ) ? $updated : true;
+	}
+
+	/**
+	 * Whether the competition charges an entry fee: it's for selected
+	 * entrants and has a fee set.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return bool
+	 */
+	public static function has_fee( object $competition ): bool {
+		return self::is_selected( $competition ) && '' !== trim( (string) ( $competition->entry_fee ?? '' ) );
+	}
+
+	/**
+	 * Mark an entrant as having paid the entry fee, or not. It never stops
+	 * them entering; what happens to someone who hasn't paid is up to the
+	 * organiser.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @param int    $member_id   Member ID.
+	 * @param bool   $paid        Whether they've paid.
+	 * @return true|WP_Error 'no_entry_fee' or 'not_an_entrant'.
+	 */
+	public function set_paid( object $competition, int $member_id, bool $paid ) {
+		if ( ! self::has_fee( $competition ) ) {
+			return new WP_Error( 'no_entry_fee', __( 'This competition has no entry fee.', 'photo-competition-manager' ) );
+		}
+
+		if ( ! $this->entrants->has( (int) $competition->id, $member_id ) ) {
+			return new WP_Error( 'not_an_entrant', __( 'That member isn\'t an entrant in this competition.', 'photo-competition-manager' ) );
+		}
+
+		$this->entrants->set_paid( (int) $competition->id, $member_id, $paid );
+
+		return true;
+	}
+
+	/**
+	 * The entrants who haven't paid the entry fee: none when there is no fee.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return int[] Member IDs, in ID order.
+	 */
+	public function unpaid_member_ids( object $competition ): array {
+		return self::has_fee( $competition ) ? $this->entrants->unpaid_member_ids( (int) $competition->id ) : array();
+	}
+
+	/**
 	 * Whether the competition is for selected entrants only.
 	 *
 	 * @param object $competition Competition row.

@@ -8,7 +8,10 @@
  * $data['can_change'] (bool): false once voting has started or the competition
  * has closed, $data['locked_message'] (string): why, or '' while it can change,
  * $data['uploads_open'] (bool), $data['entrants'] (objects with id, name,
- * email, active and has_entries), $data['addable'] (objects with id, name and
+ * email, active, has_entries and paid), $data['has_fee'] (bool): whether the
+ * competition charges an entry fee, $data['entry_fee'] (string) and
+ * $data['instructions'] (string): the fee and payment instructions as saved,
+ * $data['addable'] (objects with id, name and
  * email): the type's members who aren't entrants yet, for the Add entrants picker, $data['grade_options'] (array<string,string>
  * of grade slug => label), $data['interclub'] (bool): whether the entrants are
  * clubs, and $data['type_name'] (string): the competition's type, or '' when
@@ -60,6 +63,21 @@ if ( 'selected' !== $data['entry_mode'] ) {
 	return;
 }
 
+// The fee can change at any time, since payment is often checked afterwards.
+echo '<div class="card" style="max-width: 720px; padding: 16px;">';
+echo '<h3>' . esc_html__( 'Entry fee', 'photo-competition-manager' ) . '</h3>';
+echo $form_start; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built with esc_attr() above.
+echo '<input type="hidden" name="photo_competition_action" value="set_entry_fee" />';
+echo '<p><label for="entry_fee">' . esc_html__( 'Fee', 'photo-competition-manager' ) . '</label><br />';
+echo '<input type="text" id="entry_fee" name="entry_fee" class="regular-text" maxlength="191" value="' . esc_attr( $data['entry_fee'] ) . '" /></p>';
+echo '<p class="description">' . esc_html__( 'Such as €20. Leave it blank for no fee. Each entrant pays once, whether a member or a club.', 'photo-competition-manager' ) . '</p>';
+echo '<p><label for="payment_instructions">' . esc_html__( 'How to pay', 'photo-competition-manager' ) . '</label><br />';
+echo '<textarea id="payment_instructions" name="payment_instructions" class="large-text" rows="3">' . esc_textarea( $data['instructions'] ) . '</textarea></p>';
+echo '<p class="description">' . esc_html__( 'The plugin doesn\'t take payment. Once you\'ve checked someone has paid, mark them paid below. Entrants you add start as paid.', 'photo-competition-manager' ) . '</p>';
+submit_button( __( 'Save Entry Fee', 'photo-competition-manager' ), 'secondary', 'save_entry_fee' );
+echo '</form>';
+echo '</div>';
+
 echo '<div class="card" style="max-width: 720px; padding: 16px;">';
 echo '<h3>' . esc_html__( 'Entrants', 'photo-competition-manager' ) . '</h3>';
 
@@ -70,6 +88,9 @@ if ( empty( $data['entrants'] ) ) {
 	echo '<thead><tr>';
 	echo '<th>' . ( $data['interclub'] ? esc_html__( 'Club', 'photo-competition-manager' ) : esc_html__( 'Member', 'photo-competition-manager' ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
+	if ( $data['has_fee'] ) {
+		echo '<th>' . esc_html__( 'Fee', 'photo-competition-manager' ) . '</th>';
+	}
 	echo '<th>' . esc_html__( 'Actions', 'photo-competition-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
 
@@ -81,6 +102,19 @@ if ( empty( $data['entrants'] ) ) {
 		}
 		echo '</td>';
 		echo '<td>' . esc_html( $entrant->email ) . '</td>';
+
+		if ( $data['has_fee'] ) {
+			echo '<td>';
+			echo $entrant->paid ? esc_html__( 'Paid', 'photo-competition-manager' ) : '<strong>' . esc_html__( 'Unpaid', 'photo-competition-manager' ) . '</strong>';
+			echo ' ' . $form_start; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built with esc_attr() above.
+			echo '<input type="hidden" name="photo_competition_action" value="set_entrant_paid" />';
+			echo '<input type="hidden" name="member_id" value="' . esc_attr( $entrant->id ) . '" />';
+			echo '<input type="hidden" name="paid" value="' . ( $entrant->paid ? '0' : '1' ) . '" />';
+			echo '<button type="submit" class="button-link">' . ( $entrant->paid ? esc_html__( 'Mark unpaid', 'photo-competition-manager' ) : esc_html__( 'Mark paid', 'photo-competition-manager' ) ) . '</button>';
+			echo '</form>';
+			echo '</td>';
+		}
+
 		echo '<td>';
 
 		if ( $data['uploads_open'] && $entrant->active ) {

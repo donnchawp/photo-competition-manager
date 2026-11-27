@@ -19,6 +19,7 @@ use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Votes_Repository;
 use PhotoCompetitionManager\Service\Public_Results;
+use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Ballots;
 use PhotoCompetitionManager\Service\Competition_Workflow;
@@ -525,6 +526,9 @@ class Voting_Controller {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_template( 'admin/voting/notice-missing-pages.php', array( 'missing' => $missing ) );
 		}
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
+		echo $this->render_unpaid_notice( $active_competition );
 
 		// The Results and Top 3 buttons carry the share link, so they work
 		// while the club's results are private. It shows results before
@@ -1159,6 +1163,42 @@ class Voting_Controller {
 				'slideshow_replay_duration' => $slideshow_replay_duration,
 				'critique_replay_duration'  => $critique_replay_duration,
 				'show_results_url'          => $show_results_url,
+			)
+		);
+	}
+
+	/**
+	 * The warning that some entrants haven't paid the entry fee, or '' when
+	 * everyone has or there's no fee.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return string
+	 */
+	private function render_unpaid_notice( object $competition ): string {
+		$unpaid = ( new Competition_Entry( $this->competitions, $this->members ) )->unpaid_member_ids( $competition );
+
+		if ( array() === $unpaid ) {
+			return '';
+		}
+
+		$names = wp_list_pluck( $this->members->find_many( $unpaid ), 'name' );
+		natcasesort( $names );
+
+		return $this->render_template(
+			'admin/voting/notice-unpaid-entrants.php',
+			array(
+				'names'        => array_values( $names ),
+				'entrants_url' => add_query_arg(
+					array(
+						'page'        => 'photo-competition-manager',
+						'action'      => 'edit',
+						'competition' => (int) $competition->id,
+						'tab'         => 'entrants',
+					),
+					admin_url( 'admin.php' )
+				),
 			)
 		);
 	}

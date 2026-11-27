@@ -2221,6 +2221,55 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $id ) );
 	}
 
+	public function test_set_the_entry_fee_from_the_entrants_tab(): void {
+		$id = $this->create_entry_competition();
+
+		$this->post_entrants_action(
+			$id,
+			'set_entry_fee',
+			array(
+				'entry_fee'            => '€20',
+				'payment_instructions' => 'Pay by PayPal.',
+			)
+		);
+
+		$competition = $this->competitions->find( $id );
+		$this->assertSame( '€20', $competition->entry_fee );
+		$this->assertSame( 'Pay by PayPal.', $competition->payment_instructions );
+		$this->assertContains( 'entry_fee_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
+	public function test_mark_an_entrant_unpaid_and_paid_from_the_entrants_tab(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		$this->competitions->update( $id, array( 'entry_fee' => '€20' ) );
+
+		$this->post_entrants_action( $id, 'set_entrant_paid', array( 'member_id' => (string) $ann, 'paid' => '0' ) );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->unpaid_member_ids( $id ) );
+
+		$this->post_entrants_action( $id, 'set_entrant_paid', array( 'member_id' => (string) $ann, 'paid' => '1' ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->unpaid_member_ids( $id ) );
+	}
+
+	public function test_mark_an_entrant_unpaid_bad_nonce_dies(): void {
+		$id  = $this->create_entry_competition();
+		$ann = $this->create_member( 'Ann' );
+		( new Entrants_Repository() )->add( $id, $ann );
+		$this->competitions->update( $id, array( 'entry_fee' => '€20' ) );
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'set_entrant_paid',
+				'competition_id'           => $id,
+				'member_id'                => $ann,
+				'paid'                     => '0',
+			)
+		);
+
+		$this->expectException( \WPDieException::class );
+		$this->controller->handle_actions();
+	}
+
 	public function test_create_member_and_enter_them(): void {
 		$id = $this->create_entry_competition();
 		reset_phpmailer_instance();

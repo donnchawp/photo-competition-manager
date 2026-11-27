@@ -100,6 +100,64 @@ class Entrants_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Record whether an entrant has paid the competition's entry fee.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int  $competition_id Competition ID.
+	 * @param int  $member_id      Member ID.
+	 * @param bool $paid           Whether they've paid.
+	 * @return void
+	 */
+	public function set_paid( int $competition_id, int $member_id, bool $paid ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$this->table(),
+			array( 'paid' => $paid ? 1 : 0 ),
+			array(
+				'competition_id' => $competition_id,
+				'member_id'      => $member_id,
+			),
+			array( '%d' ),
+			array( '%d', '%d' )
+		);
+	}
+
+	/**
+	 * A competition's entrants marked as not having paid.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return int[] Member IDs, in ID order.
+	 */
+	public function unpaid_member_ids( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT member_id FROM %i WHERE competition_id = %d AND paid = 0 ORDER BY member_id', $this->table(), $competition_id ) );
+
+		return array_map( 'intval', $ids );
+	}
+
+	/**
+	 * The competitions a member is an entrant in, with whether they've paid.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int $member_id Member ID.
+	 * @return array<int, object> Rows with competition_id and paid, in competition order.
+	 */
+	public function find_by_member( int $member_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT competition_id, paid FROM %i WHERE member_id = %d ORDER BY competition_id', $this->table(), $member_id ) );
+	}
+
+	/**
 	 * Delete a competition's entrants.
 	 *
 	 * @param int $competition_id Competition ID.
