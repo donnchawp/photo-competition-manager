@@ -581,12 +581,9 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
 
-		$types      = new Competition_Types_Repository();
-		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
-
 		return array(
-			'Individual' => (int) $types->create( 'Individual', $categories ),
-			'Team'       => (int) $types->create( 'Team', $categories + ( $team_is_interclub ? array( 'interclub' => array( 'enabled' => true ) ) : array() ) ),
+			'Individual' => Type_Fixtures::create( 'Individual' ),
+			'Team'       => Type_Fixtures::create( 'Team', array(), array(), array( 'interclub' => array( 'enabled' => $team_is_interclub ) ) ),
 		);
 	}
 

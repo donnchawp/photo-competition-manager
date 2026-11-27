@@ -7,7 +7,6 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
-use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -220,19 +219,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 * @return void
 	 */
 	private function add_club_type(): void {
-		$this->types['Clubs'] = (int) ( new Competition_Types_Repository() )->create(
-			'Clubs',
-			array(
-				'categories' => array(
-					array(
-						'label' => 'Open',
-						'slug'  => 'open',
-						'quota' => 2,
-					),
-				),
-				'interclub'  => array( 'enabled' => true ),
-			)
-		);
+		$this->types['Clubs'] = Type_Fixtures::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) );
 	}
 
 	/**

@@ -61,12 +61,13 @@ class Type_Fixtures {
 	 * @param string               $name        Type name.
 	 * @param array<string,string> $grade_names   Grade slug to the name the type shows for it.
 	 * @param string[]             $unused_grades Slugs of the club's grades the type doesn't use.
+	 * @param array<string,mixed>  $settings      Settings beyond the one Open category, such as interclub.
 	 * @return int Type ID.
 	 */
-	public static function create( string $name, array $grade_names = array(), array $unused_grades = array() ): int {
+	public static function create( string $name, array $grade_names = array(), array $unused_grades = array(), array $settings = array() ): int {
 		$id = ( new Competition_Types_Repository() )->create(
 			$name,
-			array(
+			$settings + array(
 				'categories' => array(
 					array(
 						'label' => 'Open',

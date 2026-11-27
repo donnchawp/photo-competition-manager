@@ -134,18 +134,18 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		return $this->in_type( $competition, (int) $member->id );
+		return $this->in_type( $competition, $this->members->type_ids( (int) $member->id ) );
 	}
 
 	/**
 	 * Whether a member is tagged with a competition's type.
 	 *
 	 * @param object $competition Competition row.
-	 * @param int    $member_id   Member ID.
+	 * @param int[]  $type_ids    The member's type tags.
 	 * @return bool
 	 */
-	private function in_type( object $competition, int $member_id ): bool {
-		return in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true );
+	private function in_type( object $competition, array $type_ids ): bool {
+		return in_array( (int) $competition->type_id, $type_ids, true );
 	}
 
 	/**
@@ -188,16 +188,11 @@ class Competition_Entry {
 	 * @return bool
 	 */
 	public function is_right_kind( object $competition, array $type_ids ): bool {
-		if ( null === $this->club_type_ids ) {
-			$this->club_type_ids = array();
-			foreach ( $this->types->all() as $type ) {
-				if ( Competition_Settings::type_is_interclub( $type ) ) {
-					$this->club_type_ids[] = (int) $type->id;
-				}
-			}
-		}
-
-		$is_club = (bool) array_intersect( array_map( 'intval', $type_ids ), $this->club_type_ids );
+		$this->club_type_ids ??= array_map(
+			'intval',
+			wp_list_pluck( array_filter( $this->types->all(), array( Competition_Settings::class, 'type_is_interclub' ) ), 'id' )
+		);
+		$is_club               = (bool) array_intersect( $type_ids, $this->club_type_ids );
 
 		return Competition_Settings::is_interclub( $competition ) === $is_club;
 	}
@@ -276,7 +271,8 @@ class Competition_Entry {
 		}
 
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
-		if ( ! $this->in_type( $competition, $member_id ) ) {
+		$type_ids = $this->members->type_ids( $member_id );
+		if ( ! $this->in_type( $competition, $type_ids ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(
@@ -287,7 +283,7 @@ class Competition_Entry {
 			);
 		}
 
-		if ( ! $this->is_right_kind( $competition, $this->members->type_ids( $member_id ) ) ) {
+		if ( ! $this->is_right_kind( $competition, $type_ids ) ) {
 			return Competition_Settings::is_interclub( $competition )
 				? new WP_Error(
 					'not_a_club',
