@@ -110,7 +110,7 @@ if ( empty( $data['entrants'] ) ) {
 			echo '<input type="hidden" name="photo_competition_action" value="set_entrant_paid" />';
 			echo '<input type="hidden" name="member_id" value="' . esc_attr( $entrant->id ) . '" />';
 			echo '<input type="hidden" name="paid" value="' . ( $entrant->paid ? '0' : '1' ) . '" />';
-			echo '<button type="submit" class="button-link">' . ( $entrant->paid ? esc_html__( 'Mark unpaid', 'photo-competition-manager' ) : esc_html__( 'Mark paid', 'photo-competition-manager' ) ) . '</button>';
+			echo '<button type="submit" class="button-link" style="white-space: nowrap;">' . ( $entrant->paid ? esc_html__( 'Mark unpaid', 'photo-competition-manager' ) : esc_html__( 'Mark paid', 'photo-competition-manager' ) ) . '</button>';
 			echo '</form>';
 			echo '</td>';
 		}
