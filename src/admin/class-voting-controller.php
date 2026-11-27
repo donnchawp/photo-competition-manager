@@ -528,7 +528,7 @@ class Voting_Controller {
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-		echo $this->render_unpaid_notice( $active_competition );
+		echo $this->render_unpaid_notice( $active_competition, $images );
 
 		// The Results and Top 3 buttons carry the share link, so they work
 		// while the club's results are private. It shows results before
@@ -1168,16 +1168,20 @@ class Voting_Controller {
 	}
 
 	/**
-	 * The warning that some entrants haven't paid the entry fee, or '' when
-	 * everyone has or there's no fee.
+	 * The warning that some entrants with entries on the ballot haven't paid
+	 * the entry fee, or '' when they all have or there's no fee.
 	 *
 	 * @since 0.6.0
 	 *
-	 * @param object $competition Competition row.
+	 * @param object             $competition Competition row.
+	 * @param array<int, object> $images      The competition's entered images.
 	 * @return string
 	 */
-	private function render_unpaid_notice( object $competition ): string {
-		$unpaid = ( new Competition_Entry( $this->competitions, $this->members ) )->unpaid_member_ids( $competition );
+	private function render_unpaid_notice( object $competition, array $images ): string {
+		$unpaid = array_intersect(
+			( new Competition_Entry( $this->competitions, $this->members ) )->unpaid_member_ids( $competition ),
+			array_map( 'intval', wp_list_pluck( $images, 'member_id' ) )
+		);
 
 		if ( array() === $unpaid ) {
 			return '';

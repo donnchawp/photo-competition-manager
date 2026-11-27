@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
 
 $count = count( $data['names'] );
 
-echo '<div class="notice notice-warning">';
+echo '<div class="notice notice-warning photo-comp-unpaid-notice">';
 echo '<p>';
 echo esc_html(
 	sprintf(

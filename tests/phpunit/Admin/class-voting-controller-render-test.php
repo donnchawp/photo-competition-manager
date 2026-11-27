@@ -217,20 +217,52 @@ class Voting_Controller_Render_Test extends Admin_Controller_Test_Case {
 		return $ids;
 	}
 
+	/**
+	 * The unpaid-entrants warning on the page, or '' when there is none.
+	 *
+	 * @return string
+	 */
+	private function unpaid_notice(): string {
+		preg_match( '#<div class="notice notice-warning photo-comp-unpaid-notice">.*?</div>#s', $this->render_html(), $match );
+
+		return $match[0] ?? '';
+	}
+
 	public function test_render_warns_about_entrants_who_have_not_paid(): void {
 		list( $comp_id, $ann ) = $this->seed_fee_competition( '€20' );
 		( new Entrants_Repository() )->set_paid( $comp_id, $ann, false );
 
-		$html = $this->render_html();
+		$notice = $this->unpaid_notice();
 
-		$this->assertStringContainsString( '1 entrant hasn&#039;t paid the entry fee: Ann.', $html );
-		$this->assertStringContainsString( 'tab=entrants', $html );
+		$this->assertStringContainsString( 'Ann', $notice );
+		$this->assertStringNotContainsString( 'Bob', $notice );
+		$this->assertStringContainsString( 'tab=entrants', $notice );
 	}
 
 	public function test_render_has_no_payment_warning_when_everyone_has_paid(): void {
 		$this->seed_fee_competition( '€20' );
 
-		$this->assertStringNotContainsString( 'paid the entry fee', $this->render_html() );
+		$this->assertSame( '', $this->unpaid_notice() );
+	}
+
+	/**
+	 * Only entries on the ballot matter on competition night, so an unpaid
+	 * entrant who never uploaded isn't named.
+	 */
+	public function test_render_payment_warning_leaves_out_unpaid_entrants_without_entries(): void {
+		list( $comp_id ) = $this->seed_fee_competition( '€20' );
+		$cat             = $this->members->create(
+			array(
+				'name'  => 'Cat',
+				'email' => 'cat@example.com',
+				'grade' => 'beginner',
+			)
+		);
+		$entrants        = new Entrants_Repository();
+		$entrants->add( $comp_id, $cat );
+		$entrants->set_paid( $comp_id, $cat, false );
+
+		$this->assertSame( '', $this->unpaid_notice() );
 	}
 
 	/**

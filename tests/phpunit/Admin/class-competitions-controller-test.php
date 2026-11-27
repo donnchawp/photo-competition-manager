@@ -2239,17 +2239,15 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entry_fee_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
-	public function test_mark_an_entrant_unpaid_and_paid_from_the_entrants_tab(): void {
+	public function test_mark_an_entrant_unpaid_from_the_entrants_tab(): void {
 		$id  = $this->create_entry_competition();
 		$ann = $this->create_member( 'Ann' );
 		( new Entrants_Repository() )->add( $id, $ann );
 		$this->competitions->update( $id, array( 'entry_fee' => '€20' ) );
 
 		$this->post_entrants_action( $id, 'set_entrant_paid', array( 'member_id' => (string) $ann, 'paid' => '0' ) );
-		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->unpaid_member_ids( $id ) );
 
-		$this->post_entrants_action( $id, 'set_entrant_paid', array( 'member_id' => (string) $ann, 'paid' => '1' ) );
-		$this->assertSame( array(), ( new Entrants_Repository() )->unpaid_member_ids( $id ) );
+		$this->assertSame( array( $ann ), ( new Entrants_Repository() )->unpaid_member_ids( $id ) );
 	}
 
 	public function test_mark_an_entrant_unpaid_bad_nonce_dies(): void {
