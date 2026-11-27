@@ -42,7 +42,7 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 		global $wpdb;
 		// Remove types the upgrade may have left, inside the test transaction.
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
-		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', $wpdb->prefix . 'photocomp_members' ) );
 
 		$this->types      = new Competition_Types_Repository();
 		$this->controller = new Types_Controller( $this->types );

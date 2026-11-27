@@ -206,8 +206,9 @@ class Activator {
 		}
 
 		// A member has one type: it decides which competitions they enter
-		// and whether they're a club or a person.
-		if ( $installed < 16 && ! self::keep_one_type_per_member() ) {
+		// and whether they're a club or a person. After the types step, which
+		// tags members in the old tag table.
+		if ( $installed < 16 && ! self::move_types_onto_members() ) {
 			return;
 		}
 
@@ -801,47 +802,55 @@ class Activator {
 	}
 
 	/**
-	 * Keep each member's first type, the lowest ID, logging any other, then
-	 * add the unique key that stops a second one.
+	 * Give each member a type column holding their first type tag, the lowest
+	 * ID, and log any other tag, since a member has one type now.
+	 *
+	 * The tag table is left as it was, for a downgrade; nothing reads it after
+	 * this step.
 	 *
 	 * @since 0.6.0
 	 *
-	 * @return bool False if the key couldn't be added, so the step runs again.
+	 * @return bool False if the column or its key is still missing, so the step runs again.
 	 */
-	private static function keep_one_type_per_member(): bool {
+	private static function move_types_onto_members(): bool {
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'photocomp_member_types';
+		$members = $wpdb->prefix . 'photocomp_members';
+		$tags    = $wpdb->prefix . 'photocomp_member_types';
 
-		// Only when the key is missing: DDL ends the running transaction.
-		if ( self::has_unique_keys( $table, array( 'member_id' ) ) ) {
+		if ( ! self::column_exists( $members, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN type_id BIGINT UNSIGNED NULL AFTER images_public', $members ) );
+		}
+
+		if ( ! self::has_key( $members, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD KEY type_id (type_id)', $members ) );
+		}
+
+		if ( ! self::column_exists( $members, 'type_id' ) || ! self::has_key( $members, 'type_id' ) ) {
+			return false;
+		}
+
+		if ( ! self::table_exists( $tags ) ) {
 			return true;
 		}
 
+		// Only members not moved yet, so running again logs nothing twice.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$extra = $wpdb->get_results(
+		$dropped = $wpdb->get_results(
 			$wpdb->prepare(
 				'SELECT t.member_id, t.type_id FROM %i t
-				JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id HAVING COUNT(*) > 1) k
-				ON k.member_id = t.member_id AND t.type_id <> k.kept',
-				$table,
-				$table
+				JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id) k ON k.member_id = t.member_id
+				JOIN %i m ON m.id = t.member_id
+				WHERE t.type_id <> k.kept AND m.type_id IS NULL',
+				$tags,
+				$tags,
+				$members
 			)
 		);
 
-		foreach ( $extra as $tag ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			if ( ! $wpdb->delete(
-				$table,
-				array(
-					'member_id' => (int) $tag->member_id,
-					'type_id'   => (int) $tag->type_id,
-				),
-				array( '%d', '%d' )
-			) ) {
-				return false;
-			}
-
+		foreach ( $dropped as $tag ) {
 			// The upgrade runs before translations load, so this is in English.
 			( new Logs_Repository() )->create(
 				array(
@@ -858,9 +867,15 @@ class Activator {
 			);
 		}
 
-		self::create_tables();
-
-		return self::has_unique_keys( $table, array( 'member_id' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return false !== $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i m JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id) k ON k.member_id = m.id
+				SET m.type_id = k.kept WHERE m.type_id IS NULL',
+				$members,
+				$tags
+			)
+		);
 	}
 
 	/**
@@ -1280,10 +1295,12 @@ class Activator {
 			active TINYINT(1) NOT NULL DEFAULT 1,
 			committee TINYINT(1) NOT NULL DEFAULT 0,
 			images_public TINYINT(1) NOT NULL DEFAULT 1,
+			type_id BIGINT UNSIGNED NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
-			KEY email (email)
+			KEY email (email),
+			KEY type_id (type_id)
 		) {$charset_collate};";
 
 		$competitions = "CREATE TABLE {$wpdb->prefix}photocomp_competitions (
@@ -1453,7 +1470,6 @@ class Activator {
 			member_id BIGINT UNSIGNED NOT NULL,
 			type_id BIGINT UNSIGNED NOT NULL,
 			PRIMARY KEY  (member_id, type_id),
-			UNIQUE KEY member_id (member_id),
 			KEY type_id (type_id)
 		) {$charset_collate};";
 

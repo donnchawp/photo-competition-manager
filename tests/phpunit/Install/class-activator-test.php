@@ -881,24 +881,23 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
-	public function test_upgrade_to_16_keeps_one_type_per_member_and_makes_that_the_rule(): void {
-		global $wpdb;
-		$this->shadow_v15_member_types_table();
-		$wpdb->query( "INSERT INTO {$this->shadowed} (member_id, type_id) VALUES (3, 5), (3, 2), (4, 5)" );
+	public function test_upgrade_to_16_gives_each_member_their_first_type(): void {
+		$this->shadow_v15_members_and_types();
 		update_option( 'photo_comp_db_version', 15 );
 
 		Activator::maybe_upgrade();
 
 		// The lowest type ID is the type the member was given first.
-		$this->assertSame( array( '3:2', '4:5' ), $wpdb->get_col( "SELECT CONCAT(member_id, ':', type_id) FROM {$this->shadowed} ORDER BY member_id" ) );
-		$added = preg_grep( '/^ALTER TABLE `?\w*photocomp_member_types`? ADD UNIQUE KEY `?member_id`? \(`?member_id`?\)$/i', $this->ddl );
-		$this->assertCount( 1, $added, implode( "\n", $this->ddl ) );
+		$members = new Members_Repository();
+		$this->assertSame( 2, $members->type_id( 3 ) );
+		$this->assertSame( 5, $members->type_id( 4 ) );
+		$this->assertNull( $members->type_id( 6 ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
 	public function test_upgrade_to_16_logs_each_type_it_takes_away(): void {
 		global $wpdb;
-		$this->shadow_v15_member_types_table();
-		$wpdb->query( "INSERT INTO {$this->shadowed} (member_id, type_id) VALUES (3, 5), (3, 2), (4, 5)" );
+		$this->shadow_v15_members_and_types();
 		update_option( 'photo_comp_db_version', 15 );
 
 		Activator::maybe_upgrade();
@@ -1351,22 +1350,43 @@ class Activator_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Hide the member types table behind one shaped as version 15 left it,
-	 * where a member can have several types.
+	 * Hide the members and member types tables behind ones shaped as
+	 * version 15 left them: members have no type column, and a member can
+	 * have several types. Member 3 has types 5 and 2, member 4 has type 5,
+	 * and member 6 has none.
 	 */
-	private function shadow_v15_member_types_table(): void {
+	private function shadow_v15_members_and_types(): void {
 		global $wpdb;
 
-		$this->shadowed = $wpdb->prefix . 'photocomp_member_types';
+		$members = $wpdb->prefix . 'photocomp_members';
+		$tags    = $wpdb->prefix . 'photocomp_member_types';
+
+		$this->shadowed = "{$members}, {$tags}";
 		$wpdb->query(
-			"CREATE TEMPORARY TABLE {$this->shadowed} (
+			"CREATE TEMPORARY TABLE {$members} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				name VARCHAR(191) NOT NULL,
+				email VARCHAR(191) NOT NULL,
+				grade VARCHAR(100) NOT NULL,
+				active TINYINT(1) NOT NULL DEFAULT 1,
+				committee TINYINT(1) NOT NULL DEFAULT 0,
+				images_public TINYINT(1) NOT NULL DEFAULT 1,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				KEY email (email)
+			) {$wpdb->get_charset_collate()}"
+		);
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$tags} (
 				member_id BIGINT UNSIGNED NOT NULL,
 				type_id BIGINT UNSIGNED NOT NULL,
 				PRIMARY KEY  (member_id, type_id),
 				KEY type_id (type_id)
 			) {$wpdb->get_charset_collate()}"
 		);
-		$this->record_ddl();
+		$wpdb->query( "INSERT INTO {$members} (id, name, email, grade) VALUES (3, 'Ann', 'ann@example.com', 'beginner'), (4, 'Bob', 'bob@example.com', 'beginner'), (6, 'Cy', 'cy@example.com', 'beginner')" );
+		$wpdb->query( "INSERT INTO {$tags} (member_id, type_id) VALUES (3, 5), (3, 2), (4, 5)" );
 	}
 
 	/**

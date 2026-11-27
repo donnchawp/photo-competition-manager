@@ -41,7 +41,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 
 		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_competition_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_member_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "UPDATE {$wpdb->prefix}photocomp_members SET type_id = NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -133,23 +133,17 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 'a' => 'B' ), $type->grade_names );
 	}
 
-	public function test_delete_removes_type_and_its_member_tags() {
-		global $wpdb;
-
-		$keep = $this->repository->create( 'Keep', $this->settings() );
-		$id   = $this->repository->create( 'Drop', $this->settings() );
-		$wpdb->insert(
-			$wpdb->prefix . 'photocomp_member_types',
-			array(
-				'member_id' => 1,
-				'type_id'   => $id,
-			)
-		);
+	public function test_delete_removes_type_and_takes_it_from_its_members() {
+		$members = new Members_Repository();
+		$keep    = $this->repository->create( 'Keep', $this->settings() );
+		$this->repository->create( 'Other', $this->settings() );
+		$id     = $this->repository->create( 'Drop', $this->settings() );
+		$member = $members->create( $this->member( 'dropped', $id ) );
 
 		$this->assertTrue( $this->repository->delete( $id ) );
 
 		$this->assertNull( $this->repository->find( $id ) );
-		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_member_types', $id ) ) );
+		$this->assertNull( $members->type_id( $member ) );
 		$this->assertNotNull( $this->repository->find( $keep ) );
 	}
 

@@ -327,7 +327,7 @@ class Registration {
 		$competition = $registration->competition;
 		$title       = $this->labels->title_for_everyone( $competition );
 		$member      = $this->members->find_by_email( (string) $registration->email );
-		$type_id     = $member ? $this->members->type_id( (int) $member->id ) : null;
+		$type_id     = $member && null !== $member->type_id ? (int) $member->type_id : null;
 
 		$refusal = $this->refusal( $competition, $title, $registration, $member, $type_id );
 		if ( null !== $refusal ) {

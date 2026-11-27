@@ -117,18 +117,20 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		return $this->in_type( $competition, (int) $member->id );
+		return $this->in_type( $competition, $member );
 	}
 
 	/**
 	 * Whether a member is tagged with a competition's type.
 	 *
 	 * @param object $competition Competition row.
-	 * @param int    $member_id   Member ID.
+	 * @param object $member      Member row.
 	 * @return bool
 	 */
-	private function in_type( object $competition, int $member_id ): bool {
-		return (int) $competition->type_id === $this->members->type_id( $member_id );
+	private function in_type( object $competition, object $member ): bool {
+		$type_id = isset( $member->type_id ) ? (int) $member->type_id : 0;
+
+		return (int) $competition->type_id === $type_id;
 	}
 
 	/**
@@ -224,7 +226,7 @@ class Competition_Entry {
 		}
 
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
-		if ( ! $this->in_type( $competition, $member_id ) ) {
+		if ( ! $this->in_type( $competition, $member ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(

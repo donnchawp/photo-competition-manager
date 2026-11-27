@@ -79,7 +79,7 @@ To provide photography clubs with an easy-to-use system for running periodic pho
 - On upgrade the club gets one type, Individual, built from its old settings. Every member is tagged with it, every competition is set to it and open to everyone, and a competition with no categories of its own is given the club's list.
 
 ### 4.1b Entrants
-- Each member has one type at most. With one type every member gets it automatically. Otherwise the Members screen has a type field, a type filter and a "Change type to" bulk action, and the CSV import accepts a `type` column (`types` in older files) naming one type; a row naming several is skipped. Active members with no type are flagged when there are several types. Upgrading to data version 16 keeps each member's first type (the lowest ID) and logs any other it takes away.
+- Each member has one type at most. With one type every member gets it automatically. Otherwise the Members screen has a type field, a type filter and a "Change type to" bulk action, and the CSV import accepts a `type` column (`types` in older files) naming one type; a row naming several is skipped. Active members with no type are flagged when there are several types. Upgrading to data version 16 gives each member their first type tag (the lowest ID) and logs any other it takes away.
 - A competition's entry setting is **open to everyone in the type** or **selected entrants only**.
 - In a selected-entrants competition entrants can be added and removed, and both stop once voting starts. If uploads are open a new entrant is sent their upload link. An entrant can be removed only if they have no entries, which revokes their link. An admin can create a member and enter them in one step.
 - A selected-entrants competition can have an **entry fee**: free text such as "€20", charged once per entrant (member or club), with payment instructions that may hold links. The plugin doesn't take payment. With a fee, each entrant is Paid or Unpaid; entrants an admin adds start Paid, and an admin changes it on the Entrants tab at any time, even after voting starts, since payment is often checked afterwards. Unpaid entrants can still upload and are voted on; Voting Controls lists them as a warning only. Without a fee no paid status shows. Clearing the fee keeps each entrant's status, so putting it back restores it. The personal data export lists each fee and whether it was paid.
@@ -215,11 +215,11 @@ Admins can upload or replace images for any member directly from the dashboard.
 
 ### Tables
 - `wp_photocomp_members`
-  - id, name, email, grade, active, created_at
+  - id, name, email, grade, active, type_id (the member's one competition type, or null), created_at
 - `wp_photocomp_competition_types`
   - id, name, settings (categories and default settings), grade_names (display names by grade), created_at, updated_at
 - `wp_photocomp_member_types`
-  - member_id, type_id; one row per type tag, primary key on the pair
+  - member_id, type_id; type tags from before data version 16, when a member could have several. Upgrade 16 copies each member's first tag onto their row and leaves this table for a downgrade; nothing reads it after that.
 - `wp_photocomp_entrants`
   - competition_id, member_id, paid, source, created_at; the selected entrants of a competition, primary key on the pair. Used only when the competition's entry mode is selected entrants. `paid` (default 1) counts only while the competition has an entry fee. `source` is `admin` or `registration`; a registered entrant starts unpaid.
 - `wp_photocomp_registrations`

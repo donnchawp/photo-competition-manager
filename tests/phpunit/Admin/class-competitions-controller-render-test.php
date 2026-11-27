@@ -578,7 +578,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		global $wpdb;
 
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
-		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', $wpdb->prefix . 'photocomp_members' ) );
 
 		$types      = new Competition_Types_Repository();
 		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );

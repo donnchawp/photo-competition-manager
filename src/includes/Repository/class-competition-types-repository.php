@@ -212,15 +212,16 @@ class Competition_Types_Repository extends Abstract_Repository {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
+		$members = $wpdb->prefix . 'photocomp_members';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL WHERE type_id = %d', $members, $id ) );
 
-		// With one type every member carries its tag, so members who had none, or only the
-		// deleted type, would otherwise drop out with no tag controls left to fix it.
+		// With one type every member has it, so members who had none, or the
+		// deleted type, would otherwise drop out with no type controls left to fix it.
 		$only = $this->only();
 		if ( $only ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $wpdb->prefix . 'photocomp_member_types', (int) $only->id, $wpdb->prefix . 'photocomp_members' ) );
+			$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = %d WHERE type_id IS NULL', $members, (int) $only->id ) );
 		}
 
 		return true;

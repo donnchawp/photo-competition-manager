@@ -356,7 +356,8 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * The competition type a member is tagged with. A member has one type at most.
+	 * The competition type a member has. A member has one type at most; a
+	 * member row carries it as `type_id`.
 	 *
 	 * @since 0.6.0
 	 * @param int $member_id Member ID.
@@ -366,29 +367,9 @@ class Members_Repository extends Abstract_Repository {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$id = $wpdb->get_var( $wpdb->prepare( 'SELECT type_id FROM %i WHERE member_id = %d', $this->tags_table(), $member_id ) );
+		$id = $wpdb->get_var( $wpdb->prepare( 'SELECT type_id FROM %i WHERE id = %d', $this->table(), $member_id ) );
 
 		return null === $id ? null : (int) $id;
-	}
-
-	/**
-	 * Every member's type at once.
-	 *
-	 * @since 0.6.0
-	 * @return array<int, int> Type ID by member ID; members with no type are absent.
-	 */
-	public function type_ids_by_member(): array {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT member_id, type_id FROM %i', $this->tags_table() ) );
-		$map  = array();
-
-		foreach ( $rows as $row ) {
-			$map[ (int) $row->member_id ] = (int) $row->type_id;
-		}
-
-		return $map;
 	}
 
 	/**
@@ -403,22 +384,12 @@ class Members_Repository extends Abstract_Repository {
 	public function set_type( int $member_id, ?int $type_id ): void {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete( $this->tags_table(), array( 'member_id' => $member_id ), array( '%d' ) );
-
-		if ( null === $type_id || ! ( new Competition_Types_Repository() )->find( $type_id ) ) {
-			return;
+		if ( null !== $type_id && ! ( new Competition_Types_Repository() )->find( $type_id ) ) {
+			$type_id = null;
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->insert(
-			$this->tags_table(),
-			array(
-				'member_id' => $member_id,
-				'type_id'   => $type_id,
-			),
-			array( '%d', '%d' )
-		);
+		$wpdb->update( $this->table(), array( 'type_id' => $type_id ), array( 'id' => $member_id ), array( '%d' ), array( '%d' ) );
 	}
 
 	/**
@@ -434,23 +405,11 @@ class Members_Repository extends Abstract_Repository {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT m.* FROM %i m INNER JOIN %i t ON t.member_id = m.id WHERE t.type_id = %d AND m.active = 1 ORDER BY m.name ASC',
+				'SELECT * FROM %i WHERE type_id = %d AND active = 1 ORDER BY name ASC',
 				$this->table(),
-				$this->tags_table(),
 				$type_id
 			)
 		);
-	}
-
-	/**
-	 * The member-to-type tag table.
-	 *
-	 * @return string
-	 */
-	private function tags_table(): string {
-		global $wpdb;
-
-		return $wpdb->prefix . 'photocomp_member_types';
 	}
 
 	/**
@@ -592,7 +551,6 @@ class Members_Repository extends Abstract_Repository {
 		}
 
 		( new Recorded_Results_Repository() )->forget_member( $id );
-		$this->set_type( $id, null );
 
 		return true;
 	}
