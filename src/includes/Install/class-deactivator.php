@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Log_Retention;
+use PhotoCompetitionManager\Service\Registration;
 
 /**
  * Plugin Deactivator.
@@ -30,6 +31,7 @@ class Deactivator {
 		// Bootstrap schedules them again when the plugin is reactivated.
 		wp_unschedule_hook( Log_Retention::HOOK );
 		wp_unschedule_hook( Email_Job_Manager::CLEANUP_HOOK );
+		wp_unschedule_hook( Registration::CLEANUP_HOOK );
 	}
 
 	/**

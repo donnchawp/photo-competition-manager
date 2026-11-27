@@ -59,7 +59,7 @@ class Email_Kinds {
 	 */
 	private static function build(): array {
 		return array(
-			'upload_reminder'      => array(
+			'upload_reminder'        => array(
 				'label'        => __( 'Upload link', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to members with a link to upload their images.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -69,6 +69,7 @@ class Email_Kinds {
 					__( 'Here is your link to upload images for {competition_title}.', 'photo-competition-manager' ),
 					self::button( '{upload_link}', __( 'Upload images', 'photo-competition-manager' ) ),
 					__( 'This link stays active for 14 days, so you can come back and carry on uploading.', 'photo-competition-manager' ),
+					'{fee_info}',
 					'{voting_info}',
 					'{archive_info}',
 					__( "If you didn't ask for this email, your club's competitions officer may have sent it. You can ignore it if you don't want to enter this competition.", 'photo-competition-manager' ),
@@ -92,6 +93,10 @@ class Email_Kinds {
 						'type'        => 'link',
 						'description' => __( 'The voting page.', 'photo-competition-manager' ),
 					),
+					'{fee_info}'     => array(
+						'type'        => 'html',
+						'description' => __( "The competition's entry fee and how to pay it. Empty when there's no fee.", 'photo-competition-manager' ),
+					),
 					'{voting_info}'  => array(
 						'type'        => 'html',
 						'description' => __( 'A paragraph saying where members can vote. Empty when judges score the competition.', 'photo-competition-manager' ),
@@ -102,7 +107,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'voting_opened'        => array(
+			'voting_opened'          => array(
 				'label'         => __( 'Voting opened', 'photo-competition-manager' ),
 				'description'   => __( 'Sent to the competition type\'s active members when voting opens in a category, when members vote with the voting password.', 'photo-competition-manager' ),
 				'notification'  => true,
@@ -134,7 +139,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'voting_link'          => array(
+			'voting_link'            => array(
 				'label'        => __( 'Voting link', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to members when an admin emails voting links for a category, and to a member who asks for one on the voting page.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -166,7 +171,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'results_published'    => array(
+			'results_published'      => array(
 				'label'        => __( 'Results published', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to members with a private link to the results.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -196,7 +201,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'results_detailed'     => array(
+			'results_detailed'       => array(
 				'label'        => __( 'Detailed results', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to each member who entered, with the ranks, scores and votes for their images.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -221,7 +226,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'submission_confirmed' => array(
+			'submission_confirmed'   => array(
 				'label'         => __( 'Submission confirmed', 'photo-competition-manager' ),
 				'description'   => __( 'Sent to a member each time they upload an image.', 'photo-competition-manager' ),
 				'notification'  => true,
@@ -253,7 +258,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'judge_link'           => array(
+			'judge_link'             => array(
 				'label'        => __( 'Judge link', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to a judge with their link to score a competition.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -275,7 +280,7 @@ class Email_Kinds {
 					),
 				),
 			),
-			'member_page_link'     => array(
+			'member_page_link'       => array(
 				'label'        => __( 'Your entries link', 'photo-competition-manager' ),
 				'description'  => __( 'Sent to a member who asks for a link to see every image they have entered.', 'photo-competition-manager' ),
 				'notification' => false,
@@ -291,6 +296,77 @@ class Email_Kinds {
 					'{member_page_link}' => array(
 						'type'        => 'link',
 						'description' => __( "The member's own link to their entries.", 'photo-competition-manager' ),
+					),
+				),
+			),
+			'registration_link'      => array(
+				'label'        => __( 'Confirm registration', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to someone who registers for a competition, with a link to confirm their email address.', 'photo-competition-manager' ),
+				'notification' => false,
+				'subject'      => __( 'Confirm your registration for {competition_title}', 'photo-competition-manager' ),
+				'body'         => self::body(
+					__( 'Hi {member_name},', 'photo-competition-manager' ),
+					__( 'Thanks for registering for {competition_title}. Use the button below to confirm your registration. You are not registered until you do.', 'photo-competition-manager' ),
+					self::button( '{registration_link}', __( 'Confirm registration', 'photo-competition-manager' ) ),
+					__( 'This link works for 7 days, or until registration closes.', 'photo-competition-manager' ),
+					__( "If you didn't register, you can ignore this email.", 'photo-competition-manager' )
+				),
+				'tags'         => array(
+					'{registration_link}' => array(
+						'type'        => 'link',
+						'description' => __( 'The link to confirm the registration.', 'photo-competition-manager' ),
+					),
+				),
+			),
+			'registration_confirmed' => array(
+				'label'        => __( 'Registration confirmed', 'photo-competition-manager' ),
+				'description'  => __( 'Sent to someone once they confirm their registration for a competition.', 'photo-competition-manager' ),
+				'notification' => false,
+				'subject'      => __( "You're entered in {competition_title}", 'photo-competition-manager' ),
+				'body'         => self::body(
+					__( 'Hi {member_name},', 'photo-competition-manager' ),
+					__( 'Your registration for {competition_title} is confirmed.', 'photo-competition-manager' ),
+					'{fee_info}',
+					'{upload_info}',
+					__( 'If you have any questions, please contact the competition organiser.', 'photo-competition-manager' )
+				),
+				'tags'         => array(
+					'{fee_info}'    => array(
+						'type'        => 'html',
+						'description' => __( "The competition's entry fee and how to pay it. Empty when there's no fee.", 'photo-competition-manager' ),
+					),
+					'{upload_info}' => array(
+						'type'        => 'html',
+						'description' => __( 'A paragraph with the upload link while uploads are open. Empty otherwise: the upload link is sent when uploads open.', 'photo-competition-manager' ),
+					),
+				),
+			),
+			'registration_received'  => array(
+				'label'         => __( 'Registration received', 'photo-competition-manager' ),
+				'description'   => __( 'Sent to the organiser email each time someone confirms a registration.', 'photo-competition-manager' ),
+				'notification'  => true,
+				'on_by_default' => true,
+				'subject'       => __( 'New registration for {competition_title}', 'photo-competition-manager' ),
+				'body'          => self::body(
+					__( '{entrant_name} ({entrant_email}) has registered for {competition_title} in the {entrant_grade} grade.', 'photo-competition-manager' ),
+					'{fee_status}'
+				),
+				'tags'          => array(
+					'{entrant_name}'  => array(
+						'type'        => 'text',
+						'description' => __( "The entrant's name.", 'photo-competition-manager' ),
+					),
+					'{entrant_email}' => array(
+						'type'        => 'text',
+						'description' => __( "The entrant's email address.", 'photo-competition-manager' ),
+					),
+					'{entrant_grade}' => array(
+						'type'        => 'text',
+						'description' => __( "The entrant's grade.", 'photo-competition-manager' ),
+					),
+					'{fee_status}'    => array(
+						'type'        => 'text',
+						'description' => __( "Whether the entrant has paid the entry fee. Empty when there's no fee.", 'photo-competition-manager' ),
 					),
 				),
 			),

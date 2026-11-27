@@ -39,7 +39,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 14;
+	const DB_VERSION = 15;
 
 	/**
 	 * Option holding the installed data version.
@@ -196,6 +196,12 @@ class Activator {
 		// A competition for selected entrants can charge an entry fee, and
 		// each entrant is paid or not. Existing entrants count as paid.
 		if ( $installed < 14 && ! self::add_entry_fee_schema() ) {
+			return;
+		}
+
+		// A competition for selected entrants can take registrations, held
+		// until confirmed by email. Existing entrants were added by an admin.
+		if ( $installed < 15 && ! self::add_registration_schema() ) {
 			return;
 		}
 
@@ -746,6 +752,49 @@ class Activator {
 	}
 
 	/**
+	 * Add the registration switch and close date to competitions, how each
+	 * entrant was added, and the table of registrations waiting for their
+	 * email address to be confirmed.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @return bool False if the schema is still incomplete, so the step runs again.
+	 */
+	private static function add_registration_schema(): bool {
+		global $wpdb;
+
+		$competitions  = $wpdb->prefix . 'photocomp_competitions';
+		$entrants      = $wpdb->prefix . 'photocomp_entrants';
+		$registrations = $wpdb->prefix . 'photocomp_registrations';
+
+		// Requests run upgrades without activating, so add the table here.
+		// Only when it's missing: DDL ends the running transaction.
+		if ( ! self::table_exists( $registrations ) ) {
+			self::create_tables();
+		}
+
+		if ( ! self::column_exists( $competitions, 'registration_open' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN registration_open TINYINT(1) NOT NULL DEFAULT 0', $competitions ) );
+		}
+
+		if ( ! self::column_exists( $competitions, 'registration_closes' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN registration_closes DATETIME NULL', $competitions ) );
+		}
+
+		if ( ! self::column_exists( $entrants, 'source' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( "ALTER TABLE %i ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'admin'", $entrants ) );
+		}
+
+		return self::table_exists( $registrations )
+			&& self::column_exists( $competitions, 'registration_open' )
+			&& self::column_exists( $competitions, 'registration_closes' )
+			&& self::column_exists( $entrants, 'source' );
+	}
+
+	/**
 	 * Give every competition without a share hash its own, so its results
 	 * can be shared while the club's results are private.
 	 *
@@ -1184,6 +1233,8 @@ class Activator {
 			entry_mode VARCHAR(20) NOT NULL DEFAULT 'all',
 			entry_fee VARCHAR(191) NOT NULL DEFAULT '',
 			payment_instructions TEXT NULL,
+			registration_open TINYINT(1) NOT NULL DEFAULT 0,
+			registration_closes DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY slug (slug),
 			KEY share_hash (share_hash),
@@ -1340,9 +1391,28 @@ class Activator {
 			competition_id BIGINT UNSIGNED NOT NULL,
 			member_id BIGINT UNSIGNED NOT NULL,
 			paid TINYINT(1) NOT NULL DEFAULT 1,
+			source VARCHAR(20) NOT NULL DEFAULT 'admin',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (competition_id, member_id),
 			KEY member_id (member_id)
+		) {$charset_collate};";
+
+		// A registration waiting for its email address to be confirmed. It holds
+		// what was typed into the form until then, and is deleted when it's
+		// confirmed or expires.
+		$registrations = "CREATE TABLE {$wpdb->prefix}photocomp_registrations (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			competition_id BIGINT UNSIGNED NOT NULL,
+			name VARCHAR(191) NOT NULL,
+			email VARCHAR(191) NOT NULL,
+			grade VARCHAR(100) NOT NULL,
+			token_hash CHAR(64) NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY token_hash (token_hash),
+			KEY email (email),
+			KEY expires_at (expires_at)
 		) {$charset_collate};";
 
 		return array(
@@ -1359,6 +1429,7 @@ class Activator {
 			$competition_types,
 			$member_types,
 			$entrants,
+			$registrations,
 		);
 	}
 }

@@ -18,6 +18,7 @@ use PhotoCompetitionManager\Service\Competition_Archive;
 use PhotoCompetitionManager\Service\Public_Results;
 use PhotoCompetitionManager\Service\Log_Retention;
 use PhotoCompetitionManager\Support\Competition_Settings;
+use PhotoCompetitionManager\Support\Email_Configuration;
 use PhotoCompetitionManager\Tests\Member_Fixtures;
 
 /**
@@ -167,6 +168,20 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 				'slug'  => 'advanced',
 			),
 		);
+	}
+
+	public function test_the_organiser_email_is_saved_and_an_invalid_one_is_left_blank(): void {
+		$this->save_grades( $this->default_grade_rows(), array( 'email_organiser_email' => 'organiser@example.com' ) );
+		$this->assertSame( 'organiser@example.com', Email_Configuration::organiser_email() );
+
+		$this->save_grades(
+			$this->default_grade_rows(),
+			array(
+				'email_from_email'      => 'club@example.com',
+				'email_organiser_email' => 'not an address',
+			)
+		);
+		$this->assertSame( 'club@example.com', Email_Configuration::organiser_email() );
 	}
 
 	/**

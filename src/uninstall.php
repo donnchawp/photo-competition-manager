@@ -191,6 +191,7 @@ function photo_competition_manager_drop_tables( $wpdb ) {
 		'photocomp_competition_types',
 		'photocomp_member_types',
 		'photocomp_entrants',
+		'photocomp_registrations',
 	);
 
 	// Drop each table.

@@ -14,6 +14,7 @@ use PhotoCompetitionManager\Frontend\Frontend;
 use PhotoCompetitionManager\Frontend\Image_Permalink;
 use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Log_Retention;
+use PhotoCompetitionManager\Service\Registration;
 
 /**
  * Class Plugin
@@ -67,11 +68,14 @@ class Plugin {
 		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
 		// 0 args: a bare do_action() passes '', which trim( ?int $now ) would reject with a TypeError.
 		$this->schedule_daily( Log_Retention::HOOK, array( new Log_Retention( $deps->logs ), 'trim' ), 0 );
+		$this->schedule_daily( Registration::CLEANUP_HOOK, array( new Registration(), 'delete_expired' ), 0 );
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Judge_Deletion::class, 'register_eraser' ) );
+		add_filter( 'wp_privacy_personal_data_erasers', array( Registration::class, 'register_eraser' ) );
 		add_filter( 'wp_privacy_personal_data_exporters', array( \PhotoCompetitionManager\Service\Member_Export::class, 'register_exporter' ) );
+		add_filter( 'wp_privacy_personal_data_exporters', array( Registration::class, 'register_exporter' ) );
 		add_action( 'admin_init', array( \PhotoCompetitionManager\Support\Privacy_Policy::class, 'suggest' ) );
 	}
 

@@ -965,6 +965,26 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$this->assertMatchesRegularExpression( '#<td>Bob</td>.*?Paid.*?Mark unpaid#s', $html );
 	}
 
+	public function test_render_entrants_tab_says_which_entrants_registered_themselves(): void {
+		$comp_id  = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
+		$members  = new Members_Repository();
+		$entrants = new Entrants_Repository();
+		$entrants->add( $comp_id, $members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) ), Entrants_Repository::SOURCE_REGISTRATION );
+		$entrants->add( $comp_id, $members->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner' ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertMatchesRegularExpression( '#<td>Ann</td><td>ann@example.com</td><td>Registered</td>#', $html );
+		$this->assertMatchesRegularExpression( '#<td>Bob</td><td>bob@example.com</td><td>Added by admin</td>#', $html );
+	}
+
 	public function test_render_entrants_tab_without_a_fee_shows_no_paid_status(): void {
 		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
 		( new Entrants_Repository() )->add( $comp_id, ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) ) );

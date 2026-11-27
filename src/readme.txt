@@ -47,6 +47,7 @@ Photo Competition Manager provides everything photography clubs need to run prof
 * `[competition_top3]` – Responsive podium display showcasing winners
 * `[competition_my_entries]` – Members ask for a link by email and see every image they've entered, with their positions
 * `[competition_archive]` – Past competitions, each at its own address showing the images entered
+* `[competition_registration]` – Registration for competitions with selected entrants, confirmed by email
 
 Perfect for photography clubs, camera clubs, photo societies, and any organization running regular image competitions.
 
@@ -73,6 +74,7 @@ If you prefer manual control, create pages with these shortcodes:
 * `[competition_top3]` – Podium-style top 3 display
 * `[competition_my_entries]` – A member's own entries, reached by a link they ask for by email
 * `[competition_archive]` – Past competitions; switch it on under **Competitions → Settings**
+* `[competition_registration]` – People or clubs register for competitions that take registrations (set on a competition's Entrants tab)
 
 **Shortcode Attributes**
 

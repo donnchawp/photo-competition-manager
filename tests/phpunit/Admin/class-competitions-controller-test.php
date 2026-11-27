@@ -2239,6 +2239,24 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entry_fee_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
+	public function test_turn_on_registration_with_a_close_day_from_the_entrants_tab(): void {
+		$id = $this->create_entry_competition();
+
+		$this->post_entrants_action(
+			$id,
+			'set_registration',
+			array(
+				'registration_open'   => '1',
+				'registration_closes' => '2030-05-01',
+			)
+		);
+
+		$competition = $this->competitions->find( $id );
+		$this->assertSame( '1', (string) $competition->registration_open );
+		$this->assertSame( '2030-05-01 00:00:00', $competition->registration_closes );
+		$this->assertContains( 'registration_updated', $this->settings_error_codes( 'photo_competition_manager' ) );
+	}
+
 	public function test_mark_an_entrant_unpaid_from_the_entrants_tab(): void {
 		$id  = $this->create_entry_competition();
 		$ann = $this->create_member( 'Ann' );

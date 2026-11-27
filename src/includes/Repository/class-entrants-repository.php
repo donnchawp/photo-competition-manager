@@ -21,25 +21,60 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Entrants_Repository extends Abstract_Repository {
 
 	/**
+	 * How an admin added an entrant.
+	 */
+	const SOURCE_ADMIN = 'admin';
+
+	/**
+	 * How a registration added an entrant.
+	 */
+	const SOURCE_REGISTRATION = 'registration';
+
+	/**
 	 * Enter a member in a competition. Entering them twice changes nothing.
+	 * An entrant an admin adds starts as paid; one who registered, unpaid.
 	 *
-	 * @param int $competition_id Competition ID.
-	 * @param int $member_id      Member ID.
+	 * @since 0.6.0 Takes how the entrant was added.
+	 *
+	 * @param int    $competition_id Competition ID.
+	 * @param int    $member_id      Member ID.
+	 * @param string $source         SOURCE_ADMIN or SOURCE_REGISTRATION.
 	 * @return void
 	 */
-	public function add( int $competition_id, int $member_id ): void {
+	public function add( int $competition_id, int $member_id, string $source = self::SOURCE_ADMIN ): void {
 		global $wpdb;
+
+		$source = self::SOURCE_REGISTRATION === $source ? self::SOURCE_REGISTRATION : self::SOURCE_ADMIN;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->query(
 			$wpdb->prepare(
-				'INSERT IGNORE INTO %i (competition_id, member_id, created_at) VALUES (%d, %d, %s)',
+				'INSERT IGNORE INTO %i (competition_id, member_id, paid, source, created_at) VALUES (%d, %d, %d, %s, %s)',
 				$this->table(),
 				$competition_id,
 				$member_id,
+				self::SOURCE_ADMIN === $source ? 1 : 0,
+				$source,
 				utc_time()
 			)
 		);
+	}
+
+	/**
+	 * The entrants who came from a registration.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int $competition_id Competition ID.
+	 * @return int[] Member IDs, in ID order.
+	 */
+	public function registered_member_ids( int $competition_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT member_id FROM %i WHERE competition_id = %d AND source = %s ORDER BY member_id', $this->table(), $competition_id, self::SOURCE_REGISTRATION ) );
+
+		return array_map( 'intval', $ids );
 	}
 
 	/**

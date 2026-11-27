@@ -11,6 +11,9 @@
  * email, active, has_entries and paid), $data['has_fee'] (bool): whether the
  * competition charges an entry fee, $data['entry_fee'] (string) and
  * $data['instructions'] (string): the fee and payment instructions as saved,
+ * $data['registration'] (array with open (bool), closes (Y-m-d or ''),
+ * label_format (string) and taking (bool): whether registration is open now),
+ * each entrant's registered (bool): whether they registered themselves,
  * $data['addable'] (objects with id, name and
  * email): the type's members who aren't entrants yet, for the Add entrants picker, $data['grade_options'] (array<string,string>
  * of grade slug => label), $data['interclub'] (bool): whether the entrants are
@@ -79,6 +82,22 @@ echo '</form>';
 echo '</div>';
 
 echo '<div class="card" style="max-width: 720px; padding: 16px;">';
+echo '<h3>' . esc_html__( 'Registration', 'photo-competition-manager' ) . '</h3>';
+echo $form_start; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built with esc_attr() above.
+echo '<input type="hidden" name="photo_competition_action" value="set_registration" />';
+echo '<p><label><input type="checkbox" name="registration_open" value="1"' . checked( $data['registration']['open'], true, false ) . ' /> ';
+echo ( $data['interclub'] ? esc_html__( 'Let clubs register on the registration page', 'photo-competition-manager' ) : esc_html__( 'Let people register on the registration page', 'photo-competition-manager' ) ) . '</label></p>';
+echo '<p><label for="registration_closes">' . esc_html__( 'Registration closes', 'photo-competition-manager' ) . ' (' . esc_html( $data['registration']['label_format'] ) . ')</label><br />';
+echo '<input type="date" id="registration_closes" name="registration_closes" value="' . esc_attr( $data['registration']['closes'] ) . '" /></p>';
+echo '<p class="description">' . esc_html__( 'Leave it blank to take registrations until uploads close. Registration always closes when uploads close. Put the [competition_registration] shortcode on a page for the form.', 'photo-competition-manager' ) . '</p>';
+if ( $data['registration']['open'] && ! $data['registration']['taking'] ) {
+	echo '<p class="description"><strong>' . esc_html__( 'Registration is closed now: its close date has passed, uploads have closed, or voting has started.', 'photo-competition-manager' ) . '</strong></p>';
+}
+submit_button( __( 'Save Registration', 'photo-competition-manager' ), 'secondary', 'save_registration' );
+echo '</form>';
+echo '</div>';
+
+echo '<div class="card" style="max-width: 720px; padding: 16px;">';
 echo '<h3>' . esc_html__( 'Entrants', 'photo-competition-manager' ) . '</h3>';
 
 if ( empty( $data['entrants'] ) ) {
@@ -88,6 +107,7 @@ if ( empty( $data['entrants'] ) ) {
 	echo '<thead><tr>';
 	echo '<th>' . ( $data['interclub'] ? esc_html__( 'Club', 'photo-competition-manager' ) : esc_html__( 'Member', 'photo-competition-manager' ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
+	echo '<th>' . esc_html__( 'Added', 'photo-competition-manager' ) . '</th>';
 	if ( $data['has_fee'] ) {
 		echo '<th>' . esc_html__( 'Fee', 'photo-competition-manager' ) . '</th>';
 	}
@@ -102,6 +122,7 @@ if ( empty( $data['entrants'] ) ) {
 		}
 		echo '</td>';
 		echo '<td>' . esc_html( $entrant->email ) . '</td>';
+		echo '<td>' . ( $entrant->registered ? esc_html__( 'Registered', 'photo-competition-manager' ) : esc_html__( 'Added by admin', 'photo-competition-manager' ) ) . '</td>';
 
 		if ( $data['has_fee'] ) {
 			echo '<td>';

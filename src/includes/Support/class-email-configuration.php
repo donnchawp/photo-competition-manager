@@ -104,6 +104,27 @@ class Email_Configuration {
 	}
 
 	/**
+	 * Where emails for the organiser go: the organiser email, or the From
+	 * address when it's blank, or the site's admin email when both are.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @return string Email address.
+	 */
+	public static function organiser_email(): string {
+		$settings = self::get_email_settings();
+
+		foreach ( array( 'organiser_email', 'from_email' ) as $key ) {
+			$address = (string) ( $settings[ $key ] ?? '' );
+			if ( is_email( $address ) ) {
+				return $address;
+			}
+		}
+
+		return (string) get_option( 'admin_email' );
+	}
+
+	/**
 	 * Check if the current email is being sent by this plugin.
 	 *
 	 * @return bool True if this is a plugin email, false otherwise.
