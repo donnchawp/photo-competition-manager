@@ -750,8 +750,8 @@ class Competitions_Controller {
 			case 'set_entry_fee':
 				$result = $this->entry->set_fee(
 					$competition,
-					sanitize_text_field( $this->get_post_string( 'entry_fee' ) ),
-					wp_kses_post( $this->get_post_string( 'payment_instructions' ) )
+					$this->get_post_string( 'entry_fee' ),
+					$this->get_post_string( 'payment_instructions' )
 				);
 				$this->entrant_notice( $result, 'entry_fee_updated', __( 'Entry fee saved.', 'photo-competition-manager' ) );
 				break;

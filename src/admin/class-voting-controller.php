@@ -1190,15 +1190,7 @@ class Voting_Controller {
 			'admin/voting/notice-unpaid-entrants.php',
 			array(
 				'names'        => array_values( $names ),
-				'entrants_url' => add_query_arg(
-					array(
-						'page'        => 'photo-competition-manager',
-						'action'      => 'edit',
-						'competition' => (int) $competition->id,
-						'tab'         => 'entrants',
-					),
-					admin_url( 'admin.php' )
-				),
+				'entrants_url' => add_query_arg( 'tab', 'entrants', $this->edit_url( (int) $competition->id ) ),
 			)
 		);
 	}
