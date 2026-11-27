@@ -1449,6 +1449,10 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertNotSame( 'Renamed', $this->members->find( $id )->name );
 	}
 
+	/**
+	 * Adding a member as both a club and a person is refused, and no one is
+	 * created (#323).
+	 */
 	public function test_create_member_refuses_a_club_type_with_a_people_type(): void {
 		list( $individual, $clubs ) = $this->people_and_club_types();
 

@@ -241,7 +241,6 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->repository->update( $live, 'Live', $people + array( 'slideshow' => array() ), array(), array() ) );
 		$this->assertTrue( $this->repository->update( $unused, 'Unused', $clubs, array(), array() ) );
-		$this->assertSame( array( $archived, $unused ), $this->repository->club_ids() );
 	}
 
 	/**

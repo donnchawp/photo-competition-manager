@@ -930,6 +930,7 @@ class Members_Controller {
 	/**
 	 * Render the search/status/grade filter form.
 	 *
+	 * @since 0.6.0 Takes $has_club_types.
 	 * @param  string               $search        Current search term.
 	 * @param  string               $status_filter Current status filter.
 	 * @param  string               $grade_filter  Current grade filter.
@@ -1207,6 +1208,7 @@ class Members_Controller {
 	/**
 	 * The error for type tags that make a member both a club and a person.
 	 *
+	 * @since 0.6.0
 	 * @return WP_Error
 	 */
 	private function mixed_kinds_error(): WP_Error {

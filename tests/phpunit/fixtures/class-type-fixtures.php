@@ -92,6 +92,7 @@ class Type_Fixtures {
 	 * is interclub. It writes the row directly, since the type can't change
 	 * once a competition has it.
 	 *
+	 * @since 0.6.0
 	 * @param int $type_id Type ID.
 	 * @return void
 	 */
