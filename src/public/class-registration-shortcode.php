@@ -9,7 +9,6 @@ namespace PhotoCompetitionManager\Frontend;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Service\Competition_Entry;
 use PhotoCompetitionManager\Service\Competition_Labels;
 use PhotoCompetitionManager\Service\Registration;
@@ -41,11 +40,18 @@ class Registration_Shortcode {
 	const HONEYPOT = 'photo_comp_website';
 
 	/**
-	 * Registration.
+	 * Registration, made when the page is shown: the shortcode is set up on every request.
 	 *
-	 * @var Registration
+	 * @var Registration|null
 	 */
 	private $registration;
+
+	/**
+	 * The competition whose form gets what was posted back, after a refusal or a stale form.
+	 *
+	 * @var int
+	 */
+	private $refill_id = 0;
 
 	/**
 	 * The registration form's nonce and email field, one per request.
@@ -60,7 +66,7 @@ class Registration_Shortcode {
 	 * @param Registration|null $registration Registration.
 	 */
 	public function __construct( ?Registration $registration = null ) {
-		$this->registration = $registration ? $registration : new Registration();
+		$this->registration = $registration;
 	}
 
 	/**
@@ -97,18 +103,17 @@ class Registration_Shortcode {
 			return (string) ob_get_clean();
 		}
 
-		$posted_to = 0;
-		$message   = (string) $this->form()->handle(
-			function ( string $email ) use ( $page_url, &$posted_to ): string {
-				return $this->register_from_post( $email, $page_url, $posted_to );
+		$message = (string) $this->form()->handle(
+			function ( string $email ) use ( $page_url ): string {
+				return $this->register_from_post( $email, $page_url );
 			}
 		);
 
-		// A stale nonce leaves what was posted to fill back in, as a refusal does.
-		$posted_to = $posted_to ? $posted_to : absint( $this->form()->refill( 'competition_id' ) );
+		// A stale form is filled back in, as a refused one is.
+		$this->refill_id = $this->refill_id ? $this->refill_id : absint( $this->form()->refill( 'competition_id' ) );
 
 		echo wp_kses_post( $message );
-		$this->render_competitions( $posted_to );
+		$this->render_competitions();
 		echo '</div>';
 
 		return (string) ob_get_clean();
@@ -117,12 +122,11 @@ class Registration_Shortcode {
 	/**
 	 * Register from the posted form.
 	 *
-	 * @param string $email     Address typed in.
-	 * @param string $page_url  This page.
-	 * @param int    $posted_to Set to the competition whose form needs its values filled back in, on a refusal.
+	 * @param string $email    Address typed in.
+	 * @param string $page_url This page.
 	 * @return string Message to show.
 	 */
-	private function register_from_post( string $email, string $page_url, int &$posted_to ): string {
+	private function register_from_post( string $email, string $page_url ): string {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Link_Request_Form::handle() checked the nonce.
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		$name           = isset( $_POST['registration_name'] ) && is_string( $_POST['registration_name'] ) ? sanitize_text_field( wp_unslash( $_POST['registration_name'] ) ) : '';
@@ -137,16 +141,14 @@ class Registration_Shortcode {
 			return $sent;
 		}
 
-		$competition = ( new Competitions_Repository() )->find( $competition_id );
-		$result      = $competition ? $this->registration->request( $competition, $name, $email, $grade, $page_url ) : null;
-
+		$result = $this->registration()->request( $competition_id, $name, $email, $grade, $page_url );
 		if ( true === $result ) {
 			return $sent;
 		}
 
-		$posted_to = $competition_id;
+		$this->refill_id = $competition_id;
 
-		return '<p class="error">' . esc_html( $result ? $result->get_error_message() : __( 'Registration for this competition has closed.', 'photo-competition-manager' ) ) . '</p>';
+		return '<p class="error">' . esc_html( $result->get_error_message() ) . '</p>';
 	}
 
 	/**
@@ -162,7 +164,7 @@ class Registration_Shortcode {
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( $pressed && false !== wp_verify_nonce( $nonce, self::CONFIRM ) ) {
-			$outcome = $this->registration->confirm( $key );
+			$outcome = $this->registration()->confirm( $key );
 			$classes = array(
 				'registered'      => 'success',
 				'already_entrant' => 'notice',
@@ -172,10 +174,8 @@ class Registration_Shortcode {
 			return 'invalid' !== $outcome['status'];
 		}
 
-		$registration = $this->registration->pending( $key );
-		$competition  = $registration ? ( new Competitions_Repository() )->find( (int) $registration->competition_id ) : null;
-
-		if ( ! $competition ) {
+		$registration = $this->registration()->pending( $key );
+		if ( ! $registration ) {
 			echo '<p class="notice">' . esc_html__( 'This link has expired or has already been used. Register again below to get a new one.', 'photo-competition-manager' ) . '</p>';
 			return false;
 		}
@@ -190,7 +190,7 @@ class Registration_Shortcode {
 			sprintf(
 				/* translators: 1: Competition title, 2: Name typed into the registration form, 3: Email address */
 				__( 'Confirm your registration for %1$s as %2$s (%3$s).', 'photo-competition-manager' ),
-				( new Competition_Labels() )->title_for_everyone( $competition ),
+				( new Competition_Labels() )->title_for_everyone( $registration->competition ),
 				$registration->name,
 				$registration->email
 			)
@@ -204,11 +204,10 @@ class Registration_Shortcode {
 	/**
 	 * List the competitions open for registration, each with its form.
 	 *
-	 * @param int $refill_id Competition whose form gets the posted values back, or 0.
 	 * @return void
 	 */
-	private function render_competitions( int $refill_id ): void {
-		$competitions = $this->registration->open_competitions();
+	private function render_competitions(): void {
+		$competitions = $this->registration()->open_competitions();
 
 		if ( ! $competitions ) {
 			echo '<p>' . esc_html__( 'No competitions are open for registration at the moment.', 'photo-competition-manager' ) . '</p>';
@@ -220,7 +219,7 @@ class Registration_Shortcode {
 		foreach ( $competitions as $competition ) {
 			$id        = (int) $competition->id;
 			$interclub = Competition_Settings::is_interclub( $competition );
-			$refill    = $id === $refill_id;
+			$refill    = $id === $this->refill_id;
 			$value     = function ( string $field ) use ( $refill ): string {
 				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only fills the form back in; nothing is saved.
 				return $refill && isset( $_POST[ $field ] ) && is_string( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field ] ) ) : '';
@@ -262,7 +261,7 @@ class Registration_Shortcode {
 						<label for="photo-comp-registration-grade-<?php echo esc_attr( (string) $id ); ?>"><?php esc_html_e( 'Grade', 'photo-competition-manager' ); ?></label>
 						<select id="photo-comp-registration-grade-<?php echo esc_attr( (string) $id ); ?>" name="registration_grade" required>
 							<option value=""><?php esc_html_e( 'Choose a grade', 'photo-competition-manager' ); ?></option>
-							<?php foreach ( $this->registration->grade_choices( $competition ) as $slug => $label ) : ?>
+							<?php foreach ( $this->registration()->grade_choices( $competition ) as $slug => $label ) : ?>
 								<option value="<?php echo esc_attr( $slug ); ?>"<?php selected( $value( 'registration_grade' ), $slug ); ?>><?php echo esc_html( $label ); ?></option>
 							<?php endforeach; ?>
 						</select>
@@ -278,6 +277,19 @@ class Registration_Shortcode {
 			</section>
 			<?php
 		}
+	}
+
+	/**
+	 * Registration, made on first use.
+	 *
+	 * @return Registration
+	 */
+	private function registration(): Registration {
+		if ( ! $this->registration ) {
+			$this->registration = new Registration();
+		}
+
+		return $this->registration;
 	}
 
 	/**

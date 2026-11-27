@@ -776,6 +776,18 @@ class Competition_Settings {
 	}
 
 	/**
+	 * Whether a competition type's entrants are clubs.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $type Type row, from Competition_Types_Repository.
+	 * @return bool
+	 */
+	public static function type_is_interclub( object $type ): bool {
+		return ! empty( self::type_settings( $type )['interclub']['enabled'] );
+	}
+
+	/**
 	 * A number kept within its range in NUMBER_RANGES.
 	 *
 	 * A blank, or a 0 or negative number where the range doesn't allow 0,

@@ -32,19 +32,17 @@ class Entrants_Repository extends Abstract_Repository {
 
 	/**
 	 * Enter a member in a competition. Entering them twice changes nothing.
-	 * An entrant an admin adds starts as paid; one who registered, unpaid.
 	 *
-	 * @since 0.6.0 Takes how the entrant was added.
+	 * @since 0.6.0 Takes how the entrant was added and whether they've paid.
 	 *
 	 * @param int    $competition_id Competition ID.
 	 * @param int    $member_id      Member ID.
 	 * @param string $source         SOURCE_ADMIN or SOURCE_REGISTRATION.
+	 * @param bool   $paid           Whether they've paid the entry fee.
 	 * @return void
 	 */
-	public function add( int $competition_id, int $member_id, string $source = self::SOURCE_ADMIN ): void {
+	public function add( int $competition_id, int $member_id, string $source = self::SOURCE_ADMIN, bool $paid = true ): void {
 		global $wpdb;
-
-		$source = self::SOURCE_REGISTRATION === $source ? self::SOURCE_REGISTRATION : self::SOURCE_ADMIN;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->query(
@@ -53,7 +51,7 @@ class Entrants_Repository extends Abstract_Repository {
 				$this->table(),
 				$competition_id,
 				$member_id,
-				self::SOURCE_ADMIN === $source ? 1 : 0,
+				$paid ? 1 : 0,
 				$source,
 				utc_time()
 			)

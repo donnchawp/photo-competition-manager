@@ -20,26 +20,14 @@ class Registrations_Repository extends Abstract_Repository {
 	/**
 	 * Store a registration.
 	 *
-	 * @param array{competition_id: int, name: string, email: string, grade: string, token_hash: string, expires_at: string, created_at: string} $data Registration.
+	 * @param array{competition_id: int, name: string, email: string, grade: string, token_hash: string, expires_at: string, created_at: string} $data Registration, with its fields in this order.
 	 * @return int Registration ID, or 0 when it couldn't be stored.
 	 */
 	public function create( array $data ): int {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$inserted = $wpdb->insert(
-			$this->table(),
-			array(
-				'competition_id' => (int) $data['competition_id'],
-				'name'           => (string) $data['name'],
-				'email'          => (string) $data['email'],
-				'grade'          => (string) $data['grade'],
-				'token_hash'     => (string) $data['token_hash'],
-				'expires_at'     => (string) $data['expires_at'],
-				'created_at'     => (string) $data['created_at'],
-			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
-		);
+		$inserted = $wpdb->insert( $this->table(), $data, array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' ) );
 
 		return false === $inserted ? 0 : (int) $wpdb->insert_id;
 	}

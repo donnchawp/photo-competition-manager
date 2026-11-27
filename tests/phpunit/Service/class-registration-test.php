@@ -184,7 +184,7 @@ class Registration_Test extends WP_UnitTestCase {
 	 */
 	private function register( object $competition, string $email = 'new@example.com', string $grade = 'beginner', ?callable $clock = null ): string {
 		$before = count( $this->mails );
-		$this->assertTrue( ( new Registration( $clock ) )->request( $competition, 'New Person', $email, $grade, self::PAGE ) );
+		$this->assertTrue( ( new Registration( $clock ) )->request( (int) $competition->id, 'New Person', $email, $grade, self::PAGE ) );
 
 		$sent = array_slice( $this->mails, $before );
 		if ( ! $sent ) {
@@ -281,16 +281,16 @@ class Registration_Test extends WP_UnitTestCase {
 		$competition  = $this->competition();
 		$registration = new Registration();
 
-		$this->assertSame( 'invalid_name', $registration->request( $competition, ' ', 'new@example.com', 'beginner', self::PAGE )->get_error_code() );
-		$this->assertSame( 'invalid_email', $registration->request( $competition, 'New', 'not an address', 'beginner', self::PAGE )->get_error_code() );
-		$this->assertSame( 'invalid_grade', $registration->request( $competition, 'New', 'new@example.com', 'advanced', self::PAGE )->get_error_code() );
+		$this->assertSame( 'invalid_name', $registration->request( (int) $competition->id, ' ', 'new@example.com', 'beginner', self::PAGE )->get_error_code() );
+		$this->assertSame( 'invalid_email', $registration->request( (int) $competition->id, 'New', 'not an address', 'beginner', self::PAGE )->get_error_code() );
+		$this->assertSame( 'invalid_grade', $registration->request( (int) $competition->id, 'New', 'new@example.com', 'advanced', self::PAGE )->get_error_code() );
 		$this->assertSame( array(), $this->mails );
 	}
 
 	public function test_registering_for_a_competition_not_open_for_registration_is_refused(): void {
 		$competition = $this->competition( array( 'registration_open' => false ) );
 
-		$result = ( new Registration() )->request( $competition, 'New', 'new@example.com', 'beginner', self::PAGE );
+		$result = ( new Registration() )->request( (int) $competition->id, 'New', 'new@example.com', 'beginner', self::PAGE );
 
 		$this->assertSame( 'registration_closed', $result->get_error_code() );
 		$this->assertSame( array(), $this->mails );

@@ -116,6 +116,13 @@ class Registration {
 	private $email;
 
 	/**
+	 * Competition types repository.
+	 *
+	 * @var Competition_Types_Repository
+	 */
+	private $types;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param callable|null $clock Returns the current Unix time. Defaults to time().
@@ -130,6 +137,7 @@ class Registration {
 		$this->entry         = new Competition_Entry( $this->competitions, $this->members );
 		$this->labels        = new Competition_Labels();
 		$this->email         = new Email_Service();
+		$this->types         = new Competition_Types_Repository();
 	}
 
 	/**
@@ -215,18 +223,19 @@ class Registration {
 	 * and why they couldn't enter, is only said to the address's owner.
 	 * An address can register for a competition once every few minutes.
 	 *
-	 * @param object $competition Competition row.
-	 * @param string $name        Name typed in.
-	 * @param string $email       Email address typed in.
-	 * @param string $grade       Grade chosen.
-	 * @param string $page_url    URL of the registration page.
+	 * @param int    $competition_id Competition ID.
+	 * @param string $name           Name typed in.
+	 * @param string $email          Email address typed in.
+	 * @param string $grade          Grade chosen.
+	 * @param string $page_url       URL of the registration page.
 	 * @return true|WP_Error 'registration_closed', 'invalid_name', 'invalid_email' or 'invalid_grade'.
 	 */
-	public function request( object $competition, string $name, string $email, string $grade, string $page_url ) {
-		$name  = mb_substr( sanitize_text_field( $name ), 0, 191 );
-		$email = strtolower( sanitize_email( $email ) );
+	public function request( int $competition_id, string $name, string $email, string $grade, string $page_url ) {
+		$name        = mb_substr( sanitize_text_field( $name ), 0, 191 );
+		$email       = strtolower( sanitize_email( $email ) );
+		$competition = $this->competitions->find( $competition_id );
 
-		if ( ! $this->is_open( $competition ) ) {
+		if ( ! $competition || ! $this->is_open( $competition ) ) {
 			return new WP_Error( 'registration_closed', __( 'Registration for this competition has closed.', 'photo-competition-manager' ) );
 		}
 
@@ -249,9 +258,6 @@ class Registration {
 		set_transient( $address_key, 1, self::ADDRESS_WAIT );
 
 		// Registration closing stops the link too: confirm() refuses it, saying so.
-		$now     = ( $this->clock )();
-		$expires = gmdate( 'Y-m-d H:i:s', $now + self::LIFETIME );
-
 		$key = bin2hex( random_bytes( 32 ) );
 		$id  = $this->registrations->create(
 			array(
@@ -260,8 +266,8 @@ class Registration {
 				'email'          => $email,
 				'grade'          => $grade,
 				'token_hash'     => hash( 'sha256', $key ),
-				'expires_at'     => $expires,
-				'created_at'     => gmdate( 'Y-m-d H:i:s', $now ),
+				'expires_at'     => gmdate( 'Y-m-d H:i:s', ( $this->clock )() + self::LIFETIME ),
+				'created_at'     => $this->now(),
 			)
 		);
 		if ( ! $id ) {
@@ -279,17 +285,26 @@ class Registration {
 	}
 
 	/**
-	 * The registration a key belongs to, if it's waiting and hasn't expired.
+	 * The registration a key belongs to, if it's waiting and hasn't expired
+	 * and its competition still exists.
 	 *
 	 * @param string $key Key from the link.
-	 * @return object|null Registration row, or null.
+	 * @return object|null Registration row, with its competition row in `competition`, or null.
 	 */
 	public function pending( string $key ): ?object {
 		if ( ! preg_match( '/^[a-f0-9]{64}$/D', $key ) ) {
 			return null;
 		}
 
-		return $this->registrations->find_live( hash( 'sha256', $key ), $this->now() );
+		$registration = $this->registrations->find_live( hash( 'sha256', $key ), $this->now() );
+		$competition  = $registration ? $this->competitions->find( (int) $registration->competition_id ) : null;
+		if ( ! $competition ) {
+			return null;
+		}
+
+		$registration->competition = $competition;
+
+		return $registration;
 	}
 
 	/**
@@ -303,17 +318,18 @@ class Registration {
 	 */
 	public function confirm( string $key ): array {
 		$registration = $this->pending( $key );
-		$competition  = $registration ? $this->competitions->find( (int) $registration->competition_id ) : null;
 
 		// Deleted first, so a second request with the same link finds nothing.
-		if ( ! $registration || ! $this->registrations->delete( (int) $registration->id ) || ! $competition ) {
+		if ( ! $registration || ! $this->registrations->delete( (int) $registration->id ) ) {
 			return self::outcome( 'invalid', __( 'This link has expired or has already been used. Register again to get a new one.', 'photo-competition-manager' ) );
 		}
 
-		$title  = $this->labels->title_for_everyone( $competition );
-		$member = $this->members->find_by_email( (string) $registration->email );
+		$competition = $registration->competition;
+		$title       = $this->labels->title_for_everyone( $competition );
+		$member      = $this->members->find_by_email( (string) $registration->email );
+		$type_ids    = $member ? $this->members->type_ids( (int) $member->id ) : null;
 
-		$refusal = $this->refusal( $competition, $registration, $member );
+		$refusal = $this->refusal( $competition, $title, $registration, $member, (array) $type_ids );
 		if ( null !== $refusal ) {
 			return self::outcome( 'refused', $refusal );
 		}
@@ -328,7 +344,7 @@ class Registration {
 			return self::outcome( 'refused', $member->get_error_message() );
 		}
 
-		$this->enter( $competition, $member );
+		$this->enter( $competition, $member, $type_ids );
 
 		/* translators: %s: Competition title */
 		return self::outcome( 'registered', sprintf( __( "You're entered in %s. We've emailed you the details.", 'photo-competition-manager' ), $title ) );
@@ -338,13 +354,13 @@ class Registration {
 	 * Why a registration can't be confirmed, or null when it can.
 	 *
 	 * @param object      $competition  Competition row.
+	 * @param string      $title        Competition title.
 	 * @param object      $registration Registration row.
 	 * @param object|null $member       The member holding its address, if any.
+	 * @param int[]       $type_ids     The member's type tags.
 	 * @return string|null
 	 */
-	private function refusal( object $competition, object $registration, ?object $member ): ?string {
-		$title = $this->labels->title_for_everyone( $competition );
-
+	private function refusal( object $competition, string $title, object $registration, ?object $member, array $type_ids ): ?string {
 		if ( ! $this->is_open( $competition ) ) {
 			/* translators: %s: Competition title */
 			return sprintf( __( 'Registration for %s has closed, so you weren\'t entered.', 'photo-competition-manager' ), $title );
@@ -362,14 +378,12 @@ class Registration {
 		}
 
 		$interclub = Competition_Settings::is_interclub( $competition );
-		if ( $interclub && ! $this->is_club( $member ) ) {
-			/* translators: %s: Competition title */
-			return sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title );
-		}
-
-		if ( ! $interclub && $this->is_club( $member ) ) {
-			/* translators: %s: Competition title */
-			return sprintf( __( 'This email address is a club\'s, and %s is for individual photographers. Register with your own address.', 'photo-competition-manager' ), $title );
+		if ( $interclub !== $this->is_club( $type_ids ) ) {
+			return $interclub
+				/* translators: %s: Competition title */
+				? sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title )
+				/* translators: %s: Competition title */
+				: sprintf( __( 'This email address is a club\'s, and %s is for individual photographers. Register with your own address.', 'photo-competition-manager' ), $title );
 		}
 
 		if ( ! $this->entry->uses_grade_of( $competition, $member ) ) {
@@ -383,15 +397,13 @@ class Registration {
 	/**
 	 * Whether a member is a club: tagged with a type whose entrants are clubs.
 	 *
-	 * @param object $member Member row.
+	 * @param int[] $type_ids The member's type tags.
 	 * @return bool
 	 */
-	private function is_club( object $member ): bool {
-		$types = new Competition_Types_Repository();
-
-		foreach ( $this->members->type_ids( (int) $member->id ) as $type_id ) {
-			$type = $types->find( $type_id );
-			if ( $type && ! empty( Competition_Settings::type_settings( $type )['interclub']['enabled'] ) ) {
+	private function is_club( array $type_ids ): bool {
+		foreach ( $type_ids as $type_id ) {
+			$type = $this->types->find( $type_id );
+			if ( $type && Competition_Settings::type_is_interclub( $type ) ) {
 				return true;
 			}
 		}
@@ -436,15 +448,16 @@ class Registration {
 	 * Enter a member who registered, tagging them with the competition's type
 	 * if they aren't yet, and email them and the organiser.
 	 *
-	 * @param object $competition Competition row.
-	 * @param object $member      Member row.
+	 * @param object     $competition Competition row.
+	 * @param object     $member      Member row.
+	 * @param int[]|null $type_ids The member's type tags before registering, or null for a member just created with the type.
 	 * @return void
 	 */
-	private function enter( object $competition, object $member ): void {
+	private function enter( object $competition, object $member, ?array $type_ids ): void {
 		$type_id = (int) $competition->type_id;
-		if ( ! in_array( $type_id, $this->members->type_ids( (int) $member->id ), true ) ) {
+		if ( null !== $type_ids && ! in_array( $type_id, $type_ids, true ) ) {
 			$this->members->add_type( (int) $member->id, $type_id );
-			$type = ( new Competition_Types_Repository() )->find( $type_id );
+			$type = $this->types->find( $type_id );
 			$this->log(
 				$competition,
 				'member_type_added',
@@ -454,7 +467,7 @@ class Registration {
 			);
 		}
 
-		$this->entrants->add( (int) $competition->id, (int) $member->id, Entrants_Repository::SOURCE_REGISTRATION );
+		$this->entrants->add( (int) $competition->id, (int) $member->id, Entrants_Repository::SOURCE_REGISTRATION, false );
 		$this->log(
 			$competition,
 			'entrant_registered',
@@ -571,19 +584,11 @@ class Registration {
 				__( 'Registered', 'photo-competition-manager' ) => $registration->created_at,
 			);
 
-			$item = array();
-			foreach ( $fields as $name => $value ) {
-				$item[] = array(
-					'name'  => $name,
-					'value' => (string) $value,
-				);
-			}
-
-			$data[] = array(
-				'group_id'    => 'photo-competition-registrations',
-				'group_label' => __( 'Competition registrations waiting to be confirmed', 'photo-competition-manager' ),
-				'item_id'     => 'photo-competition-registration-' . $registration->id,
-				'data'        => $item,
+			$data[] = Member_Export::item(
+				'photo-competition-registrations',
+				__( 'Competition registrations waiting to be confirmed', 'photo-competition-manager' ),
+				'photo-competition-registration-' . $registration->id,
+				$fields
 			);
 		}
 

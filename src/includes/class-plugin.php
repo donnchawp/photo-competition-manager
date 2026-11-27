@@ -68,7 +68,13 @@ class Plugin {
 		$this->schedule_daily( Email_Job_Manager::CLEANUP_HOOK, array( $deps->email_job_manager, 'cleanup_old_jobs' ) );
 		// 0 args: a bare do_action() passes '', which trim( ?int $now ) would reject with a TypeError.
 		$this->schedule_daily( Log_Retention::HOOK, array( new Log_Retention( $deps->logs ), 'trim' ), 0 );
-		$this->schedule_daily( Registration::CLEANUP_HOOK, array( new Registration(), 'delete_expired' ), 0 );
+		$this->schedule_daily(
+			Registration::CLEANUP_HOOK,
+			static function () {
+				( new Registration() )->delete_expired();
+			},
+			0
+		);
 		$this->register_rest_api();
 
 		add_filter( 'wp_privacy_personal_data_erasers', array( \PhotoCompetitionManager\Service\Member_Deletion::class, 'register_eraser' ) );

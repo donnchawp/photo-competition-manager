@@ -1370,7 +1370,7 @@ class Competitions_Controller {
 					'open'         => ! empty( $competition->registration_open ),
 					'closes'       => $this->format_date_for_input( $competition->registration_closes ?? null ),
 					'label_format' => $this->get_ui_date_label(),
-					'taking'       => $selected && ( new Registration() )->is_open( $competition ),
+					'taking'       => ( new Registration() )->is_open( $competition ),
 				),
 				'addable'        => $addable,
 				'interclub'      => $interclub,
