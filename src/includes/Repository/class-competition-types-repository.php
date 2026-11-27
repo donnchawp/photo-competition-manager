@@ -23,6 +23,13 @@ use function PhotoCompetitionManager\Support\utc_time;
 class Competition_Types_Repository extends Abstract_Repository {
 
 	/**
+	 * The club type IDs, once read.
+	 *
+	 * @var int[]|null
+	 */
+	private $club_ids;
+
+	/**
 	 * Create a type.
 	 *
 	 * @since 0.4.0
@@ -56,6 +63,8 @@ class Competition_Types_Repository extends Abstract_Repository {
 		if ( false === $inserted ) {
 			return new WP_Error( 'db_insert_failed', __( 'Could not create the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
+
+		$this->club_ids = null;
 
 		return (int) $wpdb->insert_id;
 	}
@@ -104,6 +113,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 		if ( false === $updated ) {
 			return new WP_Error( 'db_update_failed', __( 'Could not update the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
+		$this->club_ids = null;
 
 		return true;
 	}
@@ -176,36 +186,49 @@ class Competition_Types_Repository extends Abstract_Repository {
 
 	/**
 	 * The IDs of the types whose entrants are clubs. A member tagged with one
-	 * is a club.
+	 * is a club. Read once per repository, since type forms save on their own
+	 * request.
 	 *
 	 * @since 0.6.0
 	 * @return int[]
 	 */
 	public function club_ids(): array {
-		$ids = array();
-		foreach ( $this->all() as $type ) {
-			if ( Competition_Settings::type_is_interclub( $type ) ) {
-				$ids[] = (int) $type->id;
+		if ( null === $this->club_ids ) {
+			$this->club_ids = array();
+			foreach ( $this->all() as $type ) {
+				if ( Competition_Settings::type_is_interclub( $type ) ) {
+					$this->club_ids[] = (int) $type->id;
+				}
 			}
 		}
 
-		return $ids;
+		return $this->club_ids;
 	}
 
 	/**
-	 * Whether a set of type tags mixes club types with people types, which a
-	 * member can't have: they're a club or a person.
+	 * Whether type tags make a member a club. A member tagged with both kinds,
+	 * from a CSV import, counts as a club until an admin fixes their tags.
 	 *
 	 * @since 0.6.0
-	 * @param int[]      $type_ids Type IDs.
-	 * @param int[]|null $club_ids The club type IDs, when the caller has them.
+	 * @param int[] $type_ids Type IDs.
 	 * @return bool
 	 */
-	public function mixes_kinds( array $type_ids, ?array $club_ids = null ): bool {
-		$type_ids = array_unique( array_map( 'intval', $type_ids ) );
-		$clubs    = array_intersect( $type_ids, $club_ids ?? $this->club_ids() );
+	public function is_club( array $type_ids ): bool {
+		return (bool) array_intersect( array_map( 'intval', $type_ids ), $this->club_ids() );
+	}
 
-		return $clubs && count( $clubs ) < count( $type_ids );
+	/**
+	 * Whether type tags mix club types with people types, which a member
+	 * can't have: they're a club or a person.
+	 *
+	 * @since 0.6.0
+	 * @param int[] $type_ids Type IDs.
+	 * @return bool
+	 */
+	public function mixes_kinds( array $type_ids ): bool {
+		$type_ids = array_unique( array_map( 'intval', $type_ids ) );
+
+		return $this->is_club( $type_ids ) && array_diff( $type_ids, $this->club_ids() );
 	}
 
 	/**
@@ -245,6 +268,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 		if ( false === $wpdb->delete( $this->table(), array( 'id' => $id ), array( '%d' ) ) ) {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
+		$this->club_ids = null;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );

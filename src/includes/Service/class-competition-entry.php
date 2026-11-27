@@ -90,12 +90,6 @@ class Competition_Entry {
 	 */
 	private $labels;
 
-	/**
-	 * IDs of the types whose entrants are clubs, looked up on first use.
-	 *
-	 * @var int[]|null
-	 */
-	private $club_type_ids;
 
 	/**
 	 * Constructor.
@@ -192,10 +186,7 @@ class Competition_Entry {
 	 * @return bool
 	 */
 	public function is_right_kind( object $competition, array $type_ids ): bool {
-		$this->club_type_ids ??= $this->types->club_ids();
-		$is_club               = (bool) array_intersect( $type_ids, $this->club_type_ids );
-
-		return Competition_Settings::is_interclub( $competition ) === $is_club;
+		return Competition_Settings::is_interclub( $competition ) === $this->types->is_club( $type_ids );
 	}
 
 	/**
@@ -440,8 +431,9 @@ class Competition_Entry {
 		}
 
 		if ( 'selected' === $mode ) {
+			$tags = $this->members->all_type_ids();
 			foreach ( $this->images->member_ids( (int) $competition->id ) as $member_id ) {
-				if ( $this->is_right_kind( $competition, $this->members->type_ids( $member_id ) ) ) {
+				if ( $this->is_right_kind( $competition, $tags[ $member_id ] ?? array() ) ) {
 					$this->entrants->add( (int) $competition->id, $member_id );
 				}
 			}

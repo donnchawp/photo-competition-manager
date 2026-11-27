@@ -237,10 +237,6 @@ class Types_Controller {
 		$unused      = $draft['unused_grades'] ?? ( $type ? $type->unused_grades : array() );
 		$settings    = $draft['settings'] ?? Competition_Settings::type_settings( $type ?? (object) array() );
 		$locked      = $type && $this->types->in_use( (int) $type->id );
-		if ( $locked ) {
-			// A refused draft may hold a changed value; the form shows the one that can't change.
-			$settings['interclub']['enabled'] = Competition_Settings::type_is_interclub( $type );
-		}
 
 		$grade_rows = array();
 		foreach ( Competition_Settings::club_grades() as $grade ) {

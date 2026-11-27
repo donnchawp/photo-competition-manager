@@ -63,7 +63,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	private function request_for_member( bool $active ): WP_REST_Request {
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
-				'type_id'    => Type_Fixtures::id(),
+				'type_id'   => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -297,12 +297,10 @@ class Upload_API_Test extends WP_UnitTestCase {
 	 * @return string Upload token.
 	 */
 	private function interclub_token( int $quota, bool $interclub = true ): string {
-		if ( $interclub ) {
-			Type_Fixtures::make_interclub( Type_Fixtures::id() );
-		}
+		$type_id        = $interclub ? Type_Fixtures::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) ) : Type_Fixtures::id();
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
-				'type_id'   => Type_Fixtures::id(),
+				'type_id'   => $type_id,
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -324,9 +322,10 @@ class Upload_API_Test extends WP_UnitTestCase {
 		);
 		$club_id        = (int) ( new Members_Repository() )->create(
 			array(
-				'name'  => 'Lee Camera Club',
-				'email' => 'lee@example.com',
-				'grade' => 'beginner',
+				'name'     => 'Lee Camera Club',
+				'email'    => 'lee@example.com',
+				'grade'    => 'beginner',
+				'type_ids' => array( $type_id ),
 			)
 		);
 

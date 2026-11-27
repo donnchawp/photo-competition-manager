@@ -162,8 +162,8 @@ class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$html = $this->render_normalized();
-		$this->assertMatchesRegularExpression( '/<input type="checkbox" name="interclub_enabled_shown" value="1" checked=\'checked\' disabled/', $html );
 		$this->assertStringContainsString( '<input type="hidden" name="interclub_enabled" value="1" />', $html );
+		$this->assertStringNotContainsString( '<input type="checkbox" name="interclub_enabled"', $html );
 		$this->assertStringContainsString( 'make a new type', $html );
 
 		$this->set_request(

@@ -288,9 +288,7 @@ class Members_Controller {
 				$data['type_ids'] = $this->posted_type_ids( 'member_types' );
 			}
 
-			$result = isset( $data['type_ids'] ) && $this->types->mixes_kinds( $data['type_ids'] )
-				? $this->mixed_kinds_error()
-				: $this->members->create( $data );
+			$result = $this->mixed_kinds_refusal( $data['type_ids'] ?? null ) ?? $this->members->create( $data );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -334,9 +332,7 @@ class Members_Controller {
 			);
 
 			$type_ids = $this->types->has_several() ? $this->posted_type_ids( 'member_types' ) : null;
-			$result   = null !== $type_ids && $this->types->mixes_kinds( $type_ids )
-				? $this->mixed_kinds_error()
-				: $this->members->update( $member_id, $data );
+			$result   = $this->mixed_kinds_refusal( $type_ids ) ?? $this->members->update( $member_id, $data );
 
 			if ( is_wp_error( $result ) ) {
 				add_settings_error(
@@ -513,12 +509,11 @@ class Members_Controller {
 							'error'
 						);
 					} else {
-						$club_ids    = $this->types->club_ids();
+						$tags        = $this->members->all_type_ids();
 						$mixed_count = 0;
 						foreach ( $this->members->find_many( $member_ids ) as $member ) {
 							if ( 'bulk_add_type' === $action ) {
-								$type_ids = $this->members->type_ids( (int) $member->id );
-								if ( $this->types->mixes_kinds( array_merge( $type_ids, array( $type_id ) ), $club_ids ) ) {
+								if ( $this->types->mixes_kinds( array_merge( $tags[ (int) $member->id ] ?? array(), array( $type_id ) ) ) ) {
 									++$mixed_count;
 									continue;
 								}
@@ -725,14 +720,13 @@ class Members_Controller {
 
 		$untagged_count = 0;
 		$mixed_ids      = array();
-		$club_ids       = $types ? $this->types->club_ids() : array();
 		if ( $types ) {
 			foreach ( $all_members as $member ) {
 				$member_types = $tags[ (int) $member->id ] ?? array();
 				if ( $member->active && ! $member_types ) {
 					++$untagged_count;
 				}
-				if ( $this->types->mixes_kinds( $member_types, $club_ids ) ) {
+				if ( $this->types->mixes_kinds( $member_types ) ) {
 					$mixed_ids[ (int) $member->id ] = true;
 				}
 			}
@@ -817,7 +811,7 @@ class Members_Controller {
 
 			// Display filter form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options, $type_options, $type_filter, (bool) $club_ids );
+			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options, $type_options, $type_filter, (bool) $mixed_ids );
 
 			if ( empty( $members ) ) {
 				$has_filters = ! empty( $search ) || ! empty( $status_filter ) || ! empty( $grade_filter ) || '' !== $type_filter;
@@ -890,18 +884,18 @@ class Members_Controller {
 	 * @return string
 	 */
 	private function render_mixed_kinds_notice( int $count ): string {
-		return $this->render_template(
-			'admin/members/mixed-kinds-notice.php',
-			array(
-				'count' => $count,
-				'url'   => add_query_arg(
-					array(
-						'page' => 'photo-competition-manager-members',
-						'type' => 'mixed',
-					),
-					admin_url( 'admin.php' )
+		return $this->render_type_notice(
+			sprintf(
+				/* translators: %d: number of members with both a club type and a people type */
+				_n(
+					'%d member is tagged as both a club and a person, so they can\'t enter competitions of one of their types. Remove the types they shouldn\'t have.',
+					'%d members are tagged as both a club and a person, so they can\'t enter competitions of one of their types. Remove the types they shouldn\'t have.',
+					$count,
+					'photo-competition-manager'
 				),
-			)
+				$count
+			),
+			'mixed'
 		);
 	}
 
@@ -912,17 +906,35 @@ class Members_Controller {
 	 * @return string
 	 */
 	private function render_untagged_notice( int $count ): string {
-		return $this->render_template(
-			'admin/members/untagged-notice.php',
-			array(
-				'count' => $count,
-				'url'   => add_query_arg(
-					array(
-						'page' => 'photo-competition-manager-members',
-						'type' => 'none',
-					),
-					admin_url( 'admin.php' )
+		return $this->render_type_notice(
+			sprintf(
+				/* translators: %d: number of active members with no competition type */
+				_n(
+					'%d active member has no type, so they get no links for competitions open to all.',
+					'%d active members have no type, so they get no links for competitions open to all.',
+					$count,
+					'photo-competition-manager'
 				),
+				$count
+			),
+			'none'
+		);
+	}
+
+	/**
+	 * Render a warning about members' type tags, linking to the filter that lists them.
+	 *
+	 * @since 0.6.0
+	 * @param  string $message     The warning.
+	 * @param  string $type_filter The type filter that lists those members.
+	 * @return string
+	 */
+	private function render_type_notice( string $message, string $type_filter ): string {
+		return $this->render_template(
+			'admin/members/type-notice.php',
+			array(
+				'message' => $message,
+				'url'     => add_query_arg( 'type', $type_filter, $this->members_url() ),
 			)
 		);
 	}
@@ -930,27 +942,27 @@ class Members_Controller {
 	/**
 	 * Render the search/status/grade filter form.
 	 *
-	 * @since 0.6.0 Takes $has_club_types.
+	 * @since 0.6.0 Takes $offer_mixed.
 	 * @param  string               $search        Current search term.
 	 * @param  string               $status_filter Current status filter.
 	 * @param  string               $grade_filter  Current grade filter.
 	 * @param  array<string,string> $grade_options Grade slug => label options.
 	 * @param  array<int,string>    $type_options  Type ID => name; empty unless the club has several types.
 	 * @param  string               $type_filter    Current type filter: a type ID, "none", "mixed" or "".
-	 * @param  bool                 $has_club_types Whether a type's entrants are clubs, so members can be tagged as both kinds.
+	 * @param  bool                 $offer_mixed    Whether to offer the filter for members tagged as both a club and a person.
 	 * @return string
 	 */
-	private function render_filters( string $search, string $status_filter, string $grade_filter, array $grade_options, array $type_options, string $type_filter, bool $has_club_types ): string {
+	private function render_filters( string $search, string $status_filter, string $grade_filter, array $grade_options, array $type_options, string $type_filter, bool $offer_mixed ): string {
 		return $this->render_template(
 			'admin/members/filters.php',
 			array(
-				'search'         => $search,
-				'status_filter'  => $status_filter,
-				'grade_filter'   => $grade_filter,
-				'grade_options'  => $grade_options,
-				'type_options'   => $type_options,
-				'type_filter'    => $type_filter,
-				'has_club_types' => $has_club_types,
+				'search'        => $search,
+				'status_filter' => $status_filter,
+				'grade_filter'  => $grade_filter,
+				'grade_options' => $grade_options,
+				'type_options'  => $type_options,
+				'type_filter'   => $type_filter,
+				'offer_mixed'   => $offer_mixed,
 			)
 		);
 	}
@@ -1206,12 +1218,18 @@ class Members_Controller {
 	}
 
 	/**
-	 * The error for type tags that make a member both a club and a person.
+	 * Why a member can't be saved with these type tags: they'd be both a club
+	 * and a person.
 	 *
 	 * @since 0.6.0
-	 * @return WP_Error
+	 * @param int[]|null $type_ids Posted type IDs, or null when the form has none.
+	 * @return WP_Error|null
 	 */
-	private function mixed_kinds_error(): WP_Error {
+	private function mixed_kinds_refusal( ?array $type_ids ): ?WP_Error {
+		if ( null === $type_ids || ! $this->types->mixes_kinds( $type_ids ) ) {
+			return null;
+		}
+
 		return new WP_Error( 'mixed_kinds', __( 'A member is a club or a person, never both, so they can\'t have a type whose entrants are clubs and one whose entrants aren\'t.', 'photo-competition-manager' ) );
 	}
 

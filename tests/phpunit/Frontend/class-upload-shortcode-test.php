@@ -62,7 +62,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
-				'type_id'    => Type_Fixtures::id(),
+				'type_id'   => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -100,10 +100,11 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	private function issue_token( bool $active ): string {
 		$member_id = (int) $this->members->create(
 			array(
-				'name'   => 'Uploader',
-				'email'  => 'uploader@example.com',
-				'grade'  => 'beginner',
-				'active' => $active ? 1 : 0,
+				'name'     => 'Uploader',
+				'email'    => 'uploader@example.com',
+				'grade'    => 'beginner',
+				'active'   => $active ? 1 : 0,
+				'type_ids' => array( (int) ( new Competitions_Repository() )->find( $this->competition_id )->type_id ),
 			)
 		);
 
@@ -383,24 +384,25 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * @param int $photographer_limit Most images per photographer in it; 0 for no limit.
 	 */
 	private function make_interclub( int $quota, int $substitutes, int $photographer_limit = 0 ): void {
-		Type_Fixtures::make_interclub( Type_Fixtures::id() );
+		$settings = array(
+			'categories' => array(
+				array(
+					'slug'  => 'colour',
+					'label' => 'Colour',
+					'quota' => $quota,
+				),
+			),
+			'interclub'  => array(
+				'enabled'            => true,
+				'substitutes'        => $substitutes,
+				'photographer_limit' => $photographer_limit,
+			),
+		);
 		( new Competitions_Repository() )->update(
 			$this->competition_id,
 			array(
-				'settings' => array(
-					'categories' => array(
-						array(
-							'slug'  => 'colour',
-							'label' => 'Colour',
-							'quota' => $quota,
-						),
-					),
-					'interclub'  => array(
-						'enabled'            => true,
-						'substitutes'        => $substitutes,
-						'photographer_limit' => $photographer_limit,
-					),
-				),
+				'type_id'  => Type_Fixtures::create( 'Clubs', array(), array(), $settings ),
+				'settings' => $settings,
 			)
 		);
 	}
@@ -784,7 +786,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 			'Individual' => Type_Fixtures::create( 'Individual' ),
 			'Team'       => Type_Fixtures::create( 'Team' ),
 		);
-		$updated = ( new Competitions_Repository() )->update(
+		$updated  = ( new Competitions_Repository() )->update(
 			$this->competition_id,
 			array(
 				'type_id'    => $type_ids['Individual'],

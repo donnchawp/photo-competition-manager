@@ -20,7 +20,7 @@ echo '<p>';
 if ( $data['locked'] ) {
 	// A disabled box doesn't post, so the hidden field keeps the setting as it is.
 	echo '<input type="hidden" name="interclub_enabled" value="' . ( $data['enabled'] ? '1' : '0' ) . '" />';
-	echo '<label><input type="checkbox" name="interclub_enabled_shown" value="1"' . checked( $data['enabled'], true, false ) . ' disabled /> ';
+	echo '<label><input type="checkbox"' . checked( $data['enabled'], true, false ) . ' disabled /> ';
 } else {
 	echo '<label><input type="checkbox" name="interclub_enabled" value="1"' . checked( $data['enabled'], true, false ) . ' /> ';
 }
