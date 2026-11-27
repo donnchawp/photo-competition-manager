@@ -7,7 +7,7 @@
  * label), $data['grade_notes'] (string[]: how types that differ name and use
  * the grades), $data['members_url'] (string), $data['type_options'] (array<int,string>
  * of type ID => name; empty unless the club has several types),
- * $data['member_types'] (int[] of the member's type IDs) and
+ * $data['member_type'] (int|null: the member's type ID) and
  * $data['archive_on'] (bool: whether past competitions are on).
  *
  * Pure function of $data — reaches into no controller/trait state.
@@ -74,15 +74,15 @@ if ( ! empty( $data['archive_on'] ) ) {
 }
 
 if ( $data['type_options'] ) {
-	echo '<fieldset>';
-	echo '<legend>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</legend>';
+	echo '<p>';
+	echo '<label for="member_type">' . esc_html__( 'Type', 'photo-competition-manager' ) . '</label><br />';
+	echo '<select id="member_type" name="member_type">';
+	echo '<option value="">' . esc_html__( 'None', 'photo-competition-manager' ) . '</option>';
 	foreach ( $data['type_options'] as $type_id => $type_name ) {
-		echo '<label style="display:block;">';
-		echo '<input type="checkbox" name="member_types[]" value="' . esc_attr( $type_id ) . '"' . checked( in_array( (int) $type_id, $data['member_types'], true ), true, false ) . ' /> ';
-		echo esc_html( $type_name );
-		echo '</label>';
+		echo '<option value="' . esc_attr( $type_id ) . '"' . selected( $data['member_type'], (int) $type_id, false ) . '>' . esc_html( $type_name ) . '</option>';
 	}
-	echo '</fieldset>';
+	echo '</select>';
+	echo '</p>';
 }
 
 submit_button( __( 'Update Member', 'photo-competition-manager' ) );

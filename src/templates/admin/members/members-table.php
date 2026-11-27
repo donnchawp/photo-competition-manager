@@ -8,7 +8,7 @@
  * => name; empty unless the club has several types), and $data['rows']: array of row objects, each
  * pre-formatted by the controller with: member_id, name, email, grade_label,
  * status_label, joined, edit_link, delete_url, show_send_email, send_url,
- * upload_url, voting_link_url (a nonced URL, or '' when no link can be sent), types_label.
+ * upload_url, voting_link_url (a nonced URL, or '' when no link can be sent), type_label.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -42,8 +42,7 @@ echo '<option value="bulk_activate">' . esc_html__( 'Activate', 'photo-competiti
 echo '<option value="bulk_deactivate">' . esc_html__( 'Deactivate', 'photo-competition-manager' ) . '</option>';
 echo '<option value="bulk_update_grade">' . esc_html__( 'Update Grade', 'photo-competition-manager' ) . '</option>';
 if ( $data['type_options'] ) {
-	echo '<option value="bulk_add_type">' . esc_html__( 'Add to type', 'photo-competition-manager' ) . '</option>';
-	echo '<option value="bulk_remove_type">' . esc_html__( 'Remove from type', 'photo-competition-manager' ) . '</option>';
+	echo '<option value="bulk_set_type">' . esc_html__( 'Change type to', 'photo-competition-manager' ) . '</option>';
 }
 echo '</select>';
 
@@ -74,7 +73,7 @@ echo '<th>' . esc_html__( 'Name', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Email', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Grade', 'photo-competition-manager' ) . '</th>';
 if ( $data['type_options'] ) {
-	echo '<th>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</th>';
+	echo '<th>' . esc_html__( 'Type', 'photo-competition-manager' ) . '</th>';
 }
 echo '<th>' . esc_html__( 'Status', 'photo-competition-manager' ) . '</th>';
 echo '<th>' . esc_html__( 'Joined', 'photo-competition-manager' ) . '</th>';
@@ -89,7 +88,7 @@ foreach ( $data['rows'] as $member_row ) {
 	echo '<td>' . esc_html( $member_row->email ) . '</td>';
 	echo '<td>' . esc_html( $member_row->grade_label ) . '</td>';
 	if ( $data['type_options'] ) {
-		echo '<td>' . esc_html( $member_row->types_label ) . '</td>';
+		echo '<td>' . esc_html( $member_row->type_label ) . '</td>';
 	}
 	echo '<td>' . esc_html( $member_row->status_label ) . '</td>';
 	echo '<td>' . esc_html( $member_row->joined ) . '</td>';

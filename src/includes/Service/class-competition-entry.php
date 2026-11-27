@@ -9,13 +9,11 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
-use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
-use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -77,19 +75,11 @@ class Competition_Entry {
 	private $upload_tokens;
 
 	/**
-	 * Competition types repository.
-	 *
-	 * @var Competition_Types_Repository
-	 */
-	private $types;
-
-	/**
 	 * Competition labels, for the grades a competition's type uses.
 	 *
 	 * @var Competition_Labels
 	 */
 	private $labels;
-
 
 	/**
 	 * Constructor.
@@ -107,16 +97,13 @@ class Competition_Entry {
 		$this->images        = new Images_Repository();
 		$this->upload_tokens = new Upload_Token_Repository();
 		$this->labels        = new Competition_Labels();
-		$this->types         = new Competition_Types_Repository();
 	}
 
 	/**
 	 * Whether a member may enter a competition: they're active, in a grade its
 	 * type uses, and, when it's open to everyone in its type, tagged with that
-	 * type and the kind it takes (a club or a person), or, when it's for
-	 * selected entrants only, one of them.
+	 * type, or, when it's for selected entrants only, one of them.
 	 *
-	 * @since 0.6.0 Open to everyone leaves out members of the wrong kind.
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
 	 * @return bool
@@ -130,98 +117,44 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		$type_ids = $this->members->type_ids( (int) $member->id );
-
-		return $this->in_type( $competition, $type_ids ) && $this->is_right_kind( $competition, $type_ids );
+		return $this->in_type( $competition, (int) $member->id );
 	}
 
 	/**
 	 * Whether a member is tagged with a competition's type.
 	 *
 	 * @param object $competition Competition row.
-	 * @param int[]  $type_ids    The member's type tags.
+	 * @param int    $member_id   Member ID.
 	 * @return bool
 	 */
-	private function in_type( object $competition, array $type_ids ): bool {
-		return in_array( (int) $competition->type_id, $type_ids, true );
+	private function in_type( object $competition, int $member_id ): bool {
+		return (int) $competition->type_id === $this->members->type_id( $member_id );
 	}
 
 	/**
 	 * The members an admin can add as entrants: active members tagged with the
-	 * competition's type, in a grade it uses, of the kind it takes (clubs or
-	 * people), who aren't entrants yet, by name.
+	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
-	 * @since 0.6.0 Leaves out members of the wrong kind.
 	 * @param object $competition Competition row.
 	 * @return object[] Member rows.
 	 */
 	public function addable_members( object $competition ): array {
 		$entrants = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
-		$tags     = $this->members->all_type_ids();
 
 		return array_values(
 			array_filter(
 				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $competition, $entrants, $tags ) {
-					return ! isset( $entrants[ (int) $member->id ] )
-						&& $this->uses_grade_of( $competition, $member )
-						&& $this->is_right_kind( $competition, $tags[ (int) $member->id ] ?? array() );
+				function ( $member ) use ( $competition, $entrants ) {
+					return ! isset( $entrants[ (int) $member->id ] ) && $this->uses_grade_of( $competition, $member );
 				}
 			)
 		);
 	}
 
 	/**
-	 * Whether a member is the kind of entrant a competition takes: an
-	 * interclub competition's entrants are clubs, and any other's aren't.
-	 * A club is a member tagged with a type whose entrants are clubs. One
-	 * email address is one member, so a member is a club or a person, never
-	 * both.
-	 *
-	 * @since 0.6.0
-	 *
-	 * @param object $competition Competition row.
-	 * @param int[]  $type_ids    The member's type tags.
-	 * @return bool
-	 */
-	public function is_right_kind( object $competition, array $type_ids ): bool {
-		return Competition_Settings::is_interclub( $competition ) === $this->types->is_club( $type_ids );
-	}
-
-	/**
-	 * Why an admin can't enter a member with these type tags, when they're
-	 * the wrong kind for the competition.
-	 *
-	 * @since 0.6.0
-	 *
-	 * @param object $competition Competition row.
-	 * @param int[]  $type_ids    The member's type tags.
-	 * @param string $name        The member's name, for the message.
-	 * @return WP_Error|null 'not_a_club' or 'is_a_club', or null when they're the right kind.
-	 */
-	public function wrong_kind( object $competition, array $type_ids, string $name ): ?WP_Error {
-		if ( $this->is_right_kind( $competition, $type_ids ) ) {
-			return null;
-		}
-
-		return Competition_Settings::is_interclub( $competition )
-			? new WP_Error(
-				'not_a_club',
-				/* translators: %s: Member name */
-				sprintf( __( '%s isn\'t a club, so they can\'t enter a competition between clubs.', 'photo-competition-manager' ), $name )
-			)
-			: new WP_Error(
-				'is_a_club',
-				/* translators: %s: Club name */
-				sprintf( __( '%s is a club, so it can\'t enter a competition for individual photographers.', 'photo-competition-manager' ), $name )
-			);
-	}
-
-	/**
 	 * The active members who may enter a competition and have an email address.
 	 *
-	 * @since 0.6.0 Open to everyone leaves out members of the wrong kind.
 	 * @param object $competition Competition row.
 	 * @return object[] Member rows, by name.
 	 */
@@ -235,13 +168,7 @@ class Competition_Entry {
 				}
 			);
 		} else {
-			$tags    = $this->members->all_type_ids();
-			$members = array_filter(
-				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $competition, $tags ) {
-					return $this->is_right_kind( $competition, $tags[ (int) $member->id ] ?? array() );
-				}
-			);
+			$members = $this->members->find_by_type( (int) $competition->type_id );
 		}
 
 		return array_values(
@@ -280,11 +207,9 @@ class Competition_Entry {
 	 * Enter a member in a competition for selected entrants. While its uploads
 	 * are open, they're sent their upload link.
 	 *
-	 * @since 0.6.0 Refuses a member of the wrong kind with 'is_a_club' or 'not_a_club'.
-	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'is_a_club', 'not_a_club', 'grade_not_used', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -299,8 +224,7 @@ class Competition_Entry {
 		}
 
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
-		$type_ids = $this->members->type_ids( $member_id );
-		if ( ! $this->in_type( $competition, $type_ids ) ) {
+		if ( ! $this->in_type( $competition, $member_id ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(
@@ -309,11 +233,6 @@ class Competition_Entry {
 					$member->name
 				)
 			);
-		}
-
-		$wrong_kind = $this->wrong_kind( $competition, $type_ids, $member->name );
-		if ( $wrong_kind ) {
-			return $wrong_kind;
 		}
 
 		if ( ! $this->uses_grade_of( $competition, $member ) ) {
@@ -412,10 +331,8 @@ class Competition_Entry {
 	/**
 	 * Change who may enter: 'all' for everyone in the competition's type, or
 	 * 'selected' for its entrants only. Switching to 'selected' enters
-	 * everyone who already has entries, unless they're the wrong kind (a club
-	 * or a person) for the competition.
+	 * everyone who already has entries.
 	 *
-	 * @since 0.6.0 Leaves out members of the wrong kind.
 	 * @param object $competition Competition row.
 	 * @param string $mode        'all' or 'selected'.
 	 * @return true|WP_Error 'invalid_entry_mode', 'entry_closed', or the update's error.
@@ -431,11 +348,8 @@ class Competition_Entry {
 		}
 
 		if ( 'selected' === $mode ) {
-			$tags = $this->members->all_type_ids();
 			foreach ( $this->images->member_ids( (int) $competition->id ) as $member_id ) {
-				if ( $this->is_right_kind( $competition, $tags[ $member_id ] ?? array() ) ) {
-					$this->entrants->add( (int) $competition->id, $member_id );
-				}
+				$this->entrants->add( (int) $competition->id, $member_id );
 			}
 		}
 

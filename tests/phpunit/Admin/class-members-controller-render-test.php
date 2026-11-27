@@ -398,7 +398,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		$team       = Type_Fixtures::create( 'Team' );
-		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced', 'type_ids' => array( $individual ) ) );
+		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'grade' => 'advanced', 'type_id'  => $individual ) );
 		$bob = $this->seed_member( 'Bob Baker', 'bob@example.com' );
 
 		$this->assert_matches_snapshot( 'list-two-types', array(), array( $ada, $bob ), array( $individual, $team ) );
@@ -437,7 +437,7 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		$team       = Type_Fixtures::create( 'Team' );
-		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'type_ids' => array( $individual ) ) );
+		$ada = $this->seed_member( 'Ada Lovelace', 'ada@example.com', array( 'type_id'  => $individual ) );
 
 		$this->set_request(
 			array(

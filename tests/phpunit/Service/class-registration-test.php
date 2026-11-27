@@ -148,24 +148,19 @@ class Registration_Test extends WP_UnitTestCase {
 	 * Create a member.
 	 *
 	 * @param string   $email  Email.
-	 * @param string[] $types  Type names.
-	 * @param string   $grade  Grade slug.
-	 * @param bool     $active Whether active.
+	 * @param string|null $type   Type name, or null for none.
+	 * @param string      $grade  Grade slug.
+	 * @param bool        $active Whether active.
 	 * @return int Member ID.
 	 */
-	private function member( string $email, array $types = array( 'Individual' ), string $grade = 'beginner', bool $active = true ): int {
+	private function member( string $email, ?string $type = 'Individual', string $grade = 'beginner', bool $active = true ): int {
 		$id = $this->members->create(
 			array(
-				'name'     => 'Ann On File',
-				'email'    => $email,
-				'grade'    => $grade,
-				'active'   => $active,
-				'type_ids' => array_map(
-					function ( $type ) {
-						return $this->types[ $type ];
-					},
-					$types
-				),
+				'name'    => 'Ann On File',
+				'email'   => $email,
+				'grade'   => $grade,
+				'active'  => $active,
+				'type_id' => null === $type ? null : $this->types[ $type ],
 			)
 		);
 		$this->assertIsInt( $id );
@@ -269,7 +264,7 @@ class Registration_Test extends WP_UnitTestCase {
 	public function test_a_new_address_a_member_and_a_deactivated_member_get_the_same_response(): void {
 		$competition = $this->competition();
 		$this->member( 'member@example.com' );
-		$this->member( 'gone@example.com', array( 'Individual' ), 'beginner', false );
+		$this->member( 'gone@example.com', 'Individual', 'beginner', false );
 
 		// register() asserts the request returns true for each.
 		foreach ( array( 'new@example.com', 'member@example.com', 'gone@example.com' ) as $email ) {
@@ -306,7 +301,7 @@ class Registration_Test extends WP_UnitTestCase {
 		$member = $this->members->find_by_email( 'new@example.com' );
 		$this->assertSame( 'New Person', $member->name );
 		$this->assertSame( 'intermediate', $member->grade );
-		$this->assertSame( array( $this->types['Individual'] ), $this->members->type_ids( (int) $member->id ) );
+		$this->assertSame( $this->types['Individual'], $this->members->type_id( (int) $member->id ) );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->member_ids( (int) $competition->id ) );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->unpaid_member_ids( (int) $competition->id ) );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->registered_member_ids( (int) $competition->id ) );
@@ -314,7 +309,7 @@ class Registration_Test extends WP_UnitTestCase {
 
 	public function test_confirming_as_a_member_enters_and_tags_them_without_changing_their_record(): void {
 		$competition = $this->competition();
-		$member_id   = $this->member( 'ann@example.com', array(), 'beginner' );
+		$member_id   = $this->member( 'ann@example.com', null, 'beginner' );
 		$key         = $this->register( $competition, 'ann@example.com', 'intermediate' );
 
 		$result = ( new Registration() )->confirm( $key );
@@ -323,7 +318,7 @@ class Registration_Test extends WP_UnitTestCase {
 		$member = $this->members->find( $member_id );
 		$this->assertSame( 'Ann On File', $member->name );
 		$this->assertSame( 'beginner', $member->grade );
-		$this->assertSame( array( $this->types['Individual'] ), $this->members->type_ids( $member_id ) );
+		$this->assertSame( $this->types['Individual'], $this->members->type_id( $member_id ) );
 		$this->assertSame( array( $member_id ), $this->entrants->member_ids( (int) $competition->id ) );
 	}
 
@@ -361,14 +356,14 @@ class Registration_Test extends WP_UnitTestCase {
 
 	public function test_a_deactivated_member_is_refused(): void {
 		$competition = $this->competition();
-		$this->member( 'gone@example.com', array( 'Individual' ), 'beginner', false );
+		$this->member( 'gone@example.com', 'Individual', 'beginner', false );
 
 		$this->assert_refused( $competition, $this->register( $competition, 'gone@example.com' ), 'deactivated' );
 	}
 
 	public function test_a_member_in_a_grade_the_type_does_not_use_is_refused(): void {
 		$competition = $this->competition();
-		$this->member( 'ann@example.com', array( 'Individual' ), 'advanced' );
+		$this->member( 'ann@example.com', 'Individual', 'advanced' );
 
 		$this->assert_refused( $competition, $this->register( $competition, 'ann@example.com' ), 'grade' );
 	}
@@ -380,17 +375,33 @@ class Registration_Test extends WP_UnitTestCase {
 				'interclub' => true,
 			)
 		);
-		$this->member( 'ann@example.com', array( 'Individual' ) );
+		$this->member( 'ann@example.com', 'Individual' );
 
 		$this->assert_refused( $competition, $this->register( $competition, 'ann@example.com' ), 'club' );
-		$this->assertSame( array( $this->types['Individual'] ), $this->members->type_ids( (int) $this->members->find_by_email( 'ann@example.com' )->id ), 'no tag added' );
+		$this->assertSame( $this->types['Individual'], $this->members->type_id( (int) $this->members->find_by_email( 'ann@example.com' )->id ), 'type unchanged' );
 	}
 
 	public function test_a_club_registering_for_a_competition_between_people_is_refused(): void {
 		$competition = $this->competition();
-		$this->member( 'club@example.com', array( 'Interclub' ) );
+		$this->member( 'club@example.com', 'Interclub' );
 
 		$this->assert_refused( $competition, $this->register( $competition, 'club@example.com' ), 'club' );
+	}
+
+	public function test_a_member_of_another_type_is_refused_and_keeps_their_type(): void {
+		$competition = $this->competition();
+		$juniors     = Type_Fixtures::create( 'Juniors' );
+		$member_id   = $this->members->create(
+			array(
+				'name'    => 'Jo Junior',
+				'email'   => 'jo@example.com',
+				'grade'   => 'beginner',
+				'type_id' => $juniors,
+			)
+		);
+
+		$this->assert_refused( $competition, $this->register( $competition, 'jo@example.com' ), 'Juniors' );
+		$this->assertSame( $juniors, $this->members->type_id( $member_id ) );
 	}
 
 	public function test_a_link_confirmed_after_registration_closed_is_refused(): void {

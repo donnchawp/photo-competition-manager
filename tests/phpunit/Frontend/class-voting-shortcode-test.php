@@ -378,13 +378,13 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Give the competition under test's type (Individual) a second type (Team), and add a member of the given types.
+	 * Give the competition under test's type (Individual) a second type (Team), and add a member of the given type.
 	 *
-	 * @param string   $entry_mode 'all' or 'selected'.
-	 * @param string[] $types      The member's type names.
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @param string $type       The member's type name.
 	 * @return int Member ID.
 	 */
-	private function two_type_member( string $entry_mode, array $types ): int {
+	private function two_type_member( string $entry_mode, string $type ): int {
 		// The competition has entries, so it keeps its type; a second type joins it.
 		$type_ids = array(
 			'Individual' => (int) $this->competition->type_id,
@@ -398,18 +398,13 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 				'name'     => 'Voter',
 				'email'    => 'voter@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array_map(
-					static function ( $type ) use ( $type_ids ) {
-						return $type_ids[ $type ];
-					},
-					$types
-				),
+				'type_id'  => $type_ids[ $type ],
 			)
 		);
 	}
 
 	public function test_non_entrant_cannot_request_voting_link_in_selected_competition(): void {
-		$member_id = $this->two_type_member( 'selected', array( 'Individual' ) );
+		$member_id = $this->two_type_member( 'selected', 'Individual' );
 
 		$message = $this->request_token( 'voter@example.com' );
 
@@ -419,7 +414,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_an_entrant_can_request_a_voting_link_in_selected_competition(): void {
-		$member_id = $this->two_type_member( 'selected', array( 'Team' ) );
+		$member_id = $this->two_type_member( 'selected', 'Team' );
 		( new Entrants_Repository() )->add( (int) $this->competition->id, $member_id );
 
 		$this->request_token( 'voter@example.com' );
@@ -428,7 +423,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_without_the_type_cannot_request_a_voting_link(): void {
-		$member_id = $this->two_type_member( 'all', array( 'Team' ) );
+		$member_id = $this->two_type_member( 'all', 'Team' );
 
 		$message = $this->request_token( 'voter@example.com' );
 
@@ -438,7 +433,7 @@ class Voting_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_with_the_type_can_request_a_voting_link(): void {
-		$this->two_type_member( 'all', array( 'Individual' ) );
+		$this->two_type_member( 'all', 'Individual' );
 
 		$this->request_token( 'voter@example.com' );
 

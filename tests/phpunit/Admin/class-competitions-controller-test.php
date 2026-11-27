@@ -2306,7 +2306,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( 'Dan Guest', $dan->name );
 		$this->assertSame( array( (int) $dan->id ), ( new Entrants_Repository() )->member_ids( $id ) );
 		// Tagged by the one-type rule.
-		$this->assertSame( array( Type_Fixtures::id() ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( Type_Fixtures::id(), $members->type_id( (int) $dan->id ) );
 		$this->assertSame( 'dan@example.com', tests_retrieve_phpmailer_instance()->mock_sent[0]['to'][0][0] );
 		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
@@ -2329,7 +2329,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$members = new Members_Repository();
 		$dan     = $members->find_by_email( 'dan@example.com' );
 		$this->assertNotNull( $dan );
-		$this->assertSame( array( $type_id ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( $type_id, $members->type_id( (int) $dan->id ) );
 	}
 
 	public function test_create_member_with_an_existing_email_enters_that_member(): void {
@@ -2412,37 +2412,6 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 
 		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
 		$this->assertContains( 'entry_closed', $this->settings_error_codes( 'photo_competition_manager' ) );
-	}
-
-	/**
-	 * A competition made interclub on its own Settings tab takes clubs, and a
-	 * new member would be tagged only with its people type, so they'd be
-	 * refused. Refused before they're created, so no member is left behind.
-	 */
-	public function test_create_member_who_would_be_the_wrong_kind_creates_no_one(): void {
-		$id = $this->create_entry_competition();
-		$this->competitions->update(
-			$id,
-			array(
-				'settings' => array(
-					'urls'      => array( 'upload_page' => 'https://example.com/upload/' ),
-					'interclub' => array( 'enabled' => true ),
-				),
-			)
-		);
-
-		$this->post_entrants_action(
-			$id,
-			'add_new_entrant',
-			array(
-				'member_name'  => 'Dan Guest',
-				'member_email' => 'dan@example.com',
-				'member_grade' => 'beginner',
-			)
-		);
-
-		$this->assertNull( ( new Members_Repository() )->find_by_email( 'dan@example.com' ) );
-		$this->assertContains( 'not_a_club', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
 	public function test_create_member_while_open_to_all_creates_no_one(): void {

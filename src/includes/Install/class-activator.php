@@ -39,7 +39,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 15;
+	const DB_VERSION = 16;
 
 	/**
 	 * Option holding the installed data version.
@@ -202,6 +202,12 @@ class Activator {
 		// A competition for selected entrants can take registrations, held
 		// until confirmed by email. Existing entrants were added by an admin.
 		if ( $installed < 15 && ! self::add_registration_schema() ) {
+			return;
+		}
+
+		// A member has one type: it decides which competitions they enter
+		// and whether they're a club or a person.
+		if ( $installed < 16 && ! self::keep_one_type_per_member() ) {
 			return;
 		}
 
@@ -795,6 +801,69 @@ class Activator {
 	}
 
 	/**
+	 * Keep each member's first type, the lowest ID, logging any other, then
+	 * add the unique key that stops a second one.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @return bool False if the key couldn't be added, so the step runs again.
+	 */
+	private static function keep_one_type_per_member(): bool {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'photocomp_member_types';
+
+		// Only when the key is missing: DDL ends the running transaction.
+		if ( self::has_unique_keys( $table, array( 'member_id' ) ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$extra = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT t.member_id, t.type_id FROM %i t
+				JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id HAVING COUNT(*) > 1) k
+				ON k.member_id = t.member_id AND t.type_id <> k.kept',
+				$table,
+				$table
+			)
+		);
+
+		foreach ( $extra as $tag ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( ! $wpdb->delete(
+				$table,
+				array(
+					'member_id' => (int) $tag->member_id,
+					'type_id'   => (int) $tag->type_id,
+				),
+				array( '%d', '%d' )
+			) ) {
+				return false;
+			}
+
+			// The upgrade runs before translations load, so this is in English.
+			( new Logs_Repository() )->create(
+				array(
+					'event_type'     => 'member_type_removed',
+					'event_category' => 'members',
+					'actor_type'     => 'system',
+					'actor_name'     => 'System',
+					'description'    => sprintf( 'Upgrade took type %1$d away from member %2$d, since a member has one type now.', $tag->type_id, $tag->member_id ),
+					'metadata'       => array(
+						'member_id' => (int) $tag->member_id,
+						'type_id'   => (int) $tag->type_id,
+					),
+				)
+			);
+		}
+
+		self::create_tables();
+
+		return self::has_unique_keys( $table, array( 'member_id' ) );
+	}
+
+	/**
 	 * Give every competition without a share hash its own, so its results
 	 * can be shared while the club's results are private.
 	 *
@@ -1384,6 +1453,7 @@ class Activator {
 			member_id BIGINT UNSIGNED NOT NULL,
 			type_id BIGINT UNSIGNED NOT NULL,
 			PRIMARY KEY  (member_id, type_id),
+			UNIQUE KEY member_id (member_id),
 			KEY type_id (type_id)
 		) {$charset_collate};";
 

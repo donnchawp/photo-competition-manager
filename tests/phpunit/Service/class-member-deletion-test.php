@@ -67,9 +67,9 @@ class Member_Deletion_Test extends WP_UnitTestCase {
 
 		$this->assertSame( 0, $this->delete( $jane ) );
 
-		$this->assertSame( array(), $this->members->type_ids( $jane ) );
+		$this->assertNull( $this->members->type_id( $jane ) );
 		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE member_id = %d', $table, $jane ) ) );
-		$this->assertSame( array( $type ), $this->members->type_ids( $john ) );
+		$this->assertSame( $type, $this->members->type_id( $john ) );
 	}
 
 	public function test_a_deleted_members_voting_link_votes_still_count_under_their_token(): void {

@@ -572,18 +572,20 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Replace the site's types with Individual and Team.
 	 *
-	 * @param bool $team_is_interclub Whether Team's entrants are clubs.
 	 * @return array<string, int> Type IDs by name.
 	 */
-	private function use_two_types( bool $team_is_interclub = false ): array {
+	private function use_two_types(): array {
 		global $wpdb;
 
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
 
+		$types      = new Competition_Types_Repository();
+		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
+
 		return array(
-			'Individual' => Type_Fixtures::create( 'Individual' ),
-			'Team'       => Type_Fixtures::create( 'Team', array(), array(), array( 'interclub' => array( 'enabled' => $team_is_interclub ) ) ),
+			'Individual' => (int) $types->create( 'Individual', $categories ),
+			'Team'       => (int) $types->create( 'Team', $categories ),
 		);
 	}
 
@@ -1008,8 +1010,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$ids     = $this->use_two_types();
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
-		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Individual'] ) );
+		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1031,7 +1033,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * are offered and the panel talks about clubs (#246).
 	 */
 	public function test_render_interclub_entrants_tab_offers_only_the_types_clubs(): void {
-		$ids     = $this->use_two_types( true );
+		$ids     = $this->use_two_types();
 		$comp_id = $this->seed_competition(
 			'Interclub',
 			'interclub',
@@ -1045,8 +1047,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
-		$members->create( array( 'name' => 'Riverside Camera Club', 'email' => 'riverside@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Individual'] ) );
+		$members->create( array( 'name' => 'Riverside Camera Club', 'email' => 'riverside@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1100,8 +1102,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$types->update( $ids['Team'], 'Team', $team->settings, array(), array( 'beginner' ) );
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Bea', 'email' => 'bea@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
-		$members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'advanced', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Bea', 'email' => 'bea@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
+		$members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'advanced', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',

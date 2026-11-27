@@ -62,7 +62,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 
 		$this->competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
-				'type_id'   => Type_Fixtures::id(),
+				'type_id'    => Type_Fixtures::id(),
 				'title'     => 'Upload Comp',
 				'slug'      => 'upload-comp',
 				'open_date' => '2020-01-01 00:00:00',
@@ -100,11 +100,10 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	private function issue_token( bool $active ): string {
 		$member_id = (int) $this->members->create(
 			array(
-				'name'     => 'Uploader',
-				'email'    => 'uploader@example.com',
-				'grade'    => 'beginner',
-				'active'   => $active ? 1 : 0,
-				'type_ids' => array( (int) ( new Competitions_Repository() )->find( $this->competition_id )->type_id ),
+				'name'   => 'Uploader',
+				'email'  => 'uploader@example.com',
+				'grade'  => 'beginner',
+				'active' => $active ? 1 : 0,
 			)
 		);
 
@@ -384,25 +383,23 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * @param int $photographer_limit Most images per photographer in it; 0 for no limit.
 	 */
 	private function make_interclub( int $quota, int $substitutes, int $photographer_limit = 0 ): void {
-		$settings = array(
-			'categories' => array(
-				array(
-					'slug'  => 'colour',
-					'label' => 'Colour',
-					'quota' => $quota,
-				),
-			),
-			'interclub'  => array(
-				'enabled'            => true,
-				'substitutes'        => $substitutes,
-				'photographer_limit' => $photographer_limit,
-			),
-		);
 		( new Competitions_Repository() )->update(
 			$this->competition_id,
 			array(
-				'type_id'  => Type_Fixtures::create( 'Clubs', array(), array(), $settings ),
-				'settings' => $settings,
+				'settings' => array(
+					'categories' => array(
+						array(
+							'slug'  => 'colour',
+							'label' => 'Colour',
+							'quota' => $quota,
+						),
+					),
+					'interclub'  => array(
+						'enabled'            => true,
+						'substitutes'        => $substitutes,
+						'photographer_limit' => $photographer_limit,
+					),
+				),
 			)
 		);
 	}
@@ -776,17 +773,17 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	/**
 	 * Make the page's competition an Individual one of two types, and issue a token to a member of the given types.
 	 *
-	 * @param string   $entry_mode 'all' or 'selected'.
-	 * @param string[] $types      The member's type names.
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @param string $type       The member's type name.
 	 * @return array{0: string, 1: int} Token and member ID.
 	 */
-	private function two_type_token( string $entry_mode, array $types ): array {
+	private function two_type_token( string $entry_mode, string $type ): array {
 		Type_Fixtures::clear();
 		$type_ids = array(
 			'Individual' => Type_Fixtures::create( 'Individual' ),
 			'Team'       => Type_Fixtures::create( 'Team' ),
 		);
-		$updated  = ( new Competitions_Repository() )->update(
+		$updated = ( new Competitions_Repository() )->update(
 			$this->competition_id,
 			array(
 				'type_id'    => $type_ids['Individual'],
@@ -799,12 +796,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 				'name'     => 'Uploader',
 				'email'    => 'uploader@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array_map(
-					static function ( $type ) use ( $type_ids ) {
-						return $type_ids[ $type ];
-					},
-					$types
-				),
+				'type_id'  => $type_ids[ $type ],
 			)
 		);
 
@@ -812,7 +804,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
-		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		list( $token, $member_id ) = $this->two_type_token( 'selected', 'Individual' );
 		$entrants                  = new Entrants_Repository();
 		$entrants->add( $this->competition_id, $member_id );
 		$_GET['token'] = $token;
@@ -827,7 +819,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_removed_entrants_upload_is_refused(): void {
-		list( $token, $member_id ) = $this->two_type_token( 'selected', array( 'Individual' ) );
+		list( $token, $member_id ) = $this->two_type_token( 'selected', 'Individual' );
 		$this->assertSame( array(), ( new Entrants_Repository() )->member_ids( $this->competition_id ) );
 		$nonce = wp_create_nonce( 'photo_competition_upload_with_token' );
 
@@ -846,7 +838,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_without_the_competitions_type_is_refused_on_the_page(): void {
-		list( $token ) = $this->two_type_token( 'all', array( 'Team' ) );
+		list( $token ) = $this->two_type_token( 'all', 'Team' );
 		$_GET['token'] = $token;
 
 		$output = $this->shortcode->render( array() );
@@ -860,7 +852,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * can't upload (#247).
 	 */
 	public function test_a_member_in_a_grade_the_type_does_not_use_is_told_why(): void {
-		list( $token ) = $this->two_type_token( 'all', array( 'Individual' ) );
+		list( $token ) = $this->two_type_token( 'all', 'Individual' );
 		$types         = new Competition_Types_Repository();
 		$type_id       = (int) ( new Competitions_Repository() )->find( $this->competition_id )->type_id;
 		$type          = $types->find( $type_id );
@@ -874,7 +866,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_with_the_competitions_type_opens_the_page(): void {
-		list( $token ) = $this->two_type_token( 'all', array( 'Individual', 'Team' ) );
+		list( $token ) = $this->two_type_token( 'all', 'Individual' );
 		$_GET['token'] = $token;
 
 		$this->assertStringContainsString( 'Authenticated as: Uploader', $this->shortcode->render( array() ) );

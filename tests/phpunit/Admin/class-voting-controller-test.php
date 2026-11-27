@@ -325,7 +325,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'name'     => 'Ann',
 				'email'    => 'ann@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array( $individual, $team ),
+				'type_id'  => $individual,
 			)
 		);
 		$members->create(
@@ -333,7 +333,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'name'     => 'Ben',
 				'email'    => 'ben@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array( $team ),
+				'type_id'  => $team,
 			)
 		);
 		$members->create(
@@ -342,7 +342,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'email'    => 'cat@example.com',
 				'grade'    => 'beginner',
 				'active'   => false,
-				'type_ids' => array( $individual ),
+				'type_id'  => $individual,
 			)
 		);
 		$this->colour_at( Competition_Workflow::STAGE_PREVIEWED );
@@ -396,7 +396,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'name'     => 'Ann',
 				'email'    => 'ann@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array( $individual ),
+				'type_id'  => $individual,
 			)
 		);
 		$members->create(
@@ -404,7 +404,7 @@ class Voting_Controller_Test extends Admin_Controller_Test_Case {
 				'name'     => 'Ben',
 				'email'    => 'ben@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array( $individual ),
+				'type_id'  => $individual,
 			)
 		);
 		( new \PhotoCompetitionManager\Repository\Entrants_Repository() )->add( $this->competition_id, $ann );

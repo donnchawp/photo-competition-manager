@@ -117,27 +117,22 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create a member with the given types.
+	 * Create a member of the given type.
 	 *
 	 * @param string   $name   Name.
-	 * @param string[] $types  Type names.
+	 * @param string   $type   Type name.
 	 * @param bool     $active Whether active.
 	 * @param string   $grade  Grade slug.
 	 * @return int Member ID.
 	 */
-	private function member( string $name, array $types = array( 'Individual' ), bool $active = true, string $grade = 'beginner' ): int {
+	private function member( string $name, string $type = 'Individual', bool $active = true, string $grade = 'beginner' ): int {
 		$id = $this->members->create(
 			array(
 				'name'     => $name,
 				'email'    => sanitize_title( $name ) . '@example.com',
 				'grade'    => $grade,
 				'active'   => $active,
-				'type_ids' => array_map(
-					function ( $type ) {
-						return $this->types[ $type ];
-					},
-					$types
-				),
+				'type_id'  => $this->types[ $type ],
 			)
 		);
 		$this->assertIsInt( $id );
@@ -147,8 +142,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_may_enter_open_to_all_requires_type_tag(): void {
 		$competition = $this->competition( 'Individual' );
-		$ann         = $this->member( 'Ann', array( 'Individual' ) );
-		$bob         = $this->member( 'Bob', array( 'Team' ) );
+		$ann         = $this->member( 'Ann', 'Individual' );
+		$bob         = $this->member( 'Bob', 'Team' );
 
 		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
@@ -157,8 +152,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_may_enter_selected_requires_entrant(): void {
 		$competition = $this->competition( 'Individual', 'selected' );
-		$ann         = $this->member( 'Ann', array( 'Individual' ) );
-		$bob         = $this->member( 'Bob', array( 'Team' ) );
+		$ann         = $this->member( 'Ann', 'Individual' );
+		$bob         = $this->member( 'Bob', 'Team' );
 		$this->entrants->add( (int) $competition->id, $bob );
 
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
@@ -177,8 +172,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
 		);
 		$competition = $this->competition( 'Team' );
-		$ann         = $this->member( 'Ann', array( 'Team' ), true, 'advanced' );
-		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+		$ann         = $this->member( 'Ann', 'Team', true, 'advanced' );
+		$bob         = $this->member( 'Bob', 'Team', true, 'beginner' );
 
 		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
@@ -204,7 +199,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
 		);
 		$competition = $this->competition( 'Team', 'selected' );
-		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+		$bob         = $this->member( 'Bob', 'Team', true, 'beginner' );
 
 		$result = $this->entry->add_entrant( $competition, $bob );
 
@@ -213,65 +208,9 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->entrants->has( (int) $competition->id, $bob ) );
 	}
 
-	/**
-	 * Add a type whose entrants are clubs.
-	 *
-	 * @return void
-	 */
-	private function add_club_type(): void {
-		$this->types['Clubs'] = Type_Fixtures::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) );
-	}
-
-	/**
-	 * One address is one member, so a club can't be entered in a competition
-	 * between people, even when it's tagged with that competition's type (#321).
-	 */
-	public function test_add_entrant_refuses_a_club_in_a_competition_between_people(): void {
-		$this->add_club_type();
-		$competition = $this->competition( 'Individual', 'selected' );
-		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
-		$person      = $this->member( 'Ann', array( 'Individual' ) );
-
-		$result = $this->entry->add_entrant( $competition, $club );
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'is_a_club', $result->get_error_code() );
-		$this->assertStringContainsString( 'Lee Valley CC', $result->get_error_message() );
-		$this->assertFalse( $this->entrants->has( (int) $competition->id, $club ) );
-		$this->assertTrue( $this->entry->add_entrant( $competition, $person ) );
-	}
-
-	/**
-	 * A competition's own settings can make it interclub when its type isn't,
-	 * and then its type's people can't be entered (#321).
-	 */
-	public function test_add_entrant_refuses_a_person_in_a_competition_between_clubs(): void {
-		$competition = $this->competition( 'Individual', 'selected', true );
-		$person      = $this->member( 'Ann', array( 'Individual' ) );
-
-		$result = $this->entry->add_entrant( $competition, $person );
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'not_a_club', $result->get_error_code() );
-		$this->assertStringContainsString( 'Ann', $result->get_error_message() );
-		$this->assertFalse( $this->entrants->has( (int) $competition->id, $person ) );
-	}
-
-	public function test_a_club_is_not_offered_as_an_entrant_in_a_competition_between_people(): void {
-		$this->add_club_type();
-		$individual = $this->competition( 'Individual', 'selected' );
-		$club       = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
-		$person     = $this->member( 'Ann', array( 'Individual' ) );
-
-		$this->assertSame( array( $person ), array_map( 'intval', wp_list_pluck( $this->entry->addable_members( $individual ), 'id' ) ) );
-
-		$this->competitions->update( (int) $individual->id, array( 'type_id' => $this->types['Clubs'] ) );
-		$this->assertSame( array( $club ), array_map( 'intval', wp_list_pluck( $this->entry->addable_members( $this->reload( $individual ) ), 'id' ) ), 'a competition between clubs offers the club' );
-	}
-
 	public function test_inactive_member_may_not_enter(): void {
 		$open     = $this->competition( 'Individual' );
-		$inactive = $this->member( 'Cat', array( 'Individual' ), false );
+		$inactive = $this->member( 'Cat', 'Individual', false );
 
 		$this->assertFalse( $this->entry->may_enter( $open, $this->members->find( $inactive ) ) );
 		$this->assertSame( array(), $this->entry->eligible_members( $open ) );
@@ -286,7 +225,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_add_entrant_while_uploads_open_sends_upload_link(): void {
 		$competition = $this->competition( 'Individual', 'selected' );
-		$bob         = $this->member( 'Bob', array( 'Individual' ) );
+		$bob         = $this->member( 'Bob', 'Individual' );
 		reset_phpmailer_instance();
 
 		$this->assertTrue( $this->entry->add_entrant( $competition, $bob ) );
@@ -316,8 +255,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 */
 	public function test_add_entrant_enters_only_members_of_the_type(): void {
 		$competition = $this->competition( 'Team', 'selected' );
-		$member      = $this->member( 'Ann', array( 'Team' ) );
-		$outsider    = $this->member( 'Bob', array( 'Individual' ) );
+		$member      = $this->member( 'Ann', 'Team' );
+		$outsider    = $this->member( 'Bob', 'Individual' );
 
 		$result = $this->entry->add_entrant( $competition, $outsider );
 
@@ -431,39 +370,6 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->entrants->has( (int) $competition->id, $ann ) );
 		$this->assertNull( $tokens->find_valid_token( $ann_token->token ) );
 		$this->assertNotNull( $tokens->find_valid_token( $bob_token->token ) );
-	}
-
-	/**
-	 * A member tagged as both a club and a person is a club, so in a
-	 * competition for people, open to everyone, they get no links and can't
-	 * upload (#323).
-	 */
-	public function test_a_club_may_not_enter_a_competition_for_people_open_to_everyone(): void {
-		$this->add_club_type();
-		$competition = $this->competition( 'Individual', 'all' );
-		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
-		$person      = $this->member( 'Ann', array( 'Individual' ) );
-
-		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $club ) ) );
-		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $person ) ) );
-		$this->assertSame( array( $person ), array_map( 'intval', wp_list_pluck( $this->entry->eligible_members( $competition ), 'id' ) ) );
-	}
-
-	/**
-	 * Switching to selected entrants copies in members with entries, but not
-	 * one of the wrong kind (#323).
-	 */
-	public function test_switching_to_selected_leaves_out_members_of_the_wrong_kind(): void {
-		$this->add_club_type();
-		$competition = $this->competition( 'Individual', 'all' );
-		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
-		$person      = $this->member( 'Ann', array( 'Individual' ) );
-		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $club, array() );
-		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $person, array() );
-
-		$this->assertTrue( $this->entry->set_mode( $competition, 'selected' ) );
-
-		$this->assertSame( array( $person ), $this->entrants->member_ids( (int) $competition->id ) );
 	}
 
 	public function test_switching_to_selected_keeps_members_with_entries(): void {

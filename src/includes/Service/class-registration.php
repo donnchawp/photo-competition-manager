@@ -327,9 +327,9 @@ class Registration {
 		$competition = $registration->competition;
 		$title       = $this->labels->title_for_everyone( $competition );
 		$member      = $this->members->find_by_email( (string) $registration->email );
-		$type_ids    = $member ? $this->members->type_ids( (int) $member->id ) : null;
+		$type_id     = $member ? $this->members->type_id( (int) $member->id ) : null;
 
-		$refusal = $this->refusal( $competition, $title, $registration, $member, (array) $type_ids );
+		$refusal = $this->refusal( $competition, $title, $registration, $member, $type_id );
 		if ( null !== $refusal ) {
 			return self::outcome( 'refused', $refusal );
 		}
@@ -339,12 +339,13 @@ class Registration {
 			return self::outcome( 'already_entrant', sprintf( __( "You're already entered in %s, so nothing has changed.", 'photo-competition-manager' ), $title ) );
 		}
 
-		$member = $member ? $member : $this->create_member( $competition, $registration );
+		$had_no_type = $member && null === $type_id;
+		$member      = $member ? $member : $this->create_member( $competition, $registration );
 		if ( is_wp_error( $member ) ) {
 			return self::outcome( 'refused', $member->get_error_message() );
 		}
 
-		$this->enter( $competition, $member, $type_ids );
+		$this->enter( $competition, $member, $had_no_type );
 
 		/* translators: %s: Competition title */
 		return self::outcome( 'registered', sprintf( __( "You're entered in %s. We've emailed you the details.", 'photo-competition-manager' ), $title ) );
@@ -357,10 +358,10 @@ class Registration {
 	 * @param string      $title        Competition title.
 	 * @param object      $registration Registration row.
 	 * @param object|null $member       The member holding its address, if any.
-	 * @param int[]       $type_ids     The member's type tags.
+	 * @param int|null    $type_id      The member's type, if they have one.
 	 * @return string|null
 	 */
-	private function refusal( object $competition, string $title, object $registration, ?object $member, array $type_ids ): ?string {
+	private function refusal( object $competition, string $title, object $registration, ?object $member, ?int $type_id ): ?string {
 		if ( ! $this->is_open( $competition ) ) {
 			/* translators: %s: Competition title */
 			return sprintf( __( 'Registration for %s has closed, so you weren\'t entered.', 'photo-competition-manager' ), $title );
@@ -377,12 +378,22 @@ class Registration {
 			return __( 'This email address belongs to a deactivated member. Ask the competition organiser to reactivate it.', 'photo-competition-manager' );
 		}
 
-		if ( ! $this->entry->is_right_kind( $competition, $type_ids ) ) {
-			return Competition_Settings::is_interclub( $competition )
+		// A member has one type, and only an admin changes it.
+		if ( null !== $type_id && (int) $competition->type_id !== $type_id ) {
+			$type = $this->types->find( $type_id );
+
+			if ( Competition_Settings::is_interclub( $competition ) ) {
 				/* translators: %s: Competition title */
-				? sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title )
+				return sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title );
+			}
+
+			if ( $type && Competition_Settings::type_is_interclub( $type ) ) {
 				/* translators: %s: Competition title */
-				: sprintf( __( 'This email address is a club\'s, and %s is for individual photographers. Register with your own address.', 'photo-competition-manager' ), $title );
+				return sprintf( __( 'This email address is a club\'s, and %s is for individual photographers. Register with your own address.', 'photo-competition-manager' ), $title );
+			}
+
+			/* translators: 1: Competition title, 2: Competition type name */
+			return sprintf( __( 'This email address belongs to a member of %2$s, so it can\'t register for %1$s. Ask the competition organiser if you should be moved.', 'photo-competition-manager' ), $title, $type ? $type->name : '' );
 		}
 
 		if ( ! $this->entry->uses_grade_of( $competition, $member ) ) {
@@ -403,10 +414,10 @@ class Registration {
 	private function create_member( object $competition, object $registration ) {
 		$member_id = $this->members->create(
 			array(
-				'name'     => (string) $registration->name,
-				'email'    => (string) $registration->email,
-				'grade'    => (string) $registration->grade,
-				'type_ids' => array( (int) $competition->type_id ),
+				'name'    => (string) $registration->name,
+				'email'   => (string) $registration->email,
+				'grade'   => (string) $registration->grade,
+				'type_id' => (int) $competition->type_id,
 			)
 		);
 		if ( is_wp_error( $member_id ) ) {
@@ -427,18 +438,18 @@ class Registration {
 	}
 
 	/**
-	 * Enter a member who registered, tagging them with the competition's type
-	 * if they aren't yet, and email them and the organiser.
+	 * Enter a member who registered, giving them the competition's type if
+	 * they had none, and email them and the organiser.
 	 *
-	 * @param object     $competition Competition row.
-	 * @param object     $member      Member row.
-	 * @param int[]|null $type_ids The member's type tags before registering, or null for a member just created with the type.
+	 * @param object $competition Competition row.
+	 * @param object $member      Member row.
+	 * @param bool   $had_no_type Whether an existing member had no type before registering.
 	 * @return void
 	 */
-	private function enter( object $competition, object $member, ?array $type_ids ): void {
+	private function enter( object $competition, object $member, bool $had_no_type ): void {
 		$type_id = (int) $competition->type_id;
-		if ( null !== $type_ids && ! in_array( $type_id, $type_ids, true ) ) {
-			$this->members->add_type( (int) $member->id, $type_id );
+		if ( $had_no_type ) {
+			$this->members->set_type( (int) $member->id, $type_id );
 			$type = $this->types->find( $type_id );
 			$this->log(
 				$competition,

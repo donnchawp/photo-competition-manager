@@ -84,18 +84,18 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Member fields with the given type tags.
+	 * Member fields with the given type.
 	 *
-	 * @param string $name     Member name, also used for the email.
-	 * @param int[]  $type_ids Type tags.
+	 * @param string   $name    Member name, also used for the email.
+	 * @param int|null $type_id Type ID, or null for none.
 	 * @return array<string, mixed>
 	 */
-	private function member( string $name, array $type_ids ): array {
+	private function member( string $name, ?int $type_id ): array {
 		return array(
-			'name'     => $name,
-			'email'    => $name . '@example.com',
-			'grade'    => 'beginner',
-			'type_ids' => $type_ids,
+			'name'    => $name,
+			'email'   => $name . '@example.com',
+			'grade'   => 'beginner',
+			'type_id' => $type_id,
 		);
 	}
 
@@ -157,14 +157,14 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$members  = new Members_Repository();
 		$keep     = $this->repository->create( 'Keep', $this->settings() );
 		$drop     = $this->repository->create( 'Drop', $this->settings() );
-		$untagged = $members->create( $this->member( 'untagged', array() ) );
-		$dropped  = $members->create( $this->member( 'dropped', array( $drop ) ) );
-		$both     = $members->create( $this->member( 'both', array( $keep, $drop ) ) );
+		$untagged = $members->create( $this->member( 'untagged', null ) );
+		$dropped  = $members->create( $this->member( 'dropped', $drop ) );
+		$kept     = $members->create( $this->member( 'kept', $keep ) );
 
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
-		foreach ( array( $untagged, $dropped, $both ) as $member_id ) {
-			$this->assertSame( array( $keep ), $members->type_ids( $member_id ) );
+		foreach ( array( $untagged, $dropped, $kept ) as $member_id ) {
+			$this->assertSame( $keep, $members->type_id( $member_id ) );
 		}
 	}
 
@@ -173,11 +173,11 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->repository->create( 'One', $this->settings() );
 		$this->repository->create( 'Two', $this->settings() );
 		$drop     = $this->repository->create( 'Drop', $this->settings() );
-		$untagged = $members->create( $this->member( 'untagged', array() ) );
+		$untagged = $members->create( $this->member( 'untagged', null ) );
 
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
-		$this->assertSame( array(), $members->type_ids( $untagged ) );
+		$this->assertNull( $members->type_id( $untagged ) );
 	}
 
 	public function test_create_rejects_a_name_another_type_has() {
@@ -241,23 +241,6 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->repository->update( $live, 'Live', $people + array( 'slideshow' => array() ), array(), array() ) );
 		$this->assertTrue( $this->repository->update( $unused, 'Unused', $clubs, array(), array() ) );
-	}
-
-	/**
-	 * A member is a club or a person, so their tags can't mix club types with
-	 * people types, though they can have several of one kind (#323).
-	 */
-	public function test_type_tags_mix_kinds_only_when_they_hold_a_club_type_and_a_people_type() {
-		$clubs  = $this->settings() + array( 'interclub' => array( 'enabled' => true ) );
-		$league = $this->repository->create( 'League', $clubs );
-		$cup    = $this->repository->create( 'Cup', $clubs );
-		$adults = $this->repository->create( 'Adults', $this->settings() );
-		$young  = $this->repository->create( 'Juniors', $this->settings() );
-
-		$this->assertTrue( $this->repository->mixes_kinds( array( $league, $adults ) ) );
-		$this->assertFalse( $this->repository->mixes_kinds( array( $league, $cup ) ) );
-		$this->assertFalse( $this->repository->mixes_kinds( array( $adults, $young ) ) );
-		$this->assertFalse( $this->repository->mixes_kinds( array() ) );
 	}
 
 	public function test_delete_refuses_last_type() {

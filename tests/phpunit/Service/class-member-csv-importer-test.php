@@ -447,59 +447,74 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\n" ) );
 
-		$this->assertSame( array( $type ), $this->members_repo->type_ids( $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( $type, $this->members_repo->type_id( $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
 	}
 
-	public function test_csv_import_types_column_tags_members(): void {
+	public function test_csv_import_type_column_sets_each_members_type(): void {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		$team       = Type_Fixtures::create( 'Team' );
-		$existing   = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_ids' => array( $individual ) ) );
-		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
+		$moved      = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_id' => $individual ) );
+		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_id' => $team ) );
 
 		$result = $this->importer->import(
-			$this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,individual; TEAM\nBob,bob@example.com,,Team\nCy,cy@example.com,,\n" )
+			$this->csv_upload( "name,email,grade,type\nAda,ada@example.com,beginner, individual \nBob,bob@example.com,,TEAM\nCy,cy@example.com,,\n" )
 		);
 
 		$this->assertSame( array(), $result['errors'] );
-		$ada = $this->members_repo->find_by_email( 'ada@example.com' );
-		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members_repo->type_ids( (int) $ada->id ) );
-		$this->assertSame( array( $team ), $this->members_repo->type_ids( $existing ) );
-		$this->assertSame( array( $team ), $this->members_repo->type_ids( $kept ) );
-	}
-
-	public function test_csv_import_without_types_column_leaves_tags_alone_with_two_types(): void {
-		Type_Fixtures::clear();
-		$individual = Type_Fixtures::create( 'Individual' );
-		Type_Fixtures::create( 'Team' );
-		$existing = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_ids' => array( $individual ) ) );
-
-		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
-
-		$this->assertSame( array(), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
-		$this->assertSame( array( $individual ), $this->members_repo->type_ids( $existing ) );
+		$this->assertSame( $individual, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( $team, $this->members_repo->type_id( $moved ) );
+		$this->assertSame( $team, $this->members_repo->type_id( $kept ) );
 	}
 
 	/**
-	 * The import takes a row that tags a member as both a club and a person
-	 * as written; the Members screen flags it for the admin to fix (#323).
+	 * Files exported before a member had one type head the column `types`.
 	 */
-	public function test_csv_import_keeps_a_row_tagged_as_a_club_and_a_person(): void {
+	public function test_csv_import_reads_the_old_types_header(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		$team = Type_Fixtures::create( 'Team' );
+
+		$this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Team\n" ) );
+
+		$this->assertSame( $team, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+	}
+
+	public function test_csv_import_without_type_column_leaves_types_alone_with_two_types(): void {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
-		$clubs      = Type_Fixtures::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) );
+		Type_Fixtures::create( 'Team' );
+		$existing = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_id' => $individual ) );
 
-		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Clubs\n" ) );
+		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
 
-		$this->assertSame( array(), $result['errors'] );
-		$this->assertEqualsCanonicalizing( array( $individual, $clubs ), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertNull( $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( $individual, $this->members_repo->type_id( $existing ) );
+	}
+
+	/**
+	 * A member has one type, so a row naming several is skipped, and an
+	 * existing member keeps the type they had.
+	 */
+	public function test_csv_import_skips_a_row_naming_several_types(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		Type_Fixtures::create( 'Team' );
+		$existing = $this->members_repo->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner', 'type_id' => $individual ) );
+
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,type\nAda,ada@example.com,beginner,Individual;Team\nBob,bob@example.com,,Team; Individual\n" ) );
+
+		$this->assertCount( 2, $result['errors'] );
+		$this->assertSame( 2, $result['skipped'] );
+		$this->assertNull( $this->members_repo->find_by_email( 'ada@example.com' ) );
+		$this->assertSame( $individual, $this->members_repo->type_id( $existing ) );
 	}
 
 	public function test_csv_import_unknown_type_is_a_row_error(): void {
 		Type_Fixtures::clear();
 		Type_Fixtures::create( 'Individual' );
 
-		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Pairs\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,type\nAda,ada@example.com,beginner,Pairs\n" ) );
 
 		$this->assertSame( array( 'Row 2: "Pairs" isn\'t a competition type.' ), $result['errors'] );
 		$this->assertSame( 1, $result['skipped'] );
@@ -507,30 +522,29 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * A file without a header can carry types as its sixth column, after
+	 * A file without a header can carry the type as its sixth column, after
 	 * committee, read like the header version (#248).
 	 */
-	public function test_headerless_csv_reads_types_from_the_sixth_column(): void {
+	public function test_headerless_csv_reads_the_type_from_the_sixth_column(): void {
 		Type_Fixtures::clear();
-		$individual = Type_Fixtures::create( 'Individual' );
-		$team       = Type_Fixtures::create( 'Team' );
-		$kept       = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_ids' => array( $team ) ) );
+		Type_Fixtures::create( 'Individual' );
+		$team = Type_Fixtures::create( 'Team' );
+		$kept = $this->members_repo->create( array( 'name' => 'Cy', 'email' => 'cy@example.com', 'grade' => 'beginner', 'type_id' => $team ) );
 
 		$result = $this->importer->import(
-			$this->csv_upload( "Ann,ann@example.com,beginner,1,0,Individual;Team\nCy,cy@example.com,,1,0\nDee,dee@example.com,beginner,1,0,Pairs\n" )
+			$this->csv_upload( "Ann,ann@example.com,beginner,1,0,Team\nCy,cy@example.com,,1,0\nDee,dee@example.com,beginner,1,0,Pairs\n" )
 		);
 
 		$this->assertSame( array( 'Row 3: "Pairs" isn\'t a competition type.' ), $result['errors'] );
-		$ann = $this->members_repo->find_by_email( 'ann@example.com' );
-		$this->assertEqualsCanonicalizing( array( $individual, $team ), $this->members_repo->type_ids( (int) $ann->id ) );
-		$this->assertSame( array( $team ), $this->members_repo->type_ids( $kept ) );
+		$this->assertSame( $team, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
+		$this->assertSame( $team, $this->members_repo->type_id( $kept ) );
 	}
 
 	/**
-	 * With several types the sample shows the types column with the club's
+	 * With several types the sample shows the type column with the club's
 	 * own type names, and imports cleanly (#248).
 	 */
-	public function test_sample_csv_with_several_types_tags_members_with_them(): void {
+	public function test_sample_csv_with_several_types_gives_members_those_types(): void {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		$team       = Type_Fixtures::create( 'Team' );
@@ -538,16 +552,14 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$csv    = $this->importer->generate_sample_csv();
 		$result = $this->importer->import( $this->csv_upload( $csv ) );
 
-		$this->assertStringStartsWith( "name,email,grade,active,committee,types\n", $csv );
+		$this->assertStringStartsWith( "name,email,grade,active,committee,type\n", $csv );
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame( 3, $result['imported'] );
-		$tagged = array_map(
-			fn( $email ) => $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( $email )->id ),
+		$types = array_map(
+			fn( $email ) => $this->members_repo->type_id( (int) $this->members_repo->find_by_email( $email )->id ),
 			array( 'john.doe@example.com', 'jane.smith@example.com', 'bob.johnson@example.com' )
 		);
-		$this->assertContains( array( $individual ), $tagged );
-		$this->assertTrue( (bool) array_filter( $tagged, fn( $ids ) => 2 === count( $ids ) ) );
-		$this->assertSame( array(), array_diff( array_merge( ...$tagged ), array( $individual, $team ) ) );
+		$this->assertEqualsCanonicalizing( array( $individual, $team ), array_values( array_unique( $types ) ) );
 	}
 
 	/**
@@ -560,7 +572,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Team' );
 
 		$result = $this->importer->import(
-			$this->csv_upload( "name,email,grade,types\nAnn,ann@example.com,beginner,\nBob,bob@example.com,beginner,Team\nCy,cy@example.com,beginner,\n" )
+			$this->csv_upload( "name,email,grade,type\nAnn,ann@example.com,beginner,\nBob,bob@example.com,beginner,Team\nCy,cy@example.com,beginner,\n" )
 		);
 
 		$this->assertSame( 3, $result['imported'] );
@@ -592,7 +604,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * With one type there's no types column, so a headerless file's extra
+	 * With one type there's no type column, so a headerless file's extra
 	 * column after committee is ignored, as it was before types (#248).
 	 */
 	public function test_headerless_csv_ignores_a_sixth_column_with_one_type(): void {
@@ -603,7 +615,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame( 1, $result['imported'] );
-		$this->assertSame( array( $type ), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
+		$this->assertSame( $type, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
 	}
 
 	/**
@@ -615,7 +627,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
 
-		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAnn,ann@example.com,beginner,<img src=x onerror=alert(1)>Pairs\n" ) );
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,type\nAnn,ann@example.com,beginner,<img src=x onerror=alert(1)>Pairs\n" ) );
 
 		$this->assertCount( 1, $result['errors'] );
 		$this->assertStringNotContainsString( '<', $result['errors'][0] );
