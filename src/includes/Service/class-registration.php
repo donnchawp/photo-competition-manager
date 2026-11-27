@@ -248,12 +248,9 @@ class Registration {
 		}
 		set_transient( $address_key, 1, self::ADDRESS_WAIT );
 
+		// Registration closing stops the link too: confirm() refuses it, saying so.
 		$now     = ( $this->clock )();
 		$expires = gmdate( 'Y-m-d H:i:s', $now + self::LIFETIME );
-		$closes  = (string) ( $competition->registration_closes ?? '' );
-		if ( '' !== $closes && $closes < $expires ) {
-			$expires = $closes;
-		}
 
 		$key = bin2hex( random_bytes( 32 ) );
 		$id  = $this->registrations->create(

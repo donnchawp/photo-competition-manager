@@ -427,15 +427,18 @@ class Registration_Test extends WP_UnitTestCase {
 		$this->assertNull( ( new Registration() )->pending( $key ) );
 	}
 
-	public function test_a_link_stops_working_when_registration_closes_before_seven_days(): void {
+	public function test_a_link_used_after_the_registration_close_date_says_registration_has_closed(): void {
 		$competition = $this->competition( array( 'registration_closes' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ) ) );
+		$key         = $this->register( $competition );
 		$later       = static function (): int {
 			return time() + 2 * DAY_IN_SECONDS;
 		};
-		$key         = $this->register( $competition );
 
-		$this->assertNotNull( ( new Registration() )->pending( $key ) );
-		$this->assertNull( ( new Registration( $later ) )->pending( $key ) );
+		$result = ( new Registration( $later ) )->confirm( $key );
+
+		$this->assertSame( 'refused', $result['status'] );
+		$this->assertStringContainsString( 'closed', $result['message'] );
+		$this->assertNull( $this->members->find_by_email( 'new@example.com' ) );
 	}
 
 	public function test_asking_again_from_the_same_address_soon_after_sends_nothing(): void {

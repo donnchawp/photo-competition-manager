@@ -170,18 +170,23 @@ class Settings_Controller_Test extends Admin_Controller_Test_Case {
 		);
 	}
 
-	public function test_the_organiser_email_is_saved_and_an_invalid_one_is_left_blank(): void {
+	public function test_the_organiser_email_is_saved(): void {
 		$this->save_grades( $this->default_grade_rows(), array( 'email_organiser_email' => 'organiser@example.com' ) );
-		$this->assertSame( 'organiser@example.com', Email_Configuration::organiser_email() );
 
+		$this->assertSame( 'organiser@example.com', Email_Configuration::organiser_email() );
+	}
+
+	public function test_an_invalid_organiser_email_is_refused_and_nothing_is_saved(): void {
 		$this->save_grades(
 			$this->default_grade_rows(),
 			array(
-				'email_from_email'      => 'club@example.com',
+				'email_from_name'       => 'Camera Club',
 				'email_organiser_email' => 'not an address',
 			)
 		);
-		$this->assertSame( 'club@example.com', Email_Configuration::organiser_email() );
+
+		$this->assertSame( array( 'invalid_organiser_email' ), $this->settings_error_codes( 'photo_competition_settings' ) );
+		$this->assertArrayNotHasKey( 'email', json_decode( (string) get_option( 'photo_comp_default_settings', '{}' ), true ) ?? array() );
 	}
 
 	/**
