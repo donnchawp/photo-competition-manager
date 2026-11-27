@@ -7,6 +7,7 @@
 
 namespace PhotoCompetitionManager\Tests\Service;
 
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -211,6 +212,58 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'grade_not_used', $result->get_error_code() );
 		$this->assertFalse( $this->entrants->has( (int) $competition->id, $bob ) );
+	}
+
+	/**
+	 * Add a type whose entrants are clubs.
+	 *
+	 * @return void
+	 */
+	private function add_club_type(): void {
+		$this->types['Clubs'] = (int) ( new Competition_Types_Repository() )->create(
+			'Clubs',
+			array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => 2,
+					),
+				),
+				'interclub'  => array( 'enabled' => true ),
+			)
+		);
+	}
+
+	/**
+	 * One address is one member, so a club can't be entered in a competition
+	 * between people, even when it's tagged with that competition's type (#321).
+	 */
+	public function test_add_entrant_refuses_a_club_in_a_competition_between_people(): void {
+		$this->add_club_type();
+		$competition = $this->competition( 'Individual', 'selected' );
+		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
+		$person      = $this->member( 'Ann', array( 'Individual' ) );
+
+		$result = $this->entry->add_entrant( $competition, $club );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'is_a_club', $result->get_error_code() );
+		$this->assertStringContainsString( 'Lee Valley CC', $result->get_error_message() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $club ) );
+		$this->assertTrue( $this->entry->add_entrant( $competition, $person ) );
+	}
+
+	public function test_a_club_is_not_offered_as_an_entrant_in_a_competition_between_people(): void {
+		$this->add_club_type();
+		$individual = $this->competition( 'Individual', 'selected' );
+		$club       = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
+		$person     = $this->member( 'Ann', array( 'Individual' ) );
+
+		$this->assertSame( array( $person ), array_map( 'intval', wp_list_pluck( $this->entry->addable_members( $individual ), 'id' ) ) );
+
+		$this->competitions->update( (int) $individual->id, array( 'type_id' => $this->types['Clubs'] ) );
+		$this->assertSame( array( $club ), array_map( 'intval', wp_list_pluck( $this->entry->addable_members( $this->reload( $individual ) ), 'id' ) ), 'a competition between clubs offers the club' );
 	}
 
 	public function test_inactive_member_may_not_enter(): void {

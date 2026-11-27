@@ -378,7 +378,7 @@ class Registration {
 		}
 
 		$interclub = Competition_Settings::is_interclub( $competition );
-		if ( $interclub !== $this->is_club( $type_ids ) ) {
+		if ( $interclub !== $this->entry->is_club( $type_ids ) ) {
 			return $interclub
 				/* translators: %s: Competition title */
 				? sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title )
@@ -392,23 +392,6 @@ class Registration {
 		}
 
 		return null;
-	}
-
-	/**
-	 * Whether a member is a club: tagged with a type whose entrants are clubs.
-	 *
-	 * @param int[] $type_ids The member's type tags.
-	 * @return bool
-	 */
-	private function is_club( array $type_ids ): bool {
-		foreach ( $type_ids as $type_id ) {
-			$type = $this->types->find( $type_id );
-			if ( $type && Competition_Settings::type_is_interclub( $type ) ) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	/**

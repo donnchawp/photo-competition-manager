@@ -9,11 +9,13 @@ namespace PhotoCompetitionManager\Service;
 
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
 use PhotoCompetitionManager\Repository\Upload_Token_Repository;
+use PhotoCompetitionManager\Support\Competition_Settings;
 use WP_Error;
 
 /**
@@ -82,6 +84,13 @@ class Competition_Entry {
 	private $labels;
 
 	/**
+	 * IDs of the types whose entrants are clubs, looked up on first use.
+	 *
+	 * @var int[]|null
+	 */
+	private $club_type_ids;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Competitions_Repository|null $competitions Competitions repository.
@@ -133,23 +142,52 @@ class Competition_Entry {
 
 	/**
 	 * The members an admin can add as entrants: active members tagged with the
-	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
+	 * competition's type, in a grade it uses, of the kind it takes (clubs or
+	 * people), who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
+	 * @since 0.6.0 Leaves out members of the wrong kind.
 	 * @param object $competition Competition row.
 	 * @return object[] Member rows.
 	 */
 	public function addable_members( object $competition ): array {
-		$entrants = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
+		$entrants  = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
+		$tags      = $this->members->all_type_ids();
+		$interclub = Competition_Settings::is_interclub( $competition );
 
 		return array_values(
 			array_filter(
 				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $competition, $entrants ) {
-					return ! isset( $entrants[ (int) $member->id ] ) && $this->uses_grade_of( $competition, $member );
+				function ( $member ) use ( $competition, $entrants, $tags, $interclub ) {
+					return ! isset( $entrants[ (int) $member->id ] )
+						&& $this->uses_grade_of( $competition, $member )
+						&& $this->is_club( $tags[ (int) $member->id ] ?? array() ) === $interclub;
 				}
 			)
 		);
+	}
+
+	/**
+	 * Whether a member is a club: tagged with a type whose entrants are clubs.
+	 * One email address is one member, so a member is a club or a person,
+	 * never both.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int[] $type_ids The member's type tags.
+	 * @return bool
+	 */
+	public function is_club( array $type_ids ): bool {
+		if ( null === $this->club_type_ids ) {
+			$this->club_type_ids = array();
+			foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
+				if ( Competition_Settings::type_is_interclub( $type ) ) {
+					$this->club_type_ids[] = (int) $type->id;
+				}
+			}
+		}
+
+		return (bool) array_intersect( array_map( 'intval', $type_ids ), $this->club_type_ids );
 	}
 
 	/**
@@ -207,9 +245,11 @@ class Competition_Entry {
 	 * Enter a member in a competition for selected entrants. While its uploads
 	 * are open, they're sent their upload link.
 	 *
+	 * @since 0.6.0 Refuses a member of the wrong kind with 'is_a_club' or 'not_a_club'.
+	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'is_a_club', 'not_a_club', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -233,6 +273,21 @@ class Competition_Entry {
 					$member->name
 				)
 			);
+		}
+
+		$interclub = Competition_Settings::is_interclub( $competition );
+		if ( $this->is_club( $this->members->type_ids( $member_id ) ) !== $interclub ) {
+			return $interclub
+				? new WP_Error(
+					'not_a_club',
+					/* translators: %s: Member name */
+					sprintf( __( '%s isn\'t a club, so they can\'t enter a competition between clubs.', 'photo-competition-manager' ), $member->name )
+				)
+				: new WP_Error(
+					'is_a_club',
+					/* translators: %s: Club name */
+					sprintf( __( '%s is a club, so it can\'t enter a competition for individual photographers.', 'photo-competition-manager' ), $member->name )
+				);
 		}
 
 		if ( ! $this->uses_grade_of( $competition, $member ) ) {

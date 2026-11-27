@@ -572,9 +572,10 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	/**
 	 * Replace the site's types with Individual and Team.
 	 *
+	 * @param bool $team_is_interclub Whether Team's entrants are clubs.
 	 * @return array<string, int> Type IDs by name.
 	 */
-	private function use_two_types(): array {
+	private function use_two_types( bool $team_is_interclub = false ): array {
 		global $wpdb;
 
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
@@ -585,7 +586,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 
 		return array(
 			'Individual' => (int) $types->create( 'Individual', $categories ),
-			'Team'       => (int) $types->create( 'Team', $categories ),
+			'Team'       => (int) $types->create( 'Team', $categories + ( $team_is_interclub ? array( 'interclub' => array( 'enabled' => true ) ) : array() ) ),
 		);
 	}
 
@@ -1033,7 +1034,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	 * are offered and the panel talks about clubs (#246).
 	 */
 	public function test_render_interclub_entrants_tab_offers_only_the_types_clubs(): void {
-		$ids     = $this->use_two_types();
+		$ids     = $this->use_two_types( true );
 		$comp_id = $this->seed_competition(
 			'Interclub',
 			'interclub',
