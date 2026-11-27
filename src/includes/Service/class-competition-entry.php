@@ -77,6 +77,13 @@ class Competition_Entry {
 	private $upload_tokens;
 
 	/**
+	 * Competition types repository.
+	 *
+	 * @var Competition_Types_Repository
+	 */
+	private $types;
+
+	/**
 	 * Competition labels, for the grades a competition's type uses.
 	 *
 	 * @var Competition_Labels
@@ -106,6 +113,7 @@ class Competition_Entry {
 		$this->images        = new Images_Repository();
 		$this->upload_tokens = new Upload_Token_Repository();
 		$this->labels        = new Competition_Labels();
+		$this->types         = new Competition_Types_Repository();
 	}
 
 	/**
@@ -151,43 +159,47 @@ class Competition_Entry {
 	 * @return object[] Member rows.
 	 */
 	public function addable_members( object $competition ): array {
-		$entrants  = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
-		$tags      = $this->members->all_type_ids();
-		$interclub = Competition_Settings::is_interclub( $competition );
+		$entrants = array_flip( $this->entrants->member_ids( (int) $competition->id ) );
+		$tags     = $this->members->all_type_ids();
 
 		return array_values(
 			array_filter(
 				$this->members->find_by_type( (int) $competition->type_id ),
-				function ( $member ) use ( $competition, $entrants, $tags, $interclub ) {
+				function ( $member ) use ( $competition, $entrants, $tags ) {
 					return ! isset( $entrants[ (int) $member->id ] )
 						&& $this->uses_grade_of( $competition, $member )
-						&& $this->is_club( $tags[ (int) $member->id ] ?? array() ) === $interclub;
+						&& $this->is_right_kind( $competition, $tags[ (int) $member->id ] ?? array() );
 				}
 			)
 		);
 	}
 
 	/**
-	 * Whether a member is a club: tagged with a type whose entrants are clubs.
-	 * One email address is one member, so a member is a club or a person,
-	 * never both.
+	 * Whether a member is the kind of entrant a competition takes: an
+	 * interclub competition's entrants are clubs, and any other's aren't.
+	 * A club is a member tagged with a type whose entrants are clubs. One
+	 * email address is one member, so a member is a club or a person, never
+	 * both.
 	 *
 	 * @since 0.6.0
 	 *
-	 * @param int[] $type_ids The member's type tags.
+	 * @param object $competition Competition row.
+	 * @param int[]  $type_ids    The member's type tags.
 	 * @return bool
 	 */
-	public function is_club( array $type_ids ): bool {
+	public function is_right_kind( object $competition, array $type_ids ): bool {
 		if ( null === $this->club_type_ids ) {
 			$this->club_type_ids = array();
-			foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
+			foreach ( $this->types->all() as $type ) {
 				if ( Competition_Settings::type_is_interclub( $type ) ) {
 					$this->club_type_ids[] = (int) $type->id;
 				}
 			}
 		}
 
-		return (bool) array_intersect( array_map( 'intval', $type_ids ), $this->club_type_ids );
+		$is_club = (bool) array_intersect( array_map( 'intval', $type_ids ), $this->club_type_ids );
+
+		return Competition_Settings::is_interclub( $competition ) === $is_club;
 	}
 
 	/**
@@ -275,9 +287,8 @@ class Competition_Entry {
 			);
 		}
 
-		$interclub = Competition_Settings::is_interclub( $competition );
-		if ( $this->is_club( $this->members->type_ids( $member_id ) ) !== $interclub ) {
-			return $interclub
+		if ( ! $this->is_right_kind( $competition, $this->members->type_ids( $member_id ) ) ) {
+			return Competition_Settings::is_interclub( $competition )
 				? new WP_Error(
 					'not_a_club',
 					/* translators: %s: Member name */

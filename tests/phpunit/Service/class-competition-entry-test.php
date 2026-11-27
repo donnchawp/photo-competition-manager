@@ -254,6 +254,22 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->entry->add_entrant( $competition, $person ) );
 	}
 
+	/**
+	 * A competition's own settings can make it interclub when its type isn't,
+	 * and then its type's people can't be entered (#321).
+	 */
+	public function test_add_entrant_refuses_a_person_in_a_competition_between_clubs(): void {
+		$competition = $this->competition( 'Individual', 'selected', true );
+		$person      = $this->member( 'Ann', array( 'Individual' ) );
+
+		$result = $this->entry->add_entrant( $competition, $person );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_a_club', $result->get_error_code() );
+		$this->assertStringContainsString( 'Ann', $result->get_error_message() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $person ) );
+	}
+
 	public function test_a_club_is_not_offered_as_an_entrant_in_a_competition_between_people(): void {
 		$this->add_club_type();
 		$individual = $this->competition( 'Individual', 'selected' );

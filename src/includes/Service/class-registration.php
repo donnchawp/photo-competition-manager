@@ -377,9 +377,8 @@ class Registration {
 			return __( 'This email address belongs to a deactivated member. Ask the competition organiser to reactivate it.', 'photo-competition-manager' );
 		}
 
-		$interclub = Competition_Settings::is_interclub( $competition );
-		if ( $interclub !== $this->entry->is_club( $type_ids ) ) {
-			return $interclub
+		if ( ! $this->entry->is_right_kind( $competition, $type_ids ) ) {
+			return Competition_Settings::is_interclub( $competition )
 				/* translators: %s: Competition title */
 				? sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title )
 				/* translators: %s: Competition title */
