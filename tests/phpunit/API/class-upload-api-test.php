@@ -297,6 +297,9 @@ class Upload_API_Test extends WP_UnitTestCase {
 	 * @return string Upload token.
 	 */
 	private function interclub_token( int $quota, bool $interclub = true ): string {
+		if ( $interclub ) {
+			Type_Fixtures::make_interclub( Type_Fixtures::id() );
+		}
 		$competition_id = (int) ( new Competitions_Repository() )->create(
 			array(
 				'type_id'   => Type_Fixtures::id(),

@@ -138,6 +138,46 @@ class Types_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * Once a competition has the type, "Entrants are clubs" shows but can't
+	 * be changed, and the form still posts it, so saving keeps it (#323).
+	 */
+	public function test_render_edit_form_locks_entrants_are_clubs_once_a_competition_has_the_type(): void {
+		global $wpdb;
+		$settings = $this->settings( 'colour' ) + array( 'interclub' => array( 'enabled' => true ) );
+		$used     = $this->types->create( 'League', $settings );
+		$unused   = $this->types->create( 'Cup', $settings );
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_competitions',
+			array(
+				'title'   => 'March League',
+				'slug'    => 'march-league',
+				'type_id' => $used,
+			)
+		);
+
+		$this->set_request(
+			array(
+				'type_action' => 'edit',
+				'type'        => $used,
+			)
+		);
+		$html = $this->render_normalized();
+		$this->assertMatchesRegularExpression( '/<input type="checkbox" name="interclub_enabled_shown" value="1" checked=\'checked\' disabled/', $html );
+		$this->assertStringContainsString( '<input type="hidden" name="interclub_enabled" value="1" />', $html );
+		$this->assertStringContainsString( 'make a new type', $html );
+
+		$this->set_request(
+			array(
+				'type_action' => 'edit',
+				'type'        => $unused,
+			)
+		);
+		$html = $this->render_normalized();
+		$this->assertStringContainsString( '<input type="checkbox" name="interclub_enabled" value="1" checked=\'checked\' />', $html );
+		$this->assertStringNotContainsString( 'make a new type', $html );
+	}
+
+	/**
 	 * A grade the type leaves out is shown unticked, so saving keeps it out (#247).
 	 */
 	public function test_render_edit_form_unticks_a_grade_the_type_does_not_use(): void {

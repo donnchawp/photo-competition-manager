@@ -6,7 +6,8 @@
  * $data['grade_filter'] (string), $data['grade_options'] (array<string,string>
  * of grade slug => label), $data['type_options'] (array<int,string> of type ID
  * => name; empty unless the club has several types) and $data['type_filter']
- * (a type ID, "none" or "").
+ * (a type ID, "none", "mixed" or ""), and $data['has_club_types'] (bool):
+ * whether to offer the filter for members tagged as both a club and a person.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -42,6 +43,9 @@ if ( $data['type_options'] ) {
 		echo '<option value="' . esc_attr( $type_id ) . '"' . selected( $data['type_filter'], (string) $type_id, false ) . '>' . esc_html( $type_name ) . '</option>';
 	}
 	echo '<option value="none"' . selected( $data['type_filter'], 'none', false ) . '>' . esc_html__( 'No type', 'photo-competition-manager' ) . '</option>';
+	if ( $data['has_club_types'] ) {
+		echo '<option value="mixed"' . selected( $data['type_filter'], 'mixed', false ) . '>' . esc_html__( 'Both a club and a person', 'photo-competition-manager' ) . '</option>';
+	}
 	echo '</select>';
 }
 

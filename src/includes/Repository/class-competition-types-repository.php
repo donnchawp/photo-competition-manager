@@ -64,12 +64,13 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * Update a type.
 	 *
 	 * @since 0.4.0
+	 * @since 0.6.0 Refuses to change whether entrants are clubs once a competition has the type.
 	 * @param int                  $id          Type ID.
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings.
 	 * @param array<string,string> $grade_names   Grade slug to name.
 	 * @param string[]             $unused_grades Slugs of the club's grades this type doesn't use.
-	 * @return true|WP_Error
+	 * @return true|WP_Error `interclub_locked` when whether entrants are clubs would change on a type a competition has.
 	 */
 	public function update( int $id, string $name, array $settings, array $grade_names, array $unused_grades ) {
 		global $wpdb;
@@ -78,6 +79,12 @@ class Competition_Types_Repository extends Abstract_Repository {
 		$valid = $this->validate_type( $name, $settings, $id, $unused_grades );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
+		}
+
+		// Competitions copy whether entrants are clubs, but whether a member is a club follows the type.
+		$current = $this->find( $id );
+		if ( $current && Competition_Settings::type_is_interclub( $current ) !== ! empty( $settings['interclub']['enabled'] ) && $this->in_use( $id ) ) {
+			return new WP_Error( 'interclub_locked', __( 'This type has competitions, so whether its entrants are clubs can\'t change. Make a new type instead.', 'photo-competition-manager' ) );
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -168,6 +175,54 @@ class Competition_Types_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * The IDs of the types whose entrants are clubs. A member tagged with one
+	 * is a club.
+	 *
+	 * @since 0.6.0
+	 * @return int[]
+	 */
+	public function club_ids(): array {
+		$ids = array();
+		foreach ( $this->all() as $type ) {
+			if ( Competition_Settings::type_is_interclub( $type ) ) {
+				$ids[] = (int) $type->id;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Whether a set of type tags mixes club types with people types, which a
+	 * member can't have: they're a club or a person.
+	 *
+	 * @since 0.6.0
+	 * @param int[]      $type_ids Type IDs.
+	 * @param int[]|null $club_ids The club type IDs, when the caller has them.
+	 * @return bool
+	 */
+	public function mixes_kinds( array $type_ids, ?array $club_ids = null ): bool {
+		$type_ids = array_unique( array_map( 'intval', $type_ids ) );
+		$clubs    = array_intersect( $type_ids, $club_ids ?? $this->club_ids() );
+
+		return $clubs && count( $clubs ) < count( $type_ids );
+	}
+
+	/**
+	 * Whether any competition, archived or not, has a type.
+	 *
+	 * @since 0.6.0
+	 * @param int $id Type ID.
+	 * @return bool
+	 */
+	public function in_use( int $id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE type_id = %d LIMIT 1', $wpdb->prefix . 'photocomp_competitions', $id ) );
+	}
+
+	/**
 	 * Delete a type and its member tags.
 	 *
 	 * @since 0.4.0
@@ -178,9 +233,7 @@ class Competition_Types_Repository extends Abstract_Repository {
 	public function delete( int $id ) {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$in_use = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_competitions', $id ) );
-		if ( $in_use > 0 ) {
+		if ( $this->in_use( $id ) ) {
 			return new WP_Error( 'type_in_use', __( 'This type has competitions, so it cannot be deleted.', 'photo-competition-manager' ) );
 		}
 

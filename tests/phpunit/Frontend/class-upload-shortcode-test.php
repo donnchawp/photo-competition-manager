@@ -383,6 +383,7 @@ class Upload_Shortcode_Test extends WP_UnitTestCase {
 	 * @param int $photographer_limit Most images per photographer in it; 0 for no limit.
 	 */
 	private function make_interclub( int $quota, int $substitutes, int $photographer_limit = 0 ): void {
+		Type_Fixtures::make_interclub( Type_Fixtures::id() );
 		( new Competitions_Repository() )->update(
 			$this->competition_id,
 			array(

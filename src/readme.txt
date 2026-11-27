@@ -126,7 +126,7 @@ A competition type holds a kind of competition's categories, default upload, vot
 
 = Can clubs compete against each other? =
 
-Yes. Tick "Entrants are clubs" on a competition type. Each club is added as a member tagged with the type and enters a panel of images in each category, naming the photographer of every image. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
+Yes. Tick "Entrants are clubs" on a new competition type (it locks once a competition has the type). Each club is added as a member tagged with the type and enters a panel of images in each category, naming the photographer of every image. A member is a club or a person, never both, so a club's address can't also be tagged with a type for individual photographers. The type can allow substitutes and limit how many images one photographer has in a panel. On the Submissions screen an admin can disqualify an entry and promote a substitute. The results show each image as "Photographer — Club" and rank the clubs in each grade by each panel's total and overall.
 
 = How do email notifications work? =
 

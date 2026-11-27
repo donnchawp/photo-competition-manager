@@ -1407,4 +1407,107 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( array(), $this->members->type_ids( $b ) );
 		$this->assertContains( 'bulk_type_removed', $this->settings_error_codes( self::GROUP ) );
 	}
+
+	/**
+	 * A club type and a people type, for the tests of a member being both (#323).
+	 *
+	 * @return int[] People type ID, then club type ID.
+	 */
+	private function people_and_club_types(): array {
+		Types::clear();
+
+		return array(
+			Types::create( 'Individual' ),
+			Types::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) ),
+		);
+	}
+
+	/**
+	 * A member is a club or a person, so the member form refuses both, and
+	 * saves nothing (#323).
+	 */
+	public function test_update_member_refuses_a_club_type_with_a_people_type(): void {
+		list( $individual, $clubs ) = $this->people_and_club_types();
+		$id                         = $this->create_member( array( 'type_ids' => array( $individual ) ) );
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'update_member',
+				'member_id'                => (string) $id,
+				'member_name'              => 'Renamed',
+				'member_email'             => 'member@example.com',
+				'member_grade'             => 'beginner',
+				'member_active'            => '1',
+				'member_types'             => array( (string) $individual, (string) $clubs ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertContains( 'mixed_kinds', $this->settings_error_codes( self::GROUP ) );
+		$this->assertSame( array( $individual ), $this->members->type_ids( $id ) );
+		$this->assertNotSame( 'Renamed', $this->members->find( $id )->name );
+	}
+
+	public function test_create_member_refuses_a_club_type_with_a_people_type(): void {
+		list( $individual, $clubs ) = $this->people_and_club_types();
+
+		$this->set_request(
+			array(
+				'photo_competition_action' => 'create_member',
+				'member_name'              => 'Grace Hopper',
+				'member_email'             => 'grace@example.com',
+				'member_grade'             => 'advanced',
+				'member_types'             => array( (string) $individual, (string) $clubs ),
+			)
+		);
+		$this->set_nonce( 'photo_competition_member_create', 'photo_competition_member_nonce' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertContains( 'mixed_kinds', $this->settings_error_codes( self::GROUP ) );
+		$this->assertNull( $this->members->find_by_email( 'grace@example.com' ) );
+	}
+
+	/**
+	 * Adding a club type to people in bulk skips them, says so, and still
+	 * tags the members it can (#323).
+	 */
+	public function test_bulk_add_type_skips_members_it_would_make_a_club_and_a_person(): void {
+		list( $individual, $clubs ) = $this->people_and_club_types();
+		$person                     = $this->create_member( array( 'email' => 'a@example.com', 'type_ids' => array( $individual ) ) );
+		$untagged                   = $this->create_member( array( 'email' => 'b@example.com' ) );
+
+		$this->set_request(
+			array(
+				'action'     => 'bulk_add_type',
+				'member_ids' => array( (string) $person, (string) $untagged ),
+				'bulk_type'  => (string) $clubs,
+			)
+		);
+		$this->set_nonce( 'photo_competition_bulk_members' );
+		$this->capture_redirect( fn() => $this->controller->handle_actions() );
+
+		$this->assertSame( array( $individual ), $this->members->type_ids( $person ) );
+		$this->assertSame( array( $clubs ), $this->members->type_ids( $untagged ) );
+		$this->assertContains( 'bulk_type_mixed_kinds', $this->settings_error_codes( self::GROUP ) );
+	}
+
+	/**
+	 * Members tagged as both, from a CSV import or from before the rule, are
+	 * flagged, and a filter lists them for the admin to fix (#323).
+	 */
+	public function test_members_tagged_as_a_club_and_a_person_are_flagged_and_listed(): void {
+		list( $individual, $clubs ) = $this->people_and_club_types();
+		$this->create_member( array( 'name' => 'Mixed Max', 'email' => 'max@example.com', 'type_ids' => array( $individual, $clubs ) ) );
+		$this->create_member( array( 'name' => 'Person Pat', 'email' => 'pat@example.com', 'type_ids' => array( $individual ) ) );
+
+		$html = $this->render_screen();
+		$this->assertStringContainsString( '1 member is tagged as both a club and a person', $html );
+		$this->assertStringContainsString( 'type=mixed', $html );
+
+		$this->set_request( array( 'type' => 'mixed' ) );
+		$html = $this->render_screen();
+		$this->assertStringContainsString( 'Mixed Max', $html );
+		$this->assertStringNotContainsString( 'Person Pat', $html );
+	}
 }

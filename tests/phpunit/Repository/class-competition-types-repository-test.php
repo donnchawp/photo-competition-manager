@@ -217,6 +217,50 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		}
 	}
 
+	/**
+	 * Competitions copy "Entrants are clubs" when they're created, but whether
+	 * a member is a club follows the type, so once a competition, archived or
+	 * not, has the type, the setting can't change (#323).
+	 */
+	public function test_entrants_are_clubs_cant_change_once_a_competition_has_the_type() {
+		$clubs                    = $this->settings() + array( 'interclub' => array( 'enabled' => true ) );
+		$people                   = $this->settings();
+		$people['interclub']      = array( 'enabled' => false );
+		$live                     = $this->repository->create( 'Live', $people );
+		$archived                 = $this->repository->create( 'Archived', $clubs );
+		$unused                   = $this->repository->create( 'Unused', $people );
+		$this->insert_competition( $live, false );
+		$this->insert_competition( $archived, true );
+
+		foreach ( array( $live => $clubs, $archived => $people ) as $id => $flipped ) {
+			$result = $this->repository->update( $id, 'Renamed ' . $id, $flipped, array(), array() );
+			$this->assertWPError( $result );
+			$this->assertSame( 'interclub_locked', $result->get_error_code() );
+			$this->assertNotSame( 'Renamed ' . $id, $this->repository->find( $id )->name );
+		}
+
+		$this->assertTrue( $this->repository->update( $live, 'Live', $people + array( 'slideshow' => array() ), array(), array() ) );
+		$this->assertTrue( $this->repository->update( $unused, 'Unused', $clubs, array(), array() ) );
+		$this->assertSame( array( $archived, $unused ), $this->repository->club_ids() );
+	}
+
+	/**
+	 * A member is a club or a person, so their tags can't mix club types with
+	 * people types, though they can have several of one kind (#323).
+	 */
+	public function test_type_tags_mix_kinds_only_when_they_hold_a_club_type_and_a_people_type() {
+		$clubs  = $this->settings() + array( 'interclub' => array( 'enabled' => true ) );
+		$league = $this->repository->create( 'League', $clubs );
+		$cup    = $this->repository->create( 'Cup', $clubs );
+		$adults = $this->repository->create( 'Adults', $this->settings() );
+		$young  = $this->repository->create( 'Juniors', $this->settings() );
+
+		$this->assertTrue( $this->repository->mixes_kinds( array( $league, $adults ) ) );
+		$this->assertFalse( $this->repository->mixes_kinds( array( $league, $cup ) ) );
+		$this->assertFalse( $this->repository->mixes_kinds( array( $adults, $young ) ) );
+		$this->assertFalse( $this->repository->mixes_kinds( array() ) );
+	}
+
 	public function test_delete_refuses_last_type() {
 		$id = $this->repository->create( 'Only', $this->settings() );
 

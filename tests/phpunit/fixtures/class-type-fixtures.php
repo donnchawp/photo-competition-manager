@@ -86,4 +86,21 @@ class Type_Fixtures {
 
 		return (int) $id;
 	}
+
+	/**
+	 * Make a type's entrants clubs, for a test whose competition of the type
+	 * is interclub. It writes the row directly, since the type can't change
+	 * once a competition has it.
+	 *
+	 * @param int $type_id Type ID.
+	 * @return void
+	 */
+	public static function make_interclub( int $type_id ): void {
+		global $wpdb;
+
+		$type                             = ( new Competition_Types_Repository() )->find( $type_id );
+		$settings                         = $type->settings;
+		$settings['interclub']['enabled'] = true;
+		$wpdb->update( $wpdb->prefix . 'photocomp_competition_types', array( 'settings' => \PhotoCompetitionManager\Support\Competition_Settings::encode( $settings ) ), array( 'id' => $type_id ) );
+	}
 }

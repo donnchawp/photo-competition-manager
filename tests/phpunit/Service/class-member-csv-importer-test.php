@@ -480,6 +480,21 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $individual ), $this->members_repo->type_ids( $existing ) );
 	}
 
+	/**
+	 * The import takes a row that tags a member as both a club and a person
+	 * as written; the Members screen flags it for the admin to fix (#323).
+	 */
+	public function test_csv_import_keeps_a_row_tagged_as_a_club_and_a_person(): void {
+		Type_Fixtures::clear();
+		$individual = Type_Fixtures::create( 'Individual' );
+		$clubs      = Type_Fixtures::create( 'Clubs', array(), array(), array( 'interclub' => array( 'enabled' => true ) ) );
+
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Individual;Clubs\n" ) );
+
+		$this->assertSame( array(), $result['errors'] );
+		$this->assertEqualsCanonicalizing( array( $individual, $clubs ), $this->members_repo->type_ids( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+	}
+
 	public function test_csv_import_unknown_type_is_a_row_error(): void {
 		Type_Fixtures::clear();
 		Type_Fixtures::create( 'Individual' );

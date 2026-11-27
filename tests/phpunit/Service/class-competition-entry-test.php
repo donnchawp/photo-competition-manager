@@ -433,6 +433,39 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertNotNull( $tokens->find_valid_token( $bob_token->token ) );
 	}
 
+	/**
+	 * A member tagged as both a club and a person is a club, so in a
+	 * competition for people, open to everyone, they get no links and can't
+	 * upload (#323).
+	 */
+	public function test_a_club_may_not_enter_a_competition_for_people_open_to_everyone(): void {
+		$this->add_club_type();
+		$competition = $this->competition( 'Individual', 'all' );
+		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
+		$person      = $this->member( 'Ann', array( 'Individual' ) );
+
+		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $club ) ) );
+		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $person ) ) );
+		$this->assertSame( array( $person ), array_map( 'intval', wp_list_pluck( $this->entry->eligible_members( $competition ), 'id' ) ) );
+	}
+
+	/**
+	 * Switching to selected entrants copies in members with entries, but not
+	 * one of the wrong kind (#323).
+	 */
+	public function test_switching_to_selected_leaves_out_members_of_the_wrong_kind(): void {
+		$this->add_club_type();
+		$competition = $this->competition( 'Individual', 'all' );
+		$club        = $this->member( 'Lee Valley CC', array( 'Individual', 'Clubs' ) );
+		$person      = $this->member( 'Ann', array( 'Individual' ) );
+		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $club, array() );
+		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $person, array() );
+
+		$this->assertTrue( $this->entry->set_mode( $competition, 'selected' ) );
+
+		$this->assertSame( array( $person ), $this->entrants->member_ids( (int) $competition->id ) );
+	}
+
 	public function test_switching_to_selected_keeps_members_with_entries(): void {
 		$competition = $this->competition( 'Individual', 'all' );
 		$ann         = $this->member( 'Ann' );
