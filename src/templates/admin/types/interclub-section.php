@@ -17,13 +17,11 @@ echo '<h2>' . esc_html__( 'Interclub', 'photo-competition-manager' ) . '</h2>';
 echo '<input type="hidden" name="interclub_section" value="1" />';
 
 echo '<p>';
+// A disabled box doesn't post, so the hidden field keeps the setting as it is.
 if ( $data['locked'] ) {
-	// A disabled box doesn't post, so the hidden field keeps the setting as it is.
 	echo '<input type="hidden" name="interclub_enabled" value="' . ( $data['enabled'] ? '1' : '0' ) . '" />';
-	echo '<label><input type="checkbox"' . checked( $data['enabled'], true, false ) . ' disabled /> ';
-} else {
-	echo '<label><input type="checkbox" name="interclub_enabled" value="1"' . checked( $data['enabled'], true, false ) . ' /> ';
 }
+echo '<label><input type="checkbox"' . ( $data['locked'] ? ' disabled' : ' name="interclub_enabled" value="1"' ) . checked( $data['enabled'], true, false ) . ' /> ';
 echo esc_html__( 'Entrants are clubs', 'photo-competition-manager' ) . '</label><br />';
 echo '<span class="description">' . esc_html__( 'Each entrant is a club entering a panel of images in each category. A panel holds as many images as the category\'s quota, and every image has a photographer\'s name.', 'photo-competition-manager' );
 if ( $data['locked'] ) {

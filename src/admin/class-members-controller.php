@@ -680,7 +680,7 @@ class Members_Controller {
 		foreach ( $types as $type ) {
 			$type_options[ (int) $type->id ] = $type->name;
 		}
-		$tags = $types ? $this->members->type_ids_by_member() : array();
+		$type_by_member = $types ? $this->members->type_ids_by_member() : array();
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading filter input for list table.
 		$type_filter = $types && isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '';
 		if ( 'none' !== $type_filter && ! isset( $type_options[ (int) $type_filter ] ) ) {
@@ -692,7 +692,7 @@ class Members_Controller {
 		$untagged_count = 0;
 		if ( $types ) {
 			foreach ( $all_members as $member ) {
-				if ( $member->active && empty( $tags[ (int) $member->id ] ) ) {
+				if ( $member->active && empty( $type_by_member[ (int) $member->id ] ) ) {
 					++$untagged_count;
 				}
 			}
@@ -701,7 +701,7 @@ class Members_Controller {
 		// Apply filters.
 		$members = array_filter(
 			$all_members,
-			function ( $member ) use ( $search, $status_filter, $grade_filter, $type_filter, $tags ) {
+			function ( $member ) use ( $search, $status_filter, $grade_filter, $type_filter, $type_by_member ) {
 				// Search filter (name or email).
 				if ( ! empty( $search ) ) {
 					$search_lower = strtolower( $search );
@@ -729,7 +729,7 @@ class Members_Controller {
 
 				// Type filter.
 				if ( '' !== $type_filter ) {
-					$member_type = $tags[ (int) $member->id ] ?? 0;
+					$member_type = $type_by_member[ (int) $member->id ] ?? 0;
 					if ( ( 'none' === $type_filter ? 0 : (int) $type_filter ) !== $member_type ) {
 						return false;
 					}
@@ -776,7 +776,7 @@ class Members_Controller {
 				echo $this->render_template( 'admin/members/empty-state.php', array( 'has_filters' => $has_filters ) );
 			} else {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-				echo $this->render_members_table( $members, $all_members, $active_competition, $grade_options, $type_options, $tags );
+				echo $this->render_members_table( $members, $all_members, $active_competition, $grade_options, $type_options, $type_by_member );
 			}
 
 			// Show create and import forms after the list.
@@ -888,10 +888,10 @@ class Members_Controller {
 	 * @param  object|null          $active_competition Active competition, if any.
 	 * @param  array<string,string> $grade_options      Grade slug => label options.
 	 * @param  array<int,string>    $type_options       Type ID => name; empty unless the club has several types.
-	 * @param  array<int,int[]>     $tags               Type IDs by member ID.
+	 * @param  array<int,int>       $type_by_member     Type ID by member ID.
 	 * @return string
 	 */
-	private function render_members_table( array $members, array $all_members, ?object $active_competition, array $grade_options, array $type_options, array $tags ): string {
+	private function render_members_table( array $members, array $all_members, ?object $active_competition, array $grade_options, array $type_options, array $type_by_member ): string {
 		$total_count    = count( $all_members );
 		$filtered_count = count( $members );
 
@@ -983,7 +983,7 @@ class Members_Controller {
 				'send_url'        => $send_url,
 				'upload_url'      => $upload_url,
 				'voting_link_url' => $voting_link_url,
-				'type_label'      => $type_options[ $tags[ (int) $member->id ] ?? 0 ] ?? '',
+				'type_label'      => $type_options[ $type_by_member[ (int) $member->id ] ?? 0 ] ?? '',
 			);
 		}
 
@@ -1126,7 +1126,7 @@ class Members_Controller {
 	private function render_member_import_form( array $type_options ): string {
 		return $this->render_template(
 			'admin/members/import-form.php',
-			array( 'type_example' => (string) ( array_values( $type_options )[0] ?? '' ) )
+			array( 'type_example' => array_values( $type_options )[0] ?? '' )
 		);
 	}
 
