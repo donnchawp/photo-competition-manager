@@ -402,4 +402,148 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertSame( 'entry_closed', $result->get_error_code() );
 		$this->assertSame( 'all', $this->reload( $competition )->entry_mode );
 	}
+
+	/*
+	 * -----------------------------------------------------------------
+	 * Entry fee (#315).
+	 * -----------------------------------------------------------------
+	 */
+
+	/**
+	 * Set a competition's fee and return it reloaded.
+	 *
+	 * @param object $competition  Competition row.
+	 * @param string $fee          Fee.
+	 * @param string $instructions Payment instructions.
+	 * @return object
+	 */
+	private function with_fee( object $competition, string $fee = '€20', string $instructions = 'Pay by PayPal.' ): object {
+		$this->assertTrue( $this->entry->set_fee( $competition, $fee, $instructions ) );
+
+		return $this->reload( $competition );
+	}
+
+	public function test_a_selected_entrants_competition_keeps_its_fee_and_payment_instructions(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ), '€20 per club', 'Pay at <a href="https://paypal.me/club">paypal.me/club</a>.' );
+
+		$this->assertTrue( Competition_Entry::has_fee( $competition ) );
+		$this->assertSame( '€20 per club', $competition->entry_fee );
+		$this->assertSame( 'Pay at <a href="https://paypal.me/club">paypal.me/club</a>.', $competition->payment_instructions );
+	}
+
+	public function test_payment_instructions_lose_scripts(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ), '€20', 'Pay now<script>alert(1)</script>' );
+
+		$this->assertStringNotContainsString( '<script', $competition->payment_instructions );
+	}
+
+	public function test_a_competition_open_to_everyone_takes_no_fee(): void {
+		$competition = $this->competition( 'Individual', 'all' );
+
+		$result = $this->entry->set_fee( $competition, '€20', 'Pay by PayPal.' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_selected_mode', $result->get_error_code() );
+		$this->assertFalse( Competition_Entry::has_fee( $this->reload( $competition ) ) );
+	}
+
+	public function test_a_fee_stops_counting_when_the_competition_opens_to_everyone(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+
+		$this->assertTrue( $this->entry->set_mode( $competition, 'all' ) );
+
+		$this->assertFalse( Competition_Entry::has_fee( $this->reload( $competition ) ) );
+	}
+
+	public function test_an_entrant_added_by_an_admin_starts_paid(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+
+		$this->assertTrue( $this->entry->add_entrant( $competition, $ann ) );
+
+		$this->assertSame( array(), $this->entry->unpaid_member_ids( $competition ) );
+	}
+
+	public function test_an_admin_can_mark_an_entrant_unpaid_and_paid_again(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+		$bob         = $this->member( 'Bob' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		$this->entrants->add( (int) $competition->id, $bob );
+
+		$this->assertTrue( $this->entry->set_paid( $competition, $ann, false ) );
+		$this->assertSame( array( $ann ), $this->entry->unpaid_member_ids( $competition ) );
+
+		$this->assertTrue( $this->entry->set_paid( $competition, $ann, true ) );
+		$this->assertSame( array(), $this->entry->unpaid_member_ids( $competition ) );
+	}
+
+	/**
+	 * Payment is often checked after the competition night, so paid status
+	 * still changes once voting has started.
+	 */
+	public function test_paid_status_changes_after_voting_started(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		Entry_Fixtures::insert_entry( (int) $competition->id, 'open', $ann, array() );
+		Workflow_Fixtures::set_stage( (int) $competition->id, 'open', Competition_Workflow::STAGE_VOTING );
+
+		$this->assertTrue( $this->entry->set_paid( $this->reload( $competition ), $ann, false ) );
+		$this->assertSame( array( $ann ), $this->entry->unpaid_member_ids( $competition ) );
+	}
+
+	public function test_paid_status_is_refused_without_a_fee(): void {
+		$competition = $this->competition( 'Individual', 'selected' );
+		$ann         = $this->member( 'Ann' );
+		$this->entrants->add( (int) $competition->id, $ann );
+
+		$result = $this->entry->set_paid( $competition, $ann, false );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_entry_fee', $result->get_error_code() );
+	}
+
+	public function test_paid_status_is_refused_for_someone_who_is_not_an_entrant(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+
+		$result = $this->entry->set_paid( $competition, $ann, false );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_an_entrant', $result->get_error_code() );
+	}
+
+	public function test_without_a_fee_nobody_is_unpaid(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		$this->entry->set_paid( $competition, $ann, false );
+
+		$competition = $this->with_fee( $competition, '', '' );
+
+		$this->assertFalse( Competition_Entry::has_fee( $competition ) );
+		$this->assertSame( array(), $this->entry->unpaid_member_ids( $competition ) );
+	}
+
+	public function test_putting_a_cleared_fee_back_brings_back_who_had_not_paid(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		$this->entry->set_paid( $competition, $ann, false );
+
+		$this->with_fee( $competition, '', '' );
+		$competition = $this->with_fee( $competition );
+
+		$this->assertSame( array( $ann ), $this->entry->unpaid_member_ids( $competition ) );
+	}
+
+	public function test_an_unpaid_entrant_may_still_enter(): void {
+		$competition = $this->with_fee( $this->competition( 'Individual', 'selected' ) );
+		$ann         = $this->member( 'Ann' );
+		$this->entrants->add( (int) $competition->id, $ann );
+		$this->entry->set_paid( $competition, $ann, false );
+
+		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
+	}
 }

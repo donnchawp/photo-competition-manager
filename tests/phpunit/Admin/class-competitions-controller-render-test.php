@@ -29,6 +29,7 @@ use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Judges_Repository;
 use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
+use PhotoCompetitionManager\Service\Competition_Workflow;
 use PhotoCompetitionManager\Tests\Workflow_Fixtures;
 
 /**
@@ -926,6 +927,62 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	/**
+	 * With an entry fee, each entrant shows whether they've paid, with a
+	 * button to change it, even after voting has started (#315).
+	 */
+	public function test_render_entrants_tab_with_a_fee_shows_who_has_paid(): void {
+		$comp_id = $this->seed_competition(
+			'Spring Show',
+			'spring-show',
+			array(
+				'entry_mode'           => 'selected',
+				'entry_fee'            => '€20',
+				'payment_instructions' => 'Pay by PayPal.',
+			)
+		);
+		$members  = new Members_Repository();
+		$entrants = new Entrants_Repository();
+		$ann      = $members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
+		$bob      = $members->create( array( 'name' => 'Bob', 'email' => 'bob@example.com', 'grade' => 'beginner' ) );
+		$entrants->add( $comp_id, $ann );
+		$entrants->add( $comp_id, $bob );
+		$entrants->set_paid( $comp_id, $ann, false );
+		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', Competition_Workflow::STAGE_VOTING );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringContainsString( 'value="€20"', $html );
+		$this->assertStringContainsString( 'Pay by PayPal.</textarea>', $html );
+		$this->assertMatchesRegularExpression( '#<td>Ann</td>.*?Unpaid.*?Mark paid#s', $html );
+		$this->assertMatchesRegularExpression( '#<td>Bob</td>.*?Paid.*?Mark unpaid#s', $html );
+	}
+
+	public function test_render_entrants_tab_without_a_fee_shows_no_paid_status(): void {
+		$comp_id = $this->seed_competition( 'Spring Show', 'spring-show', array( 'entry_mode' => 'selected' ) );
+		( new Entrants_Repository() )->add( $comp_id, ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) ) );
+		$this->set_request(
+			array(
+				'action'      => 'edit',
+				'competition' => (string) $comp_id,
+				'tab'         => 'entrants',
+			)
+		);
+
+		$html = $this->render_normalized( array( $comp_id ) );
+
+		$this->assertStringNotContainsString( 'Unpaid', $html );
+		$this->assertStringNotContainsString( 'set_entrant_paid', $html );
+	}
+
+	/**
 	 * Only members tagged with the competition's type can be entered, so only
 	 * they are offered (#246).
 	 */
@@ -1048,7 +1105,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$ann     = ( new Members_Repository() )->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner' ) );
 		( new Entrants_Repository() )->add( $comp_id, $ann );
 		Entry_Fixtures::insert_entry( $comp_id, 'colour', $ann, array() );
-		Workflow_Fixtures::set_stage( $comp_id, 'colour', \PhotoCompetitionManager\Service\Competition_Workflow::STAGE_VOTING );
+		Workflow_Fixtures::set_stage( $comp_id, 'colour', Competition_Workflow::STAGE_VOTING );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1060,7 +1117,11 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$html = $this->render_normalized( array( $comp_id ) );
 
 		$this->assertStringContainsString( 'Ann', $html );
-		$this->assertStringNotContainsString( 'name="photo_competition_action"', $html );
+		foreach ( array( 'set_entry_mode', 'add_entrants', 'add_new_entrant', 'remove_entrant' ) as $action ) {
+			$this->assertStringNotContainsString( 'value="' . $action . '"', $html );
+		}
+		// The fee can still change, since payment is often checked afterwards (#315).
+		$this->assertStringContainsString( 'value="set_entry_fee"', $html );
 	}
 
 	public function test_render_edit_settings_tab_legacy_password(): void {

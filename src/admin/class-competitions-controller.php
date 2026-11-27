@@ -566,7 +566,7 @@ class Competitions_Controller {
 			$this->handle_judge_actions( $action );
 		}
 
-		if ( in_array( $action, array( 'set_entry_mode', 'add_entrants', 'add_new_entrant', 'remove_entrant', 'send_entrant_upload_link' ), true ) ) {
+		if ( in_array( $action, array( 'set_entry_mode', 'set_entry_fee', 'set_entrant_paid', 'add_entrants', 'add_new_entrant', 'remove_entrant', 'send_entrant_upload_link' ), true ) ) {
 			$this->handle_entrant_actions( $action );
 		}
 
@@ -745,6 +745,20 @@ class Competitions_Controller {
 			case 'set_entry_mode':
 				$result = $this->entry->set_mode( $competition, sanitize_key( $this->get_post_string( 'entry_mode' ) ) );
 				$this->entrant_notice( $result, 'entry_mode_updated', __( 'Entry setting saved.', 'photo-competition-manager' ) );
+				break;
+
+			case 'set_entry_fee':
+				$result = $this->entry->set_fee(
+					$competition,
+					$this->get_post_string( 'entry_fee' ),
+					$this->get_post_string( 'payment_instructions' )
+				);
+				$this->entrant_notice( $result, 'entry_fee_updated', __( 'Entry fee saved.', 'photo-competition-manager' ) );
+				break;
+
+			case 'set_entrant_paid':
+				$result = $this->entry->set_paid( $competition, $member_id, '1' === $this->get_post_string( 'paid' ) );
+				$this->entrant_notice( $result, 'entrant_paid_updated', __( 'Payment status saved.', 'photo-competition-manager' ) );
 				break;
 
 			case 'add_entrants':
@@ -1295,10 +1309,12 @@ class Competitions_Controller {
 
 		$entrants = array();
 		$addable  = array();
+		$has_fee  = Competition_Entry::has_fee( $competition );
 
 		if ( $selected ) {
 			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
 			$with_entries = array_flip( ( new Images_Repository() )->member_ids( $competition_id ) );
+			$unpaid       = array_flip( $this->entry->unpaid_member_ids( $competition ) );
 
 			foreach ( $this->members->find_many( $entrant_ids ) as $member ) {
 				$entrants[] = (object) array(
@@ -1307,6 +1323,7 @@ class Competitions_Controller {
 					'email'       => $member->email,
 					'active'      => (bool) $member->active,
 					'has_entries' => isset( $with_entries[ (int) $member->id ] ),
+					'paid'        => ! isset( $unpaid[ (int) $member->id ] ),
 				);
 			}
 			usort(
@@ -1334,6 +1351,9 @@ class Competitions_Controller {
 				'locked_message' => $refusal ? $refusal->get_error_message() : '',
 				'uploads_open'   => $this->workflow->is_accepting_uploads( $competition ),
 				'entrants'       => $entrants,
+				'has_fee'        => $has_fee,
+				'entry_fee'      => (string) ( $competition->entry_fee ?? '' ),
+				'instructions'   => (string) ( $competition->payment_instructions ?? '' ),
 				'addable'        => $addable,
 				'interclub'      => $interclub,
 				'type_name'      => $named_type ? $named_type->name : '',

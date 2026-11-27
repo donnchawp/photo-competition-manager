@@ -150,6 +150,10 @@ The subject and body one kind of email is sent with, with merge tags filled in f
 **Requested email**:
 An email sent because a member or an admin asked for it: an upload link, a voting link, or the results. It always sends.
 
+**Organiser email**:
+The club's one address for emails meant for whoever runs its competitions rather than its members, such as a new registration. When it's blank they go to the address the club's emails are sent from.
+_Avoid_: Admin email (that's WordPress's own, for whoever runs the site)
+
 **Notification**:
 An email sent automatically when something happens, such as voting opening in a category or a member's upload being saved. A club can switch each kind of notification off.
 _Avoid_: Alert

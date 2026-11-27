@@ -329,6 +329,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * 'competition_overlap' error, and a missing type with 'invalid_type'.
 	 *
 	 * @since 0.4.0 Needs a `type_id`, and takes an `entry_mode` ('all' or 'selected', default 'all').
+	 * @since 0.6.0 Takes `entry_fee` and `payment_instructions`.
 	 *
 	 * @param array<string, mixed> $data Competition data.
 	 * @return int|WP_Error
@@ -369,16 +370,18 @@ class Competitions_Repository extends Abstract_Repository {
 		$now = utc_time();
 
 		$payload = array(
-			'title'      => $title,
-			'slug'       => $slug,
-			'open_date'  => $open_date,
-			'close_date' => $close_date,
-			'settings'   => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
-			'share_hash' => isset( $data['share_hash'] ) ? sanitize_text_field( (string) $data['share_hash'] ) : '',
-			'type_id'    => $type_id,
-			'entry_mode' => $entry_mode,
-			'created_at' => $now,
-			'updated_at' => $now,
+			'title'                => $title,
+			'slug'                 => $slug,
+			'open_date'            => $open_date,
+			'close_date'           => $close_date,
+			'settings'             => isset( $data['settings'] ) ? wp_json_encode( $data['settings'] ) : null,
+			'share_hash'           => isset( $data['share_hash'] ) ? sanitize_text_field( (string) $data['share_hash'] ) : '',
+			'type_id'              => $type_id,
+			'entry_mode'           => $entry_mode,
+			'entry_fee'            => self::entry_fee( $data['entry_fee'] ?? '' ),
+			'payment_instructions' => self::payment_instructions( $data['payment_instructions'] ?? '' ),
+			'created_at'           => $now,
+			'updated_at'           => $now,
 		);
 
 		$format = array(
@@ -389,6 +392,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'%s',
 			'%s',
 			'%d',
+			'%s',
+			'%s',
 			'%s',
 			'%s',
 			'%s',
@@ -414,6 +419,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * type settings with the new type's, keeping its page links.
 	 *
 	 * @since 0.4.0 Takes `type_id` and `entry_mode`.
+	 * @since 0.6.0 Takes `entry_fee` and `payment_instructions`.
 	 *
 	 * @param int                  $id   Competition ID.
 	 * @param array<string, mixed> $data Updated data.
@@ -480,16 +486,20 @@ class Competitions_Repository extends Abstract_Repository {
 		}
 
 		$payload = array(
-			'title'      => $title,
-			'slug'       => $slug,
-			'open_date'  => $open_date,
-			'close_date' => $close_date,
-			'settings'   => $settings_json,
-			'entry_mode' => isset( $data['entry_mode'] ) ? $this->entry_mode( $data['entry_mode'] ) : $current->entry_mode,
-			'updated_at' => utc_time(),
+			'title'                => $title,
+			'slug'                 => $slug,
+			'open_date'            => $open_date,
+			'close_date'           => $close_date,
+			'settings'             => $settings_json,
+			'entry_mode'           => isset( $data['entry_mode'] ) ? $this->entry_mode( $data['entry_mode'] ) : $current->entry_mode,
+			'entry_fee'            => array_key_exists( 'entry_fee', $data ) ? self::entry_fee( $data['entry_fee'] ) : (string) $current->entry_fee,
+			'payment_instructions' => array_key_exists( 'payment_instructions', $data ) ? self::payment_instructions( $data['payment_instructions'] ) : (string) $current->payment_instructions,
+			'updated_at'           => utc_time(),
 		);
 
 		$format = array(
+			'%s',
+			'%s',
 			'%s',
 			'%s',
 			'%s',
@@ -549,6 +559,30 @@ class Competitions_Repository extends Abstract_Repository {
 	 */
 	private function entry_mode( $value ): string {
 		return 'selected' === $value ? 'selected' : 'all';
+	}
+
+	/**
+	 * An entry fee as stored: plain text, such as "€20 per club".
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param mixed $value Requested fee.
+	 * @return string
+	 */
+	private static function entry_fee( $value ): string {
+		return mb_substr( sanitize_text_field( (string) $value ), 0, 191 );
+	}
+
+	/**
+	 * Payment instructions as stored: text that may hold links, without scripts.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param mixed $value Requested instructions.
+	 * @return string
+	 */
+	private static function payment_instructions( $value ): string {
+		return trim( wp_kses_post( (string) $value ) );
 	}
 
 	/**

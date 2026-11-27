@@ -10,6 +10,7 @@ namespace PhotoCompetitionManager\Service;
 defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -30,7 +31,7 @@ class Member_Export {
 	 * What each page exports, in order: one kind of data for every record
 	 * holding the address, so no page grows with more than one kind.
 	 */
-	const PAGES = array( 'member_items', 'entry_items', 'result_items', 'vote_items', 'log_items' );
+	const PAGES = array( 'member_items', 'entry_items', 'fee_items', 'result_items', 'vote_items', 'log_items' );
 
 	/**
 	 * Email kinds 0.3.0 logged under another name, mapped to the kind they are now.
@@ -209,6 +210,42 @@ class Member_Export {
 				'photo-competition-entry-' . $entry->id,
 				$fields
 			);
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Whether the members paid each competition's entry fee, for the
+	 * competitions they entered that charge one.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param array<int, object> $members Member records.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function fee_items( array $members ): array {
+		$entrants = new Entrants_Repository();
+		$items    = array();
+
+		foreach ( $members as $member ) {
+			foreach ( $entrants->find_by_member( (int) $member->id ) as $row ) {
+				$competition = $this->competition( (int) $row->competition_id );
+				if ( ! $competition || ! Competition_Entry::has_fee( $competition ) ) {
+					continue;
+				}
+
+				$items[] = $this->item(
+					'photo-competition-entry-fees',
+					__( 'Competition entry fees', 'photo-competition-manager' ),
+					'photo-competition-entry-fee-' . $competition->id . '-' . $member->id,
+					array(
+						__( 'Competition', 'photo-competition-manager' ) => $this->labels->title_for_everyone( $competition ),
+						__( 'Entry fee', 'photo-competition-manager' ) => $competition->entry_fee,
+						__( 'Paid', 'photo-competition-manager' ) => $row->paid ? __( 'Yes', 'photo-competition-manager' ) : __( 'No', 'photo-competition-manager' ),
+					)
+				);
+			}
 		}
 
 		return $items;

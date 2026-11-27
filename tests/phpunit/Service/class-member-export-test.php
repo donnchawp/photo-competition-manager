@@ -9,6 +9,7 @@ namespace PhotoCompetitionManager\Tests\Service;
 
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Tests\Type_Fixtures;
+use PhotoCompetitionManager\Repository\Entrants_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
 use PhotoCompetitionManager\Repository\Members_Repository;
@@ -299,6 +300,37 @@ class Member_Export_Test extends WP_UnitTestCase {
 				),
 			),
 			$exported
+		);
+	}
+
+	public function test_exporting_a_member_gives_whether_they_paid_each_entry_fee(): void {
+		$with_fee     = $this->create_competition( 'with-fee', 'Spring Open' );
+		$competitions = new Competitions_Repository();
+		$competitions->update( $with_fee, array( 'entry_mode' => 'selected', 'entry_fee' => '€20' ) );
+		$without_fee = (int) $competitions->create(
+			array(
+				'type_id'    => Type_Fixtures::id(),
+				'title'      => 'Winter Open',
+				'open_date'  => '2019-01-01 00:00:00',
+				'close_date' => '2019-02-01 00:00:00',
+				'entry_mode' => 'selected',
+			)
+		);
+		$jane_id  = $this->create_member( 'Jane Doe', 'jane@example.com' );
+		$entrants = new Entrants_Repository();
+		$entrants->add( $with_fee, $jane_id );
+		$entrants->add( $without_fee, $jane_id );
+		$entrants->set_paid( $with_fee, $jane_id, false );
+
+		$this->assertSame(
+			array(
+				array(
+					'Competition' => 'Spring Open',
+					'Entry fee'   => '€20',
+					'Paid'        => 'No',
+				),
+			),
+			$this->only( $this->export( 'jane@example.com' ), 'photo-competition-entry-fees' )
 		);
 	}
 
