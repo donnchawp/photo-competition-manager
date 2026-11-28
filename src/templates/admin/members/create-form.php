@@ -61,15 +61,15 @@ echo '</label>';
 echo '</p>';
 
 if ( $data['type_options'] ) {
-	echo '<fieldset>';
-	echo '<legend>' . esc_html__( 'Types', 'photo-competition-manager' ) . '</legend>';
+	echo '<p>';
+	echo '<label for="member_type">' . esc_html__( 'Type', 'photo-competition-manager' ) . '</label><br />';
+	echo '<select id="member_type" name="member_type">';
+	echo '<option value="">' . esc_html__( 'None', 'photo-competition-manager' ) . '</option>';
 	foreach ( $data['type_options'] as $type_id => $type_name ) {
-		echo '<label style="display:block;">';
-		echo '<input type="checkbox" name="member_types[]" value="' . esc_attr( $type_id ) . '" /> ';
-		echo esc_html( $type_name );
-		echo '</label>';
+		echo '<option value="' . esc_attr( $type_id ) . '">' . esc_html( $type_name ) . '</option>';
 	}
-	echo '</fieldset>';
+	echo '</select>';
+	echo '</p>';
 }
 
 submit_button( __( 'Add Member', 'photo-competition-manager' ) );

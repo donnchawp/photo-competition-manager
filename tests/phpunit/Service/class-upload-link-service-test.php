@@ -442,20 +442,20 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		return array( $competition_id, $types );
 	}
 
-	private function make_typed_member( string $name, array $type_ids ): int {
+	private function make_typed_member( string $name, int $type_id ): int {
 		return (int) $this->members->create(
 			array(
 				'name'     => $name,
 				'email'    => strtolower( $name ) . '@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => $type_ids,
+				'type_id'  => $type_id,
 			)
 		);
 	}
 
 	public function test_untagged_member_gets_no_link_for_open_competition() {
 		list( $competition_id, $types ) = $this->two_type_competition();
-		$member_id                      = $this->make_typed_member( 'Tess', array( $types['Team'] ) );
+		$member_id                      = $this->make_typed_member( 'Tess', $types['Team'] );
 
 		$result = $this->service->send_to_member( $competition_id, $member_id, true );
 
@@ -467,7 +467,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_tagged_member_gets_a_link_for_open_competition() {
 		list( $competition_id, $types ) = $this->two_type_competition();
-		$member_id                      = $this->make_typed_member( 'Ian', array( $types['Individual'] ) );
+		$member_id                      = $this->make_typed_member( 'Ian', $types['Individual'] );
 
 		$this->assertTrue( $this->service->send_to_member( $competition_id, $member_id, true ) );
 		$this->assertSame( 1, $this->mail_count );
@@ -475,8 +475,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_reminders_go_only_to_entrants_when_selected() {
 		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
-		$entrant                        = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
-		$this->make_typed_member( 'Ben', array( $types['Individual'] ) );
+		$entrant                        = $this->make_typed_member( 'Ann', $types['Individual'] );
+		$this->make_typed_member( 'Ben', $types['Individual'] );
 		( new Entrants_Repository() )->add( $competition_id, $entrant );
 		$jobs = $this->jobs();
 
@@ -495,7 +495,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 				'payment_instructions' => 'Pay the treasurer by PayPal.',
 			)
 		);
-		$entrant = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$entrant = $this->make_typed_member( 'Ann', $types['Individual'] );
 		( new Entrants_Repository() )->add( $competition_id, $entrant );
 
 		$this->service->send_to_member( $competition_id, $entrant, true );
@@ -506,8 +506,8 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_reminders_go_only_to_the_type_when_open_to_all() {
 		list( $competition_id, $types ) = $this->two_type_competition();
-		$individual                     = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
-		$this->make_typed_member( 'Ben', array( $types['Team'] ) );
+		$individual                     = $this->make_typed_member( 'Ann', $types['Individual'] );
+		$this->make_typed_member( 'Ben', $types['Team'] );
 		$jobs = $this->jobs();
 
 		$job_id = $this->service->queue_reminders( $competition_id, $jobs );
@@ -517,7 +517,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_reminders_with_no_one_who_may_enter_is_no_members() {
 		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
-		$this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$this->make_typed_member( 'Ann', $types['Individual'] );
 
 		$result = $this->service->queue_reminders( $competition_id, $this->jobs() );
 
@@ -528,7 +528,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_queued_reminder_for_a_removed_entrant_is_not_sent() {
 		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
-		$member_id                      = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$member_id                      = $this->make_typed_member( 'Ann', $types['Individual'] );
 
 		$result = $this->service->send_reminder( $competition_id, $member_id );
 
@@ -539,7 +539,7 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 
 	public function test_request_link_by_email_for_non_entrant_sends_nothing() {
 		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
-		$this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		$this->make_typed_member( 'Ann', $types['Individual'] );
 
 		$this->assertTrue( $this->service->send_by_email( $competition_id, 'ann@example.com' ) );
 		$this->assertSame( 0, $this->mail_count );

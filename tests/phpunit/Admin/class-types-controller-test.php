@@ -42,7 +42,7 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 		global $wpdb;
 		// Remove types the upgrade may have left, inside the test transaction.
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
-		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', $wpdb->prefix . 'photocomp_members' ) );
 
 		$this->types      = new Competition_Types_Repository();
 		$this->controller = new Types_Controller( $this->types );
@@ -362,6 +362,44 @@ class Types_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'required value="Panel"', $html );
 		$this->assertStringContainsString( 'Nature', $html );
 		$this->assertSame( 'Individual', $this->types->find( $this->individual )->name );
+	}
+
+	/**
+	 * A competition got the type while the form was open, so turning on
+	 * "Entrants are clubs" was refused. The form comes back locked, and must
+	 * post the type's own setting, or every save after is refused too.
+	 */
+	public function test_a_refused_change_to_a_locked_type_comes_back_with_the_stored_setting(): void {
+		global $wpdb;
+		$wpdb->insert(
+			$wpdb->prefix . 'photocomp_competitions',
+			array(
+				'title'   => 'March',
+				'slug'    => 'march',
+				'type_id' => $this->individual,
+			)
+		);
+
+		$this->post(
+			array(
+				'photo_competition_action' => 'update_type',
+				'type_id'                  => (string) $this->individual,
+				'type_name'                => 'Individual',
+				'categories'               => $this->categories(),
+				'interclub_section'        => '1',
+				'interclub_enabled'        => '1',
+			),
+			'photo_competition_type_update_' . $this->individual
+		);
+		$this->assertSame( array( 'interclub_locked' ), $this->settings_error_codes( self::GROUP ) );
+
+		$html = $this->render_view(
+			array(
+				'type_action' => 'edit',
+				'type'        => (string) $this->individual,
+			)
+		);
+		$this->assertStringContainsString( '<input type="hidden" name="interclub_enabled" value="0" />', $html );
 	}
 
 	public function test_edit_type_keeps_settings_the_form_does_not_show(): void {

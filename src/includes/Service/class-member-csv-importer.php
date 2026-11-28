@@ -48,11 +48,14 @@ class Member_CSV_Importer {
 	 * The grade may be a club grade's label or slug, in any case. A blank
 	 * grade, or no grade column, keeps an existing member's grade.
 	 *
-	 * An optional `types` column holds competition type names separated by `;`, in any
-	 * case; a file without a header has it sixth, after committee, when the club has
-	 * several types (with one, a sixth column is ignored). It replaces the
-	 * member's tags. A blank cell, or no such column, leaves an existing member's tags
-	 * alone, and a new member gets the club's only type, if it has one.
+	 * An optional `type` column (`types` in older files) holds one competition type
+	 * name, in any case; a file without a header has it sixth, after committee, when
+	 * the club has several types (with one, a sixth column is ignored). It replaces
+	 * the member's type. A blank cell, or no such column, leaves an existing member's
+	 * type alone, and a new member gets the club's only type, if it has one. A member
+	 * has one type, so a row naming several, separated by `;`, is skipped.
+	 *
+	 * @since 0.6.0 One type per member, in a `type` column.
 	 *
 	 * @param array<string, mixed> $file Uploaded file array from $_FILES.
 	 * @return array<string, mixed>|WP_Error Import stats (total, imported, updated, skipped, untyped: active
@@ -119,7 +122,8 @@ class Member_CSV_Importer {
 			$col_grade     = array_search( 'grade', $header, true );
 			$col_active    = array_search( 'active', $header, true );
 			$col_committee = array_search( 'committee', $header, true );
-			$col_types     = array_search( 'types', $header, true );
+			$col_type      = array_search( 'type', $header, true );
+			$col_type      = false !== $col_type ? $col_type : array_search( 'types', $header, true );
 
 			$row_number = 1; // The header is row 1, as in a spreadsheet.
 		} else {
@@ -128,13 +132,13 @@ class Member_CSV_Importer {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rewind
 			rewind( $handle );
 
-			// Assume columns: name, email, grade, active, committee and types, all but the first two optional.
+			// Assume columns: name, email, grade, active, committee and type, all but the first two optional.
 			$col_name      = 0;
 			$col_email     = 1;
 			$col_grade     = 2;
 			$col_active    = 3;
 			$col_committee = 4;
-			$col_types     = 5;
+			$col_type      = 5;
 
 			$row_number = 0; // Start at 0 since there's no header.
 		}
@@ -144,9 +148,9 @@ class Member_CSV_Importer {
 			$type_ids_by_name[ strtolower( trim( $type->name ) ) ] = (int) $type->id;
 		}
 
-		// With one type there's no types column to fill in, so a headerless file's sixth column is something else.
+		// With one type there's no type column to fill in, so a headerless file's sixth column is something else.
 		if ( ! $has_header && count( $type_ids_by_name ) < 2 ) {
-			$col_types = false;
+			$col_type = false;
 		}
 
 		// Process each data row.
@@ -208,25 +212,33 @@ class Member_CSV_Importer {
 				continue;
 			}
 
-			// Resolve the type names to type IDs.
-			$type_ids   = null;
-			$type_names = false !== $col_types && isset( $row[ $col_types ] ) ? array_filter( array_map( 'trim', explode( ';', $row[ $col_types ] ) ), 'strlen' ) : array();
+			// Resolve the type name to a type ID.
+			$type_id    = null;
+			$type_names = false !== $col_type && isset( $row[ $col_type ] ) ? array_values( array_filter( array_map( 'trim', explode( ';', $row[ $col_type ] ) ), 'strlen' ) ) : array();
+			// Types are matched ignoring case, so "Open; open" names one.
+			$type_names = array_values( array_intersect_key( $type_names, array_unique( array_map( 'strtolower', $type_names ) ) ) );
+			if ( count( $type_names ) > 1 ) {
+				$stats['errors'][] = sprintf(
+					/* translators: %d: row number */
+					__( 'Row %d: A member has one competition type, and this row names several.', 'photo-competition-manager' ),
+					$row_number
+				);
+				++$stats['skipped'];
+				$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
+				continue;
+			}
 			if ( $type_names ) {
-				$type_ids = array();
-				foreach ( $type_names as $type_name ) {
-					$type_id = $type_ids_by_name[ strtolower( sanitize_text_field( $type_name ) ) ] ?? null;
-					if ( null === $type_id ) {
-						$stats['errors'][] = sprintf(
-							/* translators: 1: row number, 2: type name from the CSV file */
-							__( 'Row %1$d: "%2$s" isn\'t a competition type.', 'photo-competition-manager' ),
-							$row_number,
-							sanitize_text_field( $type_name )
-						);
-						++$stats['skipped'];
-						$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
-						continue 2;
-					}
-					$type_ids[] = $type_id;
+				$type_id = $type_ids_by_name[ strtolower( sanitize_text_field( $type_names[0] ) ) ] ?? null;
+				if ( null === $type_id ) {
+					$stats['errors'][] = sprintf(
+						/* translators: 1: row number, 2: type name from the CSV file */
+						__( 'Row %1$d: "%2$s" isn\'t a competition type.', 'photo-competition-manager' ),
+						$row_number,
+						sanitize_text_field( $type_names[0] )
+					);
+					++$stats['skipped'];
+					$row = fgetcsv( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgetcsv
+					continue;
 				}
 			}
 
@@ -262,8 +274,8 @@ class Member_CSV_Importer {
 					);
 					++$stats['skipped'];
 				} else {
-					if ( null !== $type_ids ) {
-						$this->members->set_types( (int) $existing->id, $type_ids );
+					if ( null !== $type_id ) {
+						$this->members->set_type( (int) $existing->id, $type_id );
 					}
 					++$stats['updated'];
 				}
@@ -276,8 +288,8 @@ class Member_CSV_Importer {
 				++$stats['skipped'];
 			} else {
 				// Create new member.
-				if ( null !== $type_ids ) {
-					$data['type_ids'] = $type_ids;
+				if ( null !== $type_id ) {
+					$data['type_id'] = $type_id;
 				}
 
 				$result = $this->members->create( $data );
@@ -292,9 +304,9 @@ class Member_CSV_Importer {
 					++$stats['skipped'];
 				} else {
 					++$stats['imported'];
-					// With one type a new member gets it; with several, none unless the row names some.
+					// With one type a new member gets it; with several, none unless the row names one.
 					// Only active ones count: an inactive member gets no links anyway.
-					if ( empty( $type_ids ) && count( $type_ids_by_name ) > 1 && $active_normalized ) {
+					if ( null === $type_id && count( $type_ids_by_name ) > 1 && $active_normalized ) {
 						++$stats['untyped'];
 					}
 				}
@@ -368,16 +380,16 @@ class Member_CSV_Importer {
 			array( 'Bob Johnson', 'bob.johnson@example.com', '0', '0' ),
 		);
 
-		// One type, then two, then the second, so the sample shows the separator.
-		$sample_types = count( $types ) > 1 ? array( array( $types[0] ), array( $types[0], $types[1] ), array( $types[1] ) ) : array();
+		// The first type, then the second, then the first.
+		$sample_types = count( $types ) > 1 ? array( $types[0], $types[1], $types[0] ) : array();
 
-		$csv = 'name,email,grade,active,committee' . ( $sample_types ? ',types' : '' ) . "\n";
+		$csv = 'name,email,grade,active,committee' . ( $sample_types ? ',type' : '' ) . "\n";
 		foreach ( $rows as $index => $row ) {
 			list( $name, $email, $active, $committee ) = $row;
 
 			$line = sprintf( '"%s",%s,"%s",%s,%s', $name, $email, $this->csv_quoted( $labels[ $index % count( $labels ) ] ), $active, $committee );
 			if ( $sample_types ) {
-				$line .= ',"' . $this->csv_quoted( implode( ';', $sample_types[ $index ] ) ) . '"';
+				$line .= ',"' . $this->csv_quoted( $sample_types[ $index ] ) . '"';
 			}
 			$csv .= $line . "\n";
 		}

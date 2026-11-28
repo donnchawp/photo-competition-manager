@@ -17,7 +17,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_Error;
 
 /**
- * The single answer to "who may enter": everyone tagged with the competition's
+ * The single answer to "who may enter": every member of the competition's
  * type, or only its selected entrants. Also changes the entry setting and the
  * entrants, which stop changing once any category's voting has started.
  *
@@ -101,8 +101,8 @@ class Competition_Entry {
 
 	/**
 	 * Whether a member may enter a competition: they're active, in a grade its
-	 * type uses, and, when it's open to everyone in its type, tagged with that
-	 * type, or, when it's for selected entrants only, one of them.
+	 * type uses, and, when it's open to everyone in its type, of that type,
+	 * or, when it's for selected entrants only, one of them.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
@@ -117,22 +117,24 @@ class Competition_Entry {
 			return $this->entrants->has( (int) $competition->id, (int) $member->id );
 		}
 
-		return $this->in_type( $competition, (int) $member->id );
+		return $this->in_type( $competition, $member );
 	}
 
 	/**
-	 * Whether a member is tagged with a competition's type.
+	 * Whether a member's type is the competition's type.
 	 *
 	 * @param object $competition Competition row.
-	 * @param int    $member_id   Member ID.
+	 * @param object $member      Member row.
 	 * @return bool
 	 */
-	private function in_type( object $competition, int $member_id ): bool {
-		return in_array( (int) $competition->type_id, $this->members->type_ids( $member_id ), true );
+	private function in_type( object $competition, object $member ): bool {
+		$type_id = isset( $member->type_id ) ? (int) $member->type_id : 0;
+
+		return (int) $competition->type_id === $type_id;
 	}
 
 	/**
-	 * The members an admin can add as entrants: active members tagged with the
+	 * The members an admin can add as entrants: active members of the
 	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
@@ -209,7 +211,7 @@ class Competition_Entry {
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'no_type', 'not_in_type', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -223,13 +225,24 @@ class Competition_Entry {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
 		}
 
+		if ( null === $member->type_id ) {
+			return new WP_Error(
+				'no_type',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s has no type. Give them one on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
+		}
+
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.
-		if ( ! $this->in_type( $competition, $member_id ) ) {
+		if ( ! $this->in_type( $competition, $member ) ) {
 			return new WP_Error(
 				'not_in_type',
 				sprintf(
 					/* translators: %s: Member name */
-					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					__( '%s is a member of another type. Change their type on the Members screen first.', 'photo-competition-manager' ),
 					$member->name
 				)
 			);

@@ -108,15 +108,23 @@ class Type_Settings_Form {
 	 * Render the categories, upload limits, voting, slideshow and interclub sections.
 	 *
 	 * @since 0.4.0
-	 * @param array<string, mixed> $settings The type's settings, from Competition_Settings::type_settings().
+	 * @since 0.6.0 Takes $interclub_locked.
+	 * @param array<string, mixed> $settings         The type's settings, from Competition_Settings::type_settings().
+	 * @param bool                 $interclub_locked Whether a competition has the type, so "Entrants are clubs" can't change.
 	 * @return string
 	 */
-	public function render_sections( array $settings ): string {
+	public function render_sections( array $settings, bool $interclub_locked = false ): string {
 		return $this->render_categories_section( $settings['categories'] )
 			. $this->render_upload_constraints_section( $settings['upload'] )
 			. $this->render_voting_section( $settings['voting'] )
 			. $this->render_slideshow_section( $settings['slideshow'] )
-			. $this->render_template( 'admin/types/interclub-section.php', $settings['interclub'] + array( 'attributes' => Competition_Settings::number_attributes( 'interclub' ) ) );
+			. $this->render_template(
+				'admin/types/interclub-section.php',
+				$settings['interclub'] + array(
+					'locked'     => $interclub_locked,
+					'attributes' => Competition_Settings::number_attributes( 'interclub' ),
+				)
+			);
 	}
 
 	/**

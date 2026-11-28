@@ -802,10 +802,10 @@ class Competitions_Controller {
 				}
 				$new_id = $this->members->create(
 					array(
-						'name'     => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
-						'email'    => $email,
-						'grade'    => sanitize_key( $this->get_post_string( 'member_grade' ) ),
-						'type_ids' => array( (int) $competition->type_id ),
+						'name'    => sanitize_text_field( $this->get_post_string( 'member_name' ) ),
+						'email'   => $email,
+						'grade'   => sanitize_key( $this->get_post_string( 'member_grade' ) ),
+						'type_id' => (int) $competition->type_id,
 					)
 				);
 				if ( is_wp_error( $new_id ) ) {

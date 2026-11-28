@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	const typeSelector = document.getElementById('bulk-type-selector');
 	if (bulkAction && typeSelector) {
 		bulkAction.addEventListener('change', function() {
-			const needsType = bulkAction.value === 'bulk_add_type' || bulkAction.value === 'bulk_remove_type';
+			const needsType = bulkAction.value === 'bulk_set_type';
 			typeSelector.style.display = needsType ? 'inline-block' : 'none';
 		});
 	}
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
 				alert(photoCompMembersAdmin.selectOneMember);
 				return false;
 			}
-			if ((action === 'bulk_add_type' || action === 'bulk_remove_type') && !typeSelector.value) {
+			if (action === 'bulk_set_type' && !typeSelector.value) {
 				e.preventDefault();
 				alert(photoCompMembersAdmin.selectType);
 				return false;

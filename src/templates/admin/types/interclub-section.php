@@ -2,7 +2,8 @@
 /**
  * Interclub section partial for the competition type form.
  *
- * Reads $data['enabled'] (bool), $data['substitutes'] and
+ * Reads $data['enabled'] (bool), $data['locked'] (bool): whether a competition
+ * has the type, so "Entrants are clubs" can't change, $data['substitutes'] and
  * $data['photographer_limit'] (both int), and $data['attributes']
  * (array<string, string>): each input's escaped min, max and step.
  *
@@ -16,9 +17,17 @@ echo '<h2>' . esc_html__( 'Interclub', 'photo-competition-manager' ) . '</h2>';
 echo '<input type="hidden" name="interclub_section" value="1" />';
 
 echo '<p>';
-echo '<label><input type="checkbox" name="interclub_enabled" value="1"' . checked( $data['enabled'], true, false ) . ' /> ';
+// A disabled box doesn't post, so the hidden field keeps the setting as it is.
+if ( $data['locked'] ) {
+	echo '<input type="hidden" name="interclub_enabled" value="' . ( $data['enabled'] ? '1' : '0' ) . '" />';
+}
+echo '<label><input type="checkbox"' . ( $data['locked'] ? ' disabled' : ' name="interclub_enabled" value="1"' ) . checked( $data['enabled'], true, false ) . ' /> ';
 echo esc_html__( 'Entrants are clubs', 'photo-competition-manager' ) . '</label><br />';
-echo '<span class="description">' . esc_html__( 'Each entrant is a club entering a panel of images in each category. A panel holds as many images as the category\'s quota, and every image has a photographer\'s name.', 'photo-competition-manager' ) . '</span>';
+echo '<span class="description">' . esc_html__( 'Each entrant is a club entering a panel of images in each category. A panel holds as many images as the category\'s quota, and every image has a photographer\'s name.', 'photo-competition-manager' );
+if ( $data['locked'] ) {
+	echo ' ' . esc_html__( 'This type has competitions, so this can\'t change. To run competitions the other way, make a new type.', 'photo-competition-manager' );
+}
+echo '</span>';
 echo '</p>';
 
 echo '<p>';

@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Frontend\Archive_Shortcode;
 use PhotoCompetitionManager\Frontend\Image_Permalink;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -39,7 +40,7 @@ class Activator {
 	/**
 	 * Current data version. Bump it and add a step to maybe_upgrade() to migrate existing data.
 	 */
-	const DB_VERSION = 15;
+	const DB_VERSION = 16;
 
 	/**
 	 * Option holding the installed data version.
@@ -202,6 +203,13 @@ class Activator {
 		// A competition for selected entrants can take registrations, held
 		// until confirmed by email. Existing entrants were added by an admin.
 		if ( $installed < 15 && ! self::add_registration_schema() ) {
+			return;
+		}
+
+		// A member has one type: it decides which competitions they enter
+		// and whether they're a club or a person. After the types step, which
+		// tags members in the old tag table.
+		if ( $installed < 16 && ! self::move_types_onto_members() ) {
 			return;
 		}
 
@@ -795,6 +803,114 @@ class Activator {
 	}
 
 	/**
+	 * Give each member a type column holding one of their type tags, and log
+	 * any other tag, since a member has one type now.
+	 *
+	 * A member tagged with a type whose entrants are clubs keeps that one,
+	 * since a member tagged with both kinds counted as a club. Otherwise
+	 * they keep their first tag, the lowest ID.
+	 *
+	 * The tag table is left as it was, but nothing reads or writes it after
+	 * this step, so a downgrade gets the tags as they were at the upgrade:
+	 * type changes and members added since are lost.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @return bool False if the column, its key or a member's type is still missing, or the types or tags can't be read, so the step runs again.
+	 */
+	private static function move_types_onto_members(): bool {
+		global $wpdb;
+
+		$members = $wpdb->prefix . 'photocomp_members';
+		$tags    = $wpdb->prefix . 'photocomp_member_types';
+
+		if ( ! self::column_exists( $members, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD COLUMN type_id BIGINT UNSIGNED NULL AFTER images_public', $members ) );
+		}
+
+		if ( ! self::has_key( $members, 'type_id' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i ADD KEY type_id (type_id)', $members ) );
+		}
+
+		if ( ! self::column_exists( $members, 'type_id' ) || ! self::has_key( $members, 'type_id' ) ) {
+			return false;
+		}
+
+		if ( ! self::table_exists( $tags ) ) {
+			return true;
+		}
+
+		$type_names = array();
+		$club_types = array();
+		foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
+			$type_names[ (int) $type->id ] = $type->name;
+			if ( Competition_Settings::type_is_interclub( $type ) ) {
+				$club_types[ (int) $type->id ] = true;
+			}
+		}
+		// Without the types, a member tagged with both kinds would lose the club one.
+		if ( '' !== $wpdb->last_error ) {
+			return false;
+		}
+
+		// Only members not moved yet, so running again moves and logs nothing twice.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT t.member_id, t.type_id, m.name FROM %i t JOIN %i m ON m.id = t.member_id WHERE m.type_id IS NULL ORDER BY t.member_id, t.type_id',
+				$tags,
+				$members
+			)
+		);
+		if ( '' !== $wpdb->last_error ) {
+			return false;
+		}
+
+		$logs      = new Logs_Repository();
+		$by_member = array();
+		foreach ( $rows as $row ) {
+			$by_member[ (int) $row->member_id ]['name']    = $row->name;
+			$by_member[ (int) $row->member_id ]['types'][] = (int) $row->type_id;
+		}
+
+		foreach ( $by_member as $member_id => $member ) {
+			$clubs = array_values( array_filter( $member['types'], fn( $type_id ) => isset( $club_types[ $type_id ] ) ) );
+			$kept  = $clubs ? $clubs[0] : $member['types'][0];
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( false === $wpdb->update( $members, array( 'type_id' => $kept ), array( 'id' => $member_id ), array( '%d' ), array( '%d' ) ) ) {
+				return false;
+			}
+
+			foreach ( array_diff( $member['types'], array( $kept ) ) as $type_id ) {
+				// The upgrade runs before translations load, so this is in English.
+				$logs->create(
+					array(
+						'event_type'     => 'member_type_removed',
+						'event_category' => 'members',
+						'actor_type'     => 'system',
+						'actor_name'     => 'System',
+						'description'    => sprintf(
+							'Upgrade took the %1$s type away from %2$s, who keeps %3$s, since a member has one type now.',
+							$type_names[ $type_id ] ?? '#' . $type_id,
+							$member['name'],
+							$type_names[ $kept ] ?? '#' . $kept
+						),
+						'metadata'       => array(
+							'member_id' => $member_id,
+							'type_id'   => $type_id,
+						),
+					)
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Give every competition without a share hash its own, so its results
 	 * can be shared while the club's results are private.
 	 *
@@ -1211,10 +1327,12 @@ class Activator {
 			active TINYINT(1) NOT NULL DEFAULT 1,
 			committee TINYINT(1) NOT NULL DEFAULT 0,
 			images_public TINYINT(1) NOT NULL DEFAULT 1,
+			type_id BIGINT UNSIGNED NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY  (id),
-			KEY email (email)
+			KEY email (email),
+			KEY type_id (type_id)
 		) {$charset_collate};";
 
 		$competitions = "CREATE TABLE {$wpdb->prefix}photocomp_competitions (
@@ -1380,6 +1498,9 @@ class Activator {
 			PRIMARY KEY  (id)
 		) {$charset_collate};";
 
+		// Type tags from before a member had one type. The 0.4.0 upgrade tags
+		// members here and upgrade 16 moves the tags onto the members table, so
+		// even a new site needs it; nothing else reads it.
 		$member_types = "CREATE TABLE {$wpdb->prefix}photocomp_member_types (
 			member_id BIGINT UNSIGNED NOT NULL,
 			type_id BIGINT UNSIGNED NOT NULL,

@@ -467,11 +467,11 @@ class Upload_API_Test extends WP_UnitTestCase {
 	/**
 	 * A token for a member of an Individual competition, one of two types.
 	 *
-	 * @param string   $entry_mode 'all' or 'selected'.
-	 * @param string[] $types      The member's type names.
+	 * @param string $entry_mode 'all' or 'selected'.
+	 * @param string $type       The member's type name.
 	 * @return array{0: WP_REST_Request, 1: int, 2: int} Quota request, competition ID and member ID.
 	 */
-	private function two_type_request( string $entry_mode, array $types ): array {
+	private function two_type_request( string $entry_mode, string $type ): array {
 		Type_Fixtures::clear();
 		$type_ids       = array(
 			'Individual' => Type_Fixtures::create( 'Individual' ),
@@ -491,12 +491,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 				'name'     => 'Uploader',
 				'email'    => 'uploader@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array_map(
-					static function ( $type ) use ( $type_ids ) {
-						return $type_ids[ $type ];
-					},
-					$types
-				),
+				'type_id'  => $type_ids[ $type ],
 			)
 		);
 
@@ -507,7 +502,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	}
 
 	public function test_removed_entrant_link_is_refused_on_page_and_api(): void {
-		list( $request, $competition_id, $member_id ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+		list( $request, $competition_id, $member_id ) = $this->two_type_request( 'selected', 'Individual' );
 		$entrants                                     = new Entrants_Repository();
 		$entrants->add( $competition_id, $member_id );
 		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
@@ -521,7 +516,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_without_the_competitions_type_is_refused(): void {
-		list( $request ) = $this->two_type_request( 'all', array( 'Team' ) );
+		list( $request ) = $this->two_type_request( 'all', 'Team' );
 
 		$result = ( new Upload_API() )->validate_token_permission( $request );
 
@@ -531,7 +526,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_non_entrants_batch_upload_is_forbidden(): void {
-		list( $request ) = $this->two_type_request( 'selected', array( 'Individual' ) );
+		list( $request ) = $this->two_type_request( 'selected', 'Individual' );
 
 		$response = rest_do_request( $this->batch_request( $request->get_param( 'token' ) ) );
 
@@ -540,7 +535,7 @@ class Upload_API_Test extends WP_UnitTestCase {
 	}
 
 	public function test_a_member_with_the_competitions_type_is_permitted(): void {
-		list( $request ) = $this->two_type_request( 'all', array( 'Individual' ) );
+		list( $request ) = $this->two_type_request( 'all', 'Individual' );
 
 		$this->assertTrue( ( new Upload_API() )->validate_token_permission( $request ) );
 	}

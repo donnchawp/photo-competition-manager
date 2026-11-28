@@ -2,8 +2,8 @@
 /**
  * Import-members-from-CSV form partial for the admin members page.
  *
- * Reads $data['types_example'] (string): two of the club's type names joined
- * with a semicolon, or '' when it has only one type, so there's no types column.
+ * Reads $data['type_example'] (string): one of the club's type names, or ''
+ * when it has only one type, so there's no type column.
  *
  * Pure function of $data — reaches into no controller/trait state.
  *
@@ -41,8 +41,8 @@ echo '</p>';
 
 echo '<p class="description">';
 echo esc_html(
-	'' !== $data['types_example']
-		? __( 'Columns, in this order: name, email, grade, active, committee, types. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
+	'' !== $data['type_example']
+		? __( 'Columns, in this order: name, email, grade, active, committee, type. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
 		: __( 'Columns, in this order: name, email, grade, active, committee. A file with a header row can put its columns in any order.', 'photo-competition-manager' )
 );
 echo '<br />';
@@ -50,12 +50,12 @@ echo esc_html__( 'Grade: one of the grades in Settings, by name or slug. New mem
 echo '<br />';
 echo esc_html__( 'Active and committee: 1 for yes, 0 for no. A blank cell means no, so a blank active cell makes the member inactive. A row that ends before these columns makes the member active and not on the committee.', 'photo-competition-manager' );
 echo '<br />';
-if ( '' !== $data['types_example'] ) {
+if ( '' !== $data['type_example'] ) {
 	echo esc_html(
 		sprintf(
-			/* translators: %s: example of competition type names separated by a semicolon */
-			__( 'Types: competition type names separated by semicolons, such as %s. They replace the member\'s types. Leave the cell blank to keep an existing member\'s types; a new member without types gets none, and no links for competitions open to all until you add them to one.', 'photo-competition-manager' ),
-			$data['types_example']
+			/* translators: %s: example of a competition type name */
+			__( 'Type: one competition type name, such as %s. It replaces the member\'s type. Leave the cell blank to keep an existing member\'s type; a new member without one gets none, and no links for competitions open to all until you give them one.', 'photo-competition-manager' ),
+			$data['type_example']
 		)
 	);
 	echo '<br />';

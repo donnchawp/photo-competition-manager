@@ -1,6 +1,6 @@
 <?php
 /**
- * Notice about active members with no competition type, for the admin members page.
+ * Notice about active members with no competition type, shown on every admin screen.
  *
  * Reads $data['count'] (int) and $data['url'] (string) of the list of those members.
  *

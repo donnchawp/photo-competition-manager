@@ -64,12 +64,13 @@ class Competition_Types_Repository extends Abstract_Repository {
 	 * Update a type.
 	 *
 	 * @since 0.4.0
+	 * @since 0.6.0 Refuses to change whether entrants are clubs once a competition has the type.
 	 * @param int                  $id          Type ID.
 	 * @param string               $name        Type name.
 	 * @param array<string, mixed> $settings    Default settings.
 	 * @param array<string,string> $grade_names   Grade slug to name.
 	 * @param string[]             $unused_grades Slugs of the club's grades this type doesn't use.
-	 * @return true|WP_Error
+	 * @return true|WP_Error `interclub_locked` when whether entrants are clubs would change on a type a competition has.
 	 */
 	public function update( int $id, string $name, array $settings, array $grade_names, array $unused_grades ) {
 		global $wpdb;
@@ -78,6 +79,12 @@ class Competition_Types_Repository extends Abstract_Repository {
 		$valid = $this->validate_type( $name, $settings, $id, $unused_grades );
 		if ( is_wp_error( $valid ) ) {
 			return $valid;
+		}
+
+		// Competitions copy whether entrants are clubs, but whether a member is a club follows the type.
+		$current = $this->find( $id );
+		if ( $current && Competition_Settings::type_is_interclub( $current ) !== ! empty( $settings['interclub']['enabled'] ) && $this->in_use( $id ) ) {
+			return new WP_Error( 'interclub_locked', __( 'This type has competitions, so whether its entrants are clubs can\'t change. Make a new type instead.', 'photo-competition-manager' ) );
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -168,19 +175,32 @@ class Competition_Types_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Delete a type and its member tags.
+	 * Whether any competition, archived or not, has a type.
+	 *
+	 * @since 0.6.0
+	 * @param int $id Type ID.
+	 * @return bool
+	 */
+	public function in_use( int $id ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM %i WHERE type_id = %d LIMIT 1', $wpdb->prefix . 'photocomp_competitions', $id ) );
+	}
+
+	/**
+	 * Delete a type, leaving its members with none.
 	 *
 	 * @since 0.4.0
+	 * @since 0.6.0 Clears the type from its members' rows.
 	 * @param int $id Type ID.
 	 * @return true|WP_Error `type_in_use` while any competition, archived or not, has the type;
-	 *                       `last_type` for the only type. When one type is left, every member is tagged with it.
+	 *                       `last_type` for the only type. When one type is left, every member without one gets it.
 	 */
 	public function delete( int $id ) {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$in_use = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_competitions', $id ) );
-		if ( $in_use > 0 ) {
+		if ( $this->in_use( $id ) ) {
 			return new WP_Error( 'type_in_use', __( 'This type has competitions, so it cannot be deleted.', 'photo-competition-manager' ) );
 		}
 
@@ -193,15 +213,16 @@ class Competition_Types_Repository extends Abstract_Repository {
 			return new WP_Error( 'db_delete_failed', __( 'Could not delete the type.', 'photo-competition-manager' ), $wpdb->last_error );
 		}
 
+		$members = $wpdb->prefix . 'photocomp_members';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete( $wpdb->prefix . 'photocomp_member_types', array( 'type_id' => $id ), array( '%d' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL WHERE type_id = %d', $members, $id ) );
 
-		// With one type every member carries its tag, so members who had none, or only the
-		// deleted type, would otherwise drop out with no tag controls left to fix it.
+		// With one type every member has it, so members who had none, or the
+		// deleted type, would otherwise drop out with no type controls left to fix it.
 		$only = $this->only();
 		if ( $only ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (member_id, type_id) SELECT id, %d FROM %i', $wpdb->prefix . 'photocomp_member_types', (int) $only->id, $wpdb->prefix . 'photocomp_members' ) );
+			$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = %d WHERE type_id IS NULL', $members, (int) $only->id ) );
 		}
 
 		return true;

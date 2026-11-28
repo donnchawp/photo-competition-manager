@@ -41,7 +41,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		global $wpdb;
 
 		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_competition_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_member_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "UPDATE {$wpdb->prefix}photocomp_members SET type_id = NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -84,18 +84,18 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Member fields with the given type tags.
+	 * Member fields with the given type.
 	 *
-	 * @param string $name     Member name, also used for the email.
-	 * @param int[]  $type_ids Type tags.
+	 * @param string   $name    Member name, also used for the email.
+	 * @param int|null $type_id Type ID, or null for none.
 	 * @return array<string, mixed>
 	 */
-	private function member( string $name, array $type_ids ): array {
+	private function member( string $name, ?int $type_id ): array {
 		return array(
-			'name'     => $name,
-			'email'    => $name . '@example.com',
-			'grade'    => 'beginner',
-			'type_ids' => $type_ids,
+			'name'    => $name,
+			'email'   => $name . '@example.com',
+			'grade'   => 'beginner',
+			'type_id' => $type_id,
 		);
 	}
 
@@ -133,23 +133,17 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 'a' => 'B' ), $type->grade_names );
 	}
 
-	public function test_delete_removes_type_and_its_member_tags() {
-		global $wpdb;
-
-		$keep = $this->repository->create( 'Keep', $this->settings() );
-		$id   = $this->repository->create( 'Drop', $this->settings() );
-		$wpdb->insert(
-			$wpdb->prefix . 'photocomp_member_types',
-			array(
-				'member_id' => 1,
-				'type_id'   => $id,
-			)
-		);
+	public function test_delete_removes_type_and_takes_it_from_its_members() {
+		$members = new Members_Repository();
+		$keep    = $this->repository->create( 'Keep', $this->settings() );
+		$this->repository->create( 'Other', $this->settings() );
+		$id     = $this->repository->create( 'Drop', $this->settings() );
+		$member = $members->create( $this->member( 'dropped', $id ) );
 
 		$this->assertTrue( $this->repository->delete( $id ) );
 
 		$this->assertNull( $this->repository->find( $id ) );
-		$this->assertSame( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id = %d', $wpdb->prefix . 'photocomp_member_types', $id ) ) );
+		$this->assertNull( $members->find( $member )->type_id );
 		$this->assertNotNull( $this->repository->find( $keep ) );
 	}
 
@@ -157,14 +151,14 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$members  = new Members_Repository();
 		$keep     = $this->repository->create( 'Keep', $this->settings() );
 		$drop     = $this->repository->create( 'Drop', $this->settings() );
-		$untagged = $members->create( $this->member( 'untagged', array() ) );
-		$dropped  = $members->create( $this->member( 'dropped', array( $drop ) ) );
-		$both     = $members->create( $this->member( 'both', array( $keep, $drop ) ) );
+		$untagged = $members->create( $this->member( 'untagged', null ) );
+		$dropped  = $members->create( $this->member( 'dropped', $drop ) );
+		$kept     = $members->create( $this->member( 'kept', $keep ) );
 
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
-		foreach ( array( $untagged, $dropped, $both ) as $member_id ) {
-			$this->assertSame( array( $keep ), $members->type_ids( $member_id ) );
+		foreach ( array( $untagged, $dropped, $kept ) as $member_id ) {
+			$this->assertSame( $keep, (int) $members->find( $member_id )->type_id );
 		}
 	}
 
@@ -173,11 +167,11 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->repository->create( 'One', $this->settings() );
 		$this->repository->create( 'Two', $this->settings() );
 		$drop     = $this->repository->create( 'Drop', $this->settings() );
-		$untagged = $members->create( $this->member( 'untagged', array() ) );
+		$untagged = $members->create( $this->member( 'untagged', null ) );
 
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
-		$this->assertSame( array(), $members->type_ids( $untagged ) );
+		$this->assertNull( $members->find( $untagged )->type_id );
 	}
 
 	public function test_create_rejects_a_name_another_type_has() {
@@ -215,6 +209,32 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 			$this->assertSame( 'type_in_use', $result->get_error_code() );
 			$this->assertNotNull( $this->repository->find( $id ) );
 		}
+	}
+
+	/**
+	 * Competitions copy "Entrants are clubs" when they're created, but whether
+	 * a member is a club follows the type, so once a competition, archived or
+	 * not, has the type, the setting can't change (#323).
+	 */
+	public function test_entrants_are_clubs_cant_change_once_a_competition_has_the_type() {
+		$clubs                    = $this->settings() + array( 'interclub' => array( 'enabled' => true ) );
+		$people                   = $this->settings();
+		$people['interclub']      = array( 'enabled' => false );
+		$live                     = $this->repository->create( 'Live', $people );
+		$archived                 = $this->repository->create( 'Archived', $clubs );
+		$unused                   = $this->repository->create( 'Unused', $people );
+		$this->insert_competition( $live, false );
+		$this->insert_competition( $archived, true );
+
+		foreach ( array( $live => $clubs, $archived => $people ) as $id => $flipped ) {
+			$result = $this->repository->update( $id, 'Renamed ' . $id, $flipped, array(), array() );
+			$this->assertWPError( $result );
+			$this->assertSame( 'interclub_locked', $result->get_error_code() );
+			$this->assertNotSame( 'Renamed ' . $id, $this->repository->find( $id )->name );
+		}
+
+		$this->assertTrue( $this->repository->update( $live, 'Live', $people + array( 'slideshow' => array() ), array(), array() ) );
+		$this->assertTrue( $this->repository->update( $unused, 'Unused', $clubs, array(), array() ) );
 	}
 
 	public function test_delete_refuses_last_type() {

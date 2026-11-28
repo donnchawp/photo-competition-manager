@@ -690,7 +690,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( array( $type ), ( new Members_Repository() )->type_ids( $id ) );
+		$this->assertSame( $type, (int) ( new Members_Repository() )->find( $id )->type_id );
 	}
 
 	public function test_new_member_untagged_with_two_types(): void {
@@ -707,10 +707,10 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( array(), $members->type_ids( $id ) );
+		$this->assertNull( $members->find( $id )->type_id );
 	}
 
-	public function test_create_tags_with_the_types_given(): void {
+	public function test_create_tags_with_the_type_given(): void {
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
@@ -721,35 +721,33 @@ class Members_Repository_Test extends WP_UnitTestCase {
 				'name'     => 'Ada',
 				'email'    => 'ada@example.com',
 				'grade'    => 'beginner',
-				'type_ids' => array( $individual ),
+				'type_id' => $individual,
 			)
 		);
 
-		$this->assertSame( array( $individual ), $members->type_ids( $id ) );
+		$this->assertSame( $individual, (int) $members->find( $id )->type_id );
 	}
 
-	public function test_set_types_replaces_tags(): void {
+	public function test_a_member_has_one_type_so_setting_one_replaces_the_other(): void {
 		Type_Fixtures::clear();
-		$a = Type_Fixtures::create( 'Individual' );
-		$b = Type_Fixtures::create( 'Team' );
-		$c = Type_Fixtures::create( 'Juniors' );
+		$a       = Type_Fixtures::create( 'Individual' );
+		$b       = Type_Fixtures::create( 'Team' );
 		$members = new Members_Repository();
 		$id      = $members->create(
 			array(
-				'name'  => 'Ada',
-				'email' => 'ada@example.com',
-				'grade' => 'beginner',
+				'name'    => 'Ada',
+				'email'   => 'ada@example.com',
+				'grade'   => 'beginner',
+				'type_id' => $a,
 			)
 		);
 
-		$members->set_types( $id, array( $a, $b ) );
-		$this->assertEqualsCanonicalizing( array( $a, $b ), $members->type_ids( $id ) );
+		$members->set_type( $id, $b );
+		$this->assertSame( $b, (int) $members->find( $id )->type_id );
+		$this->assertSame( array(), wp_list_pluck( $members->find_by_type( $a ), 'id' ) );
 
-		$members->set_types( $id, array( $c, $c, 999999 ) );
-		$this->assertSame( array( $c ), $members->type_ids( $id ) );
-
-		$members->set_types( $id, array() );
-		$this->assertSame( array(), $members->type_ids( $id ) );
+		$members->set_type( $id, null );
+		$this->assertNull( $members->find( $id )->type_id );
 	}
 
 	public function test_find_by_type_skips_inactive_and_untagged(): void {
@@ -757,8 +755,8 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		$a = Type_Fixtures::create( 'Individual' );
 		Type_Fixtures::create( 'Team' );
 		$members  = new Members_Repository();
-		$tagged   = $members->create( array( 'name' => 'Tagged', 'email' => 't@example.com', 'grade' => 'beginner', 'type_ids' => array( $a ) ) );
-		$inactive = $members->create( array( 'name' => 'Gone', 'email' => 'g@example.com', 'grade' => 'beginner', 'active' => 0, 'type_ids' => array( $a ) ) );
+		$tagged   = $members->create( array( 'name' => 'Tagged', 'email' => 't@example.com', 'grade' => 'beginner', 'type_id' => $a ) );
+		$inactive = $members->create( array( 'name' => 'Gone', 'email' => 'g@example.com', 'grade' => 'beginner', 'active' => 0, 'type_id' => $a ) );
 		$untagged = $members->create( array( 'name' => 'Bare', 'email' => 'b@example.com', 'grade' => 'beginner' ) );
 
 		$ids = fn( array $rows ) => array_map( fn( $m ) => (int) $m->id, $rows );

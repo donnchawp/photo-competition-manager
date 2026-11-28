@@ -117,27 +117,22 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create a member with the given types.
+	 * Create a member of the given type.
 	 *
 	 * @param string   $name   Name.
-	 * @param string[] $types  Type names.
+	 * @param string   $type   Type name.
 	 * @param bool     $active Whether active.
 	 * @param string   $grade  Grade slug.
 	 * @return int Member ID.
 	 */
-	private function member( string $name, array $types = array( 'Individual' ), bool $active = true, string $grade = 'beginner' ): int {
+	private function member( string $name, string $type = 'Individual', bool $active = true, string $grade = 'beginner' ): int {
 		$id = $this->members->create(
 			array(
 				'name'     => $name,
 				'email'    => sanitize_title( $name ) . '@example.com',
 				'grade'    => $grade,
 				'active'   => $active,
-				'type_ids' => array_map(
-					function ( $type ) {
-						return $this->types[ $type ];
-					},
-					$types
-				),
+				'type_id'  => $this->types[ $type ],
 			)
 		);
 		$this->assertIsInt( $id );
@@ -147,8 +142,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_may_enter_open_to_all_requires_type_tag(): void {
 		$competition = $this->competition( 'Individual' );
-		$ann         = $this->member( 'Ann', array( 'Individual' ) );
-		$bob         = $this->member( 'Bob', array( 'Team' ) );
+		$ann         = $this->member( 'Ann', 'Individual' );
+		$bob         = $this->member( 'Bob', 'Team' );
 
 		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
@@ -157,8 +152,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_may_enter_selected_requires_entrant(): void {
 		$competition = $this->competition( 'Individual', 'selected' );
-		$ann         = $this->member( 'Ann', array( 'Individual' ) );
-		$bob         = $this->member( 'Bob', array( 'Team' ) );
+		$ann         = $this->member( 'Ann', 'Individual' );
+		$bob         = $this->member( 'Bob', 'Team' );
 		$this->entrants->add( (int) $competition->id, $bob );
 
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
@@ -177,8 +172,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
 		);
 		$competition = $this->competition( 'Team' );
-		$ann         = $this->member( 'Ann', array( 'Team' ), true, 'advanced' );
-		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+		$ann         = $this->member( 'Ann', 'Team', true, 'advanced' );
+		$bob         = $this->member( 'Bob', 'Team', true, 'beginner' );
 
 		$this->assertTrue( $this->entry->may_enter( $competition, $this->members->find( $ann ) ) );
 		$this->assertFalse( $this->entry->may_enter( $competition, $this->members->find( $bob ) ) );
@@ -204,7 +199,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 			'Team'       => Type_Fixtures::create( 'Team', array(), array( 'beginner' ) ),
 		);
 		$competition = $this->competition( 'Team', 'selected' );
-		$bob         = $this->member( 'Bob', array( 'Team' ), true, 'beginner' );
+		$bob         = $this->member( 'Bob', 'Team', true, 'beginner' );
 
 		$result = $this->entry->add_entrant( $competition, $bob );
 
@@ -215,7 +210,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_inactive_member_may_not_enter(): void {
 		$open     = $this->competition( 'Individual' );
-		$inactive = $this->member( 'Cat', array( 'Individual' ), false );
+		$inactive = $this->member( 'Cat', 'Individual', false );
 
 		$this->assertFalse( $this->entry->may_enter( $open, $this->members->find( $inactive ) ) );
 		$this->assertSame( array(), $this->entry->eligible_members( $open ) );
@@ -230,7 +225,7 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 
 	public function test_add_entrant_while_uploads_open_sends_upload_link(): void {
 		$competition = $this->competition( 'Individual', 'selected' );
-		$bob         = $this->member( 'Bob', array( 'Individual' ) );
+		$bob         = $this->member( 'Bob', 'Individual' );
 		reset_phpmailer_instance();
 
 		$this->assertTrue( $this->entry->add_entrant( $competition, $bob ) );
@@ -260,8 +255,8 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 	 */
 	public function test_add_entrant_enters_only_members_of_the_type(): void {
 		$competition = $this->competition( 'Team', 'selected' );
-		$member      = $this->member( 'Ann', array( 'Team' ) );
-		$outsider    = $this->member( 'Bob', array( 'Individual' ) );
+		$member      = $this->member( 'Ann', 'Team' );
+		$outsider    = $this->member( 'Bob', 'Individual' );
 
 		$result = $this->entry->add_entrant( $competition, $outsider );
 
@@ -269,6 +264,22 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertSame( 'not_in_type', $result->get_error_code() );
 		$this->assertFalse( $this->entrants->has( (int) $competition->id, $outsider ) );
 		$this->assertTrue( $this->entry->add_entrant( $competition, $member ) );
+	}
+
+	/**
+	 * A member with no type isn't told they're in another type: the admin
+	 * has to give them one, not change it.
+	 */
+	public function test_add_entrant_refuses_a_member_with_no_type_as_having_none(): void {
+		$competition = $this->competition( 'Team', 'selected' );
+		$member      = $this->member( 'Ann', 'Team' );
+		$this->members->set_type( $member, null );
+
+		$result = $this->entry->add_entrant( $competition, $member );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_type', $result->get_error_code() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $member ) );
 	}
 
 	public function test_add_entrant_refused_when_open_to_all(): void {

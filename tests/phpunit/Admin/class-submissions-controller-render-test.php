@@ -734,7 +734,7 @@ class Submissions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		// Ada no longer carries the competition's type.
-		$this->members->set_types( $ada, array() );
+		$this->members->set_type( $ada, null );
 		$this->set_request(
 			array(
 				'page'           => 'photo-competition-manager-submissions',

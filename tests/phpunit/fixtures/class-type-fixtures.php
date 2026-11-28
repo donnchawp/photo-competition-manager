@@ -52,7 +52,7 @@ class Type_Fixtures {
 		global $wpdb;
 
 		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_competition_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "DELETE FROM {$wpdb->prefix}photocomp_member_types" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "UPDATE {$wpdb->prefix}photocomp_members SET type_id = NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -62,6 +62,7 @@ class Type_Fixtures {
 	 * @param array<string,string> $grade_names   Grade slug to the name the type shows for it.
 	 * @param string[]             $unused_grades Slugs of the club's grades the type doesn't use.
 	 * @return int Type ID.
+	 * @throws \RuntimeException When the type's settings aren't valid.
 	 */
 	public static function create( string $name, array $grade_names = array(), array $unused_grades = array() ): int {
 		$id = ( new Competition_Types_Repository() )->create(
@@ -78,6 +79,9 @@ class Type_Fixtures {
 			$grade_names,
 			$unused_grades
 		);
+		if ( is_wp_error( $id ) ) {
+			throw new \RuntimeException( 'Type_Fixtures::create: ' . $id->get_error_message() ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+		}
 
 		return (int) $id;
 	}

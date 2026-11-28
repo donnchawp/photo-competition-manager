@@ -206,7 +206,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		global $wpdb;
 
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
-		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', $wpdb->prefix . 'photocomp_members' ) );
 
 		$repo = new Competition_Types_Repository();
 		$ids  = array();
@@ -2306,7 +2306,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertSame( 'Dan Guest', $dan->name );
 		$this->assertSame( array( (int) $dan->id ), ( new Entrants_Repository() )->member_ids( $id ) );
 		// Tagged by the one-type rule.
-		$this->assertSame( array( Type_Fixtures::id() ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( Type_Fixtures::id(), (int) $members->find( (int) $dan->id )->type_id );
 		$this->assertSame( 'dan@example.com', tests_retrieve_phpmailer_instance()->mock_sent[0]['to'][0][0] );
 		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
@@ -2329,7 +2329,7 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$members = new Members_Repository();
 		$dan     = $members->find_by_email( 'dan@example.com' );
 		$this->assertNotNull( $dan );
-		$this->assertSame( array( $type_id ), $members->type_ids( (int) $dan->id ) );
+		$this->assertSame( $type_id, (int) $members->find( (int) $dan->id )->type_id );
 	}
 
 	public function test_create_member_with_an_existing_email_enters_that_member(): void {

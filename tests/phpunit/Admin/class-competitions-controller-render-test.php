@@ -578,7 +578,7 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		global $wpdb;
 
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_competition_types' ) );
-		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i', $wpdb->prefix . 'photocomp_member_types' ) );
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET type_id = NULL', $wpdb->prefix . 'photocomp_members' ) );
 
 		$types      = new Competition_Types_Repository();
 		$categories = array( 'categories' => array( array( 'label' => 'Open', 'slug' => 'open', 'quota' => 2 ) ) );
@@ -1010,8 +1010,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$ids     = $this->use_two_types();
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
-		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Individual'] ) );
+		$members->create( array( 'name' => 'Zoe', 'email' => 'zoe@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1047,8 +1047,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 			)
 		);
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Individual'] ) ) );
-		$members->create( array( 'name' => 'Riverside Camera Club', 'email' => 'riverside@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Ann', 'email' => 'ann@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Individual'] ) );
+		$members->create( array( 'name' => 'Riverside Camera Club', 'email' => 'riverside@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',
@@ -1102,8 +1102,8 @@ class Competitions_Controller_Render_Test extends Admin_Controller_Test_Case {
 		$types->update( $ids['Team'], 'Team', $team->settings, array(), array( 'beginner' ) );
 		$comp_id = $this->seed_competition( 'Team Show', 'team-show', array( 'type_id' => $ids['Team'], 'entry_mode' => 'selected' ) );
 		$members = new Members_Repository();
-		$members->create( array( 'name' => 'Bea', 'email' => 'bea@example.com', 'grade' => 'beginner', 'type_ids' => array( $ids['Team'] ) ) );
-		$members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'advanced', 'type_ids' => array( $ids['Team'] ) ) );
+		$members->create( array( 'name' => 'Bea', 'email' => 'bea@example.com', 'grade' => 'beginner', 'type_id'  => $ids['Team'] ) );
+		$members->create( array( 'name' => 'Ada', 'email' => 'ada@example.com', 'grade' => 'advanced', 'type_id'  => $ids['Team'] ) );
 		$this->set_request(
 			array(
 				'action'      => 'edit',

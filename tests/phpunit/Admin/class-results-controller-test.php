@@ -465,7 +465,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				'email'    => 'inside@example.com',
 				'grade'    => 'beginner',
 				'active'   => 1,
-				'type_ids' => array( $own_type ),
+				'type_id'  => $own_type,
 			)
 		);
 		$outside = (int) $this->members->create(
@@ -474,7 +474,7 @@ class Results_Controller_Test extends Admin_Controller_Test_Case {
 				'email'    => 'outside@example.com',
 				'grade'    => 'beginner',
 				'active'   => 1,
-				'type_ids' => array( $other_type ),
+				'type_id'  => $other_type,
 			)
 		);
 
