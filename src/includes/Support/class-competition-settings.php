@@ -708,10 +708,6 @@ class Competition_Settings {
 	 * slug yet, and gets one made from its label, with a number added if a
 	 * renamed grade still holds that slug.
 	 *
-	 * A slug is a plain key (a-z, 0-9, - and _), so every form that posts it
-	 * keeps it. sanitize_title() %-encodes a label with no Latin spelling,
-	 * such as Greek, and sanitize_text_field() strips that to nothing.
-	 *
 	 * @since 0.4.0
 	 * @since 0.5.1 Slugs are plain keys.
 	 * @param array<int, mixed> $rows Posted grade rows.
@@ -756,8 +752,10 @@ class Competition_Settings {
 	}
 
 	/**
-	 * A grade slug made from a label or posted slug: sanitize_title(), then
-	 * only the characters sanitize_key() keeps.
+	 * A grade slug made from a label or posted slug. It is a plain key (a-z,
+	 * 0-9, - and _) so every form that posts it keeps it: sanitize_title()
+	 * %-encodes a label with no Latin spelling, such as Greek, and
+	 * sanitize_text_field() strips that to nothing.
 	 *
 	 * @since 0.5.1
 	 * @param string $text Label or slug.

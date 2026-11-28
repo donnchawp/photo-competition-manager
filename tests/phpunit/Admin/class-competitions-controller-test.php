@@ -2299,9 +2299,9 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 	 */
 	public function test_create_member_and_enter_them_in_a_grade_named_in_greek(): void {
 		// As the Settings screen saves a grade typed in with no slug.
-		$grades = \PhotoCompetitionManager\Support\Competition_Settings::sanitize_grades( array( array( 'label' => 'Αρχάριος' ) ) );
+		$grades = Competition_Settings::sanitize_grades( array( array( 'label' => 'Αρχάριος' ) ) );
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'grades' => $grades ) ) );
-		$slug = \PhotoCompetitionManager\Support\Competition_Settings::club_grades()[0]['slug'];
+		$slug = Competition_Settings::club_grades()[0]['slug'];
 		$id   = $this->create_entry_competition();
 
 		$this->post_entrants_action(
