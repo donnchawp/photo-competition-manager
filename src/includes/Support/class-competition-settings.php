@@ -708,7 +708,12 @@ class Competition_Settings {
 	 * slug yet, and gets one made from its label, with a number added if a
 	 * renamed grade still holds that slug.
 	 *
+	 * A slug is a plain key (a-z, 0-9, - and _), so every form that posts it
+	 * keeps it. sanitize_title() %-encodes a label with no Latin spelling,
+	 * such as Greek, and sanitize_text_field() strips that to nothing.
+	 *
 	 * @since 0.4.0
+	 * @since 0.5.1 Slugs are plain keys.
 	 * @param array<int, mixed> $rows Posted grade rows.
 	 * @return array<int, array{label: string, slug: string}>
 	 */
@@ -724,7 +729,7 @@ class Competition_Settings {
 		foreach ( $rows as $row ) {
 			$grades[] = array(
 				'label' => sanitize_text_field( $row['label'] ),
-				'slug'  => sanitize_title( $row['slug'] ?? '' ),
+				'slug'  => self::grade_slug( (string) ( $row['slug'] ?? '' ) ),
 			);
 		}
 
@@ -735,7 +740,7 @@ class Competition_Settings {
 				continue;
 			}
 
-			$base   = sanitize_title( $grade['label'] );
+			$base   = self::grade_slug( $grade['label'] );
 			$slug   = $base;
 			$suffix = 1;
 			while ( in_array( $slug, $taken, true ) ) {
@@ -748,6 +753,18 @@ class Competition_Settings {
 		}
 
 		return $grades;
+	}
+
+	/**
+	 * A grade slug made from a label or posted slug: sanitize_title(), then
+	 * only the characters sanitize_key() keeps.
+	 *
+	 * @since 0.5.1
+	 * @param string $text Label or slug.
+	 * @return string
+	 */
+	private static function grade_slug( string $text ): string {
+		return sanitize_key( sanitize_title( $text ) );
 	}
 
 	/**
