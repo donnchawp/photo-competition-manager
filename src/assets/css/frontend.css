@@ -207,25 +207,31 @@
 /* Messages */
 .photo-comp-voting .error,
 .photo-comp-voting .success,
-.photo-comp-voting .notice {
+.photo-comp-voting .notice,
+.photo-comp-registration .error,
+.photo-comp-registration .success,
+.photo-comp-registration .notice {
 	padding: 1em;
 	margin-bottom: 1.5em;
 	border-radius: 4px;
 }
 
-.photo-comp-voting .error {
+.photo-comp-voting .error,
+.photo-comp-registration .error {
 	background: #fef7f8;
 	border-left: 4px solid #d63638;
 	color: #b32d2e;
 }
 
-.photo-comp-voting .success {
+.photo-comp-voting .success,
+.photo-comp-registration .success {
 	background: #edfaef;
 	border-left: 4px solid #00a32a;
 	color: #007017;
 }
 
-.photo-comp-voting .notice {
+.photo-comp-voting .notice,
+.photo-comp-registration .notice {
 	background: #fff8e5;
 	border-left: 4px solid #dba617;
 	color: #8a6d3b;
