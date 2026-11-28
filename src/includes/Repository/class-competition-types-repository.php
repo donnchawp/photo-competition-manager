@@ -189,12 +189,13 @@ class Competition_Types_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Delete a type and its member tags.
+	 * Delete a type, leaving its members with none.
 	 *
 	 * @since 0.4.0
+	 * @since 0.6.0 Clears the type from its members' rows.
 	 * @param int $id Type ID.
 	 * @return true|WP_Error `type_in_use` while any competition, archived or not, has the type;
-	 *                       `last_type` for the only type. When one type is left, every member is tagged with it.
+	 *                       `last_type` for the only type. When one type is left, every member without one gets it.
 	 */
 	public function delete( int $id ) {
 		global $wpdb;

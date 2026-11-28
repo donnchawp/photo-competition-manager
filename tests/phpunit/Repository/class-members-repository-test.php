@@ -690,7 +690,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( $type, ( new Members_Repository() )->type_id( $id ) );
+		$this->assertSame( $type, (int) ( new Members_Repository() )->find( $id )->type_id );
 	}
 
 	public function test_new_member_untagged_with_two_types(): void {
@@ -707,7 +707,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertNull( $members->type_id( $id ) );
+		$this->assertNull( $members->find( $id )->type_id );
 	}
 
 	public function test_create_tags_with_the_type_given(): void {
@@ -725,7 +725,7 @@ class Members_Repository_Test extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( $individual, $members->type_id( $id ) );
+		$this->assertSame( $individual, (int) $members->find( $id )->type_id );
 	}
 
 	public function test_a_member_has_one_type_so_setting_one_replaces_the_other(): void {
@@ -743,11 +743,11 @@ class Members_Repository_Test extends WP_UnitTestCase {
 		);
 
 		$members->set_type( $id, $b );
-		$this->assertSame( $b, $members->type_id( $id ) );
+		$this->assertSame( $b, (int) $members->find( $id )->type_id );
 		$this->assertSame( array(), wp_list_pluck( $members->find_by_type( $a ), 'id' ) );
 
 		$members->set_type( $id, null );
-		$this->assertNull( $members->type_id( $id ) );
+		$this->assertNull( $members->find( $id )->type_id );
 	}
 
 	public function test_find_by_type_skips_inactive_and_untagged(): void {

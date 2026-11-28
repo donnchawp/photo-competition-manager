@@ -380,14 +380,15 @@ class Registration {
 
 		// A member has one type, and only an admin changes it.
 		if ( null !== $type_id && (int) $competition->type_id !== $type_id ) {
-			$type = $this->types->find( $type_id );
+			$type      = $this->types->find( $type_id );
+			$is_a_club = $type && Competition_Settings::type_is_interclub( $type );
 
-			if ( Competition_Settings::is_interclub( $competition ) ) {
+			if ( Competition_Settings::is_interclub( $competition ) && ! $is_a_club ) {
 				/* translators: %s: Competition title */
 				return sprintf( __( '%s is a competition between clubs, and this email address is a person\'s, not a club\'s. Register the club with an address only the club uses.', 'photo-competition-manager' ), $title );
 			}
 
-			if ( $type && Competition_Settings::type_is_interclub( $type ) ) {
+			if ( $is_a_club && ! Competition_Settings::is_interclub( $competition ) ) {
 				/* translators: %s: Competition title */
 				return sprintf( __( 'This email address is a club\'s, and %s is for individual photographers. Register with your own address.', 'photo-competition-manager' ), $title );
 			}

@@ -356,23 +356,6 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * The competition type a member has. A member has one type at most; a
-	 * member row carries it as `type_id`.
-	 *
-	 * @since 0.6.0
-	 * @param int $member_id Member ID.
-	 * @return int|null Type ID, or null when they have none.
-	 */
-	public function type_id( int $member_id ): ?int {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$id = $wpdb->get_var( $wpdb->prepare( 'SELECT type_id FROM %i WHERE id = %d', $this->table(), $member_id ) );
-
-		return null === $id ? null : (int) $id;
-	}
-
-	/**
 	 * Set a member's competition type, replacing the one they had. Null, or
 	 * a type that doesn't exist, leaves them with none.
 	 *
@@ -393,7 +376,7 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
-	 * Fetch the active members tagged with a type.
+	 * Fetch the active members of a type.
 	 *
 	 * @since 0.4.0
 	 * @param int $type_id Type ID.

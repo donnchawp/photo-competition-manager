@@ -143,7 +143,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->repository->delete( $id ) );
 
 		$this->assertNull( $this->repository->find( $id ) );
-		$this->assertNull( $members->type_id( $member ) );
+		$this->assertNull( $members->find( $member )->type_id );
 		$this->assertNotNull( $this->repository->find( $keep ) );
 	}
 
@@ -158,7 +158,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
 		foreach ( array( $untagged, $dropped, $kept ) as $member_id ) {
-			$this->assertSame( $keep, $members->type_id( $member_id ) );
+			$this->assertSame( $keep, (int) $members->find( $member_id )->type_id );
 		}
 	}
 
@@ -171,7 +171,7 @@ class Competition_Types_Repository_Test extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->repository->delete( $drop ) );
 
-		$this->assertNull( $members->type_id( $untagged ) );
+		$this->assertNull( $members->find( $untagged )->type_id );
 	}
 
 	public function test_create_rejects_a_name_another_type_has() {

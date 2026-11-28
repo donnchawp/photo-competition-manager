@@ -447,7 +447,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\n" ) );
 
-		$this->assertSame( $type, $this->members_repo->type_id( $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( $type, (int) $this->members_repo->find_by_email( 'ada@example.com' )->type_id );
 	}
 
 	public function test_csv_import_type_column_sets_each_members_type(): void {
@@ -462,9 +462,9 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( array(), $result['errors'] );
-		$this->assertSame( $individual, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
-		$this->assertSame( $team, $this->members_repo->type_id( $moved ) );
-		$this->assertSame( $team, $this->members_repo->type_id( $kept ) );
+		$this->assertSame( $individual, (int) $this->members_repo->find_by_email( 'ada@example.com' )->type_id );
+		$this->assertSame( $team, (int) $this->members_repo->find( $moved )->type_id );
+		$this->assertSame( $team, (int) $this->members_repo->find( $kept )->type_id );
 	}
 
 	/**
@@ -477,7 +477,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->importer->import( $this->csv_upload( "name,email,grade,types\nAda,ada@example.com,beginner,Team\n" ) );
 
-		$this->assertSame( $team, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
+		$this->assertSame( $team, (int) $this->members_repo->find_by_email( 'ada@example.com' )->type_id );
 	}
 
 	public function test_csv_import_without_type_column_leaves_types_alone_with_two_types(): void {
@@ -488,8 +488,8 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->importer->import( $this->csv_upload( "name,email,grade\nAda,ada@example.com,beginner\nBob,bob@example.com,advanced\n" ) );
 
-		$this->assertNull( $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ada@example.com' )->id ) );
-		$this->assertSame( $individual, $this->members_repo->type_id( $existing ) );
+		$this->assertNull( $this->members_repo->find_by_email( 'ada@example.com' )->type_id );
+		$this->assertSame( $individual, (int) $this->members_repo->find( $existing )->type_id );
 	}
 
 	/**
@@ -507,7 +507,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertCount( 2, $result['errors'] );
 		$this->assertSame( 2, $result['skipped'] );
 		$this->assertNull( $this->members_repo->find_by_email( 'ada@example.com' ) );
-		$this->assertSame( $individual, $this->members_repo->type_id( $existing ) );
+		$this->assertSame( $individual, (int) $this->members_repo->find( $existing )->type_id );
 	}
 
 	public function test_csv_import_unknown_type_is_a_row_error(): void {
@@ -536,8 +536,8 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( array( 'Row 3: "Pairs" isn\'t a competition type.' ), $result['errors'] );
-		$this->assertSame( $team, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
-		$this->assertSame( $team, $this->members_repo->type_id( $kept ) );
+		$this->assertSame( $team, (int) $this->members_repo->find_by_email( 'ann@example.com' )->type_id );
+		$this->assertSame( $team, (int) $this->members_repo->find( $kept )->type_id );
 	}
 
 	/**
@@ -556,7 +556,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame( 3, $result['imported'] );
 		$types = array_map(
-			fn( $email ) => $this->members_repo->type_id( (int) $this->members_repo->find_by_email( $email )->id ),
+			fn( $email ) => (int) $this->members_repo->find_by_email( $email )->type_id,
 			array( 'john.doe@example.com', 'jane.smith@example.com', 'bob.johnson@example.com' )
 		);
 		$this->assertEqualsCanonicalizing( array( $individual, $team ), array_values( array_unique( $types ) ) );
@@ -615,7 +615,7 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame( 1, $result['imported'] );
-		$this->assertSame( $type, $this->members_repo->type_id( (int) $this->members_repo->find_by_email( 'ann@example.com' )->id ) );
+		$this->assertSame( $type, (int) $this->members_repo->find_by_email( 'ann@example.com' )->type_id );
 	}
 
 	/**

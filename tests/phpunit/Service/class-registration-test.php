@@ -301,7 +301,7 @@ class Registration_Test extends WP_UnitTestCase {
 		$member = $this->members->find_by_email( 'new@example.com' );
 		$this->assertSame( 'New Person', $member->name );
 		$this->assertSame( 'intermediate', $member->grade );
-		$this->assertSame( $this->types['Individual'], $this->members->type_id( (int) $member->id ) );
+		$this->assertSame( $this->types['Individual'], (int) $this->members->find( (int) $member->id )->type_id );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->member_ids( (int) $competition->id ) );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->unpaid_member_ids( (int) $competition->id ) );
 		$this->assertSame( array( (int) $member->id ), $this->entrants->registered_member_ids( (int) $competition->id ) );
@@ -318,7 +318,7 @@ class Registration_Test extends WP_UnitTestCase {
 		$member = $this->members->find( $member_id );
 		$this->assertSame( 'Ann On File', $member->name );
 		$this->assertSame( 'beginner', $member->grade );
-		$this->assertSame( $this->types['Individual'], $this->members->type_id( $member_id ) );
+		$this->assertSame( $this->types['Individual'], (int) $this->members->find( $member_id )->type_id );
 		$this->assertSame( array( $member_id ), $this->entrants->member_ids( (int) $competition->id ) );
 	}
 
@@ -378,7 +378,7 @@ class Registration_Test extends WP_UnitTestCase {
 		$this->member( 'ann@example.com', 'Individual' );
 
 		$this->assert_refused( $competition, $this->register( $competition, 'ann@example.com' ), 'club' );
-		$this->assertSame( $this->types['Individual'], $this->members->type_id( (int) $this->members->find_by_email( 'ann@example.com' )->id ), 'type unchanged' );
+		$this->assertSame( $this->types['Individual'], (int) $this->members->find_by_email( 'ann@example.com' )->type_id, 'type unchanged' );
 	}
 
 	public function test_a_club_registering_for_a_competition_between_people_is_refused(): void {
@@ -401,7 +401,43 @@ class Registration_Test extends WP_UnitTestCase {
 		);
 
 		$this->assert_refused( $competition, $this->register( $competition, 'jo@example.com' ), 'Juniors' );
-		$this->assertSame( $juniors, $this->members->type_id( $member_id ) );
+		$this->assertSame( $juniors, (int) $this->members->find( $member_id )->type_id );
+	}
+
+	/**
+	 * A club in one interclub type registering for another's competition
+	 * isn't told its address is a person's.
+	 */
+	public function test_a_club_of_another_interclub_type_is_told_its_type(): void {
+		$competition = $this->competition(
+			array(
+				'type'      => 'Interclub',
+				'interclub' => true,
+			)
+		);
+		$league      = (int) ( new Competition_Types_Repository() )->create(
+			'League',
+			array(
+				'categories' => array(
+					array(
+						'label' => 'Open',
+						'slug'  => 'open',
+						'quota' => 2,
+					),
+				),
+				'interclub'  => array( 'enabled' => true ),
+			)
+		);
+		$this->members->create(
+			array(
+				'name'    => 'Riverside',
+				'email'   => 'club@example.com',
+				'grade'   => 'beginner',
+				'type_id' => $league,
+			)
+		);
+
+		$this->assert_refused( $competition, $this->register( $competition, 'club@example.com' ), 'League' );
 	}
 
 	public function test_a_link_confirmed_after_registration_closed_is_refused(): void {

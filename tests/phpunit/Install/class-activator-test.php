@@ -882,35 +882,53 @@ class Activator_Test extends WP_UnitTestCase {
 	}
 
 	public function test_upgrade_to_16_gives_each_member_their_first_type(): void {
-		$this->shadow_v15_members_and_types();
+		$types = $this->shadow_v15_members_and_types();
 		update_option( 'photo_comp_db_version', 15 );
 
 		Activator::maybe_upgrade();
 
 		// The lowest type ID is the type the member was given first.
 		$members = new Members_Repository();
-		$this->assertSame( 2, $members->type_id( 3 ) );
-		$this->assertSame( 5, $members->type_id( 4 ) );
-		$this->assertNull( $members->type_id( 6 ) );
+		$this->assertSame( $types['people'], (int) $members->find( 3 )->type_id );
+		$this->assertSame( $types['more'], (int) $members->find( 4 )->type_id );
+		$this->assertNull( $members->find( 6 )->type_id );
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
-	public function test_upgrade_to_16_logs_each_type_it_takes_away(): void {
-		global $wpdb;
-		$this->shadow_v15_members_and_types();
+	/**
+	 * With one type, every member was tagged with it, so a club an admin
+	 * later tagged with a club type also carries the people type. A member
+	 * tagged with both counted as a club (#323), and stays one.
+	 */
+	public function test_upgrade_to_16_keeps_a_club_a_club(): void {
+		$types = $this->shadow_v15_members_and_types();
 		update_option( 'photo_comp_db_version', 15 );
 
 		Activator::maybe_upgrade();
 
-		$logs = $wpdb->get_results( $wpdb->prepare( 'SELECT actor_type, metadata FROM %i WHERE event_type = %s', $wpdb->prefix . 'photocomp_logs', 'member_type_removed' ) );
-		$this->assertCount( 1, $logs );
-		$this->assertSame( 'system', $logs[0]->actor_type );
+		$this->assertSame( $types['clubs'], (int) ( new Members_Repository() )->find( 7 )->type_id );
+	}
+
+	public function test_upgrade_to_16_logs_each_type_it_takes_away(): void {
+		global $wpdb;
+		$types = $this->shadow_v15_members_and_types();
+		update_option( 'photo_comp_db_version', 15 );
+
+		Activator::maybe_upgrade();
+
+		$logs = $wpdb->get_col( $wpdb->prepare( 'SELECT metadata FROM %i WHERE event_type = %s AND actor_type = %s ORDER BY id', $wpdb->prefix . 'photocomp_logs', 'member_type_removed', 'system' ) );
 		$this->assertSame(
 			array(
-				'member_id' => 3,
-				'type_id'   => 5,
+				array(
+					'member_id' => 3,
+					'type_id'   => $types['more'],
+				),
+				array(
+					'member_id' => 7,
+					'type_id'   => $types['people'],
+				),
 			),
-			json_decode( $logs[0]->metadata, true )
+			array_map( fn( $metadata ) => json_decode( $metadata, true ), $logs )
 		);
 	}
 
@@ -1351,12 +1369,36 @@ class Activator_Test extends WP_UnitTestCase {
 
 	/**
 	 * Hide the members and member types tables behind ones shaped as
-	 * version 15 left them: members have no type column, and a member can
-	 * have several types. Member 3 has types 5 and 2, member 4 has type 5,
-	 * and member 6 has none.
+	 * version 15 left them, where a member can have several types, once
+	 * upgrade 16 has added the members' type column. Adding it here means
+	 * the upgrade alters no table, which in MariaDB would commit the types
+	 * this makes, even on a temporary table. Member 3 has the People and More types, member 4
+	 * has More, member 6 has none, and member 7 has People and Clubs, whose
+	 * entrants are clubs.
+	 *
+	 * @return array<string, int> Type IDs: people, more and clubs, in the order they were made.
 	 */
-	private function shadow_v15_members_and_types(): void {
+	private function shadow_v15_members_and_types(): array {
 		global $wpdb;
+
+		Type_Fixtures::clear();
+		$types = array(
+			'people' => Type_Fixtures::create( 'People' ),
+			'more'   => Type_Fixtures::create( 'More' ),
+			'clubs'  => (int) ( new \PhotoCompetitionManager\Repository\Competition_Types_Repository() )->create(
+				'Clubs',
+				array(
+					'categories' => array(
+						array(
+							'label' => 'Open',
+							'slug'  => 'open',
+							'quota' => 2,
+						),
+					),
+					'interclub'  => array( 'enabled' => true ),
+				)
+			),
+		);
 
 		$members = $wpdb->prefix . 'photocomp_members';
 		$tags    = $wpdb->prefix . 'photocomp_member_types';
@@ -1371,10 +1413,12 @@ class Activator_Test extends WP_UnitTestCase {
 				active TINYINT(1) NOT NULL DEFAULT 1,
 				committee TINYINT(1) NOT NULL DEFAULT 0,
 				images_public TINYINT(1) NOT NULL DEFAULT 1,
+				type_id BIGINT UNSIGNED NULL,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				updated_at DATETIME NULL,
 				PRIMARY KEY  (id),
-				KEY email (email)
+				KEY email (email),
+				KEY type_id (type_id)
 			) {$wpdb->get_charset_collate()}"
 		);
 		$wpdb->query(
@@ -1385,8 +1429,21 @@ class Activator_Test extends WP_UnitTestCase {
 				KEY type_id (type_id)
 			) {$wpdb->get_charset_collate()}"
 		);
-		$wpdb->query( "INSERT INTO {$members} (id, name, email, grade) VALUES (3, 'Ann', 'ann@example.com', 'beginner'), (4, 'Bob', 'bob@example.com', 'beginner'), (6, 'Cy', 'cy@example.com', 'beginner')" );
-		$wpdb->query( "INSERT INTO {$tags} (member_id, type_id) VALUES (3, 5), (3, 2), (4, 5)" );
+		$wpdb->query( "INSERT INTO {$members} (id, name, email, grade) VALUES (3, 'Ann', 'ann@example.com', 'beginner'), (4, 'Bob', 'bob@example.com', 'beginner'), (6, 'Cy', 'cy@example.com', 'beginner'), (7, 'Riverside', 'club@example.com', 'beginner')" );
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO {$tags} (member_id, type_id) VALUES (3, %d), (3, %d), (4, %d), (7, %d), (7, %d)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$types['more'],
+				$types['people'],
+				$types['more'],
+				$types['people'],
+				$types['clubs']
+			)
+		);
+		// A safety net: any ALTER the upgrade tries is swallowed, not committed.
+		$this->record_ddl();
+
+		return $types;
 	}
 
 	/**

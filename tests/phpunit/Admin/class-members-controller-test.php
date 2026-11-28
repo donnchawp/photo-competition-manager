@@ -1331,7 +1331,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_nonce( 'photo_competition_member_create', 'photo_competition_member_nonce' );
 		$this->capture_redirect( fn() => $this->controller->handle_actions() );
 
-		$this->assertSame( $team, $this->members->type_id( (int) $this->members->find_by_email( 'grace@example.com' )->id ) );
+		$this->assertSame( $team, (int) $this->members->find_by_email( 'grace@example.com' )->type_id );
 	}
 
 	public function test_update_member_replaces_the_type(): void {
@@ -1354,7 +1354,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
 		$this->capture_redirect( fn() => $this->controller->handle_actions() );
 
-		$this->assertSame( $team, $this->members->type_id( $id ) );
+		$this->assertSame( $team, (int) $this->members->find( $id )->type_id );
 	}
 
 	public function test_update_member_on_a_one_type_site_keeps_the_tag(): void {
@@ -1375,7 +1375,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_nonce( 'photo_competition_member_update_' . $id, 'photo_competition_member_nonce' );
 		$this->capture_redirect( fn() => $this->controller->handle_actions() );
 
-		$this->assertSame( $only, $this->members->type_id( $id ) );
+		$this->assertSame( $only, (int) $this->members->find( $id )->type_id );
 	}
 
 	public function test_bulk_change_type_moves_members_to_it(): void {
@@ -1396,9 +1396,9 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->set_nonce( 'photo_competition_bulk_members' );
 		$this->capture_redirect( fn() => $this->controller->handle_actions() );
 
-		$this->assertSame( $team, $this->members->type_id( $a ) );
-		$this->assertSame( $team, $this->members->type_id( $b ) );
-		$this->assertSame( $individual, $this->members->type_id( $c ) );
+		$this->assertSame( $team, (int) $this->members->find( $a )->type_id );
+		$this->assertSame( $team, (int) $this->members->find( $b )->type_id );
+		$this->assertSame( $individual, (int) $this->members->find( $c )->type_id );
 		$this->assertContains( 'bulk_type_set', $this->settings_error_codes( self::GROUP ) );
 	}
 }

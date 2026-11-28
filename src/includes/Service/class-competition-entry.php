@@ -231,7 +231,7 @@ class Competition_Entry {
 				'not_in_type',
 				sprintf(
 					/* translators: %s: Member name */
-					__( '%s isn\'t in this competition\'s type. Add them to the type on the Members screen first.', 'photo-competition-manager' ),
+					__( '%s is a member of another type. Change their type on the Members screen first.', 'photo-competition-manager' ),
 					$member->name
 				)
 			);

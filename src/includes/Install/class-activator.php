@@ -11,6 +11,7 @@ defined( 'ABSPATH' ) || exit; // Exit if accessed directly.
 
 use PhotoCompetitionManager\Frontend\Archive_Shortcode;
 use PhotoCompetitionManager\Frontend\Image_Permalink;
+use PhotoCompetitionManager\Repository\Competition_Types_Repository;
 use PhotoCompetitionManager\Repository\Competitions_Repository;
 use PhotoCompetitionManager\Repository\Images_Repository;
 use PhotoCompetitionManager\Repository\Logs_Repository;
@@ -802,15 +803,19 @@ class Activator {
 	}
 
 	/**
-	 * Give each member a type column holding their first type tag, the lowest
-	 * ID, and log any other tag, since a member has one type now.
+	 * Give each member a type column holding one of their type tags, and log
+	 * any other tag, since a member has one type now.
+	 *
+	 * A member tagged with a type whose entrants are clubs keeps that one,
+	 * since a member tagged with both kinds counted as a club. Otherwise
+	 * they keep their first tag, the lowest ID.
 	 *
 	 * The tag table is left as it was, for a downgrade; nothing reads it after
 	 * this step.
 	 *
 	 * @since 0.6.0
 	 *
-	 * @return bool False if the column or its key is still missing, so the step runs again.
+	 * @return bool False if the column, its key or a member's type is still missing, so the step runs again.
 	 */
 	private static function move_types_onto_members(): bool {
 		global $wpdb;
@@ -836,46 +841,64 @@ class Activator {
 			return true;
 		}
 
-		// Only members not moved yet, so running again logs nothing twice.
+		$type_names = array();
+		$club_types = array();
+		foreach ( ( new Competition_Types_Repository() )->all() as $type ) {
+			$type_names[ (int) $type->id ] = $type->name;
+			if ( Competition_Settings::type_is_interclub( $type ) ) {
+				$club_types[ (int) $type->id ] = true;
+			}
+		}
+
+		// Only members not moved yet, so running again moves and logs nothing twice.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$dropped = $wpdb->get_results(
+		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT t.member_id, t.type_id FROM %i t
-				JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id) k ON k.member_id = t.member_id
-				JOIN %i m ON m.id = t.member_id
-				WHERE t.type_id <> k.kept AND m.type_id IS NULL',
-				$tags,
+				'SELECT t.member_id, t.type_id, m.name FROM %i t JOIN %i m ON m.id = t.member_id WHERE m.type_id IS NULL ORDER BY t.member_id, t.type_id',
 				$tags,
 				$members
 			)
 		);
 
-		foreach ( $dropped as $tag ) {
-			// The upgrade runs before translations load, so this is in English.
-			( new Logs_Repository() )->create(
-				array(
-					'event_type'     => 'member_type_removed',
-					'event_category' => 'members',
-					'actor_type'     => 'system',
-					'actor_name'     => 'System',
-					'description'    => sprintf( 'Upgrade took type %1$d away from member %2$d, since a member has one type now.', $tag->type_id, $tag->member_id ),
-					'metadata'       => array(
-						'member_id' => (int) $tag->member_id,
-						'type_id'   => (int) $tag->type_id,
-					),
-				)
-			);
+		$by_member = array();
+		foreach ( $rows as $row ) {
+			$by_member[ (int) $row->member_id ]['name']    = $row->name;
+			$by_member[ (int) $row->member_id ]['types'][] = (int) $row->type_id;
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		return false !== $wpdb->query(
-			$wpdb->prepare(
-				'UPDATE %i m JOIN (SELECT member_id, MIN(type_id) AS kept FROM %i GROUP BY member_id) k ON k.member_id = m.id
-				SET m.type_id = k.kept WHERE m.type_id IS NULL',
-				$members,
-				$tags
-			)
-		);
+		foreach ( $by_member as $member_id => $member ) {
+			$clubs = array_values( array_filter( $member['types'], fn( $type_id ) => isset( $club_types[ $type_id ] ) ) );
+			$kept  = $clubs ? $clubs[0] : $member['types'][0];
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( false === $wpdb->update( $members, array( 'type_id' => $kept ), array( 'id' => $member_id ), array( '%d' ), array( '%d' ) ) ) {
+				return false;
+			}
+
+			foreach ( array_diff( $member['types'], array( $kept ) ) as $type_id ) {
+				// The upgrade runs before translations load, so this is in English.
+				( new Logs_Repository() )->create(
+					array(
+						'event_type'     => 'member_type_removed',
+						'event_category' => 'members',
+						'actor_type'     => 'system',
+						'actor_name'     => 'System',
+						'description'    => sprintf(
+							'Upgrade took the %1$s type away from %2$s, who keeps %3$s, since a member has one type now.',
+							$type_names[ $type_id ] ?? '#' . $type_id,
+							$member['name'],
+							$type_names[ $kept ] ?? '#' . $kept
+						),
+						'metadata'       => array(
+							'member_id' => $member_id,
+							'type_id'   => $type_id,
+						),
+					)
+				);
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -1466,6 +1489,9 @@ class Activator {
 			PRIMARY KEY  (id)
 		) {$charset_collate};";
 
+		// Type tags from before a member had one type. The 0.4.0 upgrade tags
+		// members here and upgrade 16 moves the tags onto the members table, so
+		// even a new site needs it; nothing else reads it.
 		$member_types = "CREATE TABLE {$wpdb->prefix}photocomp_member_types (
 			member_id BIGINT UNSIGNED NOT NULL,
 			type_id BIGINT UNSIGNED NOT NULL,
