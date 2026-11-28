@@ -255,6 +255,20 @@ class Registration_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $scheduled->id ), wp_list_pluck( ( new Registration() )->open_competitions(), 'id' ), 'closing uploads closes registration' );
 	}
 
+	/**
+	 * Anyone can type any address, so the email that goes to it carries
+	 * nothing they typed: the form can't be used to send others a message.
+	 */
+	public function test_the_confirm_email_does_not_carry_the_name_typed_in(): void {
+		$competition = $this->competition();
+
+		$this->assertTrue( ( new Registration() )->request( (int) $competition->id, 'Claim your prize at evil.example', 'victim@example.com', 'beginner', self::PAGE ) );
+
+		$mails = $this->mails_to( 'victim@example.com' );
+		$this->assertCount( 1, $mails );
+		$this->assertStringNotContainsString( 'evil.example', $mails[0]['subject'] . $mails[0]['message'] );
+	}
+
 	public function test_registering_creates_nothing_until_the_emailed_link_is_confirmed(): void {
 		$competition = $this->competition();
 

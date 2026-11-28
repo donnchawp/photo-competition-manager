@@ -183,6 +183,42 @@ class Registration_Shortcode_Test extends WP_UnitTestCase {
 		$this->assertFalse( $this->is_entrant( 'new@example.com' ) );
 	}
 
+	/**
+	 * A grade named in a script with no Latin spelling gets a %-encoded
+	 * slug, which registering must still accept.
+	 */
+	public function test_a_grade_with_a_percent_encoded_slug_can_be_chosen(): void {
+		// As the Settings screen saves a grade typed in with no slug.
+		$grades = \PhotoCompetitionManager\Support\Competition_Settings::sanitize_grades( array( array( 'label' => 'Αρχάριος' ) ) );
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'grades' => $grades ) ) );
+		$slug = \PhotoCompetitionManager\Support\Competition_Settings::club_grades()[0]['slug'];
+		$this->assertStringContainsString( '%', $slug );
+
+		$reply = $this->post_form( array( 'registration_grade' => $slug ) );
+
+		$this->assertStringContainsString( 'Check your email', $reply );
+		$this->assertCount( 1, $this->mails );
+	}
+
+	public function test_a_page_with_several_open_competitions_repeats_no_id(): void {
+		( new Competitions_Repository() )->create(
+			array(
+				'type_id'           => Type_Fixtures::id(),
+				'title'             => 'Spring Interclub',
+				'open_date'         => gmdate( 'Y-m-d H:i:s', time() + 20 * DAY_IN_SECONDS ),
+				'close_date'        => gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS ),
+				'entry_mode'        => 'selected',
+				'registration_open' => true,
+			)
+		);
+
+		$html = $this->render();
+		$this->assertStringContainsString( 'Spring Interclub', $html );
+
+		preg_match_all( '/\bid="([^"]+)"/', $html, $ids );
+		$this->assertSame( array(), array_keys( array_filter( array_count_values( $ids[1] ), fn( $count ) => $count > 1 ) ) );
+	}
+
 	public function test_a_filled_in_hidden_field_gets_the_usual_reply_and_sends_nothing(): void {
 		$reply = $this->post_form( array( Registration_Shortcode::HONEYPOT => 'http://spam.example' ) );
 

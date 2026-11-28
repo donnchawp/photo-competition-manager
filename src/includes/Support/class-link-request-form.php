@@ -55,14 +55,17 @@ class Link_Request_Form {
 	}
 
 	/**
-	 * Print the nonce field.
+	 * Print the nonce field, without wp_nonce_field()'s id, which would
+	 * repeat on a page with one form per competition.
 	 *
 	 * @since 0.5.0
+	 * @since 0.6.0 Has no id.
 	 *
 	 * @return void
 	 */
 	public function nonce_field(): void {
-		wp_nonce_field( $this->name, $this->nonce_field );
+		echo '<input type="hidden" name="' . esc_attr( $this->nonce_field ) . '" value="' . esc_attr( wp_create_nonce( $this->name ) ) . '" />';
+		wp_referer_field();
 	}
 
 	/**

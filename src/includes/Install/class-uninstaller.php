@@ -37,6 +37,7 @@ class Uninstaller {
 		// wp_clear_scheduled_hook() without args wouldn't match.
 		wp_unschedule_hook( 'photo_comp_cleanup_email_jobs' );
 		wp_unschedule_hook( 'photo_comp_trim_logs' );
+		wp_unschedule_hook( 'photo_comp_registration_cleanup' );
 		wp_unschedule_hook( 'photo_comp_send_email_batch' );
 		wp_unschedule_hook( 'photo_comp_send_results_batch' );
 		wp_unschedule_hook( 'photo_competition_daily_cron' );

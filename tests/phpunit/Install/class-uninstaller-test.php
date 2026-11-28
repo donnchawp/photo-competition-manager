@@ -72,6 +72,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		wp_schedule_event( time(), 'daily', 'photo_comp_cleanup_email_jobs' );
 		wp_schedule_event( time(), 'daily', 'photo_competition_daily_cron' );
 		wp_schedule_event( time(), 'daily', 'photo_comp_trim_logs' );
+		wp_schedule_event( time(), 'daily', 'photo_comp_registration_cleanup' );
 		wp_schedule_single_event( time() + 60, 'photo_comp_send_email_batch', array( 'email_job_a' ) );
 		wp_schedule_single_event( time() + 60, 'photo_comp_send_results_batch', array( 'email_job_b' ) );
 
@@ -80,6 +81,7 @@ class Uninstaller_Test extends WP_UnitTestCase {
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_cleanup_email_jobs' ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_competition_daily_cron' ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_trim_logs' ) );
+		$this->assertFalse( wp_next_scheduled( 'photo_comp_registration_cleanup' ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_email_batch', array( 'email_job_a' ) ) );
 		$this->assertFalse( wp_next_scheduled( 'photo_comp_send_results_batch', array( 'email_job_b' ) ) );
 	}
