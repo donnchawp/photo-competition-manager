@@ -2293,6 +2293,33 @@ class Competitions_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertContains( 'entrants_added', $this->settings_error_codes( 'photo_competition_manager' ) );
 	}
 
+	/**
+	 * A grade named in a script with no Latin spelling, such as Greek, can
+	 * be given to a new member.
+	 */
+	public function test_create_member_and_enter_them_in_a_grade_named_in_greek(): void {
+		// As the Settings screen saves a grade typed in with no slug.
+		$grades = Competition_Settings::sanitize_grades( array( array( 'label' => 'Αρχάριος' ) ) );
+		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'grades' => $grades ) ) );
+		$slug = Competition_Settings::club_grades()[0]['slug'];
+		$id   = $this->create_entry_competition();
+
+		$this->post_entrants_action(
+			$id,
+			'add_new_entrant',
+			array(
+				'member_name'  => 'Eleni',
+				'member_email' => 'eleni@example.com',
+				'member_grade' => $slug,
+			)
+		);
+
+		$eleni = ( new Members_Repository() )->find_by_email( 'eleni@example.com' );
+		$this->assertNotNull( $eleni );
+		$this->assertSame( $slug, $eleni->grade );
+		$this->assertSame( array( (int) $eleni->id ), ( new Entrants_Repository() )->member_ids( $id ) );
+	}
+
 	public function test_create_member_and_enter_them_tags_them_with_the_competitions_type_on_a_multi_type_site(): void {
 		$id = $this->create_entry_competition();
 		Type_Fixtures::create( 'Juniors' );
