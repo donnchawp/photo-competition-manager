@@ -238,6 +238,11 @@ class Types_Controller {
 		$settings    = $draft['settings'] ?? Competition_Settings::type_settings( $type ?? (object) array() );
 		$locked      = $type && $this->types->in_use( (int) $type->id );
 
+		// A locked form posts what it shows, so it shows the type's own setting, not a refused draft's.
+		if ( $locked ) {
+			$settings['interclub']['enabled'] = Competition_Settings::type_is_interclub( $type );
+		}
+
 		$grade_rows = array();
 		foreach ( Competition_Settings::club_grades() as $grade ) {
 			$grade_rows[] = (object) array(

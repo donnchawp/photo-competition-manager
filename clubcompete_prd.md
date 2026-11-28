@@ -219,7 +219,7 @@ Admins can upload or replace images for any member directly from the dashboard.
 - `wp_photocomp_competition_types`
   - id, name, settings (categories and default settings), grade_names (display names by grade), created_at, updated_at
 - `wp_photocomp_member_types`
-  - member_id, type_id; type tags from before data version 16, when a member could have several. Upgrade 16 copies each member's first tag onto their row and leaves this table for a downgrade; nothing reads it after that.
+  - member_id, type_id; type tags from before data version 16, when a member could have several. Upgrade 16 copies one tag onto each member's row (a club type first, otherwise the lowest ID). The table stays, but nothing reads or writes it after that, so a downgrade sees the tags as they were at the upgrade and loses type changes and members added since.
 - `wp_photocomp_entrants`
   - competition_id, member_id, paid, source, created_at; the selected entrants of a competition, primary key on the pair. Used only when the competition's entry mode is selected entrants. `paid` (default 1) counts only while the competition has an entry fee. `source` is `admin` or `registration`; a registered entrant starts unpaid.
 - `wp_photocomp_registrations`

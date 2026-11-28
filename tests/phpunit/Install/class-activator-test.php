@@ -932,6 +932,23 @@ class Activator_Test extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_upgrade_to_16_runs_again_if_it_cannot_read_the_type_tags(): void {
+		global $wpdb;
+		$this->shadow_v15_members_and_types();
+		update_option( 'photo_comp_db_version', 15 );
+		$broken = function ( $query ) {
+			return str_starts_with( $query, 'SELECT t.member_id' ) ? 'SELECT * FROM no_such_table_pcm' : $query;
+		};
+		add_filter( 'query', $broken );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $broken );
+		$this->assertSame( 15, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	public function test_upgrade_to_13_keeps_a_clubs_results_public(): void {
 		delete_option( Public_Results::OPTION );
 		( new Competitions_Repository() )->create(

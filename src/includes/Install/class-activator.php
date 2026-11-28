@@ -810,12 +810,13 @@ class Activator {
 	 * since a member tagged with both kinds counted as a club. Otherwise
 	 * they keep their first tag, the lowest ID.
 	 *
-	 * The tag table is left as it was, for a downgrade; nothing reads it after
-	 * this step.
+	 * The tag table is left as it was, but nothing reads or writes it after
+	 * this step, so a downgrade gets the tags as they were at the upgrade:
+	 * type changes and members added since are lost.
 	 *
 	 * @since 0.6.0
 	 *
-	 * @return bool False if the column, its key or a member's type is still missing, so the step runs again.
+	 * @return bool False if the column, its key or a member's type is still missing, or the tags can't be read, so the step runs again.
 	 */
 	private static function move_types_onto_members(): bool {
 		global $wpdb;
@@ -859,6 +860,9 @@ class Activator {
 				$members
 			)
 		);
+		if ( '' !== $wpdb->last_error ) {
+			return false;
+		}
 
 		$by_member = array();
 		foreach ( $rows as $row ) {

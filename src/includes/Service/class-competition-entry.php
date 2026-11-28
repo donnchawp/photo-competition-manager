@@ -17,7 +17,7 @@ use PhotoCompetitionManager\Repository\Upload_Token_Repository;
 use WP_Error;
 
 /**
- * The single answer to "who may enter": everyone tagged with the competition's
+ * The single answer to "who may enter": every member of the competition's
  * type, or only its selected entrants. Also changes the entry setting and the
  * entrants, which stop changing once any category's voting has started.
  *
@@ -101,8 +101,8 @@ class Competition_Entry {
 
 	/**
 	 * Whether a member may enter a competition: they're active, in a grade its
-	 * type uses, and, when it's open to everyone in its type, tagged with that
-	 * type, or, when it's for selected entrants only, one of them.
+	 * type uses, and, when it's open to everyone in its type, of that type,
+	 * or, when it's for selected entrants only, one of them.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
@@ -121,7 +121,7 @@ class Competition_Entry {
 	}
 
 	/**
-	 * Whether a member is tagged with a competition's type.
+	 * Whether a member's type is the competition's type.
 	 *
 	 * @param object $competition Competition row.
 	 * @param object $member      Member row.
@@ -134,7 +134,7 @@ class Competition_Entry {
 	}
 
 	/**
-	 * The members an admin can add as entrants: active members tagged with the
+	 * The members an admin can add as entrants: active members of the
 	 * competition's type, in a grade it uses, who aren't entrants yet, by name.
 	 *
 	 * @since 0.4.0
