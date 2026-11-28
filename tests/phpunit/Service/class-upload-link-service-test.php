@@ -486,6 +486,24 @@ class Upload_Link_Service_Test extends WP_UnitTestCase {
 		$this->assertSame( array( $entrant ), $jobs->get_job( $job_id )['member_ids'] );
 	}
 
+	public function test_upload_link_email_tells_an_entrant_the_fee_and_how_to_pay(): void {
+		list( $competition_id, $types ) = $this->two_type_competition( 'selected' );
+		$this->comps->update(
+			$competition_id,
+			array(
+				'entry_fee'            => '€20',
+				'payment_instructions' => 'Pay the treasurer by PayPal.',
+			)
+		);
+		$entrant = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );
+		( new Entrants_Repository() )->add( $competition_id, $entrant );
+
+		$this->service->send_to_member( $competition_id, $entrant, true );
+
+		$this->assertStringContainsString( 'The entry fee is €20.', $this->last_mail['message'] );
+		$this->assertStringContainsString( 'Pay the treasurer by PayPal.', $this->last_mail['message'] );
+	}
+
 	public function test_reminders_go_only_to_the_type_when_open_to_all() {
 		list( $competition_id, $types ) = $this->two_type_competition();
 		$individual                     = $this->make_typed_member( 'Ann', array( $types['Individual'] ) );

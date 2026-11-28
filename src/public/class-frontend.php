@@ -99,6 +99,8 @@ class Frontend {
 		$this->archive_shortcode = new Archive_Shortcode();
 		$this->archive_shortcode->register();
 
+		( new Registration_Shortcode() )->register();
+
 		// Enqueue frontend styles.
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );
 	}

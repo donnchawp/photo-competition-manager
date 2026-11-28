@@ -145,7 +145,7 @@ class Member_Export {
 		$items = array();
 
 		foreach ( $members as $member ) {
-			$items[] = $this->item(
+			$items[] = self::item(
 				'photo-competition-member',
 				__( 'Competition member', 'photo-competition-manager' ),
 				'photo-competition-member-' . $member->id,
@@ -204,7 +204,7 @@ class Member_Export {
 				$fields[ __( 'Original', 'photo-competition-manager' ) ] = $original;
 			}
 
-			$items[] = $this->item(
+			$items[] = self::item(
 				'photo-competition-entries',
 				__( 'Competition entries', 'photo-competition-manager' ),
 				'photo-competition-entry-' . $entry->id,
@@ -235,7 +235,7 @@ class Member_Export {
 					continue;
 				}
 
-				$items[] = $this->item(
+				$items[] = self::item(
 					'photo-competition-entry-fees',
 					__( 'Competition entry fees', 'photo-competition-manager' ),
 					'photo-competition-entry-fee-' . $competition->id . '-' . $member->id,
@@ -264,7 +264,7 @@ class Member_Export {
 
 		foreach ( $members as $member ) {
 			foreach ( $recorded->find_by_member( (int) $member->id ) as $row ) {
-				$items[] = $this->item(
+				$items[] = self::item(
 					'photo-competition-results',
 					__( 'Competition results', 'photo-competition-manager' ),
 					'photo-competition-result-' . $row->id,
@@ -303,7 +303,7 @@ class Member_Export {
 		$items = array();
 
 		foreach ( $votes as $vote ) {
-			$items[] = $this->item(
+			$items[] = self::item(
 				'photo-competition-votes',
 				__( 'Votes cast', 'photo-competition-manager' ),
 				'photo-competition-vote-' . $vote->id,
@@ -335,7 +335,7 @@ class Member_Export {
 			$type = (string) $row->event_type;
 			$kind = 'email' === $row->event_category ? Email_Kinds::get( self::OLD_EMAIL_KINDS[ $type ] ?? $type ) : null;
 
-			$items[] = $this->item(
+			$items[] = self::item(
 				'photo-competition-emails',
 				__( 'Emails sent', 'photo-competition-manager' ),
 				'photo-competition-log-' . $row->id,
@@ -417,13 +417,15 @@ class Member_Export {
 	/**
 	 * One exported item.
 	 *
+	 * @since 0.6.0 Public, for the registrations exporter.
+	 *
 	 * @param string                $group_id    Group ID.
 	 * @param string                $group_label Group label.
 	 * @param string                $item_id     Item ID, unique in the export.
 	 * @param array<string, string> $fields      Field name => value.
 	 * @return array<string, mixed>
 	 */
-	private function item( string $group_id, string $group_label, string $item_id, array $fields ): array {
+	public static function item( string $group_id, string $group_label, string $item_id, array $fields ): array {
 		$data = array();
 		foreach ( $fields as $name => $value ) {
 			$data[] = array(

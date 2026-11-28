@@ -850,6 +850,37 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	public function test_upgrade_to_15_keeps_existing_entrants_as_added_by_an_admin(): void {
+		global $wpdb;
+
+		// The entrants table as version 14 left it, without how each was added.
+		$this->shadowed = $wpdb->prefix . 'photocomp_entrants';
+		$wpdb->query(
+			"CREATE TEMPORARY TABLE {$this->shadowed} (
+				competition_id BIGINT UNSIGNED NOT NULL,
+				member_id BIGINT UNSIGNED NOT NULL,
+				paid TINYINT(1) NOT NULL DEFAULT 1,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (competition_id, member_id),
+				KEY member_id (member_id)
+			) {$wpdb->get_charset_collate()}"
+		);
+		$wpdb->insert(
+			$this->shadowed,
+			array(
+				'competition_id' => 7,
+				'member_id'      => 3,
+			)
+		);
+		update_option( 'photo_comp_db_version', 14 );
+
+		Activator::maybe_upgrade();
+
+		$this->assertSame( array( 3 ), ( new Entrants_Repository() )->member_ids( 7 ) );
+		$this->assertSame( array(), ( new Entrants_Repository() )->registered_member_ids( 7 ) );
+		$this->assertSame( Activator::DB_VERSION, (int) get_option( 'photo_comp_db_version' ) );
+	}
+
 	public function test_upgrade_to_13_keeps_a_clubs_results_public(): void {
 		delete_option( Public_Results::OPTION );
 		( new Competitions_Repository() )->create(

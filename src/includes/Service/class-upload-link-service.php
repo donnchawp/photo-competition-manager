@@ -196,6 +196,7 @@ class Upload_Link_Service {
 			$competition,
 			array(
 				'{upload_link}'  => $upload_url,
+				'{fee_info}'     => Competition_Entry::fee_paragraph( $competition ),
 				'{voting_page}'  => $voting_page,
 				'{voting_info}'  => $voting_info,
 				'{archive_info}' => ( new Member_Visibility() )->archive_paragraph( $member ),

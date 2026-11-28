@@ -400,6 +400,33 @@ class Competition_Entry {
 	}
 
 	/**
+	 * The paragraph telling an entrant the fee and how to pay it, for
+	 * emails: '' when the competition has no fee.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param object $competition Competition row.
+	 * @return string HTML.
+	 */
+	public static function fee_paragraph( object $competition ): string {
+		if ( ! self::has_fee( $competition ) ) {
+			return '';
+		}
+
+		$paragraph = '<p>' . esc_html(
+			sprintf(
+				/* translators: %s: Entry fee, such as "€20" */
+				__( 'The entry fee is %s.', 'photo-competition-manager' ),
+				$competition->entry_fee
+			)
+		) . '</p>';
+
+		$instructions = trim( (string) ( $competition->payment_instructions ?? '' ) );
+
+		return '' === $instructions ? $paragraph : $paragraph . wpautop( wp_kses_post( $instructions ) );
+	}
+
+	/**
 	 * Mark an entrant as having paid the entry fee, or not. It never stops
 	 * them entering; what happens to someone who hasn't paid is up to the
 	 * organiser.

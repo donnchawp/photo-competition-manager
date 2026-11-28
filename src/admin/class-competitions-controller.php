@@ -29,6 +29,7 @@ use PhotoCompetitionManager\Service\Email_Job_Manager;
 use PhotoCompetitionManager\Service\Email_Service;
 use PhotoCompetitionManager\Service\Entries;
 use PhotoCompetitionManager\Service\Judge_Link;
+use PhotoCompetitionManager\Service\Registration;
 use PhotoCompetitionManager\Service\Upload_Link_Service;
 use PhotoCompetitionManager\Support\Competition_Settings;
 
@@ -566,7 +567,7 @@ class Competitions_Controller {
 			$this->handle_judge_actions( $action );
 		}
 
-		if ( in_array( $action, array( 'set_entry_mode', 'set_entry_fee', 'set_entrant_paid', 'add_entrants', 'add_new_entrant', 'remove_entrant', 'send_entrant_upload_link' ), true ) ) {
+		if ( in_array( $action, array( 'set_entry_mode', 'set_entry_fee', 'set_registration', 'set_entrant_paid', 'add_entrants', 'add_new_entrant', 'remove_entrant', 'send_entrant_upload_link' ), true ) ) {
 			$this->handle_entrant_actions( $action );
 		}
 
@@ -754,6 +755,15 @@ class Competitions_Controller {
 					$this->get_post_string( 'payment_instructions' )
 				);
 				$this->entrant_notice( $result, 'entry_fee_updated', __( 'Entry fee saved.', 'photo-competition-manager' ) );
+				break;
+
+			case 'set_registration':
+				$result = ( new Registration() )->set_registration(
+					$competition,
+					'1' === $this->get_post_string( 'registration_open' ),
+					$this->parse_date_input( $this->get_post_string( 'registration_closes' ) )
+				);
+				$this->entrant_notice( $result, 'registration_updated', __( 'Registration settings saved.', 'photo-competition-manager' ) );
 				break;
 
 			case 'set_entrant_paid':
@@ -1315,6 +1325,7 @@ class Competitions_Controller {
 			$entrant_ids  = ( new Entrants_Repository() )->member_ids( $competition_id );
 			$with_entries = array_flip( ( new Images_Repository() )->member_ids( $competition_id ) );
 			$unpaid       = array_flip( $this->entry->unpaid_member_ids( $competition ) );
+			$registered   = array_flip( ( new Entrants_Repository() )->registered_member_ids( $competition_id ) );
 
 			foreach ( $this->members->find_many( $entrant_ids ) as $member ) {
 				$entrants[] = (object) array(
@@ -1324,6 +1335,7 @@ class Competitions_Controller {
 					'active'      => (bool) $member->active,
 					'has_entries' => isset( $with_entries[ (int) $member->id ] ),
 					'paid'        => ! isset( $unpaid[ (int) $member->id ] ),
+					'registered'  => isset( $registered[ (int) $member->id ] ),
 				);
 			}
 			usort(
@@ -1354,6 +1366,12 @@ class Competitions_Controller {
 				'has_fee'        => $has_fee,
 				'entry_fee'      => (string) ( $competition->entry_fee ?? '' ),
 				'instructions'   => (string) ( $competition->payment_instructions ?? '' ),
+				'registration'   => array(
+					'open'         => ! empty( $competition->registration_open ),
+					'closes'       => $this->format_date_for_input( $competition->registration_closes ?? null ),
+					'label_format' => $this->get_ui_date_label(),
+					'taking'       => ( new Registration() )->is_open( $competition ),
+				),
 				'addable'        => $addable,
 				'interclub'      => $interclub,
 				'type_name'      => $named_type ? $named_type->name : '',

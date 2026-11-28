@@ -329,7 +329,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * 'competition_overlap' error, and a missing type with 'invalid_type'.
 	 *
 	 * @since 0.4.0 Needs a `type_id`, and takes an `entry_mode` ('all' or 'selected', default 'all').
-	 * @since 0.6.0 Takes `entry_fee` and `payment_instructions`.
+	 * @since 0.6.0 Takes `entry_fee`, `payment_instructions`, `registration_open` and `registration_closes`.
 	 *
 	 * @param array<string, mixed> $data Competition data.
 	 * @return int|WP_Error
@@ -380,6 +380,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'entry_mode'           => $entry_mode,
 			'entry_fee'            => self::entry_fee( $data['entry_fee'] ?? '' ),
 			'payment_instructions' => self::payment_instructions( $data['payment_instructions'] ?? '' ),
+			'registration_open'    => empty( $data['registration_open'] ) ? 0 : 1,
+			'registration_closes'  => $this->normalize_date( $data['registration_closes'] ?? null ),
 			'created_at'           => $now,
 			'updated_at'           => $now,
 		);
@@ -394,6 +396,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'%d',
 			'%s',
 			'%s',
+			'%s',
+			'%d',
 			'%s',
 			'%s',
 			'%s',
@@ -419,7 +423,7 @@ class Competitions_Repository extends Abstract_Repository {
 	 * type settings with the new type's, keeping its page links.
 	 *
 	 * @since 0.4.0 Takes `type_id` and `entry_mode`.
-	 * @since 0.6.0 Takes `entry_fee` and `payment_instructions`.
+	 * @since 0.6.0 Takes `entry_fee`, `payment_instructions`, `registration_open` and `registration_closes`.
 	 *
 	 * @param int                  $id   Competition ID.
 	 * @param array<string, mixed> $data Updated data.
@@ -494,6 +498,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'entry_mode'           => isset( $data['entry_mode'] ) ? $this->entry_mode( $data['entry_mode'] ) : $current->entry_mode,
 			'entry_fee'            => array_key_exists( 'entry_fee', $data ) ? self::entry_fee( $data['entry_fee'] ) : (string) $current->entry_fee,
 			'payment_instructions' => array_key_exists( 'payment_instructions', $data ) ? self::payment_instructions( $data['payment_instructions'] ) : (string) $current->payment_instructions,
+			'registration_open'    => array_key_exists( 'registration_open', $data ) ? (int) ! empty( $data['registration_open'] ) : (int) $current->registration_open,
+			'registration_closes'  => array_key_exists( 'registration_closes', $data ) ? $this->normalize_date( $data['registration_closes'] ) : $current->registration_closes,
 			'updated_at'           => utc_time(),
 		);
 
@@ -505,6 +511,8 @@ class Competitions_Repository extends Abstract_Repository {
 			'%s',
 			'%s',
 			'%s',
+			'%s',
+			'%d',
 			'%s',
 			'%s',
 		);

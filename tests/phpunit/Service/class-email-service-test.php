@@ -88,6 +88,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->competition(),
 			array(
 				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{fee_info}'     => '',
 				'{voting_page}'  => 'https://example.org/vote/',
 				'{voting_info}'  => '<p>Once voting opens, you can vote at <a href="https://example.org/vote/">https://example.org/vote/</a></p>',
 				'{archive_info}' => '',
@@ -114,6 +115,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->competition(),
 			array(
 				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{fee_info}'     => '',
 				'{voting_page}'  => 'https://example.org/vote/',
 				'{voting_info}'  => '',
 				'{archive_info}' => '',
@@ -267,6 +269,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->competition(),
 			array(
 				'{upload_link}'  => 'https://example.org/upload/?a=1&b="><script>',
+				'{fee_info}'     => '',
 				'{voting_page}'  => 'javascript:alert(1)',
 				'{voting_info}'  => '',
 				'{archive_info}' => '',
@@ -332,6 +335,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			$this->competition(),
 			array(
 				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{fee_info}'     => '',
 				'{voting_page}'  => '',
 				'{voting_info}'  => '',
 				'{archive_info}' => '',
@@ -458,6 +462,7 @@ class Email_Service_Test extends WP_UnitTestCase {
 			( new Competitions_Repository() )->find( $id ),
 			array(
 				'{upload_link}'  => 'https://example.org/upload/?t=abc',
+				'{fee_info}'     => '',
 				'{voting_page}'  => 'https://example.org/vote/',
 				'{voting_info}'  => '',
 				'{archive_info}' => '',

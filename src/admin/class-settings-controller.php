@@ -103,9 +103,12 @@ class Settings_Controller {
 		// Read as stored, without defaults, so a save keeps every key it doesn't set.
 		$settings           = Competition_Settings::stored_club_settings_array();
 		$settings['grades'] = $sanitized_grades;
+		$organiser_input    = trim( $this->get_post_string( 'email_organiser_email', '' ) );
+		$organiser_email    = sanitize_email( $organiser_input );
 		$settings['email']  = array(
-			'from_name'  => sanitize_text_field( $this->get_post_string( 'email_from_name', '' ) ),
-			'from_email' => sanitize_email( $this->get_post_string( 'email_from_email', '' ) ),
+			'from_name'       => sanitize_text_field( $this->get_post_string( 'email_from_name', '' ) ),
+			'from_email'      => sanitize_email( $this->get_post_string( 'email_from_email', '' ) ),
+			'organiser_email' => $organiser_email,
 		);
 		$settings['urls']   = array(
 			'upload_page'  => sanitize_url( $this->get_post_string( 'upload_page_url', '' ) ),
@@ -122,6 +125,10 @@ class Settings_Controller {
 
 		if ( true === $validation && is_wp_error( $log_retention_months ) ) {
 			$validation = $log_retention_months;
+		}
+
+		if ( true === $validation && '' !== $organiser_input && ! is_email( $organiser_email ) ) {
+			$validation = new \WP_Error( 'invalid_organiser_email', __( 'The organiser email address isn\'t valid. Correct it, or leave it blank to use the From address.', 'photo-competition-manager' ) );
 		}
 
 		if ( true === $validation ) {
@@ -175,9 +182,10 @@ class Settings_Controller {
 			'upload_page' => '',
 			'voting_page' => '',
 		);
-		$email_config   = $settings['email'] ?? array(
-			'from_name'  => '',
-			'from_email' => '',
+		$email_config   = ( $settings['email'] ?? array() ) + array(
+			'from_name'       => '',
+			'from_email'      => '',
+			'organiser_email' => '',
 		);
 
 		echo '<div class="wrap">';
@@ -256,8 +264,9 @@ class Settings_Controller {
 		return $this->render_template(
 			'admin/settings/email-section.php',
 			array(
-				'from_name'  => $email_config['from_name'],
-				'from_email' => $email_config['from_email'],
+				'from_name'       => $email_config['from_name'],
+				'from_email'      => $email_config['from_email'],
+				'organiser_email' => $email_config['organiser_email'],
 			)
 		);
 	}
