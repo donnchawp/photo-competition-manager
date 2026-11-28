@@ -65,7 +65,6 @@ class Link_Request_Form {
 	 */
 	public function nonce_field(): void {
 		echo '<input type="hidden" name="' . esc_attr( $this->nonce_field ) . '" value="' . esc_attr( wp_create_nonce( $this->name ) ) . '" />';
-		wp_referer_field();
 	}
 
 	/**
