@@ -54,9 +54,9 @@ class Registration_Shortcode {
 	private $refill_id = 0;
 
 	/**
-	 * The registration form's nonce and email field, one per request.
+	 * The registration form's nonce and email field.
 	 *
-	 * @var Link_Request_Form|null
+	 * @var Link_Request_Form
 	 */
 	private $form;
 
@@ -67,6 +67,7 @@ class Registration_Shortcode {
 	 */
 	public function __construct( ?Registration $registration = null ) {
 		$this->registration = $registration;
+		$this->form         = new Link_Request_Form( 'photo_comp_register', 'photo_comp_register_nonce' );
 	}
 
 	/**
@@ -98,25 +99,32 @@ class Registration_Shortcode {
 		ob_start();
 		echo '<div class="photo-comp-registration">';
 
-		if ( '' !== $key && $this->render_confirmation( $key ) ) {
-			echo '</div>';
-			return (string) ob_get_clean();
+		if ( '' === $key || ! $this->render_confirmation( $key ) ) {
+			$this->render_form_page( $page_url );
 		}
+		echo '</div>';
 
-		$message = (string) $this->form()->handle(
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Show the outcome of a posted form, if any, and the competitions open for registration.
+	 *
+	 * @param string $page_url This page's URL, for the emailed link.
+	 * @return void
+	 */
+	private function render_form_page( string $page_url ): void {
+		$message = (string) $this->form->handle(
 			function ( string $email ) use ( $page_url ): string {
 				return $this->register_from_post( $email, $page_url );
 			}
 		);
 
 		// A stale form is filled back in, as a refused one is.
-		$this->refill_id = $this->refill_id ? $this->refill_id : absint( $this->form()->refill( 'competition_id' ) );
+		$this->refill_id = $this->refill_id ? $this->refill_id : absint( $this->form->refill( 'competition_id' ) );
 
 		echo wp_kses_post( $message );
 		$this->render_competitions();
-		echo '</div>';
-
-		return (string) ob_get_clean();
 	}
 
 	/**
@@ -244,7 +252,7 @@ class Registration_Shortcode {
 					</p>
 				<?php endif; ?>
 				<form method="post" class="photo-comp-registration-form">
-					<?php $this->form()->nonce_field(); ?>
+					<?php $this->form->nonce_field(); ?>
 					<input type="hidden" name="competition_id" value="<?php echo esc_attr( (string) $id ); ?>" />
 					<p>
 						<label for="photo-comp-registration-name-<?php echo esc_attr( (string) $id ); ?>"><?php echo $interclub ? esc_html__( "Club's name", 'photo-competition-manager' ) : esc_html__( 'Your name', 'photo-competition-manager' ); ?></label>
@@ -290,18 +298,5 @@ class Registration_Shortcode {
 		}
 
 		return $this->registration;
-	}
-
-	/**
-	 * The registration form's nonce and email field.
-	 *
-	 * @return Link_Request_Form
-	 */
-	private function form(): Link_Request_Form {
-		if ( ! $this->form ) {
-			$this->form = new Link_Request_Form( 'photo_comp_register', 'photo_comp_register_nonce' );
-		}
-
-		return $this->form;
 	}
 }
