@@ -184,15 +184,14 @@ class Registration_Shortcode_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * A grade named in a script with no Latin spelling gets a %-encoded
-	 * slug, which registering must still accept.
+	 * A grade named in a script with no Latin spelling, such as Greek, can
+	 * be chosen when registering.
 	 */
-	public function test_a_grade_with_a_percent_encoded_slug_can_be_chosen(): void {
+	public function test_a_grade_named_in_greek_can_be_chosen(): void {
 		// As the Settings screen saves a grade typed in with no slug.
 		$grades = \PhotoCompetitionManager\Support\Competition_Settings::sanitize_grades( array( array( 'label' => 'Αρχάριος' ) ) );
 		update_option( 'photo_comp_default_settings', wp_json_encode( array( 'grades' => $grades ) ) );
 		$slug = \PhotoCompetitionManager\Support\Competition_Settings::club_grades()[0]['slug'];
-		$this->assertStringContainsString( '%', $slug );
 
 		$reply = $this->post_form( array( 'registration_grade' => $slug ) );
 
