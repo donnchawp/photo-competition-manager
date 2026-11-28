@@ -274,8 +274,9 @@ class Registration {
 			return true;
 		}
 
+		// The address isn't confirmed yet, so the email carries nothing typed in: it greets the address.
 		$recipient = (object) array(
-			'name'  => $name,
+			'name'  => '',
 			'email' => $email,
 			'grade' => $grade,
 		);

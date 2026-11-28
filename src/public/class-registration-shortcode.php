@@ -138,7 +138,7 @@ class Registration_Shortcode {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Link_Request_Form::handle() checked the nonce.
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		$name           = isset( $_POST['registration_name'] ) && is_string( $_POST['registration_name'] ) ? sanitize_text_field( wp_unslash( $_POST['registration_name'] ) ) : '';
-		$grade          = isset( $_POST['registration_grade'] ) && is_string( $_POST['registration_grade'] ) ? sanitize_key( wp_unslash( $_POST['registration_grade'] ) ) : '';
+		$grade          = isset( $_POST['registration_grade'] ) && is_string( $_POST['registration_grade'] ) ? sanitize_title( wp_unslash( $_POST['registration_grade'] ) ) : '';
 		$honeypot       = isset( $_POST[ self::HONEYPOT ] ) && is_string( $_POST[ self::HONEYPOT ] ) ? trim( sanitize_text_field( wp_unslash( $_POST[ self::HONEYPOT ] ) ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
