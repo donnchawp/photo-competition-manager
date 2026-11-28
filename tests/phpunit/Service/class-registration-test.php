@@ -336,6 +336,22 @@ class Registration_Test extends WP_UnitTestCase {
 	}
 
 	/**
+	 * An admin added the member, then moved them to another type. They're
+	 * still entered, so they're told so, not that they can't register.
+	 */
+	public function test_an_entrant_moved_to_another_type_is_told_they_are_already_entered(): void {
+		$competition = $this->competition();
+		$member_id   = $this->member( 'ann@example.com' );
+		$this->entrants->add( (int) $competition->id, $member_id );
+		$this->members->set_type( $member_id, Type_Fixtures::create( 'Juniors' ) );
+		$key = $this->register( $competition, 'ann@example.com' );
+
+		$result = ( new Registration() )->confirm( $key );
+
+		$this->assertSame( 'already_entrant', $result['status'] );
+	}
+
+	/**
 	 * Confirm a registration that should be refused, and check nothing changed.
 	 *
 	 * @param object $competition Competition row.

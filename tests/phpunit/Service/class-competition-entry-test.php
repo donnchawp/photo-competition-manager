@@ -266,6 +266,22 @@ class Competition_Entry_Test extends WP_UnitTestCase {
 		$this->assertTrue( $this->entry->add_entrant( $competition, $member ) );
 	}
 
+	/**
+	 * A member with no type isn't told they're in another type: the admin
+	 * has to give them one, not change it.
+	 */
+	public function test_add_entrant_refuses_a_member_with_no_type_as_having_none(): void {
+		$competition = $this->competition( 'Team', 'selected' );
+		$member      = $this->member( 'Ann', 'Team' );
+		$this->members->set_type( $member, null );
+
+		$result = $this->entry->add_entrant( $competition, $member );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'no_type', $result->get_error_code() );
+		$this->assertFalse( $this->entrants->has( (int) $competition->id, $member ) );
+	}
+
 	public function test_add_entrant_refused_when_open_to_all(): void {
 		$competition = $this->competition( 'Individual', 'all' );
 		$bob         = $this->member( 'Bob' );

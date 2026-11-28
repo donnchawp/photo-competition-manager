@@ -328,14 +328,15 @@ class Registration {
 		$title       = $this->labels->title_for_everyone( $competition );
 		$member      = $this->members->find_by_email( (string) $registration->email );
 
-		$refusal = $this->refusal( $competition, $title, $registration, $member );
-		if ( null !== $refusal ) {
-			return self::outcome( 'refused', $refusal );
-		}
-
+		// First, so an entrant an admin has since moved to another type isn't told they can't register.
 		if ( $member && $this->entrants->has( (int) $competition->id, (int) $member->id ) ) {
 			/* translators: %s: Competition title */
 			return self::outcome( 'already_entrant', sprintf( __( "You're already entered in %s, so nothing has changed.", 'photo-competition-manager' ), $title ) );
+		}
+
+		$refusal = $this->refusal( $competition, $title, $registration, $member );
+		if ( null !== $refusal ) {
+			return self::outcome( 'refused', $refusal );
 		}
 
 		$member = $member ? $member : $this->create_member( $competition, $registration );

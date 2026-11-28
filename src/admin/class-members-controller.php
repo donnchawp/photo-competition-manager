@@ -840,7 +840,13 @@ class Members_Controller {
 			'admin/members/no-type-notice.php',
 			array(
 				'count' => $count,
-				'url'   => add_query_arg( 'type', 'none', $this->members_url() ),
+				'url'   => add_query_arg(
+					array(
+						'type'   => 'none',
+						'status' => 'active',
+					),
+					$this->members_url()
+				),
 			)
 		);
 

@@ -1283,6 +1283,25 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringContainsString( 'type=none', $html );
 	}
 
+	/**
+	 * The notice counts active members, so its link lists only those.
+	 */
+	public function test_the_no_type_notice_links_to_the_members_it_counts(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'name' => 'Ada Active', 'email' => 'a@example.com' ) );
+		$this->create_member( array( 'name' => 'Ivo Inactive', 'email' => 'c@example.com', 'active' => 0 ) );
+
+		$this->assertSame( 1, preg_match( '/href="([^"]*type=none[^"]*)"/', $this->render_admin_notices(), $link ) );
+		wp_parse_str( (string) wp_parse_url( html_entity_decode( $link[1] ), PHP_URL_QUERY ), $query );
+		$this->set_request( $query );
+		$html = $this->render_screen();
+
+		$this->assertStringContainsString( 'Ada Active', $html );
+		$this->assertStringNotContainsString( 'Ivo Inactive', $html );
+	}
+
 	public function test_the_no_type_notice_is_only_for_admins_who_can_fix_it(): void {
 		Types::clear();
 		Types::create( 'Individual' );

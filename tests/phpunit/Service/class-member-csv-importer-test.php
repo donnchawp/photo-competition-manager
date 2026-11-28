@@ -510,6 +510,21 @@ class Member_CSV_Importer_Test extends WP_UnitTestCase {
 		$this->assertSame( $individual, (int) $this->members_repo->find( $existing )->type_id );
 	}
 
+	/**
+	 * A row naming one type twice, as an old export with a repeated tag
+	 * could, names one type.
+	 */
+	public function test_csv_import_takes_a_type_named_twice_as_one(): void {
+		Type_Fixtures::clear();
+		Type_Fixtures::create( 'Individual' );
+		$team = Type_Fixtures::create( 'Team' );
+
+		$result = $this->importer->import( $this->csv_upload( "name,email,grade,type\nAda,ada@example.com,beginner,Team; team\n" ) );
+
+		$this->assertSame( array(), $result['errors'] );
+		$this->assertSame( $team, (int) $this->members_repo->find_by_email( 'ada@example.com' )->type_id );
+	}
+
 	public function test_csv_import_unknown_type_is_a_row_error(): void {
 		Type_Fixtures::clear();
 		Type_Fixtures::create( 'Individual' );

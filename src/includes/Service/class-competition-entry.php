@@ -211,7 +211,7 @@ class Competition_Entry {
 	 *
 	 * @param object $competition Competition row.
 	 * @param int    $member_id   Member ID.
-	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'not_in_type', 'grade_not_used', or
+	 * @return true|WP_Error 'entry_closed', 'not_selected_mode', 'missing_member', 'no_type', 'not_in_type', 'grade_not_used', or
 	 *                       'upload_link_not_sent' when they were entered but the link didn't go.
 	 */
 	public function add_entrant( object $competition, int $member_id ) {
@@ -223,6 +223,17 @@ class Competition_Entry {
 		$member = $this->members->find( $member_id );
 		if ( ! $member ) {
 			return new WP_Error( 'missing_member', __( 'Member not found.', 'photo-competition-manager' ) );
+		}
+
+		if ( null === $member->type_id ) {
+			return new WP_Error(
+				'no_type',
+				sprintf(
+					/* translators: %s: Member name */
+					__( '%s has no type. Give them one on the Members screen first.', 'photo-competition-manager' ),
+					$member->name
+				)
+			);
 		}
 
 		// A competition's entrants come from its type, which can have its own rules, such as clubs entering.

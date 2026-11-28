@@ -215,6 +215,8 @@ class Member_CSV_Importer {
 			// Resolve the type name to a type ID.
 			$type_id    = null;
 			$type_names = false !== $col_type && isset( $row[ $col_type ] ) ? array_values( array_filter( array_map( 'trim', explode( ';', $row[ $col_type ] ) ), 'strlen' ) ) : array();
+			// Types are matched ignoring case, so "Open; open" names one.
+			$type_names = array_values( array_intersect_key( $type_names, array_unique( array_map( 'strtolower', $type_names ) ) ) );
 			if ( count( $type_names ) > 1 ) {
 				$stats['errors'][] = sprintf(
 					/* translators: %d: row number */
