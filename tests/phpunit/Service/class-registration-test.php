@@ -425,6 +425,49 @@ class Registration_Test extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->entrants->member_ids( (int) $competition->id ) );
 	}
 
+	/**
+	 * A double-click on Confirm sends the link twice, and the browser shows
+	 * the second answer: it says they're entered, and nothing happens twice.
+	 */
+	public function test_confirming_twice_says_registered_both_times_and_enters_once(): void {
+		$competition = $this->competition();
+		$key         = $this->register( $competition );
+		$first       = ( new Registration() )->confirm( $key );
+		$emails      = count( $this->mails_to( 'new@example.com' ) );
+
+		$second = ( new Registration() )->confirm( $key );
+
+		$this->assertSame( 'registered', $first['status'] );
+		$this->assertSame( $first, $second );
+		$this->assertCount( 1, $this->entrants->member_ids( (int) $competition->id ) );
+		$this->assertCount( $emails, $this->mails_to( 'new@example.com' ), 'no second email' );
+	}
+
+	/**
+	 * The second click usually lands while the first is still sending its
+	 * email, before it has finished.
+	 */
+	public function test_a_second_confirm_while_the_first_is_sending_gets_the_same_answer(): void {
+		$competition = $this->competition();
+		$key         = $this->register( $competition );
+		$second      = null;
+		$click       = function ( $atts ) use ( $key, &$second ) {
+			if ( null === $second ) {
+				$second = array();
+				$second = ( new Registration() )->confirm( $key );
+			}
+			return $atts;
+		};
+		add_filter( 'wp_mail', $click );
+
+		$first = ( new Registration() )->confirm( $key );
+
+		remove_filter( 'wp_mail', $click );
+		$this->assertSame( 'registered', $first['status'] );
+		$this->assertSame( $first, $second );
+		$this->assertCount( 1, $this->entrants->member_ids( (int) $competition->id ) );
+	}
+
 	public function test_a_link_older_than_seven_days_does_nothing(): void {
 		$competition = $this->competition();
 		$key         = $this->register(

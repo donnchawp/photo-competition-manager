@@ -48,6 +48,12 @@ class Registration {
 	const ADDRESS_WAIT = 5 * MINUTE_IN_SECONDS;
 
 	/**
+	 * How long a used link still answers with its outcome, so a double-click on
+	 * Confirm isn't told the link has expired.
+	 */
+	const REPEAT_WAIT = 10 * MINUTE_IN_SECONDS;
+
+	/**
 	 * Daily cron event deleting expired registrations.
 	 */
 	const CLEANUP_HOOK = 'photo_comp_registration_cleanup';
@@ -319,9 +325,18 @@ class Registration {
 	 */
 	public function confirm( string $key ): array {
 		$registration = $this->pending( $key );
+		$used_key     = 'photo_comp_registration_used_' . hash( 'sha256', $key );
 
 		// Deleted first, so a second request with the same link finds nothing.
 		if ( ! $registration || ! $this->registrations->delete( (int) $registration->id ) ) {
+			// A double-click sends the link twice, and the second answer is
+			// the one shown: while the first is entering them, or once it has
+			// and they're still entered, it gets the same answer.
+			$used = get_transient( $used_key );
+			if ( is_array( $used ) && ( ! $used['member_id'] || $this->entrants->has( $used['competition_id'], $used['member_id'] ) ) ) {
+				return $used['outcome'];
+			}
+
 			return self::outcome( 'invalid', __( 'This link has expired or has already been used. Register again to get a new one.', 'photo-competition-manager' ) );
 		}
 
@@ -340,15 +355,41 @@ class Registration {
 			return self::outcome( 'already_entrant', sprintf( __( "You're already entered in %s, so nothing has changed.", 'photo-competition-manager' ), $title ) );
 		}
 
+		/* translators: %s: Competition title */
+		$outcome = self::outcome( 'registered', sprintf( __( "You're entered in %s. We've emailed you the details.", 'photo-competition-manager' ), $title ) );
+		$this->remember_use( $used_key, (int) $competition->id, 0, $outcome );
+
 		$member = $member ? $member : $this->create_member( $competition, $registration );
 		if ( is_wp_error( $member ) ) {
+			delete_transient( $used_key );
 			return self::outcome( 'refused', $member->get_error_message() );
 		}
 
 		$this->enter( $competition, $member, $type_ids );
+		$this->remember_use( $used_key, (int) $competition->id, (int) $member->id, $outcome );
 
-		/* translators: %s: Competition title */
-		return self::outcome( 'registered', sprintf( __( "You're entered in %s. We've emailed you the details.", 'photo-competition-manager' ), $title ) );
+		return $outcome;
+	}
+
+	/**
+	 * Keep a used link's answer for a repeat of it.
+	 *
+	 * @param string                                 $used_key    Transient name.
+	 * @param int                                    $competition Competition ID.
+	 * @param int                                    $member_id   The member entered, or 0 while they're being entered.
+	 * @param array{status: string, message: string} $outcome     The answer.
+	 * @return void
+	 */
+	private function remember_use( string $used_key, int $competition, int $member_id, array $outcome ): void {
+		set_transient(
+			$used_key,
+			array(
+				'competition_id' => $competition,
+				'member_id'      => $member_id,
+				'outcome'        => $outcome,
+			),
+			self::REPEAT_WAIT
+		);
 	}
 
 	/**
