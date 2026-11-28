@@ -101,6 +101,7 @@ class Members_Controller {
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_notices', array( $this, 'render_no_type_notice' ) );
 	}
 
 	/**
@@ -688,15 +689,6 @@ class Members_Controller {
 
 		$all_members = $this->members->all( 10000, false );
 
-		$untagged_count = 0;
-		if ( $types ) {
-			foreach ( $all_members as $member ) {
-				if ( $member->active && empty( $member->type_id ) ) {
-					++$untagged_count;
-				}
-			}
-		}
-
 		// Apply filters.
 		$members = array_filter(
 			$all_members,
@@ -760,11 +752,6 @@ class Members_Controller {
 
 		// Display members list first (unless in edit mode).
 		if ( 'edit' !== $member_action ) {
-			if ( $untagged_count ) {
-				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
-				echo $this->render_untagged_notice( $untagged_count );
-			}
-
 			// Display filter form.
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 			echo $this->render_filters( $search, $status_filter, $grade_filter, $grade_options, $type_options, $type_filter );
@@ -833,25 +820,31 @@ class Members_Controller {
 	}
 
 	/**
-	 * Render the notice about active members with no type.
+	 * Warn on every admin screen about active members with no type, since a
+	 * member must have one once the club has several.
 	 *
-	 * @param  int $count Number of active members with no type.
-	 * @return string
+	 * @since 0.6.0
+	 * @return void
 	 */
-	private function render_untagged_notice( int $count ): string {
-		return $this->render_template(
-			'admin/members/untagged-notice.php',
+	public function render_no_type_notice(): void {
+		if ( ! current_user_can( 'manage_photo_competitions' ) || ! $this->types->has_several() ) {
+			return;
+		}
+
+		$count = $this->members->count_active_without_type();
+		if ( ! $count ) {
+			return;
+		}
+
+		$notice = $this->render_template(
+			'admin/members/no-type-notice.php',
 			array(
 				'count' => $count,
-				'url'   => add_query_arg(
-					array(
-						'page' => 'photo-competition-manager-members',
-						'type' => 'none',
-					),
-					admin_url( 'admin.php' )
-				),
+				'url'   => add_query_arg( 'type', 'none', $this->members_url() ),
 			)
 		);
+
+		echo $notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted pre-escaped partial HTML.
 	}
 
 	/**

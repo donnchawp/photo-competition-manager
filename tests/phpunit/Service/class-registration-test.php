@@ -307,9 +307,9 @@ class Registration_Test extends WP_UnitTestCase {
 		$this->assertSame( array( (int) $member->id ), $this->entrants->registered_member_ids( (int) $competition->id ) );
 	}
 
-	public function test_confirming_as_a_member_enters_and_tags_them_without_changing_their_record(): void {
+	public function test_confirming_as_a_member_enters_them_without_changing_their_record(): void {
 		$competition = $this->competition();
-		$member_id   = $this->member( 'ann@example.com', null, 'beginner' );
+		$member_id   = $this->member( 'ann@example.com', 'Individual', 'beginner' );
 		$key         = $this->register( $competition, 'ann@example.com', 'intermediate' );
 
 		$result = ( new Registration() )->confirm( $key );
@@ -379,6 +379,18 @@ class Registration_Test extends WP_UnitTestCase {
 
 		$this->assert_refused( $competition, $this->register( $competition, 'ann@example.com' ), 'club' );
 		$this->assertSame( $this->types['Individual'], (int) $this->members->find_by_email( 'ann@example.com' )->type_id, 'type unchanged' );
+	}
+
+	/**
+	 * A member must have a type. Nothing says whether one with none is a
+	 * person or a club, so registering mustn't decide it.
+	 */
+	public function test_a_member_with_no_type_is_refused_and_keeps_none(): void {
+		$competition = $this->competition();
+		$member_id   = $this->member( 'ann@example.com', null );
+
+		$this->assert_refused( $competition, $this->register( $competition, 'ann@example.com' ), 'no type' );
+		$this->assertNull( $this->members->find( $member_id )->type_id );
 	}
 
 	public function test_a_club_registering_for_a_competition_between_people_is_refused(): void {

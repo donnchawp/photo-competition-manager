@@ -1277,10 +1277,33 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->create_member( array( 'email' => 'b@example.com' ) );
 		$this->create_member( array( 'email' => 'c@example.com', 'active' => 0 ) );
 
-		$html = $this->render_screen();
+		$html = $this->render_admin_notices();
 
-		$this->assertStringContainsString( '2 active members have no type, so they get no links for competitions open to all.', $html );
+		$this->assertStringContainsString( '2 active members have no type', $html );
 		$this->assertStringContainsString( 'type=none', $html );
+	}
+
+	public function test_the_no_type_notice_is_only_for_admins_who_can_fix_it(): void {
+		Types::clear();
+		Types::create( 'Individual' );
+		Types::create( 'Team' );
+		$this->create_member( array( 'email' => 'a@example.com' ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+
+		$this->assertStringNotContainsString( 'has no type', $this->render_admin_notices() );
+	}
+
+	/**
+	 * Fire admin_notices, as every admin screen does.
+	 *
+	 * @return string
+	 */
+	private function render_admin_notices(): string {
+		remove_all_actions( 'admin_notices' );
+		$this->controller->register();
+		ob_start();
+		do_action( 'admin_notices' );
+		return (string) ob_get_clean();
 	}
 
 	public function test_no_type_tools_on_a_one_type_site(): void {
@@ -1293,7 +1316,7 @@ class Members_Controller_Test extends Admin_Controller_Test_Case {
 		$this->assertStringNotContainsString( 'name="type"', $html );
 		$this->assertStringNotContainsString( 'member_type', $html );
 		$this->assertStringNotContainsString( 'bulk_set_type', $html );
-		$this->assertStringNotContainsString( 'have no type', $html );
+		$this->assertStringNotContainsString( 'have no type', $this->render_admin_notices() );
 	}
 
 	public function test_filter_by_type(): void {

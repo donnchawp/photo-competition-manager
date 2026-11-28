@@ -949,6 +949,29 @@ class Activator_Test extends WP_UnitTestCase {
 		$this->assertSame( 15, (int) get_option( 'photo_comp_db_version' ) );
 	}
 
+	/**
+	 * Without the types, a member tagged with both kinds would keep their
+	 * person type and lose the club one for good.
+	 */
+	public function test_upgrade_to_16_runs_again_if_it_cannot_read_the_types(): void {
+		global $wpdb;
+		$this->shadow_v15_members_and_types();
+		update_option( 'photo_comp_db_version', 15 );
+		$types_table = $wpdb->prefix . 'photocomp_competition_types';
+		$broken      = function ( $query ) use ( $types_table ) {
+			return str_starts_with( $query, "SELECT * FROM `{$types_table}` ORDER BY name" ) ? 'SELECT * FROM no_such_table_pcm' : $query;
+		};
+		add_filter( 'query', $broken );
+		$suppress = $wpdb->suppress_errors( true );
+
+		Activator::maybe_upgrade();
+
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $broken );
+		$this->assertSame( 15, (int) get_option( 'photo_comp_db_version' ) );
+		$this->assertNull( ( new Members_Repository() )->find( 7 )->type_id );
+	}
+
 	public function test_upgrade_to_13_keeps_a_clubs_results_public(): void {
 		delete_option( Public_Results::OPTION );
 		( new Competitions_Repository() )->create(

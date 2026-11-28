@@ -393,8 +393,8 @@ class Members_Controller_Render_Test extends Admin_Controller_Test_Case {
 	}
 
 	public function test_render_list_two_types(): void {
-		// Several types: the type filter, the Types column, the bulk type
-		// actions and the untagged-members notice appear.
+		// Several types: the type filter, the Types column and the bulk type
+		// actions appear.
 		Type_Fixtures::clear();
 		$individual = Type_Fixtures::create( 'Individual' );
 		$team       = Type_Fixtures::create( 'Team' );

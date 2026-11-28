@@ -376,6 +376,19 @@ class Members_Repository extends Abstract_Repository {
 	}
 
 	/**
+	 * Count the active members with no type.
+	 *
+	 * @since 0.6.0
+	 * @return int
+	 */
+	public function count_active_without_type(): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE type_id IS NULL AND active = 1', $this->table() ) );
+	}
+
+	/**
 	 * Fetch the active members of a type.
 	 *
 	 * @since 0.4.0

@@ -816,7 +816,7 @@ class Activator {
 	 *
 	 * @since 0.6.0
 	 *
-	 * @return bool False if the column, its key or a member's type is still missing, or the tags can't be read, so the step runs again.
+	 * @return bool False if the column, its key or a member's type is still missing, or the types or tags can't be read, so the step runs again.
 	 */
 	private static function move_types_onto_members(): bool {
 		global $wpdb;
@@ -850,6 +850,10 @@ class Activator {
 				$club_types[ (int) $type->id ] = true;
 			}
 		}
+		// Without the types, a member tagged with both kinds would lose the club one.
+		if ( '' !== $wpdb->last_error ) {
+			return false;
+		}
 
 		// Only members not moved yet, so running again moves and logs nothing twice.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -864,6 +868,7 @@ class Activator {
 			return false;
 		}
 
+		$logs      = new Logs_Repository();
 		$by_member = array();
 		foreach ( $rows as $row ) {
 			$by_member[ (int) $row->member_id ]['name']    = $row->name;
@@ -881,7 +886,7 @@ class Activator {
 
 			foreach ( array_diff( $member['types'], array( $kept ) ) as $type_id ) {
 				// The upgrade runs before translations load, so this is in English.
-				( new Logs_Repository() )->create(
+				$logs->create(
 					array(
 						'event_type'     => 'member_type_removed',
 						'event_category' => 'members',
